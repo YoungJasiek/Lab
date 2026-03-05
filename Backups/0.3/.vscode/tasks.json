@@ -1,0 +1,34 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Game",
+            "type": "shell",
+            "command": "g++",
+            "args": [
+                "-g",
+                // Source files
+                "main.cpp",
+                "LabCore.cpp",
+                "LabRenderer.cpp",
+                // Include path for headers
+                "-I.",
+                // Output executable
+                "-o",
+                "Lab.exe",
+                // Libraries to link
+                "-lfreeglut",
+                "-lopengl32",
+                "-lglu32"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Builds the complete game executable."
+        }
+    ]
+}
