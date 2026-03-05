@@ -5,6 +5,8 @@
 
 using namespace Lab;
 
+
+// Main Game Class
 class FrozenLife : public Engine {
 public:
     FrozenLife() : Engine("Frozen-Life: Lab FPS", 1280, 720), _camera(75.0f, 16.0f / 9.0f, 0.01f, 1000.0f) {
