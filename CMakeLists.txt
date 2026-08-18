@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(LabEngine VERSION 0.1.0 LANGUAGES CXX)
+project(LabEngine VERSION 0.1.0 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -12,18 +12,31 @@ else()
     set(COMPILER_FLAGS -Wall -Wextra -Wpedantic -Werror)
 endif()
 
-# Find dependencies (OpenGL + GLUT for Sprint 1)
+include(FetchContent)
+
+# Fetch GLFW
+FetchContent_Declare(
+  glfw
+  GIT_REPOSITORY https://github.com/glfw/glfw.git
+  GIT_TAG        3.4
+)
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(glfw)
+
+# Find OpenGL
 find_package(OpenGL REQUIRED)
-find_package(GLUT REQUIRED)
 
 # Include directories
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}) # for GL/freeglut.h locally if needed
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/glad/include)
 
 # Engine files
 set(ENGINE_SOURCES
     src/LabCore.cpp
     src/LabRenderer.cpp
+    src/glad/src/gl.c
 )
 
 set(ENGINE_HEADERS
@@ -38,7 +51,8 @@ set(ENGINE_HEADERS
 add_library(LabEngineLib STATIC ${ENGINE_SOURCES} ${ENGINE_HEADERS})
 target_compile_options(LabEngineLib PRIVATE ${COMPILER_FLAGS})
 target_include_directories(LabEngineLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(LabEngineLib PUBLIC ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+target_include_directories(LabEngineLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/glad/include)
+target_link_libraries(LabEngineLib PUBLIC glfw OpenGL::GL)
 
 # Game executable
 add_executable(Lab src/main.cpp)

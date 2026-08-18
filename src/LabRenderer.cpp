@@ -1,5 +1,6 @@
 #include "LabRenderer.h"
-#include <GL/freeglut.h>
+#include <glad/gl.h>
+#include <GLFW/glfw3.h>
 #include <fstream>
 #include <iostream>
 #include <algorithm>
@@ -89,7 +90,7 @@ namespace Lab {
     Texture::Texture(const std::string& path) : _id(0), _width(0), _height(0), _channels(0) {
         unsigned char* data = nullptr;
         std::string ext = path.substr(path.find_last_of(".") + 1);
-        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+        std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return (char)::tolower(c); });
 
         if (ext == "tga") {
             data = loadTGA(path.c_str(), &_width, &_height, &_channels);
@@ -269,11 +270,7 @@ namespace Lab {
     }
 
     void Renderer::drawCube(const Vec3& position, const Vec3& size, const Vec3& color) {
-        glPushMatrix();
-        applyTransform(position, { 0, 0, 0 }, size);
-        glColor3f(color.x, color.y, color.z);
-        glutSolidCube(1.0f);
-        glPopMatrix();
+        drawCube(position, {0, 0, 0}, size, color, nullptr);
     }
 
     void Renderer::drawCube(const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color, const Texture* texture) {

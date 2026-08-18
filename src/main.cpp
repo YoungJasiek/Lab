@@ -1,5 +1,6 @@
 #include "Lab.h"
-#include <GL/freeglut.h>
+#include <glad/gl.h>
+#include <GLFW/glfw3.h>
 #include <iostream>
 #include <algorithm>
 
@@ -39,9 +40,9 @@ public:
             for (int x = 0; x < 32; x++) {
                 int noise = (rand() % 40) - 20;
                 int idx = (y * 32 + x) * 3;
-                iceData[idx] = 200 + noise;     // Light blue/white
-                iceData[idx + 1] = 220 + noise;
-                iceData[idx + 2] = 255 + noise;
+                iceData[idx] = static_cast<unsigned char>(200 + noise);
+                iceData[idx + 1] = static_cast<unsigned char>(220 + noise);
+                iceData[idx + 2] = static_cast<unsigned char>(std::min(255, 255 + noise));
             }
         }
         _baseplateTexture = new Texture(iceData, 32, 32, 3);

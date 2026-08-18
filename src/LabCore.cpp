@@ -1,18 +1,18 @@
 #include "LabCore.h"
-#include <GL/freeglut.h>
+#include <glad/gl.h>
+#include <GLFW/glfw3.h>
 #include <iostream>
 
 namespace Lab {
 
     Engine* Engine::_instance = nullptr;
-    bool Input::keys[256] = { false };
-    bool Input::specialKeys[256] = { false };
-    bool Input::mouseButtons[3] = { false };
+    bool Input::keys[512] = { false };
+    bool Input::mouseButtons[8] = { false };
     Vec2 Input::mousePos = { 0, 0 };
     Vec2 Input::mouseDelta = { 0, 0 };
 
     Engine::Engine(const std::string& title, int width, int height)
-        : _title(title), _width(width), _height(height), _running(false), _lastFrameTime(0) {
+        : _title(title), _width(width), _height(height), _running(false), _lastFrameTime(0.0), _firstMouse(true), _lastMousePos({0,0}) {
         if (_instance) {
             std::cerr << "Engine instance already exists!" << std::endl;
             return;
@@ -22,107 +22,120 @@ namespace Lab {
     }
 
     void Engine::run() {
-        int argc = 0;
-        char** argv = nullptr;
-        glutInit(&argc, argv);
-        glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
-        glutInitWindowSize(_width, _height);
-        glutCreateWindow(_title.c_str());
+        if (!glfwInit()) {
+            std::cerr << "Failed to initialize GLFW" << std::endl;
+            return;
+        }
+
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
+
+        _window = glfwCreateWindow(_width, _height, _title.c_str(), nullptr, nullptr);
+        if (!_window) {
+            std::cerr << "Failed to create GLFW window" << std::endl;
+            glfwTerminate();
+            return;
+        }
+
+        glfwMakeContextCurrent(_window);
+        glfwSetWindowUserPointer(_window, this);
+
+        // Load glad
+        if (!gladLoadGL(glfwGetProcAddress)) {
+            std::cerr << "Failed to initialize GLAD" << std::endl;
+            return;
+        }
 
         // Callbacks
-        glutDisplayFunc(_displayFunc);
-        glutIdleFunc(_idleFunc);
-        glutKeyboardFunc(_keyboardFunc);
-        glutKeyboardUpFunc(_keyboardUpFunc);
-        glutSpecialFunc(_specialFunc);
-        glutSpecialUpFunc(_specialUpFunc);
-        glutMouseFunc(_mouseFunc);
-        glutPassiveMotionFunc(_passiveMotionFunc);
-        glutReshapeFunc(_reshapeFunc);
+        glfwSetKeyCallback(_window, _keyCallback);
+        glfwSetMouseButtonCallback(_window, _mouseButtonCallback);
+        glfwSetCursorPosCallback(_window, _cursorPosCallback);
+        glfwSetFramebufferSizeCallback(_window, _framebufferSizeCallback);
+
+        // Capture mouse
+        glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
 
-        Input::mousePos = { (float)_width / 2.0f, (float)_height / 2.0f };
-        glutWarpPointer((int)Input::mousePos.x, (int)Input::mousePos.y);
-
         onInit();
 
         _running = true;
-        _lastFrameTime = glutGet(GLUT_ELAPSED_TIME);
+        _lastFrameTime = glfwGetTime();
         
-        glutMainLoop();
+        while (!glfwWindowShouldClose(_window) && _running) {
+            double currentTime = glfwGetTime();
+            _time.delta = (float)(currentTime - _lastFrameTime);
+            _time.total += _time.delta;
+            _lastFrameTime = currentTime;
+
+            onUpdate(_time);
+            
+            // Render
+            onRender();
+
+            glfwSwapBuffers(_window);
+            
+            // Reset delta before poll events
+            Input::mouseDelta = { 0, 0 };
+            glfwPollEvents();
+        }
+
+        onShutdown();
+        glfwTerminate();
     }
 
     void Engine::stop() {
         _running = false;
-        onShutdown();
-        exit(0);
+        if (_window) glfwSetWindowShouldClose(_window, true);
     }
 
-    void Engine::_displayFunc() {
-        if (_instance) _instance->onRender();
-        glutSwapBuffers();
-    }
-
-    void Engine::_idleFunc() {
-        if (!_instance) return;
-
-        int currentTime = glutGet(GLUT_ELAPSED_TIME);
-        _instance->_time.delta = (currentTime - _instance->_lastFrameTime) / 1000.0f;
-        _instance->_time.total += _instance->_time.delta;
-        _instance->_lastFrameTime = currentTime;
-
-        _instance->onUpdate(_instance->_time);
+    void Engine::_keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+        (void)window; (void)scancode; (void)mods;
+        if (key >= 0 && key < 512) {
+            if (action == GLFW_PRESS) Input::keys[key] = true;
+            else if (action == GLFW_RELEASE) Input::keys[key] = false;
+        }
         
-        // Reset mouse delta after each frame update
-        Input::mouseDelta = { 0, 0 };
-
-        glutPostRedisplay();
-    }
-
-    void Engine::_keyboardFunc(unsigned char key, int x, int y) {
-        Input::keys[key] = true;
-        if (key == 27) _instance->stop(); // ESC to exit
-    }
-
-    void Engine::_keyboardUpFunc(unsigned char key, int x, int y) {
-        Input::keys[key] = false;
-    }
-
-    void Engine::_specialFunc(int key, int x, int y) {
-        if (key >= 0 && key < 256) Input::specialKeys[key] = true;
-    }
-
-    void Engine::_specialUpFunc(int key, int x, int y) {
-        if (key >= 0 && key < 256) Input::specialKeys[key] = false;
-    }
-
-    void Engine::_mouseFunc(int button, int state, int x, int y) {
-        if (button >= 0 && button < 3) {
-            Input::mouseButtons[button] = (state == GLUT_DOWN);
+        if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
+            if (_instance) _instance->stop();
         }
     }
 
-    void Engine::_passiveMotionFunc(int x, int y) {
-        Input::mouseDelta.x += (float)x - Input::mousePos.x;
-        Input::mouseDelta.y += (float)y - Input::mousePos.y;
-        Input::mousePos = { (float)x, (float)y };
-
-        // Center mouse for FPS camera
-        int centerX = glutGet(GLUT_WINDOW_WIDTH) / 2;
-        int centerY = glutGet(GLUT_WINDOW_HEIGHT) / 2;
-        if (x != centerX || y != centerY) {
-            glutWarpPointer(centerX, centerY);
-            Input::mousePos = { (float)centerX, (float)centerY };
+    void Engine::_mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
+        (void)window; (void)mods;
+        if (button >= 0 && button < 8) {
+            if (action == GLFW_PRESS) Input::mouseButtons[button] = true;
+            else if (action == GLFW_RELEASE) Input::mouseButtons[button] = false;
         }
     }
 
-    void Engine::_reshapeFunc(int w, int h) {
+    void Engine::_cursorPosCallback(GLFWwindow* window, double xpos, double ypos) {
+        (void)window;
         if (_instance) {
-            _instance->_width = w;
-            _instance->_height = h;
-            glViewport(0, 0, w, h);
+            if (_instance->_firstMouse) {
+                _instance->_lastMousePos.x = (float)xpos;
+                _instance->_lastMousePos.y = (float)ypos;
+                _instance->_firstMouse = false;
+            }
+
+            Input::mouseDelta.x = (float)xpos - _instance->_lastMousePos.x;
+            Input::mouseDelta.y = (float)ypos - _instance->_lastMousePos.y;
+            _instance->_lastMousePos.x = (float)xpos;
+            _instance->_lastMousePos.y = (float)ypos;
+
+            Input::mousePos.x = (float)xpos;
+            Input::mousePos.y = (float)ypos;
+        }
+    }
+
+    void Engine::_framebufferSizeCallback(GLFWwindow* window, int width, int height) {
+        (void)window;
+        if (_instance) {
+            _instance->_width = width;
+            _instance->_height = height;
+            glViewport(0, 0, width, height);
         }
     }
 }
