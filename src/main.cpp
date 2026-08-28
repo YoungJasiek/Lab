@@ -195,7 +195,7 @@ public:
             // Draw a small red cube at the base as a marker
             Renderer::drawCube({ 0, 0.5f, -5 }, { 0.2f, 1.0f, 0.2f }, { 1.0f, 0, 0 });
             // Position: X=0, Y=1.0 (above floor), Z=-5
-            Renderer::drawMesh(*_stlModel, { 0, 1.0f, -5 }, { 0, 0, 0 }, { 1, 1, 1 });
+            Renderer::drawMesh(*_stlModel, { 0, 1.0f, -5 }, { 0, 0, 0 }, { 1, 1, 1 }, { 0.8f, 0.8f, 0.8f }, _testTexture.get());
         }
 
         // Draw the Test Quad (further away)

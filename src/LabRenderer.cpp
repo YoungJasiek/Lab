@@ -422,14 +422,24 @@ namespace Lab {
 
     Mesh* Mesh::loadSTL(const std::string& path) {
         std::ifstream file(path, std::ios::binary);
-        if (!file.is_open()) return nullptr;
+        if (!file.is_open()) {
+            std::cerr << "ERROR: Could not open STL file: " << path << std::endl;
+            return nullptr;
+        }
 
         file.seekg(80);
-        unsigned int triangleCount;
+        unsigned int triangleCount = 0;
         file.read((char*)&triangleCount, 4);
+
+        if (triangleCount == 0 || triangleCount > 5000000) {
+            std::cerr << "WARNING: Invalid triangle count in STL: " << triangleCount << std::endl;
+            return nullptr;
+        }
 
         std::vector<Vertex> vertices;
         std::vector<unsigned int> indices;
+        vertices.reserve(triangleCount * 3);
+        indices.reserve(triangleCount * 3);
 
         for (unsigned int i = 0; i < triangleCount; i++) {
             float n[3], v[3][3];
@@ -438,10 +448,19 @@ namespace Lab {
             for(int j=0; j<3; j++) file.read((char*)v[j], 12);
             file.read((char*)&attr, 2);
 
+            Vec3 normal(n[0], n[1], n[2]);
+            // If STL file normals are zero/invalid, calculate facet normal
+            if (normal.lengthSq() < 0.0001f) {
+                Vec3 p0(v[0][0], v[0][1], v[0][2]);
+                Vec3 p1(v[1][0], v[1][1], v[1][2]);
+                Vec3 p2(v[2][0], v[2][1], v[2][2]);
+                normal = Vec3::cross(p1 - p0, p2 - p0).normalized();
+            }
+
             for (int j = 0; j < 3; j++) {
                 Vec3 pos(v[j][0], v[j][1], v[j][2]);
                 float uvScale = 0.1f;
-                vertices.push_back(Vertex(pos, Vec3(n[0], n[1], n[2]), Vec2(pos.x * uvScale, pos.z * uvScale)));
+                vertices.push_back(Vertex(pos, normal, Vec2(pos.x * uvScale, pos.z * uvScale), Vec3(1.0f, 1.0f, 1.0f)));
                 indices.push_back(i * 3 + j);
             }
         }
@@ -483,17 +502,17 @@ namespace Lab {
         float s = 0.5f;
         std::vector<Vertex> cubeVerts = {
             // Front
-            { {-s, -s,  s}, {0,0,1}, {0,0} }, { { s, -s,  s}, {0,0,1}, {1,0} }, { { s,  s,  s}, {0,0,1}, {1,1} }, { {-s,  s,  s}, {0,0,1}, {0,1} },
+            { {-s, -s,  s}, {0,0,1}, {0,0}, {1,1,1} }, { { s, -s,  s}, {0,0,1}, {1,0}, {1,1,1} }, { { s,  s,  s}, {0,0,1}, {1,1}, {1,1,1} }, { {-s,  s,  s}, {0,0,1}, {0,1}, {1,1,1} },
             // Back
-            { { s, -s, -s}, {0,0,-1}, {0,0} }, { {-s, -s, -s}, {0,0,-1}, {1,0} }, { {-s,  s, -s}, {0,0,-1}, {1,1} }, { { s,  s, -s}, {0,0,-1}, {0,1} },
+            { { s, -s, -s}, {0,0,-1}, {0,0}, {1,1,1} }, { {-s, -s, -s}, {0,0,-1}, {1,0}, {1,1,1} }, { {-s,  s, -s}, {0,0,-1}, {1,1}, {1,1,1} }, { { s,  s, -s}, {0,0,-1}, {0,1}, {1,1,1} },
             // Top
-            { {-s,  s,  s}, {0,1,0}, {0,0} }, { { s,  s,  s}, {0,1,0}, {1,0} }, { { s,  s, -s}, {0,1,0}, {1,1} }, { {-s,  s, -s}, {0,1,0}, {0,1} },
+            { {-s,  s,  s}, {0,1,0}, {0,0}, {1,1,1} }, { { s,  s,  s}, {0,1,0}, {1,0}, {1,1,1} }, { { s,  s, -s}, {0,1,0}, {1,1}, {1,1,1} }, { {-s,  s, -s}, {0,1,0}, {0,1}, {1,1,1} },
             // Bottom
-            { {-s, -s, -s}, {0,-1,0}, {0,0} }, { { s, -s, -s}, {0,-1,0}, {1,0} }, { { s, -s,  s}, {0,-1,0}, {1,1} }, { {-s, -s,  s}, {0,-1,0}, {0,1} },
+            { {-s, -s, -s}, {0,-1,0}, {0,0}, {1,1,1} }, { { s, -s, -s}, {0,-1,0}, {1,0}, {1,1,1} }, { { s, -s,  s}, {0,-1,0}, {1,1}, {1,1,1} }, { {-s, -s,  s}, {0,-1,0}, {0,1}, {1,1,1} },
             // Right
-            { { s, -s,  s}, {1,0,0}, {0,0} }, { { s, -s, -s}, {1,0,0}, {1,0} }, { { s,  s, -s}, {1,0,0}, {1,1} }, { { s,  s,  s}, {1,0,0}, {0,1} },
+            { { s, -s,  s}, {1,0,0}, {0,0}, {1,1,1} }, { { s, -s, -s}, {1,0,0}, {1,0}, {1,1,1} }, { { s,  s, -s}, {1,0,0}, {1,1}, {1,1,1} }, { { s,  s,  s}, {1,0,0}, {0,1}, {1,1,1} },
             // Left
-            { {-s, -s, -s}, {-1,0,0}, {0,0} }, { {-s, -s,  s}, {-1,0,0}, {1,0} }, { {-s,  s,  s}, {-1,0,0}, {1,1} }, { {-s,  s, -s}, {-1,0,0}, {0,1} }
+            { {-s, -s, -s}, {-1,0,0}, {0,0}, {1,1,1} }, { {-s, -s,  s}, {-1,0,0}, {1,0}, {1,1,1} }, { {-s,  s,  s}, {-1,0,0}, {1,1}, {1,1,1} }, { {-s,  s, -s}, {-1,0,0}, {0,1}, {1,1,1} }
         };
         std::vector<unsigned int> cubeInds;
         for(int i=0; i<6; i++) {
@@ -583,18 +602,25 @@ namespace Lab {
         _cubeMesh->draw();
     }
 
-    void Renderer::drawMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale, bool enableLighting) {
+    void Renderer::drawMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color, const Texture* texture, bool enableLighting) {
         _defaultShader->use();
         _defaultShader->setMat4("projection", _projMatrix);
         _defaultShader->setMat4("view", _viewMatrix);
         _defaultShader->setMat4("model", getTransform(position, rotation, scale));
-        _defaultShader->setVec3("objectColor", {1.0f, 1.0f, 1.0f});
-        _defaultShader->setInt("useTexture", 0);
+        _defaultShader->setVec3("objectColor", color);
         _defaultShader->setInt("enableLighting", enableLighting ? 1 : 0);
         _defaultShader->setVec3("viewPos", _cameraPos);
         _defaultShader->setVec3("lightDir", _lightDir);
         _defaultShader->setVec3("lightColor", _lightColor);
         _defaultShader->setVec3("ambientColor", _ambientColor);
+
+        if (texture) {
+            _defaultShader->setInt("useTexture", 1);
+            _defaultShader->setInt("texture1", 0);
+            texture->bind(0);
+        } else {
+            _defaultShader->setInt("useTexture", 0);
+        }
         
         mesh.draw();
     }

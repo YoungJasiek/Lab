@@ -88,7 +88,7 @@ namespace Lab {
         // 3D Rendering
         static void drawCube(const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color, const Texture* texture = nullptr, bool enableLighting = true);
         static void drawCube(const Vec3& position, const Vec3& size, const Vec3& color, bool enableLighting = true);
-        static void drawMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale, bool enableLighting = true);
+        static void drawMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true);
         static void drawBaseplate(float size, const Texture* texture = nullptr);
 
         // 2D/UI Rendering
