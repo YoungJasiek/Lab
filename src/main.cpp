@@ -50,13 +50,6 @@ public:
         // Player height and position
         _camera.setPosition({ 0.0f, 1.8f, 0.0f });
 
-        // Fog for atmosphere
-        glEnable(GL_FOG);
-        GLfloat fogColor[4] = { 0.8f, 0.9f, 1.0f, 1.0f };
-        glFogfv(GL_FOG_COLOR, fogColor);
-        glFogf(GL_FOG_DENSITY, 0.03f);
-        glFogi(GL_FOG_MODE, GL_EXP2);
-
         std::cout << "Controls: WASD + SPACE to Move/Jump, LMB to Shoot, ESC to Exit" << std::endl;
     }
 
@@ -129,9 +122,7 @@ public:
     }
 
     void drawWeapon() {
-        // ViewModel space
-        glPushMatrix();
-        glLoadIdentity();
+        Renderer::beginViewModel();
         
         // Sway & Bobbing
         float swayX = Input::mouseDelta.x * -0.001f;
@@ -139,20 +130,20 @@ public:
         float bobX = std::cos(_bobTime * 0.5f) * 0.02f;
         float bobY = std::abs(std::sin(_bobTime)) * 0.02f;
 
-        glTranslatef(0.4f + swayX + bobX, -0.4f + swayY - bobY, -0.6f);
-        glRotatef(-5.0f, 0, 1, 0); // Slight angle
+        Vec3 gunBasePos = { 0.4f + swayX + bobX, -0.4f + swayY - bobY, -0.6f };
+        Vec3 gunRot = { 0.0f, -5.0f, 0.0f };
 
         // Gun barrel
-        Renderer::drawCube({ 0, 0, 0 }, { 0.1f, 0.15f, 0.5f }, { 0.15f, 0.15f, 0.18f });
+        Renderer::drawCube(gunBasePos, gunRot, { 0.1f, 0.15f, 0.5f }, { 0.15f, 0.15f, 0.18f });
         // Gun handle
-        Renderer::drawCube({ 0, -0.1f, 0.1f }, { 0.08f, 0.25f, 0.1f }, { 0.1f, 0.1f, 0.1f });
+        Renderer::drawCube(gunBasePos + Vec3(0, -0.1f, 0.1f), gunRot, { 0.08f, 0.25f, 0.1f }, { 0.1f, 0.1f, 0.1f });
 
         // Muzzle Flash
         if (_muzzleFlashTime > 0.0f) {
-            Renderer::drawCube({ 0, 0, -0.3f }, { 0.2f, 0.2f, 0.2f }, { 1.0f, 0.8f, 0.2f });
+            Renderer::drawCube(gunBasePos + Vec3(0, 0, -0.3f), gunRot, { 0.2f, 0.2f, 0.2f }, { 1.0f, 0.8f, 0.2f });
         }
 
-        glPopMatrix();
+        Renderer::endViewModel(_camera);
     }
 
     void drawUI() {
@@ -175,33 +166,17 @@ public:
         // Draw Environment
         Renderer::drawBaseplate(250.0f, _baseplateTexture);
 
-
-
         // Render the STL Model directly in front
         if (_stlModel) {
             // Draw a small red cube at the base as a marker
             Renderer::drawCube({ 0, 0.5f, -5 }, { 0.2f, 1.0f, 0.2f }, { 1.0f, 0, 0 });
-
-            if (_testTexture) _testTexture->bind();
-            else glColor3f(0.8f, 0.8f, 0.8f);
-
             // Position: X=0, Y=1.0 (above floor), Z=-5
             Renderer::drawMesh(*_stlModel, { 0, 1.0f, -5 }, { 0, 0, 0 }, { 1, 1, 1 });
-            
-            if (_testTexture) _testTexture->unbind();
         }
 
         // Draw the Test Quad (further away)
         if (_testTexture) {
-            _testTexture->bind();
-            glColor3f(1.0f, 1.0f, 1.0f); 
-            glBegin(GL_QUADS);
-            glTexCoord2f(0, 0); glVertex3f(-2, 2, -15);
-            glTexCoord2f(1, 0); glVertex3f( 2, 2, -15);
-            glTexCoord2f(1, 1); glVertex3f( 2, 6, -15);
-            glTexCoord2f(0, 1); glVertex3f(-2, 6, -15);
-            glEnd();
-            _testTexture->unbind();
+            Renderer::drawCube({ 0, 4.0f, -15.0f }, { 0, 0, 0 }, { 4.0f, 4.0f, 0.1f }, { 1.0f, 1.0f, 1.0f }, _testTexture);
         }
 
         // Draw some "frozen" crystals/structures
@@ -219,6 +194,7 @@ public:
     }
 
     void onShutdown() override {
+        Renderer::shutdown();
         delete _baseplateTexture;
         delete _skybox;
         delete _testTexture;

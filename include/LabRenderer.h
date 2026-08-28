@@ -16,13 +16,29 @@ namespace Lab {
             : position(p), normal(n), texCoords(t), color(c) {}
     };
 
+    class Shader {
+    public:
+        Shader(const char* vertexSource, const char* fragmentSource);
+        ~Shader();
+
+        void use() const;
+        void setMat4(const std::string& name, const Mat4& mat) const;
+        void setVec3(const std::string& name, const Vec3& vec) const;
+        void setInt(const std::string& name, int value) const;
+        void setFloat(const std::string& name, float value) const;
+
+    private:
+        unsigned int _id;
+        void checkCompileErrors(unsigned int shader, std::string type);
+    };
+
     class Texture {
     public:
         Texture(const std::string& path);
         Texture(const unsigned char* data, int width, int height, int channels);
         ~Texture();
 
-        void bind() const;
+        void bind(unsigned int slot = 0) const;
         void unbind() const;
 
     private:
@@ -32,15 +48,15 @@ namespace Lab {
 
     class Mesh {
     public:
-        Mesh(const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices)
-            : _vertices(vertices), _indices(indices) {}
+        Mesh(const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices);
+        ~Mesh();
 
         static Mesh* loadSTL(const std::string& path);
         void draw() const;
 
     private:
-        std::vector<Vertex> _vertices;
-        std::vector<unsigned int> _indices;
+        unsigned int _vao, _vbo, _ebo;
+        int _indexCount;
     };
 
     class Skybox {
@@ -48,22 +64,27 @@ namespace Lab {
         Skybox(const std::vector<std::string>& faces);
         ~Skybox();
 
-        void draw(const Camera& camera) const;
+        void draw(const Camera& camera, const Mat4& projection) const;
 
     private:
         unsigned int _id;
         unsigned int _vao, _vbo;
+        Shader* _shader;
     };
 
     class Renderer {
     public:
         static void init();
+        static void shutdown();
         static void beginFrame(const Camera& camera);
         static void endFrame();
+        
+        static void beginViewModel();
+        static void endViewModel(const Camera& camera);
 
         // 3D Rendering
-        static void drawCube(const Vec3& position, const Vec3& size, const Vec3& color);
         static void drawCube(const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color, const Texture* texture = nullptr);
+        static void drawCube(const Vec3& position, const Vec3& size, const Vec3& color);
         static void drawMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale);
         static void drawBaseplate(float size, const Texture* texture = nullptr);
 
@@ -73,6 +94,16 @@ namespace Lab {
         static void drawRect(float x, float y, float w, float h, const Vec3& color);
 
     private:
-        static void applyTransform(const Vec3& pos, const Vec3& rot, const Vec3& scale);
+        static Mat4 getTransform(const Vec3& pos, const Vec3& rot, const Vec3& scale);
+        
+        static Shader* _defaultShader;
+        static Shader* _uiShader;
+        static Mesh* _cubeMesh;
+        static Mesh* _quadMesh; // For baseplate
+        static unsigned int _uiVao, _uiVbo;
+        
+        static Mat4 _viewMatrix;
+        static Mat4 _projMatrix;
+        static Mat4 _uiProjMatrix;
     };
 }

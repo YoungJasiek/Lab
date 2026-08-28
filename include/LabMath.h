@@ -91,6 +91,14 @@ namespace Lab {
             res.m[10] = t * a.z * a.z + c;
             return res;
         }
+
+        static Mat4 scale(const Vec3& s) {
+            Mat4 res;
+            res.m[0] = s.x;
+            res.m[5] = s.y;
+            res.m[10] = s.z;
+            return res;
+        }
         
         static Mat4 lookAt(const Vec3& eye, const Vec3& center, const Vec3& up) {
             Vec3 f = (center - eye).normalized();
@@ -104,6 +112,20 @@ namespace Lab {
             res.m[12] = -Vec3::dot(s, eye);
             res.m[13] = -Vec3::dot(u, eye);
             res.m[14] = Vec3::dot(f, eye);
+            return res;
+        }
+
+        Mat4 operator*(const Mat4& right) const {
+            Mat4 res;
+            for (int r = 0; r < 4; ++r) {
+                for (int c = 0; c < 4; ++c) {
+                    float sum = 0.0f;
+                    for (int i = 0; i < 4; ++i) {
+                        sum += m[i * 4 + r] * right.m[c * 4 + i];
+                    }
+                    res.m[c * 4 + r] = sum;
+                }
+            }
             return res;
         }
     };
