@@ -12,13 +12,13 @@ namespace Lab {
     Vec2 Input::mouseDelta = { 0, 0 };
 
     Engine::Engine(const std::string& title, int width, int height)
-        : _title(title), _width(width), _height(height), _running(false), _lastFrameTime(0.0), _firstMouse(true), _lastMousePos({0,0}) {
+        : _title(title), _width(width), _height(height), _running(false), _lastFrameTime(0.0), _physicsAccumulator(0.0f), _firstMouse(true), _lastMousePos({0,0}) {
         if (_instance) {
             std::cerr << "Engine instance already exists!" << std::endl;
             return;
         }
         _instance = this;
-        _time = { 0, 0, 1.0f / 60.0f };
+        _time = { 0, 0, 1.0f / 64.0f };
     }
 
     void Engine::run() {
@@ -63,13 +63,25 @@ namespace Lab {
 
         _running = true;
         _lastFrameTime = glfwGetTime();
+        const float fixedDelta = 1.0f / 64.0f; // 64-tick physics rate
         
         while (!glfwWindowShouldClose(_window) && _running) {
             double currentTime = glfwGetTime();
-            _time.delta = (float)(currentTime - _lastFrameTime);
-            _time.total += _time.delta;
+            float frameTime = (float)(currentTime - _lastFrameTime);
+            if (frameTime > 0.25f) frameTime = 0.25f; // Clamp to avoid spiral of death
             _lastFrameTime = currentTime;
 
+            _time.delta = frameTime;
+            _time.total += frameTime;
+            _physicsAccumulator += frameTime;
+
+            // Fixed timestep physics update
+            while (_physicsAccumulator >= fixedDelta) {
+                onFixedUpdate(fixedDelta);
+                _physicsAccumulator -= fixedDelta;
+            }
+
+            // Variable framerate update
             onUpdate(_time);
             
             // Render

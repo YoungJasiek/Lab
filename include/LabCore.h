@@ -34,6 +34,7 @@ namespace Lab {
 
         virtual void onInit() {}
         virtual void onUpdate(const Time& /*time*/) {}
+        virtual void onFixedUpdate(float /*fixedDelta*/) {}
         virtual void onRender() {}
         virtual void onShutdown() {}
 
@@ -53,6 +54,7 @@ namespace Lab {
         bool _running;
         Time _time;
         double _lastFrameTime;
+        float _physicsAccumulator;
         bool _firstMouse;
         Vec2 _lastMousePos;
     };

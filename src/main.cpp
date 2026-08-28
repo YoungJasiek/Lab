@@ -3,36 +3,43 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 #include <algorithm>
+#include <memory>
+#include <vector>
 
 using namespace Lab;
 
+struct CrystalEntity {
+    Vec3 position;
+    Vec3 size;
+    Vec3 color;
+};
 
 // Main Game Class
 class FrozenLife : public Engine {
 public:
-    FrozenLife() : Engine("Frozen-Life: Lab FPS", 1280, 720), _camera(75.0f, 16.0f / 9.0f, 0.01f, 1000.0f) {
-        _skybox = nullptr;
-        _baseplateTexture = nullptr;
-        _testTexture = nullptr;
-        
-        // Player stats
-        _velocity = { 0, 0, 0 };
-        _isGrounded = false;
-        _isJumping = false;
-        _bobTime = 0.0f;
-        _muzzleFlashTime = 0.0f;
+    FrozenLife()
+        : Engine("Frozen-Life: Lab FPS", 1280, 720),
+          _camera(75.0f, 16.0f / 9.0f, 0.01f, 1000.0f),
+          _velocity{ 0, 0, 0 },
+          _isGrounded(false),
+          _isJumping(false),
+          _bobTime(0.0f),
+          _muzzleFlashTime(0.0f) {
     }
 
     void onInit() override {
-        std::cout << "Frozen-Life System Init..." << std::endl;
+        std::cout << "Frozen-Life System Init (Modern C++20 / Data-Oriented)..." << std::endl;
         Renderer::init();
 
         // Load Test.bmp texture
-        _testTexture = new Texture("Test.bmp");
+        _testTexture = std::make_unique<Texture>("Test.bmp");
 
         // Load an STL model if it exists
-        _stlModel = Mesh::loadSTL("Model.stl");
-        if (_stlModel) std::cout << "Loaded Model.stl successfully!" << std::endl;
+        Mesh* rawMesh = Mesh::loadSTL("Model.stl");
+        if (rawMesh) {
+            _stlModel.reset(rawMesh);
+            std::cout << "Loaded Model.stl successfully!" << std::endl;
+        }
 
         // Create icy baseplate texture
         unsigned char iceData[32 * 32 * 3];
@@ -45,7 +52,7 @@ public:
                 iceData[idx + 2] = static_cast<unsigned char>(std::min(255, 255 + noise));
             }
         }
-        _baseplateTexture = new Texture(iceData, 32, 32, 3);
+        _baseplateTexture = std::make_unique<Texture>(iceData, 32, 32, 3);
 
         // Player height and position
         _camera.setPosition({ 0.0f, 1.8f, 0.0f });
@@ -57,10 +64,23 @@ public:
             { 0.2f, 0.25f, 0.35f }      // Frost Blue Ambient
         );
 
+        // Pre-populate crystals (Data-Oriented approach)
+        _crystals.reserve(10);
+        for (int i = 0; i < 10; ++i) {
+            float angle = i * (3.14159f * 2.0f / 10.0f);
+            float dist = 20.0f + (i % 3) * 5.0f;
+            _crystals.push_back({
+                { std::cos(angle) * dist, 5.0f, std::sin(angle) * dist },
+                { 2.0f, 10.0f, 2.0f },
+                { 0.7f, 0.85f, 1.0f }
+            });
+        }
+
         std::cout << "Controls: WASD + SPACE to Move/Jump, LMB to Shoot, ESC to Exit" << std::endl;
     }
 
-    void handleMovement(const Time& time) {
+    void onFixedUpdate(float fixedDelta) override {
+        // Physics tick rate (64 ticks per second)
         float speed = (Input::isKeyPressed(' ') && !_isJumping) ? 8.0f : 4.5f;
         Vec3 inputDir = { 0, 0, 0 };
 
@@ -81,7 +101,7 @@ public:
             inputDir = inputDir.normalized();
             _velocity.x = inputDir.x * speed;
             _velocity.z = inputDir.z * speed;
-            _bobTime += time.delta * (speed * 2.0f);
+            _bobTime += fixedDelta * (speed * 2.0f);
         } else {
             // Friction/Deceleration
             _velocity.x *= 0.85f;
@@ -95,11 +115,11 @@ public:
         }
 
         // Gravity
-        _velocity.y -= 12.0f * time.delta;
+        _velocity.y -= 12.0f * fixedDelta;
 
         // Apply movement
         Vec3 pos = _camera.getPosition();
-        pos += _velocity * time.delta;
+        pos += _velocity * fixedDelta;
 
         // Simple ground collision
         if (pos.y < 1.8f) {
@@ -109,23 +129,20 @@ public:
         }
 
         _camera.setPosition(pos);
-        _camera.update(Input::mouseDelta);
     }
 
-    void handleCombat(const Time& time) {
+    void onUpdate(const Time& time) override {
+        // Camera orientation update
+        _camera.update(Input::mouseDelta);
+
+        // Combat cooldown
         if (Input::isMouseButtonPressed(0) && _muzzleFlashTime <= 0.0f) {
             _muzzleFlashTime = 0.1f;
-            // Add recoil effect?
         }
 
         if (_muzzleFlashTime > 0.0f) {
             _muzzleFlashTime -= time.delta;
         }
-    }
-
-    void onUpdate(const Time& time) override {
-            handleMovement(time);
-            handleCombat(time);
     }
 
     void drawWeapon() {
@@ -154,7 +171,7 @@ public:
     }
 
     void drawUI() {
-        int w = 1280, h = 720; // Default or get from engine
+        int w = 1280, h = 720;
         Renderer::beginUI(w, h);
 
         // Simple crosshair
@@ -171,7 +188,7 @@ public:
         Renderer::beginFrame(_camera);
 
         // Draw Environment
-        Renderer::drawBaseplate(250.0f, _baseplateTexture);
+        Renderer::drawBaseplate(250.0f, _baseplateTexture.get());
 
         // Render the STL Model directly in front
         if (_stlModel) {
@@ -183,14 +200,12 @@ public:
 
         // Draw the Test Quad (further away)
         if (_testTexture) {
-            Renderer::drawCube({ 0, 4.0f, -15.0f }, { 0, 0, 0 }, { 4.0f, 4.0f, 0.1f }, { 1.0f, 1.0f, 1.0f }, _testTexture);
+            Renderer::drawCube({ 0, 4.0f, -15.0f }, { 0, 0, 0 }, { 4.0f, 4.0f, 0.1f }, { 1.0f, 1.0f, 1.0f }, _testTexture.get());
         }
 
-        // Draw some "frozen" crystals/structures
-        for(int i = 0; i < 10; ++i) {
-            float angle = i * (3.14f * 2.0f / 10.0f);
-            float dist = 20.0f + (i % 3) * 5.0f;
-            Renderer::drawCube({std::cos(angle)*dist, 5.0f, std::sin(angle)*dist}, {2, 10, 2}, {0.7f, 0.85f, 1.0f});
+        // Draw "frozen" crystal structures
+        for (const auto& crystal : _crystals) {
+            Renderer::drawCube(crystal.position, crystal.size, crystal.color);
         }
 
         // Weapons and UI
@@ -202,19 +217,15 @@ public:
 
     void onShutdown() override {
         Renderer::shutdown();
-        delete _baseplateTexture;
-        delete _skybox;
-        delete _testTexture;
-        delete _stlModel;
     }
 
 private:
     Camera _camera;
-    Skybox* _skybox;
-    Texture* _baseplateTexture;
-    Texture* _testTexture;
-    Mesh* _stlModel;
-
+    std::unique_ptr<Skybox> _skybox;
+    std::unique_ptr<Texture> _baseplateTexture;
+    std::unique_ptr<Texture> _testTexture;
+    std::unique_ptr<Mesh> _stlModel;
+    std::vector<CrystalEntity> _crystals;
 
     // Movement state
     Vec3 _velocity;
