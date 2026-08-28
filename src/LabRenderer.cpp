@@ -14,6 +14,8 @@ namespace Lab {
         layout (location = 2) in vec2 aTexCoords;
         layout (location = 3) in vec3 aColor;
 
+        out vec3 FragPos;
+        out vec3 Normal;
         out vec2 TexCoords;
         out vec3 Color;
 
@@ -22,9 +24,13 @@ namespace Lab {
         uniform mat4 projection;
 
         void main() {
+            FragPos = vec3(model * vec4(aPos, 1.0));
+            // Inverse transpose for accurate non-uniform scaling normals
+            mat3 normalMatrix = transpose(inverse(mat3(model)));
+            Normal = normalize(normalMatrix * aNormal);
             TexCoords = aTexCoords;
             Color = aColor;
-            gl_Position = projection * view * model * vec4(aPos, 1.0);
+            gl_Position = projection * view * vec4(FragPos, 1.0);
         }
     )";
 
@@ -32,16 +38,46 @@ namespace Lab {
         #version 450 core
         out vec4 FragColor;
 
+        in vec3 FragPos;
+        in vec3 Normal;
         in vec2 TexCoords;
         in vec3 Color;
 
         uniform sampler2D texture1;
         uniform bool useTexture;
         uniform vec3 objectColor;
+        uniform bool enableLighting;
+        uniform vec3 viewPos;
+        uniform vec3 lightDir;
+        uniform vec3 lightColor;
+        uniform vec3 ambientColor;
 
         void main() {
-            vec4 baseColor = useTexture ? texture(texture1, TexCoords) : vec4(1.0);
-            FragColor = baseColor * vec4(Color * objectColor, 1.0);
+            vec4 texSample = useTexture ? texture(texture1, TexCoords) : vec4(1.0);
+            vec3 albedo = texSample.rgb * Color * objectColor;
+
+            if (!enableLighting) {
+                FragColor = vec4(albedo, 1.0);
+                return;
+            }
+
+            // Ambient (Half-Life 2 style cool ambient)
+            vec3 ambient = ambientColor * albedo;
+
+            // Diffuse
+            vec3 norm = normalize(Normal);
+            vec3 lDir = normalize(-lightDir);
+            float diff = max(dot(norm, lDir), 0.0);
+            vec3 diffuse = diff * lightColor * albedo;
+
+            // Specular (Blinn-Phong)
+            vec3 viewDir = normalize(viewPos - FragPos);
+            vec3 halfwayDir = normalize(lDir + viewDir);
+            float spec = pow(max(dot(norm, halfwayDir), 0.0), 32.0);
+            vec3 specular = lightColor * spec * 0.3;
+
+            vec3 result = ambient + diffuse + specular;
+            FragColor = vec4(result, 1.0);
         }
     )";
 
@@ -428,10 +464,14 @@ namespace Lab {
     Mat4 Renderer::_viewMatrix;
     Mat4 Renderer::_projMatrix;
     Mat4 Renderer::_uiProjMatrix;
+    Vec3 Renderer::_cameraPos = { 0, 0, 0 };
+    Vec3 Renderer::_lightDir = { -0.3f, -1.0f, -0.5f };
+    Vec3 Renderer::_lightColor = { 1.0f, 0.95f, 0.9f };
+    Vec3 Renderer::_ambientColor = { 0.25f, 0.28f, 0.35f };
 
     // --- Renderer Implementation ---
     void Renderer::init() {
-        glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
+        glClearColor(0.08f, 0.1f, 0.14f, 1.0f);
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
@@ -480,11 +520,18 @@ namespace Lab {
         glDeleteBuffers(1, &_uiVbo);
     }
 
+    void Renderer::setSunLight(const Vec3& direction, const Vec3& color, const Vec3& ambient) {
+        _lightDir = direction;
+        _lightColor = color;
+        _ambientColor = ambient;
+    }
+
     void Renderer::beginFrame(const Camera& camera) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         _projMatrix = camera.getProjectionMatrix();
         _viewMatrix = camera.getViewMatrix();
+        _cameraPos = camera.getPosition();
     }
 
     void Renderer::endFrame() { }
@@ -509,16 +556,21 @@ namespace Lab {
         return t * rz * ry * rx * s;
     }
 
-    void Renderer::drawCube(const Vec3& position, const Vec3& size, const Vec3& color) {
-        drawCube(position, {0, 0, 0}, size, color, nullptr);
+    void Renderer::drawCube(const Vec3& position, const Vec3& size, const Vec3& color, bool enableLighting) {
+        drawCube(position, {0, 0, 0}, size, color, nullptr, enableLighting);
     }
 
-    void Renderer::drawCube(const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color, const Texture* texture) {
+    void Renderer::drawCube(const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color, const Texture* texture, bool enableLighting) {
         _defaultShader->use();
         _defaultShader->setMat4("projection", _projMatrix);
         _defaultShader->setMat4("view", _viewMatrix);
         _defaultShader->setMat4("model", getTransform(position, rotation, scale));
         _defaultShader->setVec3("objectColor", color);
+        _defaultShader->setInt("enableLighting", enableLighting ? 1 : 0);
+        _defaultShader->setVec3("viewPos", _cameraPos);
+        _defaultShader->setVec3("lightDir", _lightDir);
+        _defaultShader->setVec3("lightColor", _lightColor);
+        _defaultShader->setVec3("ambientColor", _ambientColor);
 
         if (texture) {
             _defaultShader->setInt("useTexture", 1);
@@ -531,13 +583,18 @@ namespace Lab {
         _cubeMesh->draw();
     }
 
-    void Renderer::drawMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale) {
+    void Renderer::drawMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale, bool enableLighting) {
         _defaultShader->use();
         _defaultShader->setMat4("projection", _projMatrix);
         _defaultShader->setMat4("view", _viewMatrix);
         _defaultShader->setMat4("model", getTransform(position, rotation, scale));
         _defaultShader->setVec3("objectColor", {1.0f, 1.0f, 1.0f});
         _defaultShader->setInt("useTexture", 0);
+        _defaultShader->setInt("enableLighting", enableLighting ? 1 : 0);
+        _defaultShader->setVec3("viewPos", _cameraPos);
+        _defaultShader->setVec3("lightDir", _lightDir);
+        _defaultShader->setVec3("lightColor", _lightColor);
+        _defaultShader->setVec3("ambientColor", _ambientColor);
         
         mesh.draw();
     }

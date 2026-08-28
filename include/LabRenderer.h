@@ -82,10 +82,13 @@ namespace Lab {
         static void beginViewModel();
         static void endViewModel(const Camera& camera);
 
+        // Lighting configuration
+        static void setSunLight(const Vec3& direction, const Vec3& color, const Vec3& ambient);
+
         // 3D Rendering
-        static void drawCube(const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color, const Texture* texture = nullptr);
-        static void drawCube(const Vec3& position, const Vec3& size, const Vec3& color);
-        static void drawMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale);
+        static void drawCube(const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color, const Texture* texture = nullptr, bool enableLighting = true);
+        static void drawCube(const Vec3& position, const Vec3& size, const Vec3& color, bool enableLighting = true);
+        static void drawMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale, bool enableLighting = true);
         static void drawBaseplate(float size, const Texture* texture = nullptr);
 
         // 2D/UI Rendering
@@ -105,5 +108,9 @@ namespace Lab {
         static Mat4 _viewMatrix;
         static Mat4 _projMatrix;
         static Mat4 _uiProjMatrix;
+        static Vec3 _cameraPos;
+        static Vec3 _lightDir;
+        static Vec3 _lightColor;
+        static Vec3 _ambientColor;
     };
 }

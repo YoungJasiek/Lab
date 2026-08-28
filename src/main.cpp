@@ -50,6 +50,13 @@ public:
         // Player height and position
         _camera.setPosition({ 0.0f, 1.8f, 0.0f });
 
+        // Set atmospheric lighting (Cold Frost / Half-Life 2 style)
+        Renderer::setSunLight(
+            { -0.4f, -0.8f, -0.4f },     // Sun Direction
+            { 0.9f, 0.95f, 1.0f },      // Cool White Sun
+            { 0.2f, 0.25f, 0.35f }      // Frost Blue Ambient
+        );
+
         std::cout << "Controls: WASD + SPACE to Move/Jump, LMB to Shoot, ESC to Exit" << std::endl;
     }
 
@@ -140,7 +147,7 @@ public:
 
         // Muzzle Flash
         if (_muzzleFlashTime > 0.0f) {
-            Renderer::drawCube(gunBasePos + Vec3(0, 0, -0.3f), gunRot, { 0.2f, 0.2f, 0.2f }, { 1.0f, 0.8f, 0.2f });
+            Renderer::drawCube(gunBasePos + Vec3(0, 0, -0.3f), gunRot, { 0.2f, 0.2f, 0.2f }, { 1.0f, 0.8f, 0.2f }, nullptr, false);
         }
 
         Renderer::endViewModel(_camera);
