@@ -1,4 +1,4 @@
-﻿#include "LabMap.h"
+#include "LabMap.h"
 #include "LabCore.h"
 #include <fstream>
 #include <sstream>
@@ -9,6 +9,11 @@ namespace Lab {
 
     static std::string resolveMapPath(const std::string& path) {
         if (std::filesystem::exists(path)) return path;
+        std::string fname = std::filesystem::path(path).filename().string();
+        if (std::filesystem::exists(fname)) return fname;
+        if (std::filesystem::exists("assets/maps/" + fname)) return "assets/maps/" + fname;
+        if (std::filesystem::exists("../assets/maps/" + fname)) return "../assets/maps/" + fname;
+        if (std::filesystem::exists("../../assets/maps/" + fname)) return "../../assets/maps/" + fname;
         if (std::filesystem::exists("assets/maps/" + path)) return "assets/maps/" + path;
         if (std::filesystem::exists("../assets/maps/" + path)) return "../assets/maps/" + path;
         if (std::filesystem::exists("../../assets/maps/" + path)) return "../../assets/maps/" + path;

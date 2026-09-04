@@ -51,6 +51,8 @@ namespace Lab {
 
         static Engine* get() { return _instance; }
         GLFWwindow* getWindow() const { return _window; }
+        int getWidth() const { return _width; }
+        int getHeight() const { return _height; }
 
     private:
         static Engine* _instance;

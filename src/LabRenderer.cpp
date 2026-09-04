@@ -45,19 +45,19 @@ namespace Lab {
         in vec3 Color;
 
         uniform sampler2D texture1;
-        uniform bool useTexture;
+        uniform int useTexture;
         uniform vec3 objectColor;
-        uniform bool enableLighting;
+        uniform int enableLighting;
         uniform vec3 viewPos;
         uniform vec3 lightDir;
         uniform vec3 lightColor;
         uniform vec3 ambientColor;
 
         void main() {
-            vec4 texSample = useTexture ? texture(texture1, TexCoords) : vec4(1.0);
+            vec4 texSample = (useTexture == 1) ? texture(texture1, TexCoords) : vec4(1.0);
             vec3 albedo = texSample.rgb * Color * objectColor;
 
-            if (!enableLighting) {
+            if (enableLighting == 0) {
                 FragColor = vec4(albedo, 1.0);
                 return;
             }
@@ -177,9 +177,52 @@ namespace Lab {
         }
     }
 
-    // --- Texture Loaders --- (Simplified to use standard file io for brevity)
+    // --- Texture Loaders ---
+    static std::string resolveAssetPath(const std::string& path) {
+        if (std::filesystem::exists(path)) return path;
+        std::string fname = std::filesystem::path(path).filename().string();
+        std::vector<std::string> candidates = {
+            fname,
+            "assets/textures/" + fname,
+            "assets/models/" + fname,
+            "assets/maps/" + fname,
+            "assets/" + fname,
+            "../assets/textures/" + fname,
+            "../assets/models/" + fname,
+            "../assets/maps/" + fname,
+            "../assets/" + fname,
+            "../../assets/textures/" + fname,
+            "../../assets/models/" + fname,
+            "../../assets/maps/" + fname,
+            "../../assets/" + fname,
+            "assets/textures/" + path,
+            "assets/models/" + path,
+            "assets/" + path,
+            "../" + path,
+            "../assets/textures/" + path,
+            "../assets/models/" + path,
+            "../assets/" + path,
+            "../../" + path,
+            "../../assets/textures/" + path,
+            "../../assets/models/" + path,
+            "../../assets/" + path,
+            "build/Release/" + path,
+            "build/Debug/" + path,
+            "Release/" + path,
+            "Debug/" + path
+        };
+
+        for (const auto& candidate : candidates) {
+            if (std::filesystem::exists(candidate)) {
+                return candidate;
+            }
+        }
+        return path;
+    }
+
     unsigned char* loadTGA(const char* filename, int* width, int* height, int* bpp) {
-        std::ifstream file(filename, std::ios::binary);
+        std::string resolved = resolveAssetPath(filename);
+        std::ifstream file(resolved, std::ios::binary);
         if (!file.is_open()) return nullptr;
 
         unsigned char header[18];
@@ -188,6 +231,8 @@ namespace Lab {
         *width = header[12] + (header[13] << 8);
         *height = header[14] + (header[15] << 8);
         *bpp = header[16];
+
+        if (*width <= 0 || *height <= 0 || (*bpp != 24 && *bpp != 32)) return nullptr;
 
         int size = (*width) * (*height) * ((*bpp) / 8);
         unsigned char* data = new unsigned char[size];
@@ -201,47 +246,33 @@ namespace Lab {
         return data;
     }
 
-    static std::string resolveAssetPath(const std::string& path) {
-        std::vector<std::string> candidates = {
-            path,
-            "assets/textures/" + path,
-            "assets/models/" + path,
-            "assets/" + path,
-            "../" + path,
-            "../assets/textures/" + path,
-            "../assets/models/" + path,
-            "../assets/" + path,
-            "../../" + path,
-            "../../assets/textures/" + path,
-            "../../assets/models/" + path,
-            "../../assets/" + path,
-            "build/Debug/" + path,
-            "Debug/" + path
-        };
-
-        for (const auto& candidate : candidates) {
-            if (std::filesystem::exists(candidate)) {
-                return candidate;
-            }
-        }
-        return path;
-    }
-
     unsigned char* loadBMP(const char* filename, int* width, int* height, int* bpp) {
         std::string resolved = resolveAssetPath(filename);
         std::ifstream file(resolved, std::ios::binary);
-        if (!file.is_open()) return nullptr;
+        if (!file.is_open()) {
+            std::cerr << "[BMP] Could not open file: " << filename << " (resolved: " << resolved << ")\n";
+            return nullptr;
+        }
 
         unsigned char header[54];
         file.read((char*)header, 54);
 
-        if (header[0] != 'B' || header[1] != 'M') return nullptr;
+        if (header[0] != 'B' || header[1] != 'M') {
+            std::cerr << "[BMP] Invalid BM header: " << filename << "\n";
+            return nullptr;
+        }
 
         *width = *(int*)&header[18];
         *height = *(int*)&header[22];
         *bpp = *(short*)&header[28];
 
+        if (*width <= 0 || *height == 0 || (*bpp != 24 && *bpp != 32)) {
+            std::cerr << "[BMP] Unsupported dimensions/bpp: " << *width << "x" << *height << " @" << *bpp << "bpp\n";
+            return nullptr;
+        }
+
         int dataOffset = *(int*)&header[10];
+        if (dataOffset < 54) dataOffset = 54;
         int rowSize = ((*width * *bpp + 31) / 32) * 4;
         int size = rowSize * std::abs(*height);
         unsigned char* data = new unsigned char[size];
@@ -268,7 +299,7 @@ namespace Lab {
         return rgbData;
     }
 
-    // --- Texture Implementation (DSA OpenGL 4.5) ---
+    // --- Texture Implementation ---
     Texture::Texture(const std::string& path) : _id(0), _width(0), _height(0), _channels(0) {
         unsigned char* data = nullptr;
         std::string ext = path.substr(path.find_last_of(".") + 1);
@@ -276,27 +307,30 @@ namespace Lab {
 
         if (ext == "tga") {
             data = loadTGA(path.c_str(), &_width, &_height, &_channels);
+            _channels /= 8;
         } else if (ext == "bmp") {
             data = loadBMP(path.c_str(), &_width, &_height, &_channels);
             _channels /= 8;
         }
 
         if (data) {
-            glCreateTextures(GL_TEXTURE_2D, 1, &_id);
-            GLenum format = (_channels == 4) ? GL_RGBA8 : GL_RGB8;
+            glGenTextures(1, &_id);
+            glBindTexture(GL_TEXTURE_2D, _id);
+            GLenum internalFormat = (_channels == 4) ? GL_RGBA8 : GL_RGB8;
             GLenum dataFormat = (_channels == 4) ? GL_RGBA : GL_RGB;
-            
-            glTextureStorage2D(_id, 1, format, _width, _height);
-            glTextureSubImage2D(_id, 0, 0, 0, _width, _height, dataFormat, GL_UNSIGNED_BYTE, data);
-            
-            glTextureParameteri(_id, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTextureParameteri(_id, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTextureParameteri(_id, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            glTextureParameteri(_id, GL_TEXTURE_WRAP_T, GL_REPEAT);
-            
+
+            glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, _width, _height, 0, dataFormat, GL_UNSIGNED_BYTE, data);
+            glGenerateMipmap(GL_TEXTURE_2D);
+
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+            glBindTexture(GL_TEXTURE_2D, 0);
             delete[] data;
         } else {
-            std::cerr << "Failed to load texture: " << path << std::endl;
+            std::cerr << "[Texture] Failed to load texture: " << path << std::endl;
         }
     }
 
@@ -315,51 +349,53 @@ namespace Lab {
     }
 
     Texture::~Texture() {
-        glDeleteTextures(1, &_id);
+        if (_id) glDeleteTextures(1, &_id);
     }
 
     void Texture::bind(unsigned int slot) const {
-        glBindTextureUnit(slot, _id);
         glActiveTexture(GL_TEXTURE0 + slot);
         glBindTexture(GL_TEXTURE_2D, _id);
     }
 
     void Texture::unbind() const {
-        glBindTextureUnit(0, 0);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
-    // --- Mesh Implementation (VAO/VBO/DSA) ---
+    // --- Mesh Implementation ---
     Mesh::Mesh(const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices) {
         _indexCount = (int)indices.size();
 
-        glCreateVertexArrays(1, &_vao);
-        glCreateBuffers(1, &_vbo);
-        glCreateBuffers(1, &_ebo);
+        glGenVertexArrays(1, &_vao);
+        glGenBuffers(1, &_vbo);
+        glGenBuffers(1, &_ebo);
 
-        glNamedBufferStorage(_vbo, vertices.size() * sizeof(Vertex), vertices.data(), 0);
-        glNamedBufferStorage(_ebo, indices.size() * sizeof(unsigned int), indices.data(), 0);
+        glBindVertexArray(_vao);
 
-        glVertexArrayVertexBuffer(_vao, 0, _vbo, 0, sizeof(Vertex));
-        glVertexArrayElementBuffer(_vao, _ebo);
+        glBindBuffer(GL_ARRAY_BUFFER, _vbo);
+        glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), vertices.data(), GL_STATIC_DRAW);
 
-        // Position
-        glEnableVertexArrayAttrib(_vao, 0);
-        glVertexArrayAttribFormat(_vao, 0, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, position));
-        glVertexArrayAttribBinding(_vao, 0, 0);
-        // Normal
-        glEnableVertexArrayAttrib(_vao, 1);
-        glVertexArrayAttribFormat(_vao, 1, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, normal));
-        glVertexArrayAttribBinding(_vao, 1, 0);
-        // TexCoords
-        glEnableVertexArrayAttrib(_vao, 2);
-        glVertexArrayAttribFormat(_vao, 2, 2, GL_FLOAT, GL_FALSE, offsetof(Vertex, texCoords));
-        glVertexArrayAttribBinding(_vao, 2, 0);
-        // Color
-        glEnableVertexArrayAttrib(_vao, 3);
-        glVertexArrayAttribFormat(_vao, 3, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, color));
-        glVertexArrayAttribBinding(_vao, 3, 0);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _ebo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
+
+        // Position (location = 0)
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, position));
+
+        // Normal (location = 1)
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, normal));
+
+        // TexCoords (location = 2)
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, texCoords));
+
+        // Color (location = 3)
+        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, color));
+
+        glBindVertexArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
 
     Mesh::~Mesh() {
@@ -624,6 +660,10 @@ namespace Lab {
         return t * rz * ry * rx * s;
     }
 
+    void Renderer::drawCube(const Vec3& position, const Vec3& size, const Vec3& color, const Texture* texture, bool enableLighting) {
+        drawCube(position, {0, 0, 0}, size, color, texture, enableLighting);
+    }
+
     void Renderer::drawCube(const Vec3& position, const Vec3& size, const Vec3& color, bool enableLighting) {
         drawCube(position, {0, 0, 0}, size, color, nullptr, enableLighting);
     }
@@ -640,7 +680,7 @@ namespace Lab {
         _defaultShader->setVec3("lightColor", _lightColor);
         _defaultShader->setVec3("ambientColor", _ambientColor);
 
-        if (texture) {
+        if (texture && texture->getId() != 0) {
             _defaultShader->setInt("useTexture", 1);
             _defaultShader->setInt("texture1", 0);
             texture->bind(0);
@@ -649,6 +689,10 @@ namespace Lab {
         }
 
         _cubeMesh->draw();
+
+        if (texture && texture->getId() != 0) {
+            texture->unbind();
+        }
     }
 
     void Renderer::drawMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color, const Texture* texture, bool enableLighting) {
@@ -663,7 +707,7 @@ namespace Lab {
         _defaultShader->setVec3("lightColor", _lightColor);
         _defaultShader->setVec3("ambientColor", _ambientColor);
 
-        if (texture) {
+        if (texture && texture->getId() != 0) {
             _defaultShader->setInt("useTexture", 1);
             _defaultShader->setInt("texture1", 0);
             texture->bind(0);
@@ -674,6 +718,10 @@ namespace Lab {
         glDisable(GL_CULL_FACE);
         mesh.draw();
         glEnable(GL_CULL_FACE);
+
+        if (texture && texture->getId() != 0) {
+            texture->unbind();
+        }
     }
 
     void Renderer::drawBaseplate(float size, const Texture* texture) {

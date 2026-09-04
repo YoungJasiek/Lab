@@ -1,6 +1,7 @@
 #pragma once
 #include <glad/gl.h>
 #include <string>
+#include <filesystem>
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
@@ -28,7 +29,21 @@ namespace Lab {
             ofn.lpstrFilter = filter;
             ofn.lpstrFile = filename;
             ofn.nMaxFile = MAX_PATH;
-            ofn.lpstrInitialDir = defaultDir;
+
+            std::string initialDirStr = "";
+            if (defaultDir && strlen(defaultDir) > 0) {
+                if (std::filesystem::exists(defaultDir)) {
+                    initialDirStr = std::filesystem::absolute(defaultDir).string();
+                } else if (std::filesystem::exists("../" + std::string(defaultDir))) {
+                    initialDirStr = std::filesystem::absolute("../" + std::string(defaultDir)).string();
+                } else if (std::filesystem::exists("../../" + std::string(defaultDir))) {
+                    initialDirStr = std::filesystem::absolute("../../" + std::string(defaultDir)).string();
+                }
+            }
+            if (!initialDirStr.empty()) {
+                ofn.lpstrInitialDir = initialDirStr.c_str();
+            }
+
             ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
 
             if (GetOpenFileNameA(&ofn)) {
@@ -49,7 +64,21 @@ namespace Lab {
             ofn.lpstrFilter = filter;
             ofn.lpstrFile = filename;
             ofn.nMaxFile = MAX_PATH;
-            ofn.lpstrInitialDir = defaultDir;
+
+            std::string initialDirStr = "";
+            if (defaultDir && strlen(defaultDir) > 0) {
+                if (std::filesystem::exists(defaultDir)) {
+                    initialDirStr = std::filesystem::absolute(defaultDir).string();
+                } else if (std::filesystem::exists("../" + std::string(defaultDir))) {
+                    initialDirStr = std::filesystem::absolute("../" + std::string(defaultDir)).string();
+                } else if (std::filesystem::exists("../../" + std::string(defaultDir))) {
+                    initialDirStr = std::filesystem::absolute("../../" + std::string(defaultDir)).string();
+                }
+            }
+            if (!initialDirStr.empty()) {
+                ofn.lpstrInitialDir = initialDirStr.c_str();
+            }
+
             ofn.lpstrDefExt = "labmap";
             ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR;
 

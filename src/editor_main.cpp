@@ -88,6 +88,19 @@ public:
         _selectedTexture = _availableTextures[0].filename;
     }
 
+    Texture* getTexture(const std::string& path) {
+        if (path.empty()) return nullptr;
+        auto it = _textures.find(path);
+        if (it != _textures.end()) return it->second.get();
+        auto tex = std::make_unique<Texture>(path);
+        if (tex && tex->getId() != 0) {
+            Texture* ptr = tex.get();
+            _textures[path] = std::move(tex);
+            return ptr;
+        }
+        return nullptr;
+    }
+
     void logMessage(const std::string& msg) {
         _consoleMessages.push_back(msg);
         if (_consoleMessages.size() > 8) {
@@ -430,7 +443,7 @@ public:
 
         if (_map) {
             for (const auto& b : _map->brushes) {
-                Texture* tex = b.texturePath.empty() ? nullptr : _textures[b.texturePath].get();
+                Texture* tex = b.texturePath.empty() ? nullptr : getTexture(b.texturePath);
                 Renderer::drawCube(b.position, b.size, b.color, tex);
             }
             for (const auto& d : _map->doors) {

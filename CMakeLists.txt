@@ -68,6 +68,11 @@ add_executable(LabHammer src/editor_main.cpp)
 target_compile_options(LabHammer PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabHammer PRIVATE LabEngineLib)
 
+# Verification executable
+add_executable(TestVerify src/test_verify.cpp)
+target_compile_options(TestVerify PRIVATE ${COMPILER_FLAGS})
+target_link_libraries(TestVerify PRIVATE LabEngineLib)
+
 # Windows system libraries
 if(WIN32)
     target_link_libraries(LabEngineLib PUBLIC gdi32 comdlg32)

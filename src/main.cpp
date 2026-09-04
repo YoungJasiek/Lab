@@ -29,20 +29,36 @@ public:
         // Discover available maps in assets/maps/
         scanMapFiles();
 
-        // Preload Core Industrial Texture
-        _textures["concrete_wall.bmp"] = std::make_unique<Texture>("concrete_wall.bmp");
+        // Preload Core Textures
+        std::vector<std::string> coreTextures = {
+            "concrete_wall.bmp", "floor_tiles.bmp", "cryo_ice.bmp",
+            "hazard_stripes.bmp", "metal_hull.bmp", "snow_frost.bmp",
+            "floor_lab.bmp", "wall_concrete.bmp", "brick_wall.bmp"
+        };
+        for (const auto& texName : coreTextures) {
+            getTexture(texName);
+        }
 
         // Load glTF 2.0 animation from Blender
         SkeletalAnimation::loadGLTFAnimation("assets/animations/bot_walk.gltf", _botAnim);
         _patrolBot.position = Vec3(0.0f, 0.0f, -6.0f);
 
-        // Load primary default map immediately so gameplay begins instantly
-        if (!_availableMaps.empty()) {
-            loadSelectedMap(_availableMaps[0]);
-        } else {
-            _inMenu = true;
-            glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        // Start in Map Selection Menu so the player can choose a mission
+        _inMenu = true;
+        glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    }
+
+    Texture* getTexture(const std::string& path) {
+        if (path.empty()) return nullptr;
+        auto it = _textures.find(path);
+        if (it != _textures.end()) return it->second.get();
+        auto tex = std::make_unique<Texture>(path);
+        if (tex && tex->getId() != 0) {
+            Texture* ptr = tex.get();
+            _textures[path] = std::move(tex);
+            return ptr;
         }
+        return nullptr;
     }
 
     void scanMapFiles() {
@@ -59,16 +75,18 @@ public:
             }
         }
         if (_availableMaps.empty()) {
-            _availableMaps.push_back("facility_alpha.labmap");
-            _availableMaps.push_back("cryo_outpost.labmap");
+            _availableMaps.push_back("assets/maps/facility_alpha.labmap");
+            _availableMaps.push_back("assets/maps/cryo_outpost.labmap");
         }
     }
 
     void loadSelectedMap(const std::string& mapPath) {
         LabLog::info("Loading Map: " + mapPath);
-        _currentMap = LabMap::loadFromFile(mapPath);
+        auto loaded = LabMap::loadFromFile(mapPath);
 
-        if (_currentMap) {
+        if (loaded) {
+            _currentMap = std::move(loaded);
+
             // Apply map atmospheric parameters
             Renderer::setSunLight(
                 _currentMap->metadata.sunDir,
@@ -78,6 +96,7 @@ public:
 
             // Set player spawn
             _camera.setPosition(_currentMap->spawn.position);
+            _velocity = { 0, 0, 0 };
 
             // Preload props and meshes
             for (const auto& prop : _currentMap->props) {
@@ -85,22 +104,39 @@ public:
                     Mesh* m = Mesh::loadSTL(prop.modelPath);
                     if (m) _meshes[prop.modelPath] = std::unique_ptr<Mesh>(m);
                 }
-                if (!prop.texturePath.empty() && !_textures.contains(prop.texturePath)) {
-                    _textures[prop.texturePath] = std::make_unique<Texture>(prop.texturePath);
+                if (!prop.texturePath.empty()) {
+                    getTexture(prop.texturePath);
                 }
             }
 
             // Preload brush textures
             for (const auto& brush : _currentMap->brushes) {
-                if (!brush.texturePath.empty() && !_textures.contains(brush.texturePath)) {
-                    _textures[brush.texturePath] = std::make_unique<Texture>(brush.texturePath);
+                if (!brush.texturePath.empty()) {
+                    getTexture(brush.texturePath);
                 }
             }
-        }
 
-        // Switch to gameplay mode and lock cursor
-        _inMenu = false;
-        glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            // Ensure map is registered in list and selected
+            bool found = false;
+            for (int i = 0; i < (int)_availableMaps.size(); ++i) {
+                if (_availableMaps[i] == mapPath) {
+                    _selectedMapIndex = i;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                _availableMaps.push_back(mapPath);
+                _selectedMapIndex = (int)_availableMaps.size() - 1;
+            }
+
+            // Switch to gameplay mode and lock cursor
+            _inMenu = false;
+            glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            LabLog::info("Map successfully loaded and entered: " + mapPath);
+        } else {
+            LabLog::error("Failed to load map: " + mapPath);
+        }
     }
 
     void onFixedUpdate(float fixedDelta) override {
@@ -187,6 +223,11 @@ public:
 
     void onUpdate(const Time& time) override {
         if (_inMenu) {
+            float scaleX = 1280.0f / (float)std::max(1, getWidth());
+            float scaleY = 720.0f / (float)std::max(1, getHeight());
+            float mx = Input::mousePos.x * scaleX;
+            float my = Input::mousePos.y * scaleY;
+
             // Check for key navigation in map menu
             if (Input::isKeyPressed(GLFW_KEY_UP)) {
                 if (!_upPressedLast) {
@@ -212,6 +253,19 @@ public:
                 }
             }
 
+            // ESC key: Resume mission if a map is already loaded
+            if (Input::isKeyPressed(GLFW_KEY_ESCAPE)) {
+                if (!_escPressedLast) {
+                    if (_currentMap) {
+                        _inMenu = false;
+                        glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+                    }
+                    _escPressedLast = true;
+                }
+            } else {
+                _escPressedLast = false;
+            }
+
             // O key: Open native Windows File Dialog
             if (Input::isKeyPressed('O') || Input::isKeyPressed('o')) {
                 if (!_oPressedLast) {
@@ -225,30 +279,36 @@ public:
                 _oPressedLast = false;
             }
 
-            // Mouse click on Open from disk button or list items
+            // Mouse click on Launch, Open from disk, Resume, or list items
             if (Input::isMouseButtonPressed(0)) {
                 if (!_menuLmbLast) {
-                    float mx = Input::mousePos.x;
-                    float my = Input::mousePos.y;
-
-                    // Click on Open From Disk button (x: 420..710, y: 560..608)
-                    if (mx >= 420.0f && mx <= 710.0f && my >= 560.0f && my <= 608.0f) {
+                    // Click on Launch Map button (x: 140..390, y: 560..608)
+                    if (mx >= 140.0f && mx <= 390.0f && my >= 560.0f && my <= 608.0f) {
+                        if (!_availableMaps.empty() && _selectedMapIndex < (int)_availableMaps.size()) {
+                            loadSelectedMap(_availableMaps[_selectedMapIndex]);
+                        }
+                    }
+                    // Click on Open From Disk button (x: 410..690, y: 560..608)
+                    else if (mx >= 410.0f && mx <= 690.0f && my >= 560.0f && my <= 608.0f) {
                         std::string picked = LabDialogs::openFileDialog(getWindow(), "Lab Map Files (*.labmap)\0*.labmap\0All Files (*.*)\0*.*\0", "assets\\maps");
                         if (!picked.empty()) {
                             loadSelectedMap(picked);
                         }
                     }
-                    // Click on Launch Map button (x: 140..400, y: 560..608)
-                    else if (mx >= 140.0f && mx <= 400.0f && my >= 560.0f && my <= 608.0f) {
-                        if (!_availableMaps.empty() && _selectedMapIndex < (int)_availableMaps.size()) {
-                            loadSelectedMap(_availableMaps[_selectedMapIndex]);
-                        }
+                    // Click on Resume Mission button (x: 710..970, y: 560..608)
+                    else if (_currentMap && mx >= 710.0f && mx <= 970.0f && my >= 560.0f && my <= 608.0f) {
+                        _inMenu = false;
+                        glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
                     }
                     // Click on map list items
                     else if (mx >= 140.0f && mx <= 940.0f && my >= 130.0f) {
                         int clickedIdx = (int)((my - 130.0f) / 55.0f);
                         if (clickedIdx >= 0 && clickedIdx < (int)_availableMaps.size()) {
-                            _selectedMapIndex = clickedIdx;
+                            if (_selectedMapIndex == clickedIdx) {
+                                loadSelectedMap(_availableMaps[clickedIdx]);
+                            } else {
+                                _selectedMapIndex = clickedIdx;
+                            }
                         }
                     }
                     _menuLmbLast = true;
@@ -262,8 +322,8 @@ public:
         // Gameplay camera orientation update
         _camera.update(Input::mouseDelta);
 
-        // Return to map menu with M key
-        if (Input::isKeyPressed(GLFW_KEY_M)) {
+        // Return to map menu with M or ESC key
+        if (Input::isKeyPressed(GLFW_KEY_M) || Input::isKeyPressed(GLFW_KEY_ESCAPE)) {
             _inMenu = true;
             glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
             return;
@@ -448,14 +508,24 @@ public:
         }
 
         // Action Button 1: Launch Map [ENTER]
-        Renderer::drawRect(140.0f, 560.0f, 260.0f, 48.0f, Vec3(0.18f, 0.65f, 0.45f));
-        Renderer::drawRect(142.0f, 562.0f, 256.0f, 44.0f, Vec3(0.22f, 0.75f, 0.52f));
-        LabFont::drawText(165.0f, 576.0f, "LAUNCH MAP [ENTER]", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
+        Renderer::drawRect(140.0f, 560.0f, 250.0f, 48.0f, Vec3(0.18f, 0.65f, 0.45f));
+        Renderer::drawRect(142.0f, 562.0f, 246.0f, 44.0f, Vec3(0.22f, 0.75f, 0.52f));
+        LabFont::drawText(160.0f, 576.0f, "LAUNCH MAP [ENTER]", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
 
         // Action Button 2: Browse File... [O key / Click] (Native Windows Open Dialog)
-        Renderer::drawRect(420.0f, 560.0f, 290.0f, 48.0f, Vec3(0.22f, 0.45f, 0.75f));
-        Renderer::drawRect(422.0f, 562.0f, 286.0f, 44.0f, Vec3(0.28f, 0.55f, 0.88f));
-        LabFont::drawText(435.0f, 576.0f, "OPEN FROM DISK... [O]", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
+        Renderer::drawRect(410.0f, 560.0f, 280.0f, 48.0f, Vec3(0.22f, 0.45f, 0.75f));
+        Renderer::drawRect(412.0f, 562.0f, 276.0f, 44.0f, Vec3(0.28f, 0.55f, 0.88f));
+        LabFont::drawText(425.0f, 576.0f, "OPEN FROM DISK... [O]", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+        // Action Button 3: Resume Mission [ESC] (only visible when a map is loaded)
+        if (_currentMap) {
+            Renderer::drawRect(710.0f, 560.0f, 260.0f, 48.0f, Vec3(0.75f, 0.45f, 0.15f));
+            Renderer::drawRect(712.0f, 562.0f, 256.0f, 44.0f, Vec3(0.88f, 0.55f, 0.20f));
+            LabFont::drawText(725.0f, 576.0f, "RESUME MISSION [ESC]", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+        }
+
+        // Instructions Footer
+        LabFont::drawText(140.0f, 622.0f, "USE ARROWS / MOUSE TO SELECT | ENTER: LAUNCH | O: OPEN FILE | ESC / M: MENU", 1.4f, Vec3(0.55f, 0.65f, 0.75f), LabFontType::GeoSans);
 
         Renderer::endUI();
     }
@@ -496,14 +566,14 @@ public:
         if (_currentMap) {
             // Render map brushes
             for (const auto& b : _currentMap->brushes) {
-                Texture* tex = b.texturePath.empty() ? nullptr : _textures[b.texturePath].get();
+                Texture* tex = b.texturePath.empty() ? nullptr : getTexture(b.texturePath);
                 Renderer::drawCube(b.position, b.size, b.color, tex);
             }
 
             // Render map props (STL models)
             for (const auto& p : _currentMap->props) {
                 if (_meshes.contains(p.modelPath)) {
-                    Texture* tex = p.texturePath.empty() ? nullptr : _textures[p.texturePath].get();
+                    Texture* tex = p.texturePath.empty() ? nullptr : getTexture(p.texturePath);
                     Renderer::drawMesh(*_meshes[p.modelPath], p.position, p.rotation, p.scale, p.color, tex);
                 }
             }
@@ -561,6 +631,7 @@ private:
     int _selectedMapIndex = 0;
     bool _upPressedLast = false;
     bool _downPressedLast = false;
+    bool _escPressedLast = false;
 
     // Movement state
     Vec3 _velocity;
