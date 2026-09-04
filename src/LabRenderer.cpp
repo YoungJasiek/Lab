@@ -3,6 +3,7 @@
 #include <fstream>
 #include <iostream>
 #include <algorithm>
+#include <filesystem>
 
 namespace Lab {
 
@@ -189,8 +190,18 @@ namespace Lab {
         return data;
     }
 
+    static std::string resolveAssetPath(const std::string& path) {
+        if (std::filesystem::exists(path)) return path;
+        if (std::filesystem::exists("../" + path)) return "../" + path;
+        if (std::filesystem::exists("../../" + path)) return "../../" + path;
+        if (std::filesystem::exists("Debug/" + path)) return "Debug/" + path;
+        if (std::filesystem::exists("build/Debug/" + path)) return "build/Debug/" + path;
+        return path;
+    }
+
     unsigned char* loadBMP(const char* filename, int* width, int* height, int* bpp) {
-        std::ifstream file(filename, std::ios::binary);
+        std::string resolved = resolveAssetPath(filename);
+        std::ifstream file(resolved, std::ios::binary);
         if (!file.is_open()) return nullptr;
 
         unsigned char header[54];
@@ -421,9 +432,10 @@ namespace Lab {
     }
 
     Mesh* Mesh::loadSTL(const std::string& path) {
-        std::ifstream file(path, std::ios::binary);
+        std::string resolved = resolveAssetPath(path);
+        std::ifstream file(resolved, std::ios::binary);
         if (!file.is_open()) {
-            std::cerr << "ERROR: Could not open STL file: " << path << std::endl;
+            std::cerr << "ERROR: Could not open STL file: " << path << " (resolved: " << resolved << ")" << std::endl;
             return nullptr;
         }
 

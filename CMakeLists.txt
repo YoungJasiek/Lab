@@ -58,3 +58,13 @@ target_link_libraries(LabEngineLib PUBLIC glfw OpenGL::GL)
 add_executable(Lab src/main.cpp)
 target_compile_options(Lab PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(Lab PRIVATE LabEngineLib)
+
+# Automatically copy assets next to the executable
+add_custom_command(TARGET Lab POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/Test.bmp"
+        "$<TARGET_FILE_DIR:Lab>/Test.bmp"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/Model.stl"
+        "$<TARGET_FILE_DIR:Lab>/Model.stl"
+)
