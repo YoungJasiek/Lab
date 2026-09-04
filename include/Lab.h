@@ -10,3 +10,6 @@
 #include "LabSession.h"
 #include "LabCombat.h"
 #include "LabAI.h"
+#include "LabCollision.h"
+#include "LabChat.h"
+#include "LabPickups.h"

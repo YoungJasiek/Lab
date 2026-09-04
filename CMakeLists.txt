@@ -40,6 +40,9 @@ set(ENGINE_SOURCES
     src/LabAnim.cpp
     src/LabCombat.cpp
     src/LabAI.cpp
+    src/LabCollision.cpp
+    src/LabChat.cpp
+    src/LabPickups.cpp
     src/glad/src/gl.c
 )
 
@@ -53,6 +56,9 @@ set(ENGINE_HEADERS
     include/LabSession.h
     include/LabCombat.h
     include/LabAI.h
+    include/LabCollision.h
+    include/LabChat.h
+    include/LabPickups.h
     include/Lab.h
 )
 

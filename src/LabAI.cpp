@@ -46,6 +46,19 @@ namespace Lab {
                            std::vector<BulletTracer>& outTracers, float& outDamageToPlayer) {
         if (state == AIState::Dead) {
             deathTimer += dt;
+            respawnTimer -= dt;
+            if (respawnTimer <= 0.0f) {
+                // Respawn bot at patrol start
+                state = AIState::Patrol;
+                health = maxHealth;
+                position = patrolStart;
+                rotation.x = 0.0f;
+                patrolT = 0.0f;
+                patrolDir = 1;
+                shootCooldown = shootInterval;
+                hurtTimer = 0.0f;
+                muzzleFlashTimer = 0.0f;
+            }
             return;
         }
 
@@ -129,6 +142,8 @@ namespace Lab {
         if (health <= 0.0f) {
             health = 0.0f;
             state = AIState::Dead;
+            deaths++;
+            respawnTimer = 4.5f;
             rotation.x = -80.0f; // Collapse back onto ground
             position.y = 0.25f;
             return true; // Just died

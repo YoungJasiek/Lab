@@ -746,6 +746,232 @@ int main() {
     saveFrameToBMP("test_host_menu.bmp", w, h);
     glfwSwapBuffers(window);
 
+    // ==================== 11. UNIT TESTS: LABCOLLISION (WALL COLLISION & SLIDING) ====================
+    std::cout << "[Test] Verifying LabCollision AABB Move & Slide against Solid Geometry...\n";
+    auto solidBoxes = Lab::LabCollision::getMapSolidBoxes(*map);
+    if (solidBoxes.empty()) {
+        std::cerr << "ERROR: Failed to extract solid collision boxes from map!\n";
+        return 1;
+    }
+
+    // 11.1 North Wall Collision Test
+    // North wall in facility_alpha is at (0, 4.0, -20.0), size (24, 8, 1) -> Z in [-20.5, -19.5]
+    Lab::Vec3 testPos{ 0.0f, 1.70f, -18.8f };
+    Lab::Vec3 testVel{ 0.0f, 0.0f, -15.0f }; // Moving fast into North Wall
+    bool grounded = true;
+    float colDt = 0.2f;
+
+    Lab::LabCollision::moveAndSlide(testPos, testVel, grounded, colDt, solidBoxes);
+
+    // Player radius is 0.35m. Wall max.z is -19.5m. Player Z cannot penetrate past -19.5 + 0.35 = -19.15m!
+    if (testPos.z < -19.16f) {
+        std::cerr << "ERROR: Player penetrated North Wall! Pos.z = " << testPos.z << "\n";
+        return 1;
+    }
+    if (std::abs(testVel.z) > 1e-3f) {
+        std::cerr << "ERROR: Player velocity.z was not stopped by wall!\n";
+        return 1;
+    }
+    std::cout << "[Test] Wall collision verified: Player stopped cleanly at Z = " << testPos.z << " (Wall at -19.5)\n";
+
+    // 11.2 Wall Sliding Test (Diagonal movement into wall retains tangential velocity)
+    testPos = Lab::Vec3(0.0f, 1.70f, -18.8f);
+    testVel = Lab::Vec3(6.0f, 0.0f, -15.0f); // Diagonal: right + forward into wall
+    Lab::LabCollision::moveAndSlide(testPos, testVel, grounded, colDt, solidBoxes);
+
+    if (testPos.x <= 0.5f) {
+        std::cerr << "ERROR: Wall sliding failed to preserve X tangential movement! Pos.x = " << testPos.x << "\n";
+        return 1;
+    }
+    if (testPos.z < -19.16f) {
+        std::cerr << "ERROR: Diagonal move penetrated wall! Pos.z = " << testPos.z << "\n";
+        return 1;
+    }
+    std::cout << "[Test] Wall sliding verified: Player smoothly slid along wall to X = " << testPos.x << "\n";
+
+    // 11.3 Floor Landing and Gravity
+    testPos = Lab::Vec3(0.0f, 4.0f, 0.0f);
+    testVel = Lab::Vec3(0.0f, -10.0f, 0.0f); // Falling down
+    grounded = false;
+    Lab::LabCollision::moveAndSlide(testPos, testVel, grounded, 0.5f, solidBoxes);
+
+    if (!grounded || testPos.y < 1.69f || testPos.y > 1.71f) {
+        std::cerr << "ERROR: Floor collision failed! Pos.y = " << testPos.y << " Grounded = " << grounded << "\n";
+        return 1;
+    }
+    std::cout << "[Test] Floor landing verified: Player landed at eyeHeight Y = " << testPos.y << "\n";
+
+    // ==================== 12. UNIT TESTS: BOT RESPAWN & STATS ====================
+    std::cout << "[Test] Verifying Bot Death and Automated Respawn Cycle...\n";
+    Lab::CombatBot testBot(99, "Respawn Bot", Lab::Vec3(5.0f, 0.0f, 5.0f), Lab::Vec3(15.0f, 0.0f, 5.0f));
+    bool died = testBot.takeDamage(120.0f, true);
+    if (!died || testBot.state != Lab::AIState::Dead || testBot.deaths != 1 || testBot.respawnTimer <= 0.0f) {
+        std::cerr << "ERROR: Bot takeDamage fatal check failed! State = " << (int)testBot.state << "\n";
+        return 1;
+    }
+
+    // Simulate update during respawn countdown
+    std::vector<Lab::BulletTracer> dummyTracers;
+    float dummyDmg = 0.0f;
+    testBot.update(5.0f, Lab::Vec3(0, 0, 0), *map, dummyTracers, dummyDmg); // 5 seconds elapsed
+
+    if (testBot.state != Lab::AIState::Patrol || testBot.health < 100.0f || !testBot.isAlive()) {
+        std::cerr << "ERROR: Bot failed to respawn after countdown! State = " << (int)testBot.state << "\n";
+        return 1;
+    }
+    std::cout << "[Test] Bot Respawn verified: Bot successfully revived to 100 HP at patrol start!\n";
+
+    // ==================== 13. UNIT TESTS: IN-GAME CHAT ====================
+    std::cout << "[Test] Verifying In-Game Chat System...\n";
+    Lab::LabChat chat;
+    chat.open();
+    if (!chat.isOpen) {
+        std::cerr << "ERROR: Chat failed to open!\n";
+        return 1;
+    }
+    chat.onChar('F'); chat.onChar('P'); chat.onChar('S');
+    if (chat.currentInput != "FPS") {
+        std::cerr << "ERROR: Chat onChar typing failed! Input = " << chat.currentInput << "\n";
+        return 1;
+    }
+    std::string sentChat;
+    bool didSend = chat.onKey(257, 1, sentChat); // Enter
+    if (!didSend || sentChat != "FPS" || chat.history.empty() || chat.isOpen) {
+        std::cerr << "ERROR: Chat send on Enter failed!\n";
+        return 1;
+    }
+    std::cout << "[Test] Chat verified: Sent message '" << sentChat << "' successfully buffered!\n";
+
+    // ==================== 14. UNIT TESTS: PICKUP MANAGER ====================
+    std::cout << "[Test] Verifying Ammo & Medkit Pickup Manager...\n";
+    Lab::PickupManager pickups;
+    pickups.spawnPickup(Lab::PickupType::Ammo, Lab::Vec3(0.0f, 0.5f, 0.0f), 36);
+    pickups.spawnPickup(Lab::PickupType::Medkit, Lab::Vec3(0.0f, 0.5f, 0.0f), 50);
+
+    if (pickups.items.size() != 2) {
+        std::cerr << "ERROR: Failed to spawn pickups!\n";
+        return 1;
+    }
+
+    int ammoGot = 0;
+    float hpGot = 0.0f;
+    std::string pickMsg;
+    pickups.update(0.1f, Lab::Vec3(0.0f, 1.7f, 0.0f), ammoGot, hpGot, pickMsg);
+
+    if (ammoGot != 36 || hpGot != 50.0f || !pickups.items.empty()) {
+        std::cerr << "ERROR: Pickup collection failed! Ammo = " << ammoGot << " HP = " << hpGot << "\n";
+        return 1;
+    }
+    std::cout << "[Test] Pickups verified: Collected +36 AMMO and +50 HP on proximity!\n";
+
+    // ==================== 15. RENDER FRAME: SCOREBOARD TABLE UNDER TAB ====================
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    Lab::Camera gameCam(75.0f, (float)w / (float)h, 0.01f, 1000.0f);
+    gameCam.setPosition(Lab::Vec3(0.0f, 1.70f, -5.0f));
+    Lab::Renderer::beginFrame(gameCam);
+
+    for (const auto& b : map->brushes) {
+        Lab::Texture* tex = b.texturePath.empty() ? nullptr : textures[b.texturePath].get();
+        Lab::Renderer::drawCube(b.position, b.size, b.color, tex, true, b.uvScale, b.uvMode);
+    }
+
+    // Prepare Scoreboard Entries
+    std::vector<Lab::ScoreboardEntry> sbEntries;
+    Lab::ScoreboardEntry pEntry;
+    pEntry.name = "[YOU] Gordon Freeman";
+    pEntry.kills = 7;
+    pEntry.deaths = 2;
+    pEntry.ping = "5ms";
+    pEntry.isLocalPlayer = true;
+    pEntry.isAlive = true;
+    pEntry.status = "ALIVE";
+    pEntry.team = "Blue (Alpha)";
+    sbEntries.push_back(pEntry);
+
+    Lab::ScoreboardEntry b1;
+    b1.name = "Synth Soldier #1";
+    b1.kills = 4;
+    b1.deaths = 5;
+    b1.ping = "BOT";
+    b1.isLocalPlayer = false;
+    b1.isAlive = true;
+    b1.status = "ALIVE";
+    b1.team = "Red (Beta)";
+    sbEntries.push_back(b1);
+
+    Lab::ScoreboardEntry b2;
+    b2.name = "Synth Elite #2";
+    b2.kills = 3;
+    b2.deaths = 6;
+    b2.ping = "BOT";
+    b2.isLocalPlayer = false;
+    b2.isAlive = false;
+    b2.status = "DEAD (Respawn 3s)";
+    b2.team = "Red (Beta)";
+    sbEntries.push_back(b2);
+
+    Lab::ScoreboardEntry b3;
+    b3.name = "Synth Scout #3";
+    b3.kills = 1;
+    b3.deaths = 4;
+    b3.ping = "BOT";
+    b3.isLocalPlayer = false;
+    b3.isAlive = true;
+    b3.status = "ALIVE";
+    b3.team = "Red (Beta)";
+    sbEntries.push_back(b3);
+
+    Lab::LabHUD hud;
+    hud.renderScoreboard(w, h, sbEntries, "Research Complex Alpha", "Team Deathmatch (TDM)", 25);
+    glFinish();
+    saveFrameToBMP("test_scoreboard_tab.bmp", w, h);
+    glfwSwapBuffers(window);
+
+    // ==================== 16. RENDER FRAME: 3D PICKUPS & IN-GAME CHAT ====================
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    gameCam.setPosition(Lab::Vec3(0.0f, 1.70f, -8.0f));
+    Lab::Renderer::beginFrame(gameCam);
+
+    for (const auto& b : map->brushes) {
+        Lab::Texture* tex = b.texturePath.empty() ? nullptr : textures[b.texturePath].get();
+        Lab::Renderer::drawCube(b.position, b.size, b.color, tex, true, b.uvScale, b.uvMode);
+    }
+
+    // Spawn and render 3D rotating ammo crate and medkit
+    Lab::PickupItem ammoDropItem;
+    ammoDropItem.type = Lab::PickupType::Ammo;
+    ammoDropItem.position = Lab::Vec3(-1.2f, 0.45f, -12.0f);
+    ammoDropItem.rotationY = 35.0f;
+    ammoDropItem.render();
+
+    Lab::PickupItem medkitDropItem;
+    medkitDropItem.type = Lab::PickupType::Medkit;
+    medkitDropItem.position = Lab::Vec3(1.2f, 0.45f, -12.0f);
+    medkitDropItem.rotationY = 65.0f;
+    medkitDropItem.render();
+
+    // Bottom HUD cards
+    hud.health = 135.0f;
+    hud.suitArmor = 80.0f;
+    hud.ammoClip = 18;
+    hud.ammoReserve = 144;
+    hud.showCombatMessage("+ 36 AMMO COLLECTED", 2.5f);
+    hud.render(w, h);
+
+    // Render active in-game text chat
+    Lab::LabChat ingameChat;
+    ingameChat.addMessage("[SERVER]", "Match hosted: Research Complex Alpha", Lab::Vec3(0.3f, 0.8f, 1.0f));
+    ingameChat.addMessage("[SERVER]", "Gordon eliminated Synth Elite #2 [HEADSHOT]", Lab::Vec3(0.3f, 0.95f, 0.4f));
+    ingameChat.addMessage("Synth Soldier #1", "Heavy fire! Hostile pushing north hall!", Lab::Vec3(0.9f, 0.45f, 0.45f));
+    ingameChat.addMessage("[ITEM]", "+ 36 AMMO COLLECTED", Lab::Vec3(0.95f, 0.82f, 0.15f));
+    ingameChat.open();
+    ingameChat.currentInput = "Covering the security gate! Fall back!";
+    ingameChat.render(w, h);
+
+    glFinish();
+    saveFrameToBMP("test_ammo_and_chat.bmp", w, h);
+    glfwSwapBuffers(window);
+
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();

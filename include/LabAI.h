@@ -45,6 +45,9 @@ namespace Lab {
         float muzzleFlashTimer = 0.0f;
         float deathTimer = 0.0f;
         float walkCycle = 0.0f;
+        int kills = 0;
+        int deaths = 0;
+        float respawnTimer = 0.0f;
 
         CombatBot() = default;
         CombatBot(int botId, const std::string& botName, const Vec3& spawnPos, const Vec3& pEnd, int botTeam = -1);

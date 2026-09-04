@@ -219,6 +219,140 @@ namespace Lab {
 
             Renderer::endUI();
         }
+
+        void renderDeathScreen(int screenW, int screenH, float respawnTimer) {
+            Renderer::beginUI(screenW, screenH);
+
+            // Red vignette wash over full screen
+            Renderer::drawRect(0, 0, (float)screenW, (float)screenH, Vec3(0.35f, 0.05f, 0.05f));
+
+            // Central alert card
+            float cardW = 560.0f;
+            float cardH = 180.0f;
+            float cardX = ((float)screenW - cardW) * 0.5f;
+            float cardY = ((float)screenH - cardH) * 0.5f;
+
+            drawCard(cardX, cardY, cardW, cardH, Vec3(0.10f, 0.08f, 0.08f), Vec3(0.9f, 0.2f, 0.2f));
+
+            LabFont::drawText(cardX + 90.0f, cardY + 28.0f, "YOU WERE ELIMINATED", 3.2f, Vec3(1.0f, 0.2f, 0.2f), LabFontType::GeoSans);
+
+            int sec = static_cast<int>(std::ceil(respawnTimer));
+            std::string cdText = "RESPAWNING IN " + std::to_string(std::max(0, sec)) + "s ...";
+            LabFont::drawText(cardX + 160.0f, cardY + 80.0f, cdText, 2.2f, textYellow, LabFontType::GeoSans);
+
+            std::string promptText = "PRESS [SPACE] OR [ENTER] TO RESPAWN IMMEDIATELY";
+            LabFont::drawText(cardX + 45.0f, cardY + 128.0f, promptText, 1.7f, Vec3(0.8f, 0.85f, 0.9f), LabFontType::GeoSans);
+
+            Renderer::endUI();
+        }
+
+        void renderScoreboard(int screenW, int screenH, const std::vector<struct ScoreboardEntry>& entries,
+                              const std::string& matchTitle, const std::string& modeName, int fragLimit);
     };
+
+    struct ScoreboardEntry {
+        std::string name;
+        int kills = 0;
+        int deaths = 0;
+        std::string ping = "5ms";
+        bool isBot = false;
+        bool isLocalPlayer = false;
+        bool isAlive = true;
+        std::string status = "ALIVE";
+        std::string team = "Alpha";
+    };
+
+    inline void LabHUD::renderScoreboard(int screenW, int screenH, const std::vector<ScoreboardEntry>& entries,
+                                         const std::string& matchTitle, const std::string& modeName, int fragLimit) {
+        Renderer::beginUI(screenW, screenH);
+
+        // Dark semi-transparent background overlay
+        Renderer::drawRect(0, 0, (float)screenW, (float)screenH, Vec3(0.02f, 0.03f, 0.05f));
+
+        float sbW = 780.0f;
+        float sbH = 460.0f;
+        float sbX = ((float)screenW - sbW) * 0.5f;
+        float sbY = ((float)screenH - sbH) * 0.5f;
+
+        // Scoreboard outer card
+        drawCard(sbX, sbY, sbW, sbH, Vec3(0.07f, 0.09f, 0.12f), Vec3(0.28f, 0.38f, 0.50f));
+
+        // Top Header banner
+        float headH = 50.0f;
+        Renderer::drawRect(sbX, sbY, sbW, headH, Vec3(0.12f, 0.16f, 0.22f));
+        Renderer::drawRect(sbX, sbY + headH - 1.0f, sbW, 1.0f, Vec3(0.35f, 0.50f, 0.65f));
+
+        LabFont::drawText(sbX + 20.0f, sbY + 14.0f, "FROZEN-LIFE :: " + matchTitle, 2.4f, textYellow, LabFontType::GeoSans);
+
+        std::string matchMeta = modeName + " | FRAG LIMIT: " + std::to_string(fragLimit);
+        LabFont::drawText(sbX + sbW - 270.0f, sbY + 18.0f, matchMeta, 1.8f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::GeoSans);
+
+        // Table Column Headers
+        float colY = sbY + headH + 8.0f;
+        float nameColX = sbX + 24.0f;
+        float teamColX = sbX + 260.0f;
+        float killsColX = sbX + 370.0f;
+        float deathsColX = sbX + 460.0f;
+        float statusColX = sbX + 550.0f;
+        float pingColX = sbX + 690.0f;
+
+        Renderer::drawRect(sbX + 10.0f, colY - 2.0f, sbW - 20.0f, 24.0f, Vec3(0.09f, 0.12f, 0.16f));
+        LabFont::drawText(nameColX, colY + 3.0f, "PLAYER / SYNTH", 1.6f, textYellow * 0.9f, LabFontType::GeoSans);
+        LabFont::drawText(teamColX, colY + 3.0f, "TEAM", 1.6f, textYellow * 0.9f, LabFontType::GeoSans);
+        LabFont::drawText(killsColX, colY + 3.0f, "KILLS", 1.6f, textYellow * 0.9f, LabFontType::GeoSans);
+        LabFont::drawText(deathsColX, colY + 3.0f, "DEATHS", 1.6f, textYellow * 0.9f, LabFontType::GeoSans);
+        LabFont::drawText(statusColX, colY + 3.0f, "STATUS", 1.6f, textYellow * 0.9f, LabFontType::GeoSans);
+        LabFont::drawText(pingColX, colY + 3.0f, "PING", 1.6f, textYellow * 0.9f, LabFontType::GeoSans);
+
+        // Row entries
+        float rowY = colY + 30.0f;
+        float rowH = 32.0f;
+
+        for (size_t i = 0; i < entries.size() && i < 10; ++i) {
+            const auto& e = entries[i];
+            Vec3 rowBg = (i % 2 == 0) ? Vec3(0.10f, 0.12f, 0.17f) : Vec3(0.08f, 0.10f, 0.14f);
+            Vec3 textColor = e.isLocalPlayer ? textYellow : Vec3(0.92f, 0.92f, 0.92f);
+
+            if (e.isLocalPlayer) {
+                rowBg = Vec3(0.18f, 0.16f, 0.10f); // Amber tint for local player
+                Renderer::drawRect(sbX + 10.0f, rowY, sbW - 20.0f, rowH, rowBg);
+                Renderer::drawRect(sbX + 10.0f, rowY, sbW - 20.0f, 1.0f, textYellow * 0.8f);
+                Renderer::drawRect(sbX + 10.0f, rowY + rowH - 1.0f, sbW - 20.0f, 1.0f, textYellow * 0.8f);
+            } else {
+                Renderer::drawRect(sbX + 10.0f, rowY, sbW - 20.0f, rowH, rowBg);
+            }
+
+            // Name
+            LabFont::drawText(nameColX, rowY + 7.0f, e.name, 1.8f, textColor, LabFontType::GeoSans);
+
+            // Team
+            LabFont::drawText(teamColX, rowY + 7.0f, e.team, 1.7f, Vec3(0.5f, 0.7f, 0.9f), LabFontType::GeoSans);
+
+            // Kills
+            LabFont::drawText(killsColX + 12.0f, rowY + 7.0f, std::to_string(e.kills), 1.8f, Vec3(0.3f, 0.95f, 0.4f), LabFontType::GeoSans);
+
+            // Deaths
+            LabFont::drawText(deathsColX + 12.0f, rowY + 7.0f, std::to_string(e.deaths), 1.8f, Vec3(0.95f, 0.4f, 0.4f), LabFontType::GeoSans);
+
+            // Status
+            Vec3 statusColor = e.isAlive ? Vec3(0.3f, 0.9f, 0.4f) : Vec3(0.95f, 0.3f, 0.3f);
+            LabFont::drawText(statusColX, rowY + 7.0f, e.status, 1.6f, statusColor, LabFontType::GeoSans);
+
+            // Ping
+            LabFont::drawText(pingColX, rowY + 7.0f, e.ping, 1.7f, Vec3(0.6f, 0.65f, 0.75f), LabFontType::GeoSans);
+
+            rowY += rowH + 4.0f;
+        }
+
+        // Bottom controls hint
+        float footerY = sbY + sbH - 32.0f;
+        Renderer::drawRect(sbX, footerY, sbW, 32.0f, Vec3(0.05f, 0.07f, 0.10f));
+        Renderer::drawRect(sbX, footerY, sbW, 1.0f, Vec3(0.2f, 0.28f, 0.38f));
+
+        std::string hintStr = "[TAB] Release to close scoreboard  |  [Y / Enter] In-Game Chat  |  [M / ESC] Menu";
+        LabFont::drawText(sbX + 24.0f, footerY + 8.0f, hintStr, 1.65f, Vec3(0.65f, 0.75f, 0.85f), LabFontType::GeoSans);
+
+        Renderer::endUI();
+    }
 
 }

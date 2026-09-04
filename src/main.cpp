@@ -27,6 +27,13 @@ public:
         LabLog::info("Frozen-Life Init: Modular .LABMAP and GUI System...");
         Renderer::init();
 
+        s_instance = this;
+        glfwSetCharCallback(getWindow(), [](GLFWwindow* /*w*/, unsigned int codepoint) {
+            if (s_instance && s_instance->_chat.isOpen) {
+                s_instance->_chat.onChar(codepoint);
+            }
+        });
+
         // Discover available maps in assets/maps/
         scanMapFiles();
 
@@ -146,7 +153,19 @@ public:
         _hud.frags = 0;
         _hud.health = _hud.maxHealth;
         _hud.suitArmor = 50.0f;
+        _hud.ammoClip = 18;
+        _hud.ammoReserve = 144;
         _tracers.clear();
+        _pickups.clear();
+        _chat.history.clear();
+        _playerKills = 0;
+        _playerDeaths = 0;
+        _isPlayerDead = false;
+        _playerRespawnTimer = 0.0f;
+
+        _chat.addMessage("[SERVER]", "Welcome to Frozen-Life :: " + (_currentMap ? _currentMap->metadata.name : "Sector"), Vec3(0.3f, 0.8f, 1.0f));
+        _chat.addMessage("[SERVER]", "Mode: " + _sessionConfig.getModeString() + " | Frag Limit: " + std::to_string(_sessionConfig.fragLimit), Vec3(0.3f, 0.8f, 1.0f));
+        _chat.addMessage("[SYSTEM]", "Hold [TAB] for scoreboard, press [Y] for chat, [R] to reload", Vec3(1.0f, 0.9f, 0.3f));
 
         if (_sessionConfig.enableBots && _sessionConfig.botCount > 0) {
             _aiManager.spawnBotsForMap(_sessionConfig.mapPath, _sessionConfig.botCount, _sessionConfig.mode);
@@ -159,6 +178,17 @@ public:
 
     void onFixedUpdate(float fixedDelta) override {
         if (_inMenu) return;
+
+        // Freeze movement if player is dead or typing in chat
+        if (_isPlayerDead) {
+            _velocity = { 0, 0, 0 };
+            return;
+        }
+        if (_chat.isOpen) {
+            _velocity.x *= 0.8f;
+            _velocity.z *= 0.8f;
+            return;
+        }
 
         // Physics tick rate (64 ticks per second)
         bool isSprinting = Input::isKeyPressed(340); // Left Shift
@@ -211,15 +241,18 @@ public:
         // Gravity
         _velocity.y -= 12.0f * fixedDelta;
 
-        // Apply movement
+        // ==================== AABB MOVE & SLIDE WALL COLLISION ====================
         Vec3 pos = _camera.getPosition();
-        pos += _velocity * fixedDelta;
-
-        // Simple ground collision
-        if (pos.y < 1.8f) {
-            pos.y = 1.8f;
-            _velocity.y = 0.0f;
-            _isGrounded = true;
+        if (_currentMap) {
+            auto obstacles = LabCollision::getMapSolidBoxes(*_currentMap);
+            LabCollision::moveAndSlide(pos, _velocity, _isGrounded, fixedDelta, obstacles);
+        } else {
+            pos += _velocity * fixedDelta;
+            if (pos.y < 1.70f) {
+                pos.y = 1.70f;
+                _velocity.y = 0.0f;
+                _isGrounded = true;
+            }
         }
         _camera.setPosition(pos);
 
@@ -260,11 +293,72 @@ public:
             return;
         }
 
-        // Gameplay camera orientation update
-        _camera.update(Input::mouseDelta);
+        // Handle Death State & Respawn countdown
+        if (_isPlayerDead) {
+            _playerRespawnTimer -= time.delta;
+            Vec3 deathPos = _camera.getPosition();
+            if (deathPos.y > 0.45f) {
+                deathPos.y = std::max(0.45f, deathPos.y - time.delta * 2.5f);
+                _camera.setPosition(deathPos);
+            }
 
-        // Return to menu with M or ESC key
-        if (Input::isKeyPressed(GLFW_KEY_M) || Input::isKeyPressed(GLFW_KEY_ESCAPE)) {
+            bool spacePressed = Input::isKeyPressed(32);
+            bool enterPressed = Input::isKeyPressed(257);
+            if (_playerRespawnTimer <= 0.0f || spacePressed || enterPressed) {
+                _isPlayerDead = false;
+                _playerRespawnTimer = 0.0f;
+                _hud.health = _hud.maxHealth;
+                _hud.suitArmor = 50.0f;
+                _hud.ammoClip = 18;
+                _hud.ammoReserve = 144;
+                if (_currentMap) {
+                    _camera.setPosition(_currentMap->spawn.position);
+                    _velocity = { 0, 0, 0 };
+                }
+                _chat.addMessage("[SERVER]", "Player respawned at base!", Vec3(0.3f, 0.85f, 1.0f));
+                _hud.showCombatMessage("RESPAWNED AT BASE - READY FOR COMBAT!", 2.5f);
+            }
+            return;
+        }
+
+        // Chat toggle & input handling
+        bool enterPressed = Input::isKeyPressed(257);
+        bool escPressed = Input::isKeyPressed(256);
+        bool yPressed = Input::isKeyPressed('Y') || Input::isKeyPressed('y');
+        bool tPressed = Input::isKeyPressed('T') || Input::isKeyPressed('t');
+        bool backspacePressed = Input::isKeyPressed(259);
+
+        if (_chat.isOpen) {
+            if (enterPressed && !_enterPressedLast) {
+                std::string sentMsg;
+                _chat.onKey(257, 1, sentMsg);
+            } else if (escPressed && !_escPressedLast) {
+                _chat.close();
+            } else if (backspacePressed && !_backspacePressedLast) {
+                std::string dummy;
+                _chat.onKey(259, 1, dummy);
+            }
+        } else {
+            if ((yPressed && !_yPressedLast) || (tPressed && !_tPressedLast) || (enterPressed && !_enterPressedLast)) {
+                if (!_hammerEditor.active) {
+                    _chat.open();
+                }
+            }
+        }
+        _enterPressedLast = enterPressed;
+        _escPressedLast = escPressed;
+        _yPressedLast = yPressed;
+        _tPressedLast = tPressed;
+        _backspacePressedLast = backspacePressed;
+        _chat.update(time.delta);
+
+        // Gameplay camera orientation update (only when not typing in chat)
+        if (!_chat.isOpen) {
+            _camera.update(Input::mouseDelta);
+        }
+
+        // Return to menu with M or ESC key (only when chat is closed)
+        if (!_chat.isOpen && (Input::isKeyPressed(GLFW_KEY_M) || Input::isKeyPressed(GLFW_KEY_ESCAPE))) {
             _inMenu = true;
             _menuScreen = MenuScreen::Main;
             glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
@@ -272,7 +366,7 @@ public:
         }
 
         // ==================== PLAYER COMBAT: TAG-BASED RAYCAST SHOOTING ====================
-        if (Input::isMouseButtonPressed(0) && _muzzleFlashTime <= 0.0f && !_hammerEditor.active) {
+        if (Input::isMouseButtonPressed(0) && _muzzleFlashTime <= 0.0f && !_hammerEditor.active && !_chat.isOpen && !_isPlayerDead) {
             if (_hud.ammoClip > 0) {
                 _hud.ammoClip--;
                 _muzzleFlashTime = 0.08f;
@@ -344,12 +438,21 @@ public:
                             _hud.triggerHitmarker(hit.isHeadshot);
 
                             if (killed) {
-                                _hud.frags++;
+                                _playerKills++;
+                                _hud.frags = _playerKills;
                                 if (hit.isHeadshot) {
-                                    _hud.showCombatMessage("HEADSHOT! ELIMINATED " + bot.name + " [" + std::to_string(_hud.frags) + " FRAGS]", 2.5f);
+                                    _hud.showCombatMessage("HEADSHOT! ELIMINATED " + bot.name + " [" + std::to_string(_playerKills) + " FRAGS]", 2.5f);
+                                    _chat.addMessage("[SERVER]", "Player eliminated " + bot.name + " [HEADSHOT]", Vec3(1.0f, 0.25f, 0.25f));
                                 } else {
-                                    _hud.showCombatMessage("ELIMINATED " + bot.name + " [" + std::to_string(_hud.frags) + " FRAGS]", 2.0f);
+                                    _hud.showCombatMessage("ELIMINATED " + bot.name + " [" + std::to_string(_playerKills) + " FRAGS]", 2.0f);
+                                    _chat.addMessage("[SERVER]", "Player eliminated " + bot.name, Vec3(0.3f, 0.9f, 0.4f));
                                 }
+                                // Drop ammo and medkit pickups
+                                _pickups.spawnPickup(PickupType::Ammo, bot.position + Vec3(0.0f, 0.35f, 0.0f), 36);
+                                if ((rand() % 100) < 65) {
+                                    _pickups.spawnPickup(PickupType::Medkit, bot.position + Vec3(0.4f, 0.35f, -0.3f), 50);
+                                }
+                                _chat.addMessage(bot.name, "Critical damage! Unit offline...", Vec3(0.9f, 0.45f, 0.45f));
                             }
                             break;
                         }
@@ -378,14 +481,30 @@ public:
             }
 
             if (_hud.health <= 0.0f) {
-                _hud.health = _hud.maxHealth;
-                _hud.suitArmor = 50.0f;
-                if (_currentMap) {
-                    _camera.setPosition(_currentMap->spawn.position);
-                    _velocity = { 0, 0, 0 };
-                }
-                _hud.showCombatMessage("YOU WERE ELIMINATED! RESPAWNED AT BASE", 3.0f);
+                _hud.health = 0.0f;
+                _isPlayerDead = true;
+                _playerDeaths++;
+                _playerRespawnTimer = 4.0f;
+                _velocity = { 0, 0, 0 };
+                _chat.addMessage("[SERVER]", "Player was eliminated by Combat Synth!", Vec3(1.0f, 0.3f, 0.3f));
+                _hud.showCombatMessage("YOU WERE ELIMINATED! PRESS [SPACE] TO RESPAWN", 3.5f);
             }
+        }
+
+        // Update Pickups and Proximity Collection
+        int ammoAdded = 0;
+        float healthAdded = 0.0f;
+        std::string pickupNotice;
+        _pickups.update(time.delta, _camera.getPosition(), ammoAdded, healthAdded, pickupNotice);
+        if (ammoAdded > 0) {
+            _hud.ammoReserve = std::min(144, _hud.ammoReserve + ammoAdded);
+            _hud.showCombatMessage(pickupNotice, 2.0f);
+            _chat.addMessage("[ITEM]", pickupNotice, Vec3(0.95f, 0.82f, 0.15f));
+        }
+        if (healthAdded > 0.0f) {
+            _hud.health = std::min(_hud.maxHealth, _hud.health + healthAdded);
+            _hud.showCombatMessage(pickupNotice, 2.0f);
+            _chat.addMessage("[ITEM]", pickupNotice, Vec3(0.2f, 0.95f, 0.4f));
         }
 
         // Update active Bullet Tracers
@@ -994,7 +1113,50 @@ public:
         int w = 1280, h = 720;
 
         if (!_hammerEditor.active) {
-            _hud.render(w, h);
+            if (_isPlayerDead) {
+                _hud.renderDeathScreen(w, h, _playerRespawnTimer);
+            } else {
+                _hud.render(w, h);
+            }
+            _chat.render(w, h);
+
+            // Scoreboard (Hold or toggle TAB)
+            if (Input::isKeyPressed(258)) { // GLFW_KEY_TAB
+                std::vector<ScoreboardEntry> entries;
+
+                ScoreboardEntry pe;
+                pe.name = "[YOU] Player";
+                pe.kills = _playerKills;
+                pe.deaths = _playerDeaths;
+                pe.ping = "5ms";
+                pe.isBot = false;
+                pe.isLocalPlayer = true;
+                pe.isAlive = !_isPlayerDead;
+                pe.status = _isPlayerDead ? "DEAD (" + std::to_string(std::max(0, (int)std::ceil(_playerRespawnTimer))) + "s)" : "ALIVE";
+                pe.team = (_sessionConfig.mode == GameMode::TDM) ? "Blue (Alpha)" : "Free-For-All";
+                entries.push_back(pe);
+
+                for (const auto& bot : _aiManager.bots) {
+                    ScoreboardEntry be;
+                    be.name = bot.name;
+                    be.kills = bot.kills;
+                    be.deaths = bot.deaths;
+                    be.ping = "BOT";
+                    be.isBot = true;
+                    be.isLocalPlayer = false;
+                    be.isAlive = bot.isAlive();
+                    be.status = bot.isAlive() ? "ALIVE" : ("DEAD (" + std::to_string(std::max(0, (int)std::ceil(bot.respawnTimer))) + "s)");
+                    be.team = (_sessionConfig.mode == GameMode::TDM) ? ((bot.team == 0) ? "Red" : "Blue") : "Free-For-All";
+                    entries.push_back(be);
+                }
+
+                std::sort(entries.begin(), entries.end(), [](const ScoreboardEntry& a, const ScoreboardEntry& b) {
+                    return a.kills > b.kills;
+                });
+
+                std::string mapTitle = _currentMap ? _currentMap->metadata.name : "Sector";
+                _hud.renderScoreboard(w, h, entries, mapTitle, _sessionConfig.getModeString(), _sessionConfig.fragLimit);
+            }
         } else {
             _hammerEditor.drawUI(w, h);
         }
@@ -1006,7 +1168,7 @@ public:
             Renderer::drawRect(12.0f, 12.0f, 276.0f, 41.0f, { 0.18f, 0.35f, 0.55f });
 
             std::string dbgBots = "Alive Bots: " + std::to_string(std::count_if(_aiManager.bots.begin(), _aiManager.bots.end(), [](const auto& b){ return b.isAlive(); })) +
-                                  " | Tracers: " + std::to_string(_tracers.size());
+                                  " | Pickups: " + std::to_string(_pickups.items.size());
             LabFont::drawText(20.0f, 25.0f, dbgBots, 1.5f, Vec3(1, 1, 1), LabFontType::System);
             Renderer::endUI();
         }
@@ -1061,6 +1223,9 @@ public:
         // Render Combat AI Bots
         _aiManager.render();
 
+        // Render 3D World Pickups (Ammo crates & Medkits)
+        _pickups.render();
+
         // Render 3D Bullet Tracers (Source / Half-Life 2 style luminous beams)
         for (const auto& tr : _tracers) {
             Vec3 diff = tr.end - tr.start;
@@ -1111,6 +1276,19 @@ private:
     bool _isJumping;
     float _bobTime;
 
+    // Combat & Respawn stats
+    int _playerKills = 0;
+    int _playerDeaths = 0;
+    bool _isPlayerDead = false;
+    float _playerRespawnTimer = 0.0f;
+
+    // Chat & Pickups
+    LabChat _chat;
+    PickupManager _pickups;
+    bool _yPressedLast = false;
+    bool _tPressedLast = false;
+    bool _enterPressedLast = false;
+
     // Animation & Combat state
     WeaponAnimator _weaponAnimator;
     AIManager _aiManager;
@@ -1131,7 +1309,11 @@ private:
     bool _wireframeMode = false;
     bool _f3PressedLast = false;
     bool _f1PressedLast = false;
+
+    static FrozenLife* s_instance;
 };
+
+FrozenLife* FrozenLife::s_instance = nullptr;
 
 int main() {
     FrozenLife game;
