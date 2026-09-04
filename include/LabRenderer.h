@@ -40,6 +40,7 @@ namespace Lab {
 
         void bind(unsigned int slot = 0) const;
         void unbind() const;
+        unsigned int getId() const { return _id; }
 
     private:
         unsigned int _id;

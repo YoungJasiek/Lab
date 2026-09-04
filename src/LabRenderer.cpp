@@ -302,17 +302,16 @@ namespace Lab {
 
     Texture::Texture(const unsigned char* data, int width, int height, int channels)
         : _width(width), _height(height), _channels(channels) {
-        glCreateTextures(GL_TEXTURE_2D, 1, &_id);
-        GLenum format = (_channels == 4) ? GL_RGBA8 : GL_RGB8;
+        glGenTextures(1, &_id);
+        glBindTexture(GL_TEXTURE_2D, _id);
+        GLenum internalFormat = (_channels == 4) ? GL_RGBA8 : GL_RGB8;
         GLenum dataFormat = (_channels == 4) ? GL_RGBA : GL_RGB;
-
-        glTextureStorage2D(_id, 1, format, _width, _height);
-        glTextureSubImage2D(_id, 0, 0, 0, _width, _height, dataFormat, GL_UNSIGNED_BYTE, data);
-        
-        glTextureParameteri(_id, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTextureParameteri(_id, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTextureParameteri(_id, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTextureParameteri(_id, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, _width, _height, 0, dataFormat, GL_UNSIGNED_BYTE, data);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glBindTexture(GL_TEXTURE_2D, 0);
     }
 
     Texture::~Texture() {
@@ -321,10 +320,14 @@ namespace Lab {
 
     void Texture::bind(unsigned int slot) const {
         glBindTextureUnit(slot, _id);
+        glActiveTexture(GL_TEXTURE0 + slot);
+        glBindTexture(GL_TEXTURE_2D, _id);
     }
 
     void Texture::unbind() const {
         glBindTextureUnit(0, 0);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, 0);
     }
 
     // --- Mesh Implementation (VAO/VBO/DSA) ---
@@ -562,18 +565,19 @@ namespace Lab {
         _cubeMesh = new Mesh(cubeVerts, cubeInds);
 
         // UI VAO/VBO setup (4 floats per vertex: posX, posY, u, v)
-        glCreateVertexArrays(1, &_uiVao);
-        glCreateBuffers(1, &_uiVbo);
-        glNamedBufferData(_uiVbo, sizeof(float) * 4 * 4, nullptr, GL_DYNAMIC_DRAW); // 4 vertices, 4 floats each
-        glVertexArrayVertexBuffer(_uiVao, 0, _uiVbo, 0, 4 * sizeof(float));
-        // Pos
-        glEnableVertexArrayAttrib(_uiVao, 0);
-        glVertexArrayAttribFormat(_uiVao, 0, 2, GL_FLOAT, GL_FALSE, 0);
-        glVertexArrayAttribBinding(_uiVao, 0, 0);
-        // TexCoords
-        glEnableVertexArrayAttrib(_uiVao, 1);
-        glVertexArrayAttribFormat(_uiVao, 1, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float));
-        glVertexArrayAttribBinding(_uiVao, 0, 0);
+        glGenVertexArrays(1, &_uiVao);
+        glGenBuffers(1, &_uiVbo);
+        glBindVertexArray(_uiVao);
+        glBindBuffer(GL_ARRAY_BUFFER, _uiVbo);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 4 * 4, nullptr, GL_DYNAMIC_DRAW);
+        // Pos (location = 0)
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+        // TexCoords (location = 1)
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
     }
 
     void Renderer::shutdown() {
@@ -707,7 +711,8 @@ namespace Lab {
             { x,     y,     0.0f, 0.0f }
         };
 
-        glNamedBufferSubData(_uiVbo, 0, sizeof(vertices), vertices);
+        glBindBuffer(GL_ARRAY_BUFFER, _uiVbo);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
         
         glBindVertexArray(_uiVao);
         glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
@@ -733,7 +738,8 @@ namespace Lab {
             { x,     y,     u0, v0 }
         };
 
-        glNamedBufferSubData(_uiVbo, 0, sizeof(vertices), vertices);
+        glBindBuffer(GL_ARRAY_BUFFER, _uiVbo);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
 
         glBindVertexArray(_uiVao);
         glDrawArrays(GL_TRIANGLE_FAN, 0, 4);

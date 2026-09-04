@@ -6,6 +6,8 @@
 #include <memory>
 #include <filesystem>
 #include <algorithm>
+#include <fstream>
+#include <iostream>
 
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -310,16 +312,16 @@ namespace Lab {
                 rgba[i * 4 + 3] = a;
             }
 
-            DeleteObject(hbm);
-            DeleteObject(hFont);
-            DeleteDC(hdc);
-
             if (nonZero > 100) {
                 atlas.texture = std::make_unique<Texture>(rgba.data(), ATLAS_SIZE, ATLAS_SIZE, 4);
                 atlas.valid = true;
             } else {
                 atlas.valid = false;
             }
+
+            DeleteObject(hbm);
+            DeleteObject(hFont);
+            DeleteDC(hdc);
 
             return atlas;
         }
