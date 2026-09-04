@@ -24,6 +24,7 @@ namespace Lab {
         void use() const;
         void setMat4(const std::string& name, const Mat4& mat) const;
         void setVec3(const std::string& name, const Vec3& vec) const;
+        void setVec2(const std::string& name, const Vec2& vec) const;
         void setInt(const std::string& name, int value) const;
         void setFloat(const std::string& name, float value) const;
 
@@ -87,9 +88,11 @@ namespace Lab {
         static void setSunLight(const Vec3& direction, const Vec3& color, const Vec3& ambient);
 
         // 3D Rendering
-        static void drawCube(const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color, const Texture* texture = nullptr, bool enableLighting = true);
-        static void drawCube(const Vec3& position, const Vec3& size, const Vec3& color, const Texture* texture, bool enableLighting = true);
+        static void drawCube(const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color, const Texture* texture = nullptr, bool enableLighting = true, const Vec2& uvTiling = { 0.25f, 0.25f }, int uvMode = 1);
+        static void drawCube(const Vec3& position, const Vec3& size, const Vec3& color, const Texture* texture, bool enableLighting = true, const Vec2& uvTiling = { 0.25f, 0.25f }, int uvMode = 1);
         static void drawCube(const Vec3& position, const Vec3& size, const Vec3& color, bool enableLighting = true);
+        static void drawWireCube(const Vec3& position, const Vec3& size, const Vec3& color);
+        static void drawBoundingBox(const Vec3& min, const Vec3& max, const Vec3& color);
         static void drawMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true);
         static void drawBaseplate(float size, const Texture* texture = nullptr);
 
@@ -107,6 +110,7 @@ namespace Lab {
         static Shader* _uiShader;
         static Mesh* _cubeMesh;
         static Mesh* _quadMesh; // For baseplate
+        static unsigned int _wireCubeVao, _wireCubeVbo, _wireCubeEbo;
         static unsigned int _uiVao, _uiVbo;
         
         static Mat4 _viewMatrix;

@@ -23,13 +23,29 @@ namespace Lab {
         uniform mat4 model;
         uniform mat4 view;
         uniform mat4 projection;
+        uniform vec3 brushSize;
+        uniform vec2 uvTiling;
+        uniform int uvMode;
 
         void main() {
             FragPos = vec3(model * vec4(aPos, 1.0));
             // Inverse transpose for accurate non-uniform scaling normals
             mat3 normalMatrix = transpose(inverse(mat3(model)));
             Normal = normalize(normalMatrix * aNormal);
-            TexCoords = aTexCoords;
+            
+            if (uvMode == 1) {
+                vec3 absN = abs(aNormal);
+                if (absN.y > 0.5) {
+                    TexCoords = vec2(aPos.x * brushSize.x, aPos.z * brushSize.z) * uvTiling;
+                } else if (absN.z > 0.5) {
+                    TexCoords = vec2(aPos.x * brushSize.x, aPos.y * brushSize.y) * uvTiling;
+                } else {
+                    TexCoords = vec2(aPos.z * brushSize.z, aPos.y * brushSize.y) * uvTiling;
+                }
+            } else {
+                TexCoords = aTexCoords;
+            }
+
             Color = aColor;
             gl_Position = projection * view * vec4(FragPos, 1.0);
         }
@@ -54,13 +70,14 @@ namespace Lab {
         uniform vec3 ambientColor;
 
         void main() {
-            vec4 texSample = (useTexture == 1) ? texture(texture1, TexCoords) : vec4(1.0);
-            vec3 albedo = texSample.rgb * Color * objectColor;
-
             if (enableLighting == 0) {
+                vec3 albedo = (useTexture == 1) ? texture(texture1, TexCoords).rgb * objectColor : objectColor;
                 FragColor = vec4(albedo, 1.0);
                 return;
             }
+
+            vec4 texSample = (useTexture == 1) ? texture(texture1, TexCoords) : vec4(1.0);
+            vec3 albedo = texSample.rgb * Color * objectColor;
 
             // Ambient (Half-Life 2 style cool ambient)
             vec3 ambient = ambientColor * albedo;
@@ -149,6 +166,10 @@ namespace Lab {
 
     void Shader::setVec3(const std::string& name, const Vec3& vec) const {
         glUniform3f(glGetUniformLocation(_id, name.c_str()), vec.x, vec.y, vec.z);
+    }
+
+    void Shader::setVec2(const std::string& name, const Vec2& vec) const {
+        glUniform2f(glGetUniformLocation(_id, name.c_str()), vec.x, vec.y);
     }
 
     void Shader::setInt(const std::string& name, int value) const {
@@ -557,6 +578,9 @@ namespace Lab {
     Shader* Renderer::_uiShader = nullptr;
     Mesh* Renderer::_cubeMesh = nullptr;
     Mesh* Renderer::_quadMesh = nullptr;
+    unsigned int Renderer::_wireCubeVao = 0;
+    unsigned int Renderer::_wireCubeVbo = 0;
+    unsigned int Renderer::_wireCubeEbo = 0;
     unsigned int Renderer::_uiVao = 0;
     unsigned int Renderer::_uiVbo = 0;
     Mat4 Renderer::_viewMatrix;
@@ -600,6 +624,34 @@ namespace Lab {
         }
         _cubeMesh = new Mesh(cubeVerts, cubeInds);
 
+        // Wireframe Cube setup for 3D selections and bounding boxes
+        float wireVerts[] = {
+            -s, -s, -s,
+             s, -s, -s,
+             s,  s, -s,
+            -s,  s, -s,
+            -s, -s,  s,
+             s, -s,  s,
+             s,  s,  s,
+            -s,  s,  s
+        };
+        unsigned int wireIndices[] = {
+            0, 1, 1, 2, 2, 3, 3, 0, // back face
+            4, 5, 5, 6, 6, 7, 7, 4, // front face
+            0, 4, 1, 5, 2, 6, 3, 7  // connecting edges
+        };
+        glGenVertexArrays(1, &_wireCubeVao);
+        glGenBuffers(1, &_wireCubeVbo);
+        glGenBuffers(1, &_wireCubeEbo);
+        glBindVertexArray(_wireCubeVao);
+        glBindBuffer(GL_ARRAY_BUFFER, _wireCubeVbo);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(wireVerts), wireVerts, GL_STATIC_DRAW);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _wireCubeEbo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(wireIndices), wireIndices, GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glBindVertexArray(0);
+
         // UI VAO/VBO setup (4 floats per vertex: posX, posY, u, v)
         glGenVertexArrays(1, &_uiVao);
         glGenBuffers(1, &_uiVbo);
@@ -620,6 +672,9 @@ namespace Lab {
         delete _defaultShader;
         delete _uiShader;
         delete _cubeMesh;
+        if (_wireCubeVao) glDeleteVertexArrays(1, &_wireCubeVao);
+        if (_wireCubeVbo) glDeleteBuffers(1, &_wireCubeVbo);
+        if (_wireCubeEbo) glDeleteBuffers(1, &_wireCubeEbo);
         glDeleteVertexArrays(1, &_uiVao);
         glDeleteBuffers(1, &_uiVbo);
     }
@@ -660,19 +715,22 @@ namespace Lab {
         return t * rz * ry * rx * s;
     }
 
-    void Renderer::drawCube(const Vec3& position, const Vec3& size, const Vec3& color, const Texture* texture, bool enableLighting) {
-        drawCube(position, {0, 0, 0}, size, color, texture, enableLighting);
+    void Renderer::drawCube(const Vec3& position, const Vec3& size, const Vec3& color, const Texture* texture, bool enableLighting, const Vec2& uvTiling, int uvMode) {
+        drawCube(position, {0, 0, 0}, size, color, texture, enableLighting, uvTiling, uvMode);
     }
 
     void Renderer::drawCube(const Vec3& position, const Vec3& size, const Vec3& color, bool enableLighting) {
-        drawCube(position, {0, 0, 0}, size, color, nullptr, enableLighting);
+        drawCube(position, {0, 0, 0}, size, color, nullptr, enableLighting, {0.25f, 0.25f}, 0);
     }
 
-    void Renderer::drawCube(const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color, const Texture* texture, bool enableLighting) {
+    void Renderer::drawCube(const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color, const Texture* texture, bool enableLighting, const Vec2& uvTiling, int uvMode) {
         _defaultShader->use();
         _defaultShader->setMat4("projection", _projMatrix);
         _defaultShader->setMat4("view", _viewMatrix);
         _defaultShader->setMat4("model", getTransform(position, rotation, scale));
+        _defaultShader->setVec3("brushSize", scale);
+        _defaultShader->setVec2("uvTiling", uvTiling);
+        _defaultShader->setInt("uvMode", uvMode);
         _defaultShader->setVec3("objectColor", color);
         _defaultShader->setInt("enableLighting", enableLighting ? 1 : 0);
         _defaultShader->setVec3("viewPos", _cameraPos);
@@ -695,11 +753,38 @@ namespace Lab {
         }
     }
 
+    void Renderer::drawWireCube(const Vec3& position, const Vec3& size, const Vec3& color) {
+        _defaultShader->use();
+        _defaultShader->setMat4("projection", _projMatrix);
+        _defaultShader->setMat4("view", _viewMatrix);
+        _defaultShader->setMat4("model", getTransform(position, {0, 0, 0}, size));
+        _defaultShader->setVec3("brushSize", size);
+        _defaultShader->setVec2("uvTiling", {1.0f, 1.0f});
+        _defaultShader->setInt("uvMode", 0);
+        _defaultShader->setVec3("objectColor", color);
+        _defaultShader->setInt("enableLighting", 0);
+        _defaultShader->setInt("useTexture", 0);
+
+        glLineWidth(2.0f);
+        glBindVertexArray(_wireCubeVao);
+        glDrawElements(GL_LINES, 24, GL_UNSIGNED_INT, 0);
+        glBindVertexArray(0);
+    }
+
+    void Renderer::drawBoundingBox(const Vec3& min, const Vec3& max, const Vec3& color) {
+        Vec3 center = (min + max) * 0.5f;
+        Vec3 size = max - min;
+        drawWireCube(center, size, color);
+    }
+
     void Renderer::drawMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color, const Texture* texture, bool enableLighting) {
         _defaultShader->use();
         _defaultShader->setMat4("projection", _projMatrix);
         _defaultShader->setMat4("view", _viewMatrix);
         _defaultShader->setMat4("model", getTransform(position, rotation, scale));
+        _defaultShader->setVec3("brushSize", scale);
+        _defaultShader->setVec2("uvTiling", {1.0f, 1.0f});
+        _defaultShader->setInt("uvMode", 0);
         _defaultShader->setVec3("objectColor", color);
         _defaultShader->setInt("enableLighting", enableLighting ? 1 : 0);
         _defaultShader->setVec3("viewPos", _cameraPos);

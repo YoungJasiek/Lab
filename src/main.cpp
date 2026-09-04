@@ -564,23 +564,38 @@ public:
         Renderer::beginFrame(_camera);
 
         if (_currentMap) {
-            // Render map brushes
+            // Render map brushes with Frustum Culling & Source Tri-Planar UV scaling
             for (const auto& b : _currentMap->brushes) {
+                Vec3 halfSize = b.size * 0.5f;
+                Vec3 bMin = b.position - halfSize;
+                Vec3 bMax = b.position + halfSize;
+                if (!_camera.isInFrustum(bMin, bMax)) continue;
+
                 Texture* tex = b.texturePath.empty() ? nullptr : getTexture(b.texturePath);
-                Renderer::drawCube(b.position, b.size, b.color, tex);
+                Renderer::drawCube(b.position, b.size, b.color, tex, true, b.uvScale, b.uvMode);
             }
 
-            // Render map props (STL models)
+            // Render map props (STL models) with Frustum Culling
             for (const auto& p : _currentMap->props) {
                 if (_meshes.contains(p.modelPath)) {
+                    Vec3 halfScale = p.scale * 0.5f;
+                    Vec3 pMin = p.position - halfScale;
+                    Vec3 pMax = p.position + halfScale;
+                    if (!_camera.isInFrustum(pMin, pMax)) continue;
+
                     Texture* tex = p.texturePath.empty() ? nullptr : getTexture(p.texturePath);
                     Renderer::drawMesh(*_meshes[p.modelPath], p.position, p.rotation, p.scale, p.color, tex);
                 }
             }
 
-            // Render procedural animated doors
+            // Render procedural animated doors with Frustum Culling
             for (const auto& d : _currentMap->doors) {
                 Vec3 animatedPos = d.position + d.openOffset * d.currentProgress;
+                Vec3 halfSize = d.size * 0.5f;
+                Vec3 dMin = animatedPos - halfSize;
+                Vec3 dMax = animatedPos + halfSize;
+                if (!_camera.isInFrustum(dMin, dMax)) continue;
+
                 Renderer::drawCube(animatedPos, d.size, d.color);
             }
         }

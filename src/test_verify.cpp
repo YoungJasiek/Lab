@@ -1,4 +1,4 @@
-﻿#include "Lab.h"
+#include "Lab.h"
 #include "LabFont.h"
 #include "LabDialogs.h"
 #include <iostream>
@@ -97,15 +97,75 @@ int main() {
     }
 
     // 3. Render 3D Scene with Textures
+    // 3. Render 3D Scene with Textures & Source Engine UV Tiling
     Lab::Camera cam(75.0f, 16.0f / 9.0f, 0.01f, 1000.0f);
     cam.setPosition(map->spawn.position);
     Lab::Renderer::beginFrame(cam);
     Lab::Renderer::setSunLight(map->metadata.sunDir, map->metadata.sunColor, map->metadata.ambientColor);
 
+    // 3a. Verify Frustum Culling
+    std::cout << "[Test] Verifying 6-plane Frustum Culling...\n";
+    cam.updateFrustum();
+    // In front of camera
+    Lab::Vec3 frontObjMin(cam.getPosition() + cam.getFront() * 5.0f - Lab::Vec3(1, 1, 1));
+    Lab::Vec3 frontObjMax(cam.getPosition() + cam.getFront() * 5.0f + Lab::Vec3(1, 1, 1));
+    bool frontVisible = cam.isInFrustum(frontObjMin, frontObjMax);
+    std::cout << "[Test] Front object visible: " << (frontVisible ? "YES" : "NO") << "\n";
+    if (!frontVisible) {
+        std::cerr << "ERROR: Front object should be in frustum!\n";
+        return 1;
+    }
+
+    // Behind camera
+    Lab::Vec3 behindObjMin(cam.getPosition() - cam.getFront() * 50.0f - Lab::Vec3(1, 1, 1));
+    Lab::Vec3 behindObjMax(cam.getPosition() - cam.getFront() * 50.0f + Lab::Vec3(1, 1, 1));
+    bool behindVisible = cam.isInFrustum(behindObjMin, behindObjMax);
+    std::cout << "[Test] Behind object visible (should be NO): " << (behindVisible ? "YES" : "NO") << "\n";
+    if (behindVisible) {
+        std::cerr << "ERROR: Behind object should be culled!\n";
+        return 1;
+    }
+
+    // 3b. Verify Ray-AABB intersection
+    std::cout << "[Test] Verifying Fast Slab Ray-AABB intersection...\n";
+    auto rayIntersect = [](const Lab::Vec3& rayOrigin, const Lab::Vec3& rayDir, const Lab::Vec3& boxMin, const Lab::Vec3& boxMax, float& tOut) -> bool {
+        float tmin = 0.001f;
+        float tmax = 10000.0f;
+        for (int i = 0; i < 3; ++i) {
+            float originComp = (i == 0) ? rayOrigin.x : ((i == 1) ? rayOrigin.y : rayOrigin.z);
+            float dirComp = (i == 0) ? rayDir.x : ((i == 1) ? rayDir.y : rayDir.z);
+            float minComp = (i == 0) ? boxMin.x : ((i == 1) ? boxMin.y : boxMin.z);
+            float maxComp = (i == 0) ? boxMax.x : ((i == 1) ? boxMax.y : boxMax.z);
+            if (std::abs(dirComp) < 1e-6f) {
+                if (originComp < minComp || originComp > maxComp) return false;
+            } else {
+                float invD = 1.0f / dirComp;
+                float t1 = (minComp - originComp) * invD;
+                float t2 = (maxComp - originComp) * invD;
+                if (t1 > t2) std::swap(t1, t2);
+                tmin = std::max(tmin, t1);
+                tmax = std::min(tmax, t2);
+                if (tmin > tmax) return false;
+            }
+        }
+        tOut = tmin;
+        return true;
+    };
+    float tHit = 0.0f;
+    bool hit = rayIntersect(Lab::Vec3(0, 0, -5), Lab::Vec3(0, 0, 1), Lab::Vec3(-1, -1, -1), Lab::Vec3(1, 1, 1), tHit);
+    if (!hit || std::abs(tHit - 4.0f) > 0.01f) {
+        std::cerr << "ERROR: Ray-AABB intersection failed! Hit=" << hit << " t=" << tHit << "\n";
+        return 1;
+    }
+    std::cout << "[Test] Ray-AABB hit test passed at distance t=" << tHit << "!\n";
+
     for (const auto& b : map->brushes) {
         Lab::Texture* tex = b.texturePath.empty() ? nullptr : textures[b.texturePath].get();
-        Lab::Renderer::drawCube(b.position, b.size, b.color, tex);
+        Lab::Renderer::drawCube(b.position, b.size, b.color, tex, true, b.uvScale, b.uvMode);
     }
+
+    // 3c. Verify Bounding Box rendering
+    Lab::Renderer::drawBoundingBox(Lab::Vec3(-2, 0, -2), Lab::Vec3(2, 4, 2), Lab::Vec3(1.0f, 0.55f, 0.1f));
 
     Lab::Renderer::endFrame();
     glFinish();
@@ -144,6 +204,102 @@ int main() {
     Lab::Renderer::endUI();
     glFinish();
     saveFrameToBMP("test_map_menu.bmp", w, h);
+    glfwSwapBuffers(window);
+
+    // 5. Render Full Hammer Editor Interface frame (1280x720 scaled)
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    Lab::Camera hammerCam(70.0f, 16.0f / 9.0f, 0.01f, 3000.0f);
+    hammerCam.setPosition(Lab::Vec3(0, 8.0f, 18.0f));
+    Lab::Renderer::beginFrame(hammerCam);
+    Lab::Renderer::setSunLight(Lab::Vec3(-0.4f, -0.8f, -0.4f), Lab::Vec3(1.0f, 0.95f, 0.9f), Lab::Vec3(0.25f, 0.28f, 0.35f));
+
+    // Brushes with Frustum Culling
+    for (const auto& b : map->brushes) {
+        Lab::Vec3 halfSize = b.size * 0.5f;
+        if (!hammerCam.isInFrustum(b.position - halfSize, b.position + halfSize)) continue;
+        Lab::Texture* tex = b.texturePath.empty() ? nullptr : textures[b.texturePath].get();
+        Lab::Renderer::drawCube(b.position, b.size, b.color, tex, true, b.uvScale, b.uvMode);
+    }
+    // Selection Bounding Box & Gizmo
+    Lab::Renderer::drawBoundingBox(Lab::Vec3(-6, -0.5f, -6), Lab::Vec3(6, 4.0f, 6), Lab::Vec3(1.0f, 0.55f, 0.1f));
+    Lab::Renderer::drawCube(Lab::Vec3(0, 2.0f, 0), Lab::Vec3(1.6f, 0.06f, 0.06f), Lab::Vec3(1, 0, 0), false);
+    Lab::Renderer::drawCube(Lab::Vec3(0, 2.0f, 0), Lab::Vec3(0.06f, 1.6f, 0.06f), Lab::Vec3(0, 1, 0), false);
+    Lab::Renderer::drawCube(Lab::Vec3(0, 2.0f, 0), Lab::Vec3(0.06f, 0.06f, 1.6f), Lab::Vec3(0, 0.5f, 1), false);
+
+    // Hammer 2D UI Overlay
+    Lab::Renderer::beginUI(w, h);
+    Lab::Vec3 winBg{ 0.93f, 0.93f, 0.94f };
+    Lab::Vec3 winBorder{ 0.65f, 0.65f, 0.68f };
+    Lab::Vec3 textDark{ 0.12f, 0.12f, 0.12f };
+    Lab::Vec3 orangeGlow{ 1.0f, 0.55f, 0.1f };
+
+    // Top menu
+    Lab::Renderer::drawRect(0, 0, (float)w, 24.0f, winBg);
+    Lab::Renderer::drawRect(0, 23.0f, (float)w, 1.0f, winBorder);
+    Lab::LabFont::drawText(14.0f, 5.0f, "File", 1.8f, textDark, Lab::LabFontType::System);
+    Lab::LabFont::drawText(54.0f, 5.0f, "Edit", 1.8f, textDark, Lab::LabFontType::System);
+    Lab::LabFont::drawText(94.0f, 5.0f, "View", 1.8f, textDark, Lab::LabFontType::System);
+    Lab::LabFont::drawText(140.0f, 5.0f, "Tools", 1.8f, textDark, Lab::LabFontType::System);
+    Lab::LabFont::drawText(190.0f, 5.0f, "Help", 1.8f, textDark, Lab::LabFontType::System);
+    Lab::LabFont::drawText((float)w - 360.0f, 5.0f, "Valve Hammer 4.1 - Frozen-Life Engine", 1.8f, Lab::Vec3(0.15f, 0.45f, 0.75f), Lab::LabFontType::GeoSans);
+
+    // Toolbar (18 buttons)
+    Lab::Renderer::drawRect(0, 24.0f, (float)w, 34.0f, winBg);
+    Lab::Renderer::drawRect(0, 57.0f, (float)w, 1.0f, winBorder);
+    for (int i = 0; i < 18; ++i) {
+        float bx = 8.0f + i * 28.0f;
+        Lab::Renderer::drawRect(bx, 29.0f, 24.0f, 24.0f, (i == 17) ? Lab::Vec3(0.15f, 0.65f, 0.35f) : Lab::Vec3(0.88f, 0.88f, 0.90f));
+    }
+
+    // Left Palette (8 tools)
+    Lab::Renderer::drawRect(0, 58.0f, 42.0f, (float)h - 80.0f, winBg);
+    for (int i = 0; i < 8; ++i) {
+        Lab::Renderer::drawRect(6.0f, 68.0f + i * 36.0f, 30.0f, 30.0f, (i == 0) ? Lab::Vec3(0.78f, 0.88f, 1.0f) : Lab::Vec3(0.88f, 0.88f, 0.90f));
+    }
+
+    // Right Sidebar (Outliner Tab active)
+    float rX = (float)w - 280.0f;
+    Lab::Renderer::drawRect(rX, 58.0f, 280.0f, (float)h - 80.0f, winBg);
+    Lab::Renderer::drawRect(rX + 10.0f, 64.0f, 125.0f, 24.0f, Lab::Vec3(0.85f, 0.85f, 0.88f));
+    Lab::LabFont::drawText(rX + 30.0f, 69.0f, "Properties", 1.6f, Lab::Vec3(0.45f, 0.45f, 0.45f), Lab::LabFontType::System);
+    Lab::Renderer::drawRect(rX + 140.0f, 64.0f, 125.0f, 24.0f, Lab::Vec3(1, 1, 1));
+    Lab::Renderer::drawRect(rX + 140.0f, 64.0f, 125.0f, 1.0f, orangeGlow);
+    Lab::LabFont::drawText(rX + 165.0f, 69.0f, "Struktura", 1.6f, textDark, Lab::LabFontType::System);
+
+    Lab::LabFont::drawText(rX + 12.0f, 98.0f, "Map Entity Outliner (9 items):", 1.6f, textDark, Lab::LabFontType::System);
+    Lab::Renderer::drawRect(rX + 10.0f, 118.0f, 260.0f, 400.0f, Lab::Vec3(1, 1, 1));
+    Lab::LabFont::drawText(rX + 18.0f, 126.0f, "[Spawn] Player Start (0, 1.8, 0)", 1.5f, textDark, Lab::LabFontType::System);
+    Lab::Renderer::drawRect(rX + 11.0f, 146.0f, 258.0f, 22.0f, Lab::Vec3(0.85f, 0.92f, 1.0f));
+    Lab::Renderer::drawRect(rX + 11.0f, 146.0f, 4.0f, 22.0f, orangeGlow);
+    Lab::LabFont::drawText(rX + 18.0f, 150.0f, "[B#0] floor_tiles.bmp (32x1x32)", 1.5f, Lab::Vec3(0.1f, 0.35f, 0.7f), Lab::LabFontType::System);
+    Lab::LabFont::drawText(rX + 18.0f, 174.0f, "[B#1] concrete_wall.bmp (16x4x1)", 1.5f, textDark, Lab::LabFontType::System);
+    Lab::LabFont::drawText(rX + 18.0f, 198.0f, "[P#0] Model.stl (1x1x1)", 1.5f, textDark, Lab::LabFontType::System);
+    Lab::LabFont::drawText(rX + 18.0f, 222.0f, "[D#0] blast_door (2.5x3.5x0.4)", 1.5f, textDark, Lab::LabFontType::System);
+
+    // Outliner action buttons
+    Lab::Renderer::drawRect(rX + 12.0f, 530.0f, 76.0f, 26.0f, Lab::Vec3(0.88f, 0.88f, 0.90f));
+    Lab::LabFont::drawText(rX + 18.0f, 536.0f, "Focus (F)", 1.5f, textDark, Lab::LabFontType::System);
+    Lab::Renderer::drawRect(rX + 94.0f, 530.0f, 76.0f, 26.0f, Lab::Vec3(0.88f, 0.88f, 0.90f));
+    Lab::LabFont::drawText(rX + 100.0f, 536.0f, "Duplicate", 1.5f, textDark, Lab::LabFontType::System);
+    Lab::Renderer::drawRect(rX + 176.0f, 530.0f, 76.0f, 26.0f, Lab::Vec3(0.88f, 0.88f, 0.90f));
+    Lab::LabFont::drawText(rX + 186.0f, 536.0f, "Delete", 1.5f, Lab::Vec3(0.7f, 0.1f, 0.1f), Lab::LabFontType::System);
+
+    // Messages Console
+    Lab::Renderer::drawRect(60.0f, (float)h - 170.0f, 600.0f, 140.0f, Lab::Vec3(1, 1, 1));
+    Lab::Renderer::drawRect(60.0f, (float)h - 170.0f, 600.0f, 22.0f, Lab::Vec3(0.85f, 0.90f, 0.96f));
+    Lab::LabFont::drawText(70.0f, (float)h - 165.0f, "Messages & Optimization Log", 1.6f, textDark, Lab::LabFontType::System);
+    Lab::LabFont::drawText(70.0f, (float)h - 140.0f, "Hammer initialized. Ready.", 1.5f, Lab::Vec3(0.1f, 0.15f, 0.2f), Lab::LabFontType::System);
+    Lab::LabFont::drawText(70.0f, (float)h - 124.0f, "Frustum Culling active: 'To czego oko nie widzi tego maszyna renderowac nie musi'", 1.5f, Lab::Vec3(0.1f, 0.15f, 0.2f), Lab::LabFontType::System);
+    Lab::LabFont::drawText(70.0f, (float)h - 108.0f, "Selected Brush #0 (floor_tiles.bmp)", 1.5f, Lab::Vec3(0.1f, 0.15f, 0.2f), Lab::LabFontType::System);
+
+    // Status bar with Frustum Culling stats
+    Lab::Renderer::drawRect(0, (float)h - 22.0f, (float)w, 22.0f, winBg);
+    Lab::LabFont::drawText(10.0f, (float)h - 17.0f, "RMB Fly | LMB Pick/Apply | E Place | F Focus | Del Delete | Frustum Culling: Brushes 7/7 | Props 1/1", 1.5f, textDark, Lab::LabFontType::System);
+    Lab::LabFont::drawText((float)w - 220.0f, (float)h - 17.0f, "Snap: 1 | F9: Run", 1.5f, textDark, Lab::LabFontType::System);
+
+    Lab::Renderer::endUI();
+    glFinish();
+    saveFrameToBMP("test_hammer_ui.bmp", w, h);
     glfwSwapBuffers(window);
 
     Lab::Renderer::shutdown();

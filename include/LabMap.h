@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "LabMath.h"
 #include <string>
@@ -21,6 +21,8 @@ namespace Lab {
         Vec3 size = { 1, 1, 1 };
         Vec3 color = { 1, 1, 1 };
         std::string texturePath = "";
+        Vec2 uvScale = { 0.25f, 0.25f };
+        int uvMode = 1;
     };
 
     struct MapProp {

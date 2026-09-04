@@ -82,6 +82,9 @@ namespace Lab {
                     if (ss >> b.texturePath) {
                         if (b.texturePath == "\"\"") b.texturePath = "";
                     }
+                    if (ss >> b.uvScale.x >> b.uvScale.y) {
+                        ss >> b.uvMode;
+                    }
                     map->brushes.push_back(b);
                 } else if (token == "prop") {
                     MapProp p;
@@ -133,7 +136,8 @@ namespace Lab {
                  << b.position.x << " " << b.position.y << " " << b.position.z << " "
                  << b.size.x << " " << b.size.y << " " << b.size.z << " "
                  << b.color.x << " " << b.color.y << " " << b.color.z << " "
-                 << (b.texturePath.empty() ? "\"\"" : b.texturePath) << "\n";
+                 << (b.texturePath.empty() ? "\"\"" : b.texturePath) << " "
+                 << b.uvScale.x << " " << b.uvScale.y << " " << b.uvMode << "\n";
         }
 
         for (const auto& p : props) {
