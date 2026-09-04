@@ -28,11 +28,6 @@ enum class SelectionType {
     Spawn
 };
 
-enum class SidebarTab {
-    Properties,
-    Hierarchy
-};
-
 class LabHammerStandalone : public Engine {
 public:
     LabHammerStandalone()
@@ -264,21 +259,33 @@ public:
         // Snap 3D cursor to grid
         _cursorPos = snapToGrid(_camera.getPosition() + _camera.getFront() * 10.0f, _gridSnap);
 
+        // Compute coordinate scaling between screen window coordinates and framebuffer
+        int winW = 0, winH = 0;
+        glfwGetWindowSize(getWindow(), &winW, &winH);
+        int fbW = 0, fbH = 0;
+        glfwGetFramebufferSize(getWindow(), &fbW, &fbH);
+
+        float mouseScaleX = (winW > 0 && fbW > 0) ? ((float)fbW / (float)winW) : 1.0f;
+        float mouseScaleY = (winH > 0 && fbH > 0) ? ((float)fbH / (float)winH) : 1.0f;
+
+        float mx = Input::mousePos.x * mouseScaleX;
+        float my = Input::mousePos.y * mouseScaleY;
+
         // Handle Left-Click
         if (Input::isMouseButtonPressed(0)) {
             if (!_lmbPressed) {
-                handleMouseClick(Input::mousePos.x, Input::mousePos.y, false);
+                handleMouseClick(mx, my, false);
                 _lmbPressed = true;
             }
         } else {
             _lmbPressed = false;
         }
 
-        // Handle Right-Click (for Tool 3 Pipette sample or camera)
+        // Handle Right-Click (for Tool 3 Pipette sample)
         if (Input::isMouseButtonPressed(1)) {
             if (!_rmbPressed) {
                 if (_activeTool == 3) {
-                    handleMouseClick(Input::mousePos.x, Input::mousePos.y, true);
+                    handleMouseClick(mx, my, true);
                 }
                 _rmbPressed = true;
             }
@@ -467,10 +474,16 @@ public:
 
     void pickObjectInViewport(float mx, float my, bool isRmb = false) {
         if (!_map) return;
+        int fbW = 0, fbH = 0;
+        glfwGetFramebufferSize(getWindow(), &fbW, &fbH);
+        float w = (fbW > 0) ? (float)fbW : (float)getWidth();
+        float h = (fbH > 0) ? (float)fbH : (float)getHeight();
+
+        SidebarLayout l = getSidebarLayout(w, h);
         float vpX = 42.0f;
         float vpY = 58.0f;
-        float vpW = 1258.0f;
-        float vpH = 820.0f;
+        float vpW = l.rightX - vpX;
+        float vpH = (h - 22.0f) - vpY;
         if (mx < vpX || mx > vpX + vpW || my < vpY || my > vpY + vpH) return;
 
         float ndcX = ((mx - vpX) / vpW) * 2.0f - 1.0f;
@@ -715,18 +728,28 @@ public:
     }
 
     void handleMouseClick(float mx, float my, bool isRmb = false) {
+        int fbW = 0, fbH = 0;
+        glfwGetFramebufferSize(getWindow(), &fbW, &fbH);
+        float w = (fbW > 0) ? (float)fbW : (float)getWidth();
+        float h = (fbH > 0) ? (float)fbH : (float)getHeight();
+
         // 1. Texture Browser Modal
         if (_browserOpen) {
+            float bw = 820.0f;
+            float bh = 600.0f;
+            float bx = (w - bw) * 0.5f;
+            float by = (h - bh) * 0.5f;
+
             // Close button click
-            if (mx >= 1180.0f && mx <= 1215.0f && my >= 95.0f && my <= 125.0f) {
+            if (mx >= bx + bw - 36.0f && mx <= bx + bw - 6.0f && my >= by + 2.0f && my <= by + 26.0f) {
                 _browserOpen = false;
                 return;
             }
             int cols = 6;
             float thumbSize = 110.0f;
             float gap = 15.0f;
-            float startX = 425.0f;
-            float startY = 150.0f;
+            float startX = bx + 25.0f;
+            float startY = by + 45.0f;
 
             for (size_t i = 0; i < _availableTextures.size(); ++i) {
                 int col = (int)(i % cols);
@@ -749,21 +772,26 @@ public:
 
         // 2. Model Browser Modal
         if (_modelBrowserOpen) {
+            float bw = 700.0f;
+            float bh = 480.0f;
+            float bx = (w - bw) * 0.5f;
+            float by = (h - bh) * 0.5f;
+
             // Close button click
-            if (mx >= 1120.0f && mx <= 1155.0f && my >= 195.0f && my <= 225.0f) {
+            if (mx >= bx + bw - 36.0f && mx <= bx + bw - 6.0f && my >= by + 2.0f && my <= by + 26.0f) {
                 _modelBrowserOpen = false;
                 return;
             }
             // Browse Disk STL button
-            if (mx >= 470.0f && mx <= 770.0f && my >= 240.0f && my <= 275.0f) {
+            if (mx >= bx + 20.0f && mx <= bx + 320.0f && my >= by + 45.0f && my <= by + 80.0f) {
                 openModelDialog();
                 return;
             }
             // Model list items
-            float startY = 290.0f;
+            float startY = by + 95.0f;
             for (size_t i = 0; i < _availableModels.size(); ++i) {
-                float iy = startY + i * 36.0f;
-                if (mx >= 470.0f && mx <= 1130.0f && my >= iy && my <= iy + 30.0f) {
+                float iy = startY + 24.0f + i * 36.0f;
+                if (mx >= bx + 20.0f && mx <= bx + bw - 20.0f && my >= iy && my <= iy + 30.0f) {
                     _selectedModel = _availableModels[i];
                     logMessage("Selected 3D Model: " + _selectedModel);
                     if (_selectionType == SelectionType::Prop && _selectedIndex >= 0 && _selectedIndex < (int)_map->props.size()) {
@@ -778,7 +806,12 @@ public:
 
         // 3. Help Modal
         if (_helpModalOpen) {
-            if (mx >= 1090.0f && mx <= 1125.0f && my >= 220.0f && my <= 250.0f) {
+            float bw = 650.0f;
+            float bh = 420.0f;
+            float bx = (w - bw) * 0.5f;
+            float by = (h - bh) * 0.5f;
+
+            if (mx >= bx + bw - 36.0f && mx <= bx + bw - 6.0f && my >= by + 2.0f && my <= by + 26.0f) {
                 _helpModalOpen = false;
                 return;
             }
@@ -900,35 +933,31 @@ public:
             }
         }
 
-        // 8. Right Sidebar (x: 1300..1600, y: 58..878)
-        if (mx >= 1300.0f) {
-            float rightX = 1300.0f;
-            float rightY = 58.0f;
-
+        // 8. Right Sidebar (Using exact synchronized layout!)
+        SidebarLayout l = getSidebarLayout(w, h);
+        if (mx >= l.rightX && mx <= w && my >= l.rightY && my <= h - 22.0f) {
             // Tab headers (Properties vs Outliner)
-            if (my >= rightY + 4.0f && my <= rightY + 30.0f) {
-                if (mx >= rightX + 10.0f && mx <= rightX + 145.0f) {
-                    _sidebarTab = SidebarTab::Properties;
-                    return;
-                } else if (mx >= rightX + 150.0f && mx <= rightX + 285.0f) {
-                    _sidebarTab = SidebarTab::Hierarchy;
-                    return;
-                }
+            if (mx >= l.tabPropX && mx <= l.tabPropX + l.tabPropW && my >= l.tabPropY && my <= l.tabPropY + l.tabPropH) {
+                _sidebarTab = SidebarTab::Properties;
+                logMessage("Sidebar: Switched to Properties Tab");
+                return;
+            }
+            if (mx >= l.tabOutX && mx <= l.tabOutX + l.tabOutW && my >= l.tabOutY && my <= l.tabOutY + l.tabOutH) {
+                _sidebarTab = SidebarTab::Hierarchy;
+                logMessage("Sidebar: Switched to Struktura (Outliner) Tab");
+                return;
             }
 
             // OUTLINER TAB INTERACTIONS
             if (_sidebarTab == SidebarTab::Hierarchy) {
-                float listY = rightY + 65.0f;
                 int totalEntities = (int)(1 + _map->brushes.size() + _map->props.size() + _map->doors.size());
-                int maxItemsPerPage = 18;
+                int maxItems = (int)(l.outListH / l.outItemSpacing);
 
                 // Click on entity items
-                for (int i = 0; i < maxItemsPerPage; ++i) {
-                    int itemIdx = _outlinerScroll + i;
-                    if (itemIdx >= totalEntities) break;
-
-                    float iy = listY + i * 26.0f;
-                    if (my >= iy && my <= iy + 24.0f && mx >= rightX + 10.0f && mx <= rightX + 285.0f) {
+                if (mx >= l.outListX && mx <= l.outListX + l.outListW && my >= l.outListY && my <= l.outListY + l.outListH) {
+                    int clickedSlot = (int)((my - l.outListY - 4.0f) / l.outItemSpacing);
+                    int itemIdx = _outlinerScroll + clickedSlot;
+                    if (clickedSlot >= 0 && itemIdx >= 0 && itemIdx < totalEntities) {
                         if (itemIdx == 0) {
                             _selectionType = SelectionType::Spawn;
                             _selectedIndex = 0;
@@ -958,32 +987,30 @@ public:
                     }
                 }
 
-                // Outliner bottom action buttons
-                float actY = rightY + 540.0f;
                 // Focus (F)
-                if (my >= actY && my <= actY + 28.0f && mx >= rightX + 12.0f && mx <= rightX + 98.0f) {
+                if (mx >= l.outFocusX && mx <= l.outFocusX + l.outFocusW && my >= l.outFocusY && my <= l.outFocusY + l.outFocusH) {
                     focusCamera();
                     return;
                 }
                 // Duplicate (Ctrl+D)
-                if (my >= actY && my <= actY + 28.0f && mx >= rightX + 104.0f && mx <= rightX + 190.0f) {
+                if (mx >= l.outDupX && mx <= l.outDupX + l.outDupW && my >= l.outDupY && my <= l.outDupY + l.outDupH) {
                     duplicateSelection();
                     return;
                 }
                 // Delete (Del)
-                if (my >= actY && my <= actY + 28.0f && mx >= rightX + 196.0f && mx <= rightX + 282.0f) {
+                if (mx >= l.outDelX && mx <= l.outDelX + l.outDelW && my >= l.outDelY && my <= l.outDelY + l.outDelH) {
                     deleteSelection();
                     return;
                 }
-                // Prev / Next Page buttons
-                if (my >= actY + 34.0f && my <= actY + 60.0f) {
-                    if (mx >= rightX + 12.0f && mx <= rightX + 140.0f) {
-                        _outlinerScroll = std::max(0, _outlinerScroll - maxItemsPerPage);
-                        return;
-                    } else if (mx >= rightX + 154.0f && mx <= rightX + 282.0f) {
-                        if (_outlinerScroll + maxItemsPerPage < totalEntities) _outlinerScroll += maxItemsPerPage;
-                        return;
-                    }
+                // Prev Page
+                if (mx >= l.outPrevX && mx <= l.outPrevX + l.outPrevW && my >= l.outPrevY && my <= l.outPrevY + l.outPrevH) {
+                    _outlinerScroll = std::max(0, _outlinerScroll - maxItems);
+                    return;
+                }
+                // Next Page
+                if (mx >= l.outNextX && mx <= l.outNextX + l.outNextW && my >= l.outNextY && my <= l.outNextY + l.outNextH) {
+                    if (_outlinerScroll + maxItems < totalEntities) _outlinerScroll += maxItems;
+                    return;
                 }
                 return;
             }
@@ -991,46 +1018,33 @@ public:
             // PROPERTIES TAB INTERACTIONS
             if (_sidebarTab == SidebarTab::Properties) {
                 // UV Scale buttons [0.125] [0.25] [0.5] [1.0]
-                float uvY = rightY + 160.0f;
-                if (my >= uvY && my <= uvY + 24.0f) {
-                    if (mx >= rightX + 12.0f && mx <= rightX + 72.0f) {
-                        _activeUvScale = Vec2(0.125f, 0.125f);
+                float scales[4] = { 0.125f, 0.25f, 0.5f, 1.0f };
+                for (int i = 0; i < 4; ++i) {
+                    float sx = l.rightX + 10.0f + i * 70.0f;
+                    if (mx >= sx && mx <= sx + l.uvBtnW && my >= l.uvBtnY && my <= l.uvBtnY + l.uvBtnH) {
+                        _activeUvScale = Vec2(scales[i], scales[i]);
                         if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
                             _map->brushes[_selectedIndex].uvScale = _activeUvScale;
                         }
-                        logMessage("Set UV Scale: 0.125 (Fine Tiling)");
-                        return;
-                    } else if (mx >= rightX + 76.0f && mx <= rightX + 136.0f) {
-                        _activeUvScale = Vec2(0.25f, 0.25f);
-                        if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
-                            _map->brushes[_selectedIndex].uvScale = _activeUvScale;
-                        }
-                        logMessage("Set UV Scale: 0.25 (Source Engine Standard)");
-                        return;
-                    } else if (mx >= rightX + 140.0f && mx <= rightX + 200.0f) {
-                        _activeUvScale = Vec2(0.5f, 0.5f);
-                        if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
-                            _map->brushes[_selectedIndex].uvScale = _activeUvScale;
-                        }
-                        logMessage("Set UV Scale: 0.5");
-                        return;
-                    } else if (mx >= rightX + 204.0f && mx <= rightX + 264.0f) {
-                        _activeUvScale = Vec2(1.0f, 1.0f);
-                        if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
-                            _map->brushes[_selectedIndex].uvScale = _activeUvScale;
-                        }
-                        logMessage("Set UV Scale: 1.0 (Single Repeat)");
+                        logMessage("Set UV Scale: " + std::to_string(scales[i]));
                         return;
                     }
                 }
 
-                // Texture Browse button
-                if (my >= rightY + 280.0f && my <= rightY + 312.0f && mx >= rightX + 105.0f && mx <= rightX + 275.0f) {
+                // Thumbnail click -> open texture browser
+                if (mx >= l.thumbX && mx <= l.thumbX + l.thumbS && my >= l.thumbY && my <= l.thumbY + l.thumbS) {
                     _browserOpen = true;
                     return;
                 }
+
+                // Browse Textures button
+                if (mx >= l.texBrowseX && mx <= l.texBrowseX + l.texBrowseW && my >= l.texBrowseY && my <= l.texBrowseY + l.texBrowseH) {
+                    _browserOpen = true;
+                    return;
+                }
+
                 // Apply Texture button
-                if (my >= rightY + 318.0f && my <= rightY + 350.0f && mx >= rightX + 105.0f && mx <= rightX + 275.0f) {
+                if (mx >= l.texApplyX && mx <= l.texApplyX + l.texApplyW && my >= l.texApplyY && my <= l.texApplyY + l.texApplyH) {
                     if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
                         _map->brushes[_selectedIndex].texturePath = _selectedTexture;
                         _map->brushes[_selectedIndex].uvScale = _activeUvScale;
@@ -1041,35 +1055,40 @@ public:
                     return;
                 }
 
-                // Model Browse button
-                if (my >= rightY + 410.0f && my <= rightY + 442.0f && mx >= rightX + 12.0f && mx <= rightX + 275.0f) {
+                // Browse Models button
+                if (mx >= l.modelBrowseX && mx <= l.modelBrowseX + l.modelBrowseW && my >= l.modelBrowseY && my <= l.modelBrowseY + l.modelBrowseH) {
                     _modelBrowserOpen = true;
                     return;
                 }
 
-                // Resize [-] [+] buttons for selected object or brush size
-                float dimY = rightY + 480.0f;
-                if (my >= dimY && my <= dimY + 26.0f) {
-                    // Size X [-] [+]
-                    if (mx >= rightX + 60.0f && mx <= rightX + 85.0f) { resizeSelection(-_gridSnap, 0, 0); _brushSize.x = std::max(0.5f, _brushSize.x - _gridSnap); return; }
-                    if (mx >= rightX + 90.0f && mx <= rightX + 115.0f) { resizeSelection(_gridSnap, 0, 0); _brushSize.x += _gridSnap; return; }
-                    // Size Y [-] [+]
-                    if (mx >= rightX + 140.0f && mx <= rightX + 165.0f) { resizeSelection(0, -_gridSnap, 0); _brushSize.y = std::max(0.5f, _brushSize.y - _gridSnap); return; }
-                    if (mx >= rightX + 170.0f && mx <= rightX + 195.0f) { resizeSelection(0, _gridSnap, 0); _brushSize.y += _gridSnap; return; }
-                    // Size Z [-] [+]
-                    if (mx >= rightX + 220.0f && mx <= rightX + 245.0f) { resizeSelection(0, 0, -_gridSnap); _brushSize.z = std::max(0.5f, _brushSize.z - _gridSnap); return; }
-                    if (mx >= rightX + 250.0f && mx <= rightX + 275.0f) { resizeSelection(0, 0, _gridSnap); _brushSize.z += _gridSnap; return; }
+                // Dimension adjusters [-] [+]
+                if (my >= l.dimBtnsY && my <= l.dimBtnsY + l.dimBtnH) {
+                    // X - / +
+                    if (mx >= l.rightX + 30.0f && mx <= l.rightX + 56.0f) { resizeSelection(-_gridSnap, 0, 0); _brushSize.x = std::max(0.5f, _brushSize.x - _gridSnap); return; }
+                    if (mx >= l.rightX + 60.0f && mx <= l.rightX + 86.0f) { resizeSelection(_gridSnap, 0, 0); _brushSize.x += _gridSnap; return; }
+                    // Y - / +
+                    if (mx >= l.rightX + 123.0f && mx <= l.rightX + 149.0f) { resizeSelection(0, -_gridSnap, 0); _brushSize.y = std::max(0.5f, _brushSize.y - _gridSnap); return; }
+                    if (mx >= l.rightX + 153.0f && mx <= l.rightX + 179.0f) { resizeSelection(0, _gridSnap, 0); _brushSize.y += _gridSnap; return; }
+                    // Z - / +
+                    if (mx >= l.rightX + 216.0f && mx <= l.rightX + 242.0f) { resizeSelection(0, 0, -_gridSnap); _brushSize.z = std::max(0.5f, _brushSize.z - _gridSnap); return; }
+                    if (mx >= l.rightX + 246.0f && mx <= l.rightX + 272.0f) { resizeSelection(0, 0, _gridSnap); _brushSize.z += _gridSnap; return; }
                 }
 
-                // Deselect button
-                if (my >= rightY + 540.0f && my <= rightY + 568.0f && mx >= rightX + 12.0f && mx <= rightX + 275.0f) {
+                // Deselect All button
+                if (mx >= l.deselX && mx <= l.deselX + l.deselW && my >= l.deselY && my <= l.deselY + l.deselH) {
                     _selectionType = SelectionType::None;
                     _selectedIndex = -1;
                     logMessage("Deselected all.");
                     return;
                 }
+
+                // Delete Selected button
+                if (mx >= l.delX && mx <= l.delX + l.delW && my >= l.delY && my <= l.delY + l.delH) {
+                    deleteSelection();
+                    return;
+                }
             }
-            return;
+            return; // Guaranteed: right sidebar clicks never bleed into 3D world!
         }
 
         // 9. 3D Viewport Raycast Picking (Selection / Texture Tool / Object placement)
@@ -1351,8 +1370,12 @@ public:
     }
 
     void drawHammerInterface() {
-        int w = 1600, h = 900;
-        Renderer::beginUI(w, h);
+        int fbW = 0, fbH = 0;
+        glfwGetFramebufferSize(getWindow(), &fbW, &fbH);
+        float w = (fbW > 0) ? (float)fbW : (float)getWidth();
+        float h = (fbH > 0) ? (float)fbH : (float)getHeight();
+
+        Renderer::beginUI((int)w, (int)h);
 
         Vec3 winBg{ 0.93f, 0.93f, 0.94f };          // Win32 Editor Gray
         Vec3 winBorder{ 0.65f, 0.65f, 0.68f };      // Bevel Gray
@@ -1362,8 +1385,8 @@ public:
         Vec3 orangeGlow{ 1.0f, 0.55f, 0.1f };       // Hammer Orange
 
         // ==================== 1. TOP TITLEBAR & MENUS ====================
-        Renderer::drawRect(0, 0, (float)w, 24.0f, winBg);
-        Renderer::drawRect(0, 23.0f, (float)w, 1.0f, winBorder);
+        Renderer::drawRect(0, 0, w, 24.0f, winBg);
+        Renderer::drawRect(0, 23.0f, w, 1.0f, winBorder);
 
         LabFont::drawText(14.0f, 5.0f, "File", 1.8f, textDark, LabFontType::System);
         LabFont::drawText(54.0f, 5.0f, "Edit", 1.8f, textDark, LabFontType::System);
@@ -1371,13 +1394,13 @@ public:
         LabFont::drawText(140.0f, 5.0f, "Tools", 1.8f, textDark, LabFontType::System);
         LabFont::drawText(190.0f, 5.0f, "Help", 1.8f, textDark, LabFontType::System);
 
-        LabFont::drawText((float)w - 360.0f, 5.0f, "Valve Hammer 4.1 - Frozen-Life Engine", 1.8f, Vec3(0.15f, 0.45f, 0.75f), LabFontType::GeoSans);
+        LabFont::drawText(w - 360.0f, 5.0f, "Valve Hammer 4.1 - Frozen-Life Engine", 1.8f, Vec3(0.15f, 0.45f, 0.75f), LabFontType::GeoSans);
 
         // ==================== 2. MAIN TOOLBAR (18 Buttons) ====================
         float tbY = 24.0f;
         float tbH = 34.0f;
-        Renderer::drawRect(0, tbY, (float)w, tbH, winBg);
-        Renderer::drawRect(0, tbY + tbH - 1.0f, (float)w, 1.0f, winBorder);
+        Renderer::drawRect(0, tbY, w, tbH, winBg);
+        Renderer::drawRect(0, tbY + tbH - 1.0f, w, 1.0f, winBorder);
 
         for (int i = 0; i < 18; ++i) {
             float bx = 8.0f + i * 28.0f;
@@ -1387,7 +1410,7 @@ public:
         // ==================== 3. LEFT TOOLS PALETTE (Tools 0..7) ====================
         float leftW = 42.0f;
         float leftY = tbY + tbH;
-        float leftH = (float)h - leftY - 24.0f;
+        float leftH = h - leftY - 22.0f;
         Renderer::drawRect(0, leftY, leftW, leftH, winBg);
         Renderer::drawRect(leftW - 1.0f, leftY, 1.0f, leftH, winBorder);
 
@@ -1402,42 +1425,38 @@ public:
             drawHammerIcon(i, 9.0f, ty + 3.0f, iconCol, bgCol);
         }
 
-        // ==================== 4. RIGHT SIDEBAR (300px) ====================
-        float rightW = 300.0f;
-        float rightX = (float)w - rightW;
-        float rightY = leftY;
-        float rightH = leftH;
-        Renderer::drawRect(rightX, rightY, rightW, rightH, winBg);
-        Renderer::drawRect(rightX, rightY, 1.0f, rightH, winBorder);
+        // ==================== 4. RIGHT SIDEBAR (Synchronized Layout) ====================
+        SidebarLayout l = getSidebarLayout(w, h);
+        Renderer::drawRect(l.rightX, l.rightY, l.rightW, l.rightH, winBg);
+        Renderer::drawRect(l.rightX, l.rightY, 1.0f, l.rightH, winBorder);
 
         // Sidebar Tabs: [ Properties ] and [ Outliner / Struktura ]
         bool isPropTab = (_sidebarTab == SidebarTab::Properties);
         bool isOutTab = (_sidebarTab == SidebarTab::Hierarchy);
 
-        Renderer::drawRect(rightX + 10.0f, rightY + 6.0f, 135.0f, 24.0f, isPropTab ? Vec3(1, 1, 1) : Vec3(0.85f, 0.85f, 0.88f));
-        Renderer::drawRect(rightX + 10.0f, rightY + 6.0f, 135.0f, 1.0f, isPropTab ? orangeGlow : winBorder);
-        LabFont::drawText(rightX + 35.0f, rightY + 11.0f, "Properties", 1.6f, isPropTab ? textDark : textDim, LabFontType::System);
+        Renderer::drawRect(l.tabPropX, l.tabPropY, l.tabPropW, l.tabPropH, isPropTab ? Vec3(1, 1, 1) : Vec3(0.85f, 0.85f, 0.88f));
+        Renderer::drawRect(l.tabPropX, l.tabPropY, l.tabPropW, 1.0f, isPropTab ? orangeGlow : winBorder);
+        LabFont::drawText(l.tabPropX + 25.0f, l.tabPropY + 5.0f, "Properties", 1.6f, isPropTab ? textDark : textDim, LabFontType::System);
 
-        Renderer::drawRect(rightX + 150.0f, rightY + 6.0f, 135.0f, 24.0f, isOutTab ? Vec3(1, 1, 1) : Vec3(0.85f, 0.85f, 0.88f));
-        Renderer::drawRect(rightX + 150.0f, rightY + 6.0f, 135.0f, 1.0f, isOutTab ? orangeGlow : winBorder);
-        LabFont::drawText(rightX + 175.0f, rightY + 11.0f, "Struktura", 1.6f, isOutTab ? textDark : textDim, LabFontType::System);
+        Renderer::drawRect(l.tabOutX, l.tabOutY, l.tabOutW, l.tabOutH, isOutTab ? Vec3(1, 1, 1) : Vec3(0.85f, 0.85f, 0.88f));
+        Renderer::drawRect(l.tabOutX, l.tabOutY, l.tabOutW, 1.0f, isOutTab ? orangeGlow : winBorder);
+        LabFont::drawText(l.tabOutX + 25.0f, l.tabOutY + 5.0f, "Struktura", 1.6f, isOutTab ? textDark : textDim, LabFontType::System);
 
         // ==================== TAB CONTENT: OUTLINER (STRUKTURA MAPY) ====================
         if (_sidebarTab == SidebarTab::Hierarchy) {
-            float outY = rightY + 40.0f;
-            LabFont::drawText(rightX + 12.0f, outY, "Map Entity Outliner:", 1.7f, textDark, LabFontType::System);
+            LabFont::drawText(l.rightX + 12.0f, l.rightY + 38.0f, "Map Entity Outliner:", 1.7f, textDark, LabFontType::System);
 
-            Renderer::drawRect(rightX + 10.0f, outY + 18.0f, 280.0f, 470.0f, Vec3(1, 1, 1));
-            Renderer::drawRect(rightX + 10.0f, outY + 18.0f, 280.0f, 1.0f, winBorder);
+            Renderer::drawRect(l.outListX, l.outListY, l.outListW, l.outListH, Vec3(1, 1, 1));
+            Renderer::drawRect(l.outListX, l.outListY, l.outListW, 1.0f, winBorder);
 
             int totalEntities = (int)(1 + _map->brushes.size() + _map->props.size() + _map->doors.size());
-            int maxItemsPerPage = 18;
+            int maxItems = (int)(l.outListH / l.outItemSpacing);
 
-            for (int i = 0; i < maxItemsPerPage; ++i) {
+            for (int i = 0; i < maxItems; ++i) {
                 int itemIdx = _outlinerScroll + i;
                 if (itemIdx >= totalEntities) break;
 
-                float iy = outY + 24.0f + i * 25.0f;
+                float iy = l.outListY + 4.0f + i * l.outItemSpacing;
                 bool isSelected = false;
                 std::string itemText = "";
 
@@ -1469,40 +1488,39 @@ public:
                 }
 
                 if (isSelected) {
-                    Renderer::drawRect(rightX + 12.0f, iy, 276.0f, 22.0f, Vec3(0.85f, 0.92f, 1.0f));
-                    Renderer::drawRect(rightX + 12.0f, iy, 4.0f, 22.0f, orangeGlow);
+                    Renderer::drawRect(l.outListX + 2.0f, iy, l.outListW - 4.0f, l.outItemH, Vec3(0.85f, 0.92f, 1.0f));
+                    Renderer::drawRect(l.outListX + 2.0f, iy, 4.0f, l.outItemH, orangeGlow);
                 }
 
-                LabFont::drawText(rightX + 20.0f, iy + 4.0f, itemText, 1.5f, isSelected ? Vec3(0.1f, 0.35f, 0.7f) : textDark, LabFontType::System);
+                LabFont::drawText(l.outListX + 10.0f, iy + 4.0f, itemText, 1.5f, isSelected ? Vec3(0.1f, 0.35f, 0.7f) : textDark, LabFontType::System);
             }
 
-            // Outliner bottom action buttons
-            float actY = rightY + 540.0f;
-            Renderer::drawRect(rightX + 12.0f, actY, 86.0f, 26.0f, Vec3(0.88f, 0.88f, 0.90f));
-            Renderer::drawRect(rightX + 12.0f, actY, 86.0f, 1.0f, winBorder);
-            LabFont::drawText(rightX + 22.0f, actY + 6.0f, "Focus (F)", 1.5f, textDark, LabFontType::System);
+            // Outliner action buttons
+            Renderer::drawRect(l.outFocusX, l.outFocusY, l.outFocusW, l.outFocusH, Vec3(0.88f, 0.88f, 0.90f));
+            Renderer::drawRect(l.outFocusX, l.outFocusY, l.outFocusW, 1.0f, winBorder);
+            LabFont::drawText(l.outFocusX + 14.0f, l.outFocusY + 6.0f, "Focus (F)", 1.5f, textDark, LabFontType::System);
 
-            Renderer::drawRect(rightX + 104.0f, actY, 86.0f, 26.0f, Vec3(0.88f, 0.88f, 0.90f));
-            Renderer::drawRect(rightX + 104.0f, actY, 86.0f, 1.0f, winBorder);
-            LabFont::drawText(rightX + 114.0f, actY + 6.0f, "Duplicate", 1.5f, textDark, LabFontType::System);
+            Renderer::drawRect(l.outDupX, l.outDupY, l.outDupW, l.outDupH, Vec3(0.88f, 0.88f, 0.90f));
+            Renderer::drawRect(l.outDupX, l.outDupY, l.outDupW, 1.0f, winBorder);
+            LabFont::drawText(l.outDupX + 14.0f, l.outDupY + 6.0f, "Duplicate", 1.5f, textDark, LabFontType::System);
 
-            Renderer::drawRect(rightX + 196.0f, actY, 86.0f, 26.0f, Vec3(0.88f, 0.88f, 0.90f));
-            Renderer::drawRect(rightX + 196.0f, actY, 86.0f, 1.0f, winBorder);
-            LabFont::drawText(rightX + 208.0f, actY + 6.0f, "Delete", 1.5f, Vec3(0.7f, 0.1f, 0.1f), LabFontType::System);
+            Renderer::drawRect(l.outDelX, l.outDelY, l.outDelW, l.outDelH, Vec3(0.88f, 0.88f, 0.90f));
+            Renderer::drawRect(l.outDelX, l.outDelY, l.outDelW, 1.0f, winBorder);
+            LabFont::drawText(l.outDelX + 18.0f, l.outDelY + 6.0f, "Delete", 1.5f, Vec3(0.7f, 0.1f, 0.1f), LabFontType::System);
 
             // Pagination buttons
-            Renderer::drawRect(rightX + 12.0f, actY + 34.0f, 128.0f, 24.0f, Vec3(0.88f, 0.88f, 0.90f));
-            Renderer::drawRect(rightX + 12.0f, actY + 34.0f, 128.0f, 1.0f, winBorder);
-            LabFont::drawText(rightX + 45.0f, actY + 39.0f, "< Prev Page", 1.5f, textDark, LabFontType::System);
+            Renderer::drawRect(l.outPrevX, l.outPrevY, l.outPrevW, l.outPrevH, Vec3(0.88f, 0.88f, 0.90f));
+            Renderer::drawRect(l.outPrevX, l.outPrevY, l.outPrevW, 1.0f, winBorder);
+            LabFont::drawText(l.outPrevX + 45.0f, l.outPrevY + 5.0f, "< Prev Page", 1.5f, textDark, LabFontType::System);
 
-            Renderer::drawRect(rightX + 154.0f, actY + 34.0f, 128.0f, 24.0f, Vec3(0.88f, 0.88f, 0.90f));
-            Renderer::drawRect(rightX + 154.0f, actY + 34.0f, 128.0f, 1.0f, winBorder);
-            LabFont::drawText(rightX + 185.0f, actY + 39.0f, "Next Page >", 1.5f, textDark, LabFontType::System);
+            Renderer::drawRect(l.outNextX, l.outNextY, l.outNextW, l.outNextH, Vec3(0.88f, 0.88f, 0.90f));
+            Renderer::drawRect(l.outNextX, l.outNextY, l.outNextW, 1.0f, winBorder);
+            LabFont::drawText(l.outNextX + 45.0f, l.outNextY + 5.0f, "Next Page >", 1.5f, textDark, LabFontType::System);
         }
 
         // ==================== TAB CONTENT: PROPERTIES ====================
         if (_sidebarTab == SidebarTab::Properties) {
-            float propY = rightY + 40.0f;
+            float propY = l.rightY + 38.0f;
 
             // Header info on selection
             std::string selHeader = "Selection: None";
@@ -1511,7 +1529,7 @@ public:
             else if (_selectionType == SelectionType::Door) selHeader = "Selection: Door #" + std::to_string(_selectedIndex);
             else if (_selectionType == SelectionType::Spawn) selHeader = "Selection: Player Spawn";
 
-            LabFont::drawText(rightX + 12.0f, propY, selHeader, 1.7f, (_selectionType != SelectionType::None) ? orangeGlow : textDark, LabFontType::System);
+            LabFont::drawText(l.rightX + 12.0f, propY, selHeader, 1.7f, (_selectionType != SelectionType::None) ? orangeGlow : textDark, LabFontType::System);
 
             // Coordinates & Dimensions
             Vec3 pos = _cursorPos;
@@ -1530,95 +1548,93 @@ public:
             }
 
             std::string posStr = "Pos: (" + std::to_string((int)pos.x) + ", " + std::to_string((int)pos.y) + ", " + std::to_string((int)pos.z) + ")";
-            LabFont::drawText(rightX + 12.0f, propY + 22.0f, posStr, 1.6f, textDark, LabFontType::System);
+            LabFont::drawText(l.rightX + 12.0f, propY + 22.0f, posStr, 1.6f, textDark, LabFontType::System);
 
             std::string dimStr = "Size: (" + std::to_string((int)dims.x) + " x " + std::to_string((int)dims.y) + " x " + std::to_string((int)dims.z) + ")";
-            LabFont::drawText(rightX + 12.0f, propY + 42.0f, dimStr, 1.6f, textDark, LabFontType::System);
+            LabFont::drawText(l.rightX + 12.0f, propY + 42.0f, dimStr, 1.6f, textDark, LabFontType::System);
 
-            // UV Scale buttons (Source Engine Real Tri-Planar Tiling)
-            float uvY = rightY + 115.0f;
-            LabFont::drawText(rightX + 12.0f, uvY, "Texture UV Tiling Scale:", 1.7f, textDark, LabFontType::System);
+            // UV Scale buttons
+            LabFont::drawText(l.rightX + 12.0f, l.uvBtnY - 18.0f, "Texture UV Tiling Scale:", 1.7f, textDark, LabFontType::System);
 
             float scales[4] = { 0.125f, 0.25f, 0.5f, 1.0f };
             const char* scaleLabels[4] = { "0.125", "0.25", "0.5", "1.0" };
             for (int i = 0; i < 4; ++i) {
-                float sx = rightX + 12.0f + i * 64.0f;
+                float sx = l.rightX + 10.0f + i * 70.0f;
                 bool isCurScale = (std::abs(_activeUvScale.x - scales[i]) < 0.01f);
-                Renderer::drawRect(sx, uvY + 18.0f, 60.0f, 24.0f, isCurScale ? Vec3(0.78f, 0.88f, 1.0f) : Vec3(0.88f, 0.88f, 0.90f));
-                Renderer::drawRect(sx, uvY + 18.0f, 60.0f, 1.0f, isCurScale ? cyanGlow : winBorder);
-                LabFont::drawText(sx + 14.0f, uvY + 23.0f, scaleLabels[i], 1.5f, isCurScale ? Vec3(0.1f, 0.4f, 0.8f) : textDark, LabFontType::System);
+                Renderer::drawRect(sx, l.uvBtnY, l.uvBtnW, l.uvBtnH, isCurScale ? Vec3(0.78f, 0.88f, 1.0f) : Vec3(0.88f, 0.88f, 0.90f));
+                Renderer::drawRect(sx, l.uvBtnY, l.uvBtnW, 1.0f, isCurScale ? cyanGlow : winBorder);
+                LabFont::drawText(sx + 14.0f, l.uvBtnY + 5.0f, scaleLabels[i], 1.5f, isCurScale ? Vec3(0.1f, 0.4f, 0.8f) : textDark, LabFontType::System);
             }
 
             // Texture Preview & Picker
-            float texSecY = rightY + 175.0f;
-            LabFont::drawText(rightX + 12.0f, texSecY, "Active Texture:", 1.7f, textDark, LabFontType::System);
-            Renderer::drawRect(rightX + 12.0f, texSecY + 18.0f, 276.0f, 22.0f, Vec3(1, 1, 1));
-            Renderer::drawRect(rightX + 12.0f, texSecY + 18.0f, 276.0f, 1.0f, winBorder);
-            LabFont::drawText(rightX + 20.0f, texSecY + 23.0f, _selectedTexture, 1.6f, textDark, LabFontType::System);
+            LabFont::drawText(l.rightX + 12.0f, l.texBoxY - 18.0f, "Active Texture:", 1.7f, textDark, LabFontType::System);
+            Renderer::drawRect(l.texBoxX, l.texBoxY, l.texBoxW, l.texBoxH, Vec3(1, 1, 1));
+            Renderer::drawRect(l.texBoxX, l.texBoxY, l.texBoxW, 1.0f, winBorder);
+            LabFont::drawText(l.texBoxX + 10.0f, l.texBoxY + 4.0f, _selectedTexture, 1.6f, textDark, LabFontType::System);
 
-            float thumbX = rightX + 12.0f;
-            float thumbY = texSecY + 48.0f;
-            float thumbS = 80.0f;
-            Renderer::drawRect(thumbX, thumbY, thumbS, thumbS, Vec3(0, 0, 0));
+            Renderer::drawRect(l.thumbX, l.thumbY, l.thumbS, l.thumbS, Vec3(0, 0, 0));
             if (_textures.contains(_selectedTexture)) {
-                Renderer::drawTextureRect(thumbX + 2.0f, thumbY + 2.0f, thumbS - 4.0f, thumbS - 4.0f, *_textures[_selectedTexture]);
+                Renderer::drawTextureRect(l.thumbX + 2.0f, l.thumbY + 2.0f, l.thumbS - 4.0f, l.thumbS - 4.0f, *_textures[_selectedTexture]);
             }
 
-            Renderer::drawRect(rightX + 105.0f, thumbY + 5.0f, 170.0f, 28.0f, Vec3(0.88f, 0.88f, 0.90f));
-            Renderer::drawRect(rightX + 105.0f, thumbY + 5.0f, 170.0f, 1.0f, winBorder);
-            LabFont::drawText(rightX + 120.0f, thumbY + 12.0f, "Browse Textures...", 1.6f, textDark, LabFontType::System);
+            Renderer::drawRect(l.texBrowseX, l.texBrowseY, l.texBrowseW, l.texBrowseH, Vec3(0.88f, 0.88f, 0.90f));
+            Renderer::drawRect(l.texBrowseX, l.texBrowseY, l.texBrowseW, 1.0f, winBorder);
+            LabFont::drawText(l.texBrowseX + 22.0f, l.texBrowseY + 8.0f, "Browse Textures...", 1.6f, textDark, LabFontType::System);
 
-            Renderer::drawRect(rightX + 105.0f, thumbY + 40.0f, 170.0f, 28.0f, Vec3(0.88f, 0.88f, 0.90f));
-            Renderer::drawRect(rightX + 105.0f, thumbY + 40.0f, 170.0f, 1.0f, winBorder);
-            LabFont::drawText(rightX + 125.0f, thumbY + 47.0f, "Apply to Brush", 1.6f, textDark, LabFontType::System);
+            Renderer::drawRect(l.texApplyX, l.texApplyY, l.texApplyW, l.texApplyH, Vec3(0.88f, 0.88f, 0.90f));
+            Renderer::drawRect(l.texApplyX, l.texApplyY, l.texApplyW, 1.0f, winBorder);
+            LabFont::drawText(l.texApplyX + 28.0f, l.texApplyY + 8.0f, "Apply to Brush", 1.6f, textDark, LabFontType::System);
 
             // 3D Entity Prop Model Selector
-            float modelSecY = thumbY + thumbS + 18.0f;
-            LabFont::drawText(rightX + 12.0f, modelSecY, "3D Entity Model (.stl):", 1.7f, textDark, LabFontType::System);
-            Renderer::drawRect(rightX + 12.0f, modelSecY + 18.0f, 276.0f, 22.0f, Vec3(1, 1, 1));
-            Renderer::drawRect(rightX + 12.0f, modelSecY + 18.0f, 276.0f, 1.0f, winBorder);
-            LabFont::drawText(rightX + 20.0f, modelSecY + 23.0f, _selectedModel, 1.6f, textDark, LabFontType::System);
+            LabFont::drawText(l.rightX + 12.0f, l.modelBoxY - 18.0f, "3D Entity Model (.stl):", 1.7f, textDark, LabFontType::System);
+            Renderer::drawRect(l.modelBoxX, l.modelBoxY, l.modelBoxW, l.modelBoxH, Vec3(1, 1, 1));
+            Renderer::drawRect(l.modelBoxX, l.modelBoxY, l.modelBoxW, 1.0f, winBorder);
+            LabFont::drawText(l.modelBoxX + 10.0f, l.modelBoxY + 4.0f, _selectedModel, 1.6f, textDark, LabFontType::System);
 
-            Renderer::drawRect(rightX + 12.0f, modelSecY + 46.0f, 276.0f, 28.0f, Vec3(0.88f, 0.88f, 0.90f));
-            Renderer::drawRect(rightX + 12.0f, modelSecY + 46.0f, 276.0f, 1.0f, winBorder);
-            LabFont::drawText(rightX + 60.0f, modelSecY + 53.0f, "Browse 3D Models...", 1.6f, textDark, LabFontType::System);
+            Renderer::drawRect(l.modelBrowseX, l.modelBrowseY, l.modelBrowseW, l.modelBrowseH, Vec3(0.88f, 0.88f, 0.90f));
+            Renderer::drawRect(l.modelBrowseX, l.modelBrowseY, l.modelBrowseW, 1.0f, winBorder);
+            LabFont::drawText(l.modelBrowseX + 55.0f, l.modelBrowseY + 8.0f, "Browse 3D Models...", 1.6f, textDark, LabFontType::System);
 
             // Dimension Adjusters [-] [+]
-            float dimSecY = modelSecY + 84.0f;
-            LabFont::drawText(rightX + 12.0f, dimSecY, "Adjust Size (X / Y / Z):", 1.7f, textDark, LabFontType::System);
+            LabFont::drawText(l.rightX + 12.0f, l.dimBtnsY - 18.0f, "Adjust Size (X / Y / Z):", 1.7f, textDark, LabFontType::System);
 
             // X
-            LabFont::drawText(rightX + 16.0f, dimSecY + 25.0f, "X:", 1.6f, textDark, LabFontType::System);
-            Renderer::drawRect(rightX + 35.0f, dimSecY + 20.0f, 24.0f, 24.0f, Vec3(0.88f, 0.88f, 0.90f));
-            LabFont::drawText(rightX + 43.0f, dimSecY + 24.0f, "-", 1.8f, textDark, LabFontType::System);
-            Renderer::drawRect(rightX + 65.0f, dimSecY + 20.0f, 24.0f, 24.0f, Vec3(0.88f, 0.88f, 0.90f));
-            LabFont::drawText(rightX + 71.0f, dimSecY + 24.0f, "+", 1.8f, textDark, LabFontType::System);
+            LabFont::drawText(l.rightX + 12.0f, l.dimBtnsY + 4.0f, "X:", 1.6f, textDark, LabFontType::System);
+            Renderer::drawRect(l.rightX + 30.0f, l.dimBtnsY, l.dimBtnW, l.dimBtnH, Vec3(0.88f, 0.88f, 0.90f));
+            LabFont::drawText(l.rightX + 38.0f, l.dimBtnsY + 3.0f, "-", 1.8f, textDark, LabFontType::System);
+            Renderer::drawRect(l.rightX + 60.0f, l.dimBtnsY, l.dimBtnW, l.dimBtnH, Vec3(0.88f, 0.88f, 0.90f));
+            LabFont::drawText(l.rightX + 66.0f, l.dimBtnsY + 3.0f, "+", 1.8f, textDark, LabFontType::System);
 
             // Y
-            LabFont::drawText(rightX + 105.0f, dimSecY + 25.0f, "Y:", 1.6f, textDark, LabFontType::System);
-            Renderer::drawRect(rightX + 125.0f, dimSecY + 20.0f, 24.0f, 24.0f, Vec3(0.88f, 0.88f, 0.90f));
-            LabFont::drawText(rightX + 133.0f, dimSecY + 24.0f, "-", 1.8f, textDark, LabFontType::System);
-            Renderer::drawRect(rightX + 155.0f, dimSecY + 20.0f, 24.0f, 24.0f, Vec3(0.88f, 0.88f, 0.90f));
-            LabFont::drawText(rightX + 161.0f, dimSecY + 24.0f, "+", 1.8f, textDark, LabFontType::System);
+            LabFont::drawText(l.rightX + 105.0f, l.dimBtnsY + 4.0f, "Y:", 1.6f, textDark, LabFontType::System);
+            Renderer::drawRect(l.rightX + 123.0f, l.dimBtnsY, l.dimBtnW, l.dimBtnH, Vec3(0.88f, 0.88f, 0.90f));
+            LabFont::drawText(l.rightX + 131.0f, l.dimBtnsY + 3.0f, "-", 1.8f, textDark, LabFontType::System);
+            Renderer::drawRect(l.rightX + 153.0f, l.dimBtnsY, l.dimBtnW, l.dimBtnH, Vec3(0.88f, 0.88f, 0.90f));
+            LabFont::drawText(l.rightX + 159.0f, l.dimBtnsY + 3.0f, "+", 1.8f, textDark, LabFontType::System);
 
             // Z
-            LabFont::drawText(rightX + 195.0f, dimSecY + 25.0f, "Z:", 1.6f, textDark, LabFontType::System);
-            Renderer::drawRect(rightX + 215.0f, dimSecY + 20.0f, 24.0f, 24.0f, Vec3(0.88f, 0.88f, 0.90f));
-            LabFont::drawText(rightX + 223.0f, dimSecY + 24.0f, "-", 1.8f, textDark, LabFontType::System);
-            Renderer::drawRect(rightX + 245.0f, dimSecY + 20.0f, 24.0f, 24.0f, Vec3(0.88f, 0.88f, 0.90f));
-            LabFont::drawText(rightX + 251.0f, dimSecY + 24.0f, "+", 1.8f, textDark, LabFontType::System);
+            LabFont::drawText(l.rightX + 198.0f, l.dimBtnsY + 4.0f, "Z:", 1.6f, textDark, LabFontType::System);
+            Renderer::drawRect(l.rightX + 216.0f, l.dimBtnsY, l.dimBtnW, l.dimBtnH, Vec3(0.88f, 0.88f, 0.90f));
+            LabFont::drawText(l.rightX + 224.0f, l.dimBtnsY + 3.0f, "-", 1.8f, textDark, LabFontType::System);
+            Renderer::drawRect(l.rightX + 246.0f, l.dimBtnsY, l.dimBtnW, l.dimBtnH, Vec3(0.88f, 0.88f, 0.90f));
+            LabFont::drawText(l.rightX + 252.0f, l.dimBtnsY + 3.0f, "+", 1.8f, textDark, LabFontType::System);
 
             // Deselect button
-            Renderer::drawRect(rightX + 12.0f, dimSecY + 55.0f, 276.0f, 28.0f, Vec3(0.88f, 0.88f, 0.90f));
-            Renderer::drawRect(rightX + 12.0f, dimSecY + 55.0f, 276.0f, 1.0f, winBorder);
-            LabFont::drawText(rightX + 90.0f, dimSecY + 62.0f, "Deselect All", 1.6f, textDark, LabFontType::System);
+            Renderer::drawRect(l.deselX, l.deselY, l.deselW, l.deselH, Vec3(0.88f, 0.88f, 0.90f));
+            Renderer::drawRect(l.deselX, l.deselY, l.deselW, 1.0f, winBorder);
+            LabFont::drawText(l.deselX + 85.0f, l.deselY + 7.0f, "Deselect All", 1.6f, textDark, LabFontType::System);
+
+            // Delete Selected button
+            Renderer::drawRect(l.delX, l.delY, l.delW, l.delH, Vec3(0.88f, 0.88f, 0.90f));
+            Renderer::drawRect(l.delX, l.delY, l.delW, 1.0f, winBorder);
+            LabFont::drawText(l.delX + 75.0f, l.delY + 7.0f, "Delete Selected", 1.6f, Vec3(0.7f, 0.1f, 0.1f), LabFontType::System);
         }
 
         // ==================== 5. BOTTOM CONSOLE / "Messages" ====================
-        float conW = 720.0f;
+        float conW = std::min(720.0f, l.rightX - leftW - 40.0f);
         float conH = 135.0f;
-        float conX = leftW + 25.0f;
-        float conY = (float)h - conH - 32.0f;
+        float conX = leftW + 20.0f;
+        float conY = h - conH - 32.0f;
 
         Renderer::drawRect(conX, conY, conW, conH, Vec3(1, 1, 1));
         Renderer::drawRect(conX, conY, conW, 22.0f, Vec3(0.85f, 0.90f, 0.96f));
@@ -1634,14 +1650,14 @@ public:
         }
 
         // ==================== 6. STATUS BAR ====================
-        float sbY = (float)h - 22.0f;
-        Renderer::drawRect(0, sbY, (float)w, 22.0f, winBg);
-        Renderer::drawRect(0, sbY, (float)w, 1.0f, winBorder);
+        float sbY = h - 22.0f;
+        Renderer::drawRect(0, sbY, w, 22.0f, winBg);
+        Renderer::drawRect(0, sbY, w, 1.0f, winBorder);
 
         std::string sbText = "RMB Fly | LMB Pick/Apply | E Place | F Focus | Ctrl+D Duplicate | Del Delete | " + _cullingStats;
         LabFont::drawText(10.0f, sbY + 5.0f, sbText, 1.5f, textDark, LabFontType::System);
         std::string gridStr = "Snap: " + std::to_string((int)_gridSnap) + " | F9: Run";
-        LabFont::drawText((float)w - 260.0f, sbY + 5.0f, gridStr, 1.5f, textDark, LabFontType::System);
+        LabFont::drawText(w - 240.0f, sbY + 5.0f, gridStr, 1.5f, textDark, LabFontType::System);
 
         // ==================== 7. DROPDOWN FILE MENU ====================
         if (_fileMenuOpen) {
@@ -1684,15 +1700,19 @@ public:
 
     // Modal Texture Browser Gallery
     void drawTextureBrowser() {
-        int w = 1600, h = 900;
-        Renderer::beginUI(w, h);
+        int fbW = 0, fbH = 0;
+        glfwGetFramebufferSize(getWindow(), &fbW, &fbH);
+        float w = (fbW > 0) ? (float)fbW : (float)getWidth();
+        float h = (fbH > 0) ? (float)fbH : (float)getHeight();
 
-        Renderer::drawRect(0, 0, (float)w, (float)h, Vec3(0.05f, 0.06f, 0.08f));
+        Renderer::beginUI((int)w, (int)h);
+
+        Renderer::drawRect(0, 0, w, h, Vec3(0.05f, 0.06f, 0.08f));
 
         float bw = 820.0f;
         float bh = 600.0f;
-        float bx = ((float)w - bw) * 0.5f;
-        float by = ((float)h - bh) * 0.5f;
+        float bx = (w - bw) * 0.5f;
+        float by = (h - bh) * 0.5f;
 
         Renderer::drawRect(bx, by, bw, bh, Vec3(0.92f, 0.92f, 0.94f));
         Renderer::drawRect(bx, by, bw, 28.0f, Vec3(0.2f, 0.35f, 0.55f));
@@ -1732,15 +1752,19 @@ public:
 
     // Modal Model Browser Gallery
     void drawModelBrowser() {
-        int w = 1600, h = 900;
-        Renderer::beginUI(w, h);
+        int fbW = 0, fbH = 0;
+        glfwGetFramebufferSize(getWindow(), &fbW, &fbH);
+        float w = (fbW > 0) ? (float)fbW : (float)getWidth();
+        float h = (fbH > 0) ? (float)fbH : (float)getHeight();
 
-        Renderer::drawRect(0, 0, (float)w, (float)h, Vec3(0.05f, 0.06f, 0.08f));
+        Renderer::beginUI((int)w, (int)h);
+
+        Renderer::drawRect(0, 0, w, h, Vec3(0.05f, 0.06f, 0.08f));
 
         float bw = 700.0f;
         float bh = 480.0f;
-        float bx = ((float)w - bw) * 0.5f;
-        float by = ((float)h - bh) * 0.5f;
+        float bx = (w - bw) * 0.5f;
+        float by = (h - bh) * 0.5f;
 
         Renderer::drawRect(bx, by, bw, bh, Vec3(0.92f, 0.92f, 0.94f));
         Renderer::drawRect(bx, by, bw, 28.0f, Vec3(0.15f, 0.45f, 0.75f));
@@ -1773,15 +1797,19 @@ public:
 
     // Modal Help
     void drawHelpModal() {
-        int w = 1600, h = 900;
-        Renderer::beginUI(w, h);
+        int fbW = 0, fbH = 0;
+        glfwGetFramebufferSize(getWindow(), &fbW, &fbH);
+        float w = (fbW > 0) ? (float)fbW : (float)getWidth();
+        float h = (fbH > 0) ? (float)fbH : (float)getHeight();
 
-        Renderer::drawRect(0, 0, (float)w, (float)h, Vec3(0.05f, 0.06f, 0.08f));
+        Renderer::beginUI((int)w, (int)h);
+
+        Renderer::drawRect(0, 0, w, h, Vec3(0.05f, 0.06f, 0.08f));
 
         float bw = 650.0f;
         float bh = 420.0f;
-        float bx = ((float)w - bw) * 0.5f;
-        float by = ((float)h - bh) * 0.5f;
+        float bx = (w - bw) * 0.5f;
+        float by = (h - bh) * 0.5f;
 
         Renderer::drawRect(bx, by, bw, bh, Vec3(0.92f, 0.92f, 0.94f));
         Renderer::drawRect(bx, by, bw, 28.0f, Vec3(0.2f, 0.35f, 0.55f));

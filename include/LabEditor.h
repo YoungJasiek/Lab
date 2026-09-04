@@ -2,11 +2,135 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <algorithm>
 #include "LabMath.h"
 #include "LabMap.h"
 #include "LabRenderer.h"
 
 namespace Lab {
+
+    enum class SidebarTab {
+        Properties,
+        Hierarchy
+    };
+
+    struct SidebarLayout {
+        float rightX;
+        float rightY;
+        float rightW;
+        float rightH;
+
+        // Tabs
+        float tabPropX, tabPropY, tabPropW, tabPropH;
+        float tabOutX, tabOutY, tabOutW, tabOutH;
+
+        // Outliner
+        float outListX, outListY, outListW, outListH;
+        float outItemH, outItemSpacing;
+        float outFocusX, outFocusY, outFocusW, outFocusH;
+        float outDupX, outDupY, outDupW, outDupH;
+        float outDelX, outDelY, outDelW, outDelH;
+        float outPrevX, outPrevY, outPrevW, outPrevH;
+        float outNextX, outNextY, outNextW, outNextH;
+
+        // Properties
+        float uvBtnY, uvBtnW, uvBtnH;
+        float texBoxX, texBoxY, texBoxW, texBoxH;
+        float thumbX, thumbY, thumbS;
+        float texBrowseX, texBrowseY, texBrowseW, texBrowseH;
+        float texApplyX, texApplyY, texApplyW, texApplyH;
+        float modelBoxX, modelBoxY, modelBoxW, modelBoxH;
+        float modelBrowseX, modelBrowseY, modelBrowseW, modelBrowseH;
+        float dimBtnsY, dimBtnW, dimBtnH;
+        float deselX, deselY, deselW, deselH;
+        float delX, delY, delW, delH;
+    };
+
+    inline SidebarLayout getSidebarLayout(float w, float h) {
+        SidebarLayout l;
+        l.rightW = 300.0f;
+        l.rightX = w - l.rightW;
+        l.rightY = 58.0f;
+        l.rightH = h - l.rightY - 22.0f;
+
+        // Tabs
+        l.tabPropX = l.rightX + 10.0f;
+        l.tabPropY = l.rightY + 6.0f;
+        l.tabPropW = 135.0f;
+        l.tabPropH = 26.0f;
+
+        l.tabOutX = l.rightX + 150.0f;
+        l.tabOutY = l.rightY + 6.0f;
+        l.tabOutW = 135.0f;
+        l.tabOutH = 26.0f;
+
+        // Outliner
+        l.outListX = l.rightX + 10.0f;
+        l.outListY = l.rightY + 60.0f;
+        l.outListW = 280.0f;
+        l.outListH = std::max(200.0f, l.rightH - 180.0f);
+        l.outItemH = 23.0f;
+        l.outItemSpacing = 25.0f;
+
+        float actY = l.outListY + l.outListH + 10.0f;
+        l.outFocusX = l.rightX + 10.0f;  l.outFocusY = actY; l.outFocusW = 88.0f; l.outFocusH = 28.0f;
+        l.outDupX   = l.rightX + 104.0f; l.outDupY   = actY; l.outDupW   = 88.0f; l.outDupH   = 28.0f;
+        l.outDelX   = l.rightX + 198.0f; l.outDelY   = actY; l.outDelW   = 88.0f; l.outDelH   = 28.0f;
+
+        float pageY = actY + 34.0f;
+        l.outPrevX = l.rightX + 10.0f;  l.outPrevY = pageY; l.outPrevW = 135.0f; l.outPrevH = 26.0f;
+        l.outNextX = l.rightX + 150.0f; l.outNextY = pageY; l.outNextW = 135.0f; l.outNextH = 26.0f;
+
+        // Properties
+        l.uvBtnY = l.rightY + 125.0f;
+        l.uvBtnW = 66.0f;
+        l.uvBtnH = 24.0f;
+
+        l.texBoxX = l.rightX + 10.0f;
+        l.texBoxY = l.uvBtnY + 46.0f;
+        l.texBoxW = 280.0f;
+        l.texBoxH = 22.0f;
+
+        l.thumbX = l.rightX + 10.0f;
+        l.thumbY = l.texBoxY + 28.0f;
+        l.thumbS = 80.0f;
+
+        l.texBrowseX = l.rightX + 100.0f;
+        l.texBrowseY = l.thumbY + 4.0f;
+        l.texBrowseW = 186.0f;
+        l.texBrowseH = 32.0f;
+
+        l.texApplyX = l.rightX + 100.0f;
+        l.texApplyY = l.thumbY + 44.0f;
+        l.texApplyW = 186.0f;
+        l.texApplyH = 32.0f;
+
+        l.modelBoxX = l.rightX + 10.0f;
+        l.modelBoxY = l.thumbY + l.thumbS + 28.0f;
+        l.modelBoxW = 280.0f;
+        l.modelBoxH = 22.0f;
+
+        l.modelBrowseX = l.rightX + 10.0f;
+        l.modelBrowseY = l.modelBoxY + 28.0f;
+        l.modelBrowseW = 280.0f;
+        l.modelBrowseH = 32.0f;
+
+        l.dimBtnsY = l.modelBrowseY + 54.0f;
+        l.dimBtnW = 26.0f;
+        l.dimBtnH = 24.0f;
+
+        l.deselX = l.rightX + 10.0f;
+        l.deselY = l.dimBtnsY + 34.0f;
+        l.deselW = 280.0f;
+        l.deselH = 30.0f;
+
+        l.delX = l.rightX + 10.0f;
+        l.delY = l.deselY + 36.0f;
+        l.delW = 280.0f;
+        l.delH = 30.0f;
+
+        return l;
+    }
 
     enum class EditorTool {
         Select,
