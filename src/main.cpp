@@ -251,6 +251,10 @@ public:
         float horizontalSpeed = std::sqrt(_velocity.x * _velocity.x + _velocity.z * _velocity.z);
         _weaponAnimator.update(time.delta, Input::mouseDelta, horizontalSpeed);
 
+        // Feed real dynamic player values to HUD
+        _hud.speedVal = (int)(horizontalSpeed * 2.0f);
+        if (_currentMap) _hud.mapName = _currentMap->metadata.name;
+
         // Update Animated Patrol Bot
         _patrolBot.update(time.delta);
 

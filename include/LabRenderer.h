@@ -95,6 +95,7 @@ namespace Lab {
         static void beginUI(int windowWidth, int windowHeight);
         static void endUI();
         static void drawRect(float x, float y, float w, float h, const Vec3& color);
+        static void drawTextureRect(float x, float y, float w, float h, const Texture& texture, const Vec3& tint = { 1, 1, 1 });
 
     private:
         static Mat4 getTransform(const Vec3& pos, const Vec3& rot, const Vec3& scale);

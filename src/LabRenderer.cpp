@@ -85,8 +85,11 @@ namespace Lab {
     const char* uiVertexShaderSrc = R"(
         #version 450 core
         layout (location = 0) in vec2 aPos;
+        layout (location = 1) in vec2 aTexCoords;
+        out vec2 TexCoords;
         uniform mat4 projection;
         void main() {
+            TexCoords = aTexCoords;
             gl_Position = projection * vec4(aPos, 0.0, 1.0);
         }
     )";
@@ -94,9 +97,17 @@ namespace Lab {
     const char* uiFragmentShaderSrc = R"(
         #version 450 core
         out vec4 FragColor;
+        in vec2 TexCoords;
         uniform vec3 color;
+        uniform bool useTexture;
+        uniform sampler2D texture1;
         void main() {
-            FragColor = vec4(color, 1.0);
+            if (useTexture) {
+                vec4 tex = texture(texture1, TexCoords);
+                FragColor = vec4(tex.rgb * color, tex.a);
+            } else {
+                FragColor = vec4(color, 1.0);
+            }
         }
     )";
 
@@ -550,13 +561,18 @@ namespace Lab {
         }
         _cubeMesh = new Mesh(cubeVerts, cubeInds);
 
-        // UI VAO/VBO setup
+        // UI VAO/VBO setup (4 floats per vertex: posX, posY, u, v)
         glCreateVertexArrays(1, &_uiVao);
         glCreateBuffers(1, &_uiVbo);
-        glNamedBufferData(_uiVbo, sizeof(float) * 4 * 2, nullptr, GL_DYNAMIC_DRAW); // 4 vertices, 2 floats each
-        glVertexArrayVertexBuffer(_uiVao, 0, _uiVbo, 0, 2 * sizeof(float));
+        glNamedBufferData(_uiVbo, sizeof(float) * 4 * 4, nullptr, GL_DYNAMIC_DRAW); // 4 vertices, 4 floats each
+        glVertexArrayVertexBuffer(_uiVao, 0, _uiVbo, 0, 4 * sizeof(float));
+        // Pos
         glEnableVertexArrayAttrib(_uiVao, 0);
         glVertexArrayAttribFormat(_uiVao, 0, 2, GL_FLOAT, GL_FALSE, 0);
+        glVertexArrayAttribBinding(_uiVao, 0, 0);
+        // TexCoords
+        glEnableVertexArrayAttrib(_uiVao, 1);
+        glVertexArrayAttribFormat(_uiVao, 1, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float));
         glVertexArrayAttribBinding(_uiVao, 0, 0);
     }
 
@@ -679,16 +695,39 @@ namespace Lab {
         _uiShader->use();
         _uiShader->setMat4("projection", _uiProjMatrix);
         _uiShader->setVec3("color", color);
+        _uiShader->setInt("useTexture", 0);
 
-        float vertices[4][2] = {
-            { x,     y + h },
-            { x + w, y + h },
-            { x + w, y },
-            { x,     y }
+        float vertices[4][4] = {
+            { x,     y + h, 0.0f, 1.0f },
+            { x + w, y + h, 1.0f, 1.0f },
+            { x + w, y,     1.0f, 0.0f },
+            { x,     y,     0.0f, 0.0f }
         };
 
         glNamedBufferSubData(_uiVbo, 0, sizeof(vertices), vertices);
         
+        glBindVertexArray(_uiVao);
+        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+        glBindVertexArray(0);
+    }
+
+    void Renderer::drawTextureRect(float x, float y, float w, float h, const Texture& texture, const Vec3& tint) {
+        _uiShader->use();
+        _uiShader->setMat4("projection", _uiProjMatrix);
+        _uiShader->setVec3("color", tint);
+        _uiShader->setInt("useTexture", 1);
+        _uiShader->setInt("texture1", 0);
+        texture.bind(0);
+
+        float vertices[4][4] = {
+            { x,     y + h, 0.0f, 1.0f },
+            { x + w, y + h, 1.0f, 1.0f },
+            { x + w, y,     1.0f, 0.0f },
+            { x,     y,     0.0f, 0.0f }
+        };
+
+        glNamedBufferSubData(_uiVbo, 0, sizeof(vertices), vertices);
+
         glBindVertexArray(_uiVao);
         glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
         glBindVertexArray(0);

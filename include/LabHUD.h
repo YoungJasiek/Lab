@@ -1,165 +1,132 @@
 #pragma once
 #include "LabMath.h"
 #include "LabRenderer.h"
+#include "LabFont.h"
 #include <algorithm>
 #include <string>
 
 namespace Lab {
 
-    // Authentic Half-Life 2 7-Segment Amber / Cryo Cyan HUD
+    // Authentic HUD following exact reference layout & Half-Life 2 / Frozen-Life color palette
     class LabHUD {
     public:
-        float health = 100.0f;
-        float maxHealth = 100.0f;
-        float suitArmor = 85.0f;
+        float health = 150.0f;
+        float maxHealth = 150.0f;
+        float suitArmor = 0.0f;
         float maxSuitArmor = 100.0f;
+        int jumpVal = 50;
+        int attackMult = 1;
+        int speedVal = 16;
+        int timerSecs = 480;
+        std::string mapName = "ffa_baseplate2021";
         int ammoClip = 18;
         int ammoReserve = 144;
-        bool hasSuit = true;
 
-        // HL2 Iconic Palette
-        Vec3 hl2Amber{ 1.0f, 0.68f, 0.10f };       // Bright active Amber
-        Vec3 hl2DarkAmber{ 0.28f, 0.15f, 0.02f };   // Inactive 7-segment segment
-        Vec3 hl2Bg{ 0.04f, 0.05f, 0.07f };          // Deep dark translucent panel
-        Vec3 cryoCyan{ 0.22f, 0.88f, 1.0f };        // Cryo armor cyan
-        Vec3 cryoDarkCyan{ 0.05f, 0.20f, 0.25f };   // Inactive cyan
+        // Colors strictly matched to user reference:
+        // Translucent dark charcoal panel tiles with vibrant warm golden-yellow text / digits
+        Vec3 textYellow{ 0.98f, 0.78f, 0.08f };      // Warm golden yellow (#FBC014)
+        Vec3 tileBg{ 0.16f, 0.17f, 0.19f };          // Reference dark translucent card tile
+        Vec3 tileBorder{ 0.22f, 0.23f, 0.26f };      // Subtle card edge
+        Vec3 cryoCyan{ 0.22f, 0.88f, 1.0f };         // Cryo accent
 
-        // Draws a stylized digital 7-segment numeral (0-9)
-        static void drawDigit(float x, float y, int digit, float w, float h, float thick, const Vec3& onColor, const Vec3& offColor) {
-            // Segment bitmask: a(top), b(top-right), c(bot-right), d(bottom), e(bot-left), f(top-left), g(middle)
-            static const unsigned char segs[10] = {
-                0x3F, // 0: a,b,c,d,e,f
-                0x06, // 1: b,c
-                0x5B, // 2: a,b,g,e,d
-                0x4F, // 3: a,b,g,c,d
-                0x66, // 4: f,g,b,c
-                0x6D, // 5: a,f,g,c,d
-                0x7D, // 6: a,f,e,d,c,g
-                0x07, // 7: a,b,c
-                0x7F, // 8: all
-                0x6F  // 9: a,b,c,d,f,g
-            };
-
-            unsigned char mask = (digit >= 0 && digit <= 9) ? segs[digit] : 0;
-            float midY = y + (h - thick) * 0.5f;
-            float halfH = (h - thick * 3.0f) * 0.5f;
-
-            // a: Top horizontal
-            Renderer::drawRect(x + thick, y, w - thick * 2, thick, (mask & 0x01) ? onColor : offColor);
-            // b: Top-right vertical
-            Renderer::drawRect(x + w - thick, y + thick, thick, halfH, (mask & 0x02) ? onColor : offColor);
-            // c: Bottom-right vertical
-            Renderer::drawRect(x + w - thick, midY + thick, thick, halfH, (mask & 0x04) ? onColor : offColor);
-            // d: Bottom horizontal
-            Renderer::drawRect(x + thick, y + h - thick, w - thick * 2, thick, (mask & 0x08) ? onColor : offColor);
-            // e: Bottom-left vertical
-            Renderer::drawRect(x, midY + thick, thick, halfH, (mask & 0x10) ? onColor : offColor);
-            // f: Top-left vertical
-            Renderer::drawRect(x, y + thick, thick, halfH, (mask & 0x20) ? onColor : offColor);
-            // g: Middle horizontal
-            Renderer::drawRect(x + thick, midY, w - thick * 2, thick, (mask & 0x40) ? onColor : offColor);
-        }
-
-        // Draws multi-digit integer with leading zeroes / ghost segments
-        static void drawNumber(float x, float y, int val, int digits, float digitW, float digitH, float thick, float gap, const Vec3& onColor, const Vec3& offColor) {
-            val = std::clamp(val, 0, 9999);
-            std::string s = std::to_string(val);
-            while ((int)s.size() < digits) s = " " + s;
-
-            for (int i = 0; i < digits; ++i) {
-                float dx = x + i * (digitW + gap);
-                if (s[i] == ' ') {
-                    // Draw inactive ghost background segments
-                    drawDigit(dx, y, -1, digitW, digitH, thick, onColor, offColor);
-                } else {
-                    drawDigit(dx, y, s[i] - '0', digitW, digitH, thick, onColor, offColor);
-                }
-            }
+        // Render card container tile with subtle border
+        static void drawCard(float x, float y, float w, float h, const Vec3& bg, const Vec3& border) {
+            Renderer::drawRect(x, y, w, h, bg);
+            // 1px border highlight
+            Renderer::drawRect(x, y, w, 1.0f, border);
+            Renderer::drawRect(x, y + h - 1.0f, w, 1.0f, border);
+            Renderer::drawRect(x, y, 1.0f, h, border);
+            Renderer::drawRect(x + w - 1.0f, y, 1.0f, h, border);
         }
 
         void render(int screenW, int screenH) {
             Renderer::beginUI(screenW, screenH);
 
-            float panelH = 58.0f;
-            float bottomY = (float)screenH - panelH - 25.0f;
-            float digW = 20.0f;
-            float digH = 36.0f;
-            float digThick = 4.0f;
-            float digGap = 5.0f;
+            // ==================== 1. TOP-RIGHT MAP & TIMER BADGE ====================
+            // Matched directly to top row in reference: [ffa_baseplate2021   480]
+            float topW = 280.0f;
+            float topH = 34.0f;
+            float topX = (float)screenW - topW - 40.0f;
+            float topY = 30.0f;
 
-            // ==================== 1. HEALTH MODULE (Bottom Left) ====================
-            float healthPanelW = 220.0f;
-            Renderer::drawRect(35.0f, bottomY, healthPanelW, panelH, hl2Bg);
-            Renderer::drawRect(35.0f, bottomY, healthPanelW, 2.0f, hl2Amber * 0.6f);
+            drawCard(topX, topY, topW, topH, tileBg, tileBorder);
+            // Yellow Map Name label (uppercase / lowercase dot matrix)
+            LabFont::drawText(topX + 14.0f, topY + 10.0f, mapName, 2.0f, textYellow);
+            // Yellow Timer digits on the right
+            std::string timeStr = std::to_string(timerSecs);
+            LabFont::drawText(topX + topW - 55.0f, topY + 8.0f, timeStr, 2.4f, textYellow);
+
+            // ==================== 2. MAIN HUD CARDS GRID (BOTTOM LEFT) ====================
+            // Following reference 2-row layout:
+            // Row 1: [JUMP 50]  [ATTACK 1x]  [SPEED 16]
+            // Row 2: [SUIT  0%] [HEALTH 150]
+            float startX = 40.0f;
+            float cardW = 145.0f;
+            float cardH = 55.0f;
+            float gapX = 14.0f;
+            float gapY = 12.0f;
             
-            // Health Label Box (HL2 Cross + Label)
-            Renderer::drawRect(48.0f, bottomY + 22.0f, 18.0f, 6.0f, hl2Amber);
-            Renderer::drawRect(54.0f, bottomY + 16.0f, 6.0f, 18.0f, hl2Amber);
+            float row2Y = (float)screenH - cardH - 35.0f;
+            float row1Y = row2Y - cardH - gapY;
 
-            // Large 3-digit Amber Health Number
-            drawNumber(90.0f, bottomY + 11.0f, (int)health, 3, digW, digH, digThick, digGap, hl2Amber, hl2DarkAmber);
+            // --- Row 1, Card 1: JUMP ---
+            float jx = startX;
+            drawCard(jx, row1Y, cardW, cardH, tileBg, tileBorder);
+            LabFont::drawText(jx + 12.0f, row1Y + 22.0f, "JUMP", 1.8f, textYellow);
+            std::string jumpStr = std::to_string(jumpVal);
+            LabFont::drawText(jx + cardW - 42.0f, row1Y + 12.0f, jumpStr, 3.8f, textYellow);
 
-            // Miniature Health Bar fill underneath
-            float hpRatio = std::clamp(health / maxHealth, 0.0f, 1.0f);
-            Renderer::drawRect(35.0f, bottomY + panelH - 4.0f, healthPanelW * hpRatio, 4.0f, hl2Amber);
+            // --- Row 1, Card 2: ATTACK ---
+            float ax = jx + cardW + gapX;
+            drawCard(ax, row1Y, cardW + 15.0f, cardH, tileBg, tileBorder);
+            LabFont::drawText(ax + 12.0f, row1Y + 22.0f, "ATTACK", 1.7f, textYellow);
+            std::string atkStr = std::to_string(attackMult) + "x";
+            LabFont::drawText(ax + cardW - 35.0f, row1Y + 12.0f, atkStr, 3.8f, textYellow);
 
-            // ==================== 2. SUIT / ARMOR MODULE (Bottom Left-Center) ====================
-            if (hasSuit) {
-                float suitX = 275.0f;
-                float suitPanelW = 220.0f;
-                Renderer::drawRect(suitX, bottomY, suitPanelW, panelH, hl2Bg);
-                Renderer::drawRect(suitX, bottomY, suitPanelW, 2.0f, cryoCyan * 0.6f);
+            // --- Row 1, Card 3: SPEED ---
+            float sx = ax + cardW + 15.0f + gapX;
+            drawCard(sx, row1Y, cardW, cardH, tileBg, tileBorder);
+            LabFont::drawText(sx + 12.0f, row1Y + 22.0f, "SPEED", 1.7f, textYellow);
+            std::string spdStr = std::to_string(speedVal);
+            LabFont::drawText(sx + cardW - 42.0f, row1Y + 12.0f, spdStr, 3.8f, textYellow);
 
-                // Suit Shield Icon
-                Renderer::drawRect(suitX + 16.0f, bottomY + 16.0f, 14.0f, 18.0f, cryoCyan);
-                Renderer::drawRect(suitX + 18.0f, bottomY + 20.0f, 10.0f, 10.0f, hl2Bg);
+            // --- Row 2, Card 1: SUIT ---
+            float suitCardW = 210.0f;
+            float suitX = startX;
+            drawCard(suitX, row2Y, suitCardW, cardH, tileBg, tileBorder);
+            LabFont::drawText(suitX + 16.0f, row2Y + 22.0f, "SUIT", 1.9f, textYellow);
+            std::string suitStr = std::to_string((int)suitArmor) + "%";
+            LabFont::drawText(suitX + suitCardW - 75.0f, row2Y + 12.0f, suitStr, 3.8f, textYellow);
 
-                // Large 3-digit Cyan Armor Number
-                drawNumber(suitX + 55.0f, bottomY + 11.0f, (int)suitArmor, 3, digW, digH, digThick, digGap, cryoCyan, cryoDarkCyan);
+            // --- Row 2, Card 2: HEALTH ---
+            float hpCardW = 225.0f;
+            float hpX = suitX + suitCardW + gapX;
+            drawCard(hpX, row2Y, hpCardW, cardH, tileBg, tileBorder);
+            LabFont::drawText(hpX + 16.0f, row2Y + 22.0f, "HEALTH", 1.9f, textYellow);
+            std::string hpStr = std::to_string((int)health);
+            LabFont::drawText(hpX + hpCardW - 75.0f, row2Y + 12.0f, hpStr, 3.8f, textYellow);
 
-                // Suit Bar fill
-                float suitRatio = std::clamp(suitArmor / maxSuitArmor, 0.0f, 1.0f);
-                Renderer::drawRect(suitX, bottomY + panelH - 4.0f, suitPanelW * suitRatio, 4.0f, cryoCyan);
-            }
+            // ==================== 3. AMMO & WEAPON CARD (BOTTOM RIGHT) ====================
+            float ammoW = 160.0f;
+            float ammoX = (float)screenW - ammoW - 40.0f;
+            drawCard(ammoX, row2Y, ammoW, cardH, tileBg, tileBorder);
+            LabFont::drawText(ammoX + 12.0f, row2Y + 22.0f, "AMMO", 1.7f, textYellow);
+            std::string clipStr = std::to_string(ammoClip);
+            LabFont::drawText(ammoX + 60.0f, row2Y + 12.0f, clipStr, 3.8f, textYellow);
+            LabFont::drawText(ammoX + 115.0f, row2Y + 24.0f, "/" + std::to_string(ammoReserve), 1.6f, textYellow * 0.75f);
 
-            // ==================== 3. AMMO MODULE (Bottom Right) ====================
-            float ammoPanelW = 240.0f;
-            float ammoX = (float)screenW - ammoPanelW - 35.0f;
-            Renderer::drawRect(ammoX, bottomY, ammoPanelW, panelH, hl2Bg);
-            Renderer::drawRect(ammoX, bottomY, ammoPanelW, 2.0f, hl2Amber * 0.6f);
-
-            // Ammo Clip Number (2 Digits, Big)
-            drawNumber(ammoX + 20.0f, bottomY + 11.0f, ammoClip, 2, digW, digH, digThick, digGap, hl2Amber, hl2DarkAmber);
-
-            // Divider strip
-            Renderer::drawRect(ammoX + 85.0f, bottomY + 10.0f, 2.0f, 38.0f, hl2DarkAmber);
-
-            // Reserve Ammo Number (3 Digits, slightly smaller)
-            drawNumber(ammoX + 105.0f, bottomY + 16.0f, ammoReserve, 3, 15.0f, 28.0f, 3.0f, 4.0f, hl2Amber * 0.85f, hl2DarkAmber);
-
-            // Ammo Tick Indicators (18 small tick bars)
-            float tickW = 7.0f;
-            float tickGap = 4.0f;
-            float tickStartX = ammoX + 16.0f;
-            for (int i = 0; i < 18; ++i) {
-                Vec3 color = (i < ammoClip) ? hl2Amber : hl2DarkAmber;
-                Renderer::drawRect(tickStartX + i * (tickW + tickGap) * 0.55f, bottomY + panelH - 6.0f, tickW * 0.5f, 4.0f, color);
-            }
-
-            // ==================== 4. SOURCE / HL2 DYNAMIC CROSSHAIR ====================
+            // ==================== 4. DYNAMIC CROSSHAIR (Screen Center) ====================
             float cx = (float)screenW * 0.5f;
             float cy = (float)screenH * 0.5f;
-            float crosshairGap = 6.0f;
-            float crosshairLen = 9.0f;
-            float crosshairThick = 2.0f;
+            float crossGap = 5.0f;
+            float crossLen = 8.0f;
+            float crossThick = 2.0f;
 
-            // 4 directional brackets
-            Renderer::drawRect(cx - crosshairGap - crosshairLen, cy - crosshairThick * 0.5f, crosshairLen, crosshairThick, hl2Amber);
-            Renderer::drawRect(cx + crosshairGap, cy - crosshairThick * 0.5f, crosshairLen, crosshairThick, hl2Amber);
-            Renderer::drawRect(cx - crosshairThick * 0.5f, cy - crosshairGap - crosshairLen, crosshairThick, crosshairLen, hl2Amber);
-            Renderer::drawRect(cx - crosshairThick * 0.5f, cy + crosshairGap, crosshairThick, crosshairLen, hl2Amber);
-            // Center pip
-            Renderer::drawRect(cx - 1.0f, cy - 1.0f, 2.0f, 2.0f, hl2Amber);
+            Renderer::drawRect(cx - crossGap - crossLen, cy - crossThick * 0.5f, crossLen, crossThick, textYellow);
+            Renderer::drawRect(cx + crossGap, cy - crossThick * 0.5f, crossLen, crossThick, textYellow);
+            Renderer::drawRect(cx - crossThick * 0.5f, cy - crossGap - crossLen, crossThick, crossLen, textYellow);
+            Renderer::drawRect(cx - crossThick * 0.5f, cy + crossGap, crossThick, crossLen, textYellow);
+            Renderer::drawRect(cx - 1.0f, cy - 1.0f, 2.0f, 2.0f, textYellow);
 
             Renderer::endUI();
         }
