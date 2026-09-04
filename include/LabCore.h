@@ -50,6 +50,7 @@ namespace Lab {
         virtual void onShutdown() {}
 
         static Engine* get() { return _instance; }
+        GLFWwindow* getWindow() const { return _window; }
 
     private:
         static Engine* _instance;

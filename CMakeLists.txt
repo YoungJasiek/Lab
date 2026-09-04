@@ -36,6 +36,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/glad/include)
 set(ENGINE_SOURCES
     src/LabCore.cpp
     src/LabRenderer.cpp
+    src/LabMap.cpp
     src/glad/src/gl.c
 )
 
@@ -44,6 +45,7 @@ set(ENGINE_HEADERS
     include/LabRenderer.h
     include/LabMath.h
     include/LabCamera.h
+    include/LabMap.h
     include/Lab.h
 )
 

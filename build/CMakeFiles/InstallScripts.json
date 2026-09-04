@@ -1,9 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"C:/Users/jancz/Desktop/Lab/build/cmake_install.cmake",
-		"C:/Users/jancz/Desktop/Lab/build/_deps/glfw-build/cmake_install.cmake",
-		"C:/Users/jancz/Desktop/Lab/build/_deps/glfw-build/src/cmake_install.cmake"
-	],
-	"Parallel" : false
-}
