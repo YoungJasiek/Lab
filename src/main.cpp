@@ -425,7 +425,7 @@ public:
         Renderer::drawRect(102.0f, 100.0f, 1076.0f, 4.0f, { 0.2f, 0.75f, 0.95f });
 
         // Header title
-        LabFont::drawText(120.0f, 72.0f, "FROZEN-LIFE : MAP SELECTION & MISSION SELECT", 2.2f, Vec3(0.9f, 0.95f, 1.0f));
+        LabFont::drawText(120.0f, 72.0f, "FROZEN-LIFE : MAP SELECTION & MISSION SELECT", 2.2f, Vec3(0.9f, 0.95f, 1.0f), LabFontType::GeoSans);
 
         // List available maps with titles
         float startY = 130.0f;
@@ -444,18 +444,18 @@ public:
 
             // Map filename / path label
             std::string mapDisplay = _availableMaps[i];
-            LabFont::drawText(160.0f, itemY + 14.0f, mapDisplay, 2.0f, isSelected ? Vec3(1, 1, 1) : Vec3(0.7f, 0.75f, 0.8f));
+            LabFont::drawText(160.0f, itemY + 14.0f, mapDisplay, 2.0f, isSelected ? Vec3(1, 1, 1) : Vec3(0.7f, 0.75f, 0.8f), LabFontType::GeoSans);
         }
 
         // Action Button 1: Launch Map [ENTER]
         Renderer::drawRect(140.0f, 560.0f, 260.0f, 48.0f, Vec3(0.18f, 0.65f, 0.45f));
         Renderer::drawRect(142.0f, 562.0f, 256.0f, 44.0f, Vec3(0.22f, 0.75f, 0.52f));
-        LabFont::drawText(165.0f, 576.0f, "LAUNCH MAP [ENTER]", 1.8f, Vec3(1, 1, 1));
+        LabFont::drawText(165.0f, 576.0f, "LAUNCH MAP [ENTER]", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
 
         // Action Button 2: Browse File... [O key / Click] (Native Windows Open Dialog)
         Renderer::drawRect(420.0f, 560.0f, 290.0f, 48.0f, Vec3(0.22f, 0.45f, 0.75f));
         Renderer::drawRect(422.0f, 562.0f, 286.0f, 44.0f, Vec3(0.28f, 0.55f, 0.88f));
-        LabFont::drawText(435.0f, 576.0f, "OPEN FROM DISK... [O]", 1.8f, Vec3(1, 1, 1));
+        LabFont::drawText(435.0f, 576.0f, "OPEN FROM DISK... [O]", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
 
         Renderer::endUI();
     }

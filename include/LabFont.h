@@ -197,7 +197,7 @@ namespace Lab {
 #ifdef _WIN32
         static FontAtlas buildAtlas(const std::string& faceName, const std::string& ttfFile = "") {
             FontAtlas atlas;
-            atlas.fontHeight = 28.0f;
+            atlas.fontHeight = 26.0f;
 
             if (!ttfFile.empty()) {
                 std::string resolved = resolveFontPath(ttfFile);
@@ -214,7 +214,7 @@ namespace Lab {
                 FW_NORMAL, FALSE, FALSE, FALSE,
                 DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
                 CLIP_DEFAULT_PRECIS,
-                CLEARTYPE_NATURAL_QUALITY,
+                ANTIALIASED_QUALITY,
                 DEFAULT_PITCH | FF_DONTCARE,
                 faceName.c_str()
             );
@@ -252,49 +252,57 @@ namespace Lab {
             GetTextMetricsA(hdc, &tm);
             int cellH = tm.tmHeight + 4;
 
-            int curX = 2;
-            int curY = 2;
+            int curX = 4;
+            int curY = 4;
 
             for (int c = 32; c <= 126; ++c) {
                 char ch = (char)c;
                 SIZE sz{};
                 GetTextExtentPoint32A(hdc, &ch, 1, &sz);
-                int charW = sz.cx;
-                int charH = sz.cy;
+                int charW = sz.cx > 0 ? sz.cx : 8;
+                int charH = tm.tmHeight > 0 ? tm.tmHeight : 24;
 
-                if (curX + charW + 4 >= ATLAS_SIZE) {
-                    curX = 2;
-                    curY += cellH + 2;
+                if (curX + charW + 6 >= ATLAS_SIZE) {
+                    curX = 4;
+                    curY += cellH + 4;
                 }
 
-                if (curY + cellH + 2 >= ATLAS_SIZE) {
+                if (curY + cellH + 4 >= ATLAS_SIZE) {
                     break;
                 }
 
-                RECT rc = { curX + 1, curY + 1, curX + 1 + charW, curY + 1 + charH };
-                DrawTextA(hdc, &ch, 1, &rc, DT_LEFT | DT_TOP | DT_NOCLIP | DT_SINGLELINE);
+                TextOutA(hdc, curX, curY, &ch, 1);
 
                 GlyphMetric& gm = atlas.glyphs[c - 32];
-                gm.x = (float)(curX + 1);
-                gm.y = (float)(curY + 1);
+                gm.x = (float)curX;
+                gm.y = (float)curY;
                 gm.w = (float)charW;
                 gm.h = (float)charH;
                 gm.xadvance = (float)charW;
-                gm.u0 = (float)(curX + 1) / (float)ATLAS_SIZE;
-                gm.v0 = (float)(curY + 1) / (float)ATLAS_SIZE;
-                gm.u1 = (float)(curX + 1 + charW) / (float)ATLAS_SIZE;
-                gm.v1 = (float)(curY + 1 + charH) / (float)ATLAS_SIZE;
+                gm.u0 = (float)curX / (float)ATLAS_SIZE;
+                gm.v0 = (float)curY / (float)ATLAS_SIZE;
+                gm.u1 = (float)(curX + charW) / (float)ATLAS_SIZE;
+                gm.v1 = (float)(curY + charH) / (float)ATLAS_SIZE;
 
-                curX += charW + 4;
+                curX += charW + 6;
             }
+
+            // CRITICAL: Flush all GDI drawing commands to the memory buffer
+            GdiFlush();
+
+            SelectObject(hdc, oldBmp);
+            SelectObject(hdc, oldFont);
 
             std::vector<unsigned char> rgba(ATLAS_SIZE * ATLAS_SIZE * 4);
             const unsigned char* src = (const unsigned char*)bits;
+            int nonZero = 0;
+
             for (int i = 0; i < ATLAS_SIZE * ATLAS_SIZE; ++i) {
                 unsigned char b = src[i * 4 + 0];
                 unsigned char g = src[i * 4 + 1];
                 unsigned char r = src[i * 4 + 2];
                 unsigned char a = (std::max)({ r, g, b });
+                if (a > 0) nonZero++;
 
                 rgba[i * 4 + 0] = 255;
                 rgba[i * 4 + 1] = 255;
@@ -302,14 +310,16 @@ namespace Lab {
                 rgba[i * 4 + 3] = a;
             }
 
-            atlas.texture = std::make_unique<Texture>(rgba.data(), ATLAS_SIZE, ATLAS_SIZE, 4);
-            atlas.valid = true;
-
-            SelectObject(hdc, oldBmp);
-            SelectObject(hdc, oldFont);
             DeleteObject(hbm);
             DeleteObject(hFont);
             DeleteDC(hdc);
+
+            if (nonZero > 100) {
+                atlas.texture = std::make_unique<Texture>(rgba.data(), ATLAS_SIZE, ATLAS_SIZE, 4);
+                atlas.valid = true;
+            } else {
+                atlas.valid = false;
+            }
 
             return atlas;
         }
@@ -322,26 +332,29 @@ namespace Lab {
 
             if (!initialized) {
 #ifdef _WIN32
-                geoSansAtlas = buildAtlas("GeosansLight", "GeosansLight.ttf");
                 systemAtlas = buildAtlas("Segoe UI", "");
                 if (!systemAtlas.valid) {
                     systemAtlas = buildAtlas("Arial", "");
+                }
+                geoSansAtlas = buildAtlas("GeosansLight", "GeosansLight.ttf");
+                if (!geoSansAtlas.valid && systemAtlas.valid) {
+                    geoSansAtlas = buildAtlas("Segoe UI", "");
                 }
 #endif
                 initialized = true;
             }
 
-            if (type == LabFontType::System) return systemAtlas;
-            return geoSansAtlas;
+            if (type == LabFontType::GeoSans) return geoSansAtlas;
+            return systemAtlas;
         }
 
         // Draws formatted string with selected font type and crisp anti-aliasing
-        static void drawText(float x, float y, const std::string& text, float scale = 1.0f, const Vec3& color = { 1, 1, 1 }, LabFontType fontType = LabFontType::GeoSans) {
+        // Defaults to System font (Windows font in engine/editor), GeoSans used in game
+        static void drawText(float x, float y, const std::string& text, float scale = 1.0f, const Vec3& color = { 1, 1, 1 }, LabFontType fontType = LabFontType::System) {
             if (fontType != LabFontType::DotMatrix) {
                 FontAtlas& atlas = getAtlas(fontType);
                 if (atlas.valid && atlas.texture) {
-                    // Standard scale factor matching 5x7 geometry for 1:1 UI compatibility
-                    float visualScale = scale * (7.0f / atlas.fontHeight);
+                    float visualScale = scale * (8.5f / atlas.fontHeight);
                     float cursorX = x;
                     float cursorY = y;
                     float lineH = (atlas.fontHeight + 4.0f) * visualScale;
@@ -377,11 +390,11 @@ namespace Lab {
             drawDotMatrixText(x, y, text, scale, color);
         }
 
-        static float getTextWidth(const std::string& text, float scale = 1.0f, LabFontType fontType = LabFontType::GeoSans) {
+        static float getTextWidth(const std::string& text, float scale = 1.0f, LabFontType fontType = LabFontType::System) {
             if (fontType != LabFontType::DotMatrix) {
                 FontAtlas& atlas = getAtlas(fontType);
                 if (atlas.valid) {
-                    float visualScale = scale * (7.0f / atlas.fontHeight);
+                    float visualScale = scale * (8.5f / atlas.fontHeight);
                     float maxW = 0.0f;
                     float curW = 0.0f;
                     for (char c : text) {
@@ -403,16 +416,17 @@ namespace Lab {
             return (float)text.length() * 6.0f * scale;
         }
 
-        static float getTextHeight(float scale = 1.0f, LabFontType fontType = LabFontType::GeoSans) {
+        static float getTextHeight(float scale = 1.0f, LabFontType fontType = LabFontType::System) {
             if (fontType != LabFontType::DotMatrix) {
                 FontAtlas& atlas = getAtlas(fontType);
                 if (atlas.valid) {
-                    float visualScale = scale * (7.0f / atlas.fontHeight);
+                    float visualScale = scale * (8.5f / atlas.fontHeight);
                     return atlas.fontHeight * visualScale;
                 }
             }
             return 7.0f * scale;
         }
+
     };
 
 }

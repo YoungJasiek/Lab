@@ -86,12 +86,12 @@ namespace Lab {
             drawCard(topX, topY, topW, topH, tileBg, tileBorder);
             
             // Map Name label
-            LabFont::drawText(topX + 16.0f, topY + 11.0f, mapName, 2.0f, textYellow);
+            LabFont::drawText(topX + 16.0f, topY + 11.0f, mapName, 2.0f, textYellow, LabFontType::GeoSans);
             
             // Clock icon + Timer digits
             drawClockIcon(topX + topW - 85.0f, topY + 10.0f, 8.0f, textYellow);
             std::string timeStr = std::to_string(timerSecs);
-            LabFont::drawText(topX + topW - 62.0f, topY + 9.0f, timeStr, 2.5f, textYellow);
+            LabFont::drawText(topX + topW - 62.0f, topY + 9.0f, timeStr, 2.5f, textYellow, LabFontType::GeoSans);
 
             // ==================== 2. MAIN HUD CARDS: SUIT & HEALTH (BOTTOM LEFT) ====================
             // Clean, focused layout: only SUIT and HEALTH cards (attack/jump/speed removed)
@@ -107,11 +107,11 @@ namespace Lab {
             
             // Shield Icon + SUIT text
             drawSuitIcon(suitX + 16.0f, cardY + 18.0f, 16.0f, 20.0f, textYellow);
-            LabFont::drawText(suitX + 38.0f, cardY + 26.0f, "SUIT", 2.2f, textYellow);
+            LabFont::drawText(suitX + 38.0f, cardY + 26.0f, "SUIT", 2.2f, textYellow, LabFontType::GeoSans);
 
             // Suit Value (e.g. 0% / 100%)
             std::string suitStr = std::to_string((int)suitArmor) + "%";
-            LabFont::drawText(suitX + suitCardW - 88.0f, cardY + 16.0f, suitStr, 4.4f, textYellow);
+            LabFont::drawText(suitX + suitCardW - 88.0f, cardY + 16.0f, suitStr, 4.4f, textYellow, LabFontType::GeoSans);
 
             // --- CARD 2: HEALTH ---
             float hpCardW = 255.0f;
@@ -120,11 +120,11 @@ namespace Lab {
 
             // Health Cross Icon + HEALTH text
             drawHealthIcon(hpX + 16.0f, cardY + 19.0f, 18.0f, textYellow);
-            LabFont::drawText(hpX + 42.0f, cardY + 26.0f, "HEALTH", 2.2f, textYellow);
+            LabFont::drawText(hpX + 42.0f, cardY + 26.0f, "HEALTH", 2.2f, textYellow, LabFontType::GeoSans);
 
             // Health Value (e.g. 150)
             std::string hpStr = std::to_string((int)health);
-            LabFont::drawText(hpX + hpCardW - 88.0f, cardY + 16.0f, hpStr, 4.4f, textYellow);
+            LabFont::drawText(hpX + hpCardW - 88.0f, cardY + 16.0f, hpStr, 4.4f, textYellow, LabFontType::GeoSans);
 
             // ==================== 3. AMMO CARD (BOTTOM RIGHT) ====================
             float ammoW = 180.0f;
@@ -133,12 +133,13 @@ namespace Lab {
 
             // Ammo bullet icon + AMMO text
             drawAmmoIcon(ammoX + 16.0f, cardY + 18.0f, textYellow);
-            LabFont::drawText(ammoX + 34.0f, cardY + 26.0f, "AMMO", 2.0f, textYellow);
+            LabFont::drawText(ammoX + 34.0f, cardY + 26.0f, "AMMO", 2.0f, textYellow, LabFontType::GeoSans);
 
             // Clip count & Reserve
             std::string clipStr = std::to_string(ammoClip);
-            LabFont::drawText(ammoX + 85.0f, cardY + 16.0f, clipStr, 4.4f, textYellow);
-            LabFont::drawText(ammoX + 140.0f, cardY + 30.0f, "/" + std::to_string(ammoReserve), 1.7f, textYellow * 0.75f);
+            LabFont::drawText(ammoX + 85.0f, cardY + 16.0f, clipStr, 4.4f, textYellow, LabFontType::GeoSans);
+            LabFont::drawText(ammoX + 140.0f, cardY + 30.0f, "/" + std::to_string(ammoReserve), 1.7f, textYellow * 0.75f, LabFontType::GeoSans);
+
 
             // ==================== 4. DYNAMIC CROSSHAIR (Screen Center) ====================
             float cx = (float)screenW * 0.5f;
