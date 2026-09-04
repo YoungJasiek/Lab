@@ -43,8 +43,8 @@ public:
             MapBrush floor;
             floor.position = Vec3(0, -0.5f, 0);
             floor.size = Vec3(32.0f, 1.0f, 32.0f);
-            floor.color = Vec3(0.5f, 0.5f, 0.5f);
-            floor.texturePath = "wall_concrete.bmp";
+            floor.color = Vec3(1.0f, 1.0f, 1.0f);
+            floor.texturePath = "floor_tiles.bmp";
             _map->brushes.push_back(floor);
         }
 
@@ -57,10 +57,12 @@ public:
         logMessage("Search Path (GAME) : assets/textures/");
         logMessage("Search Path (GAME) : assets/models/");
         logMessage("Search Path (GAME) : assets/maps/");
+        logMessage("Loaded " + std::to_string(_availableTextures.size()) + " textures into Hammer browser.");
         logMessage("Hammer initialized. Ready.");
     }
 
     void discoverTextures() {
+        _availableTextures.clear();
         std::vector<std::string> searchDirs = { "assets/textures", "../assets/textures", "../../assets/textures" };
         for (const auto& dir : searchDirs) {
             if (std::filesystem::exists(dir)) {
@@ -77,8 +79,8 @@ public:
             }
         }
         if (_availableTextures.empty()) {
-            _availableTextures.push_back({ "Test.bmp", "Test.bmp" });
-            _textures["Test.bmp"] = std::make_unique<Texture>("Test.bmp");
+            _availableTextures.push_back({ "concrete_wall.bmp", "concrete_wall.bmp" });
+            _textures["concrete_wall.bmp"] = std::make_unique<Texture>("concrete_wall.bmp");
         }
         _selectedTexture = _availableTextures[0].filename;
     }
@@ -91,7 +93,7 @@ public:
     }
 
     void onFixedUpdate(float fixedDelta) override {
-        // Noclip camera movement (active when holding Right Mouse Button or when hovering viewport)
+        // Noclip camera movement (active when holding Right Mouse Button)
         if (Input::isMouseButtonPressed(1)) {
             bool isFast = Input::isKeyPressed(340); // Shift
             float flySpeed = isFast ? 35.0f : 15.0f;
@@ -187,30 +189,76 @@ public:
     }
 
     void handleMouseClick(float mx, float my) {
-        // Left Toolbar Tools (x: 5..35)
-        if (mx >= 5.0f && mx <= 35.0f) {
+        // Texture Browser Grid Clicks (Inside Browse Window if open)
+        if (_browserOpen) {
+            // Close button click
+            if (mx >= 1170.0f && mx <= 1200.0f && my >= 100.0f && my <= 125.0f) {
+                _browserOpen = false;
+                return;
+            }
+            // Grid of textures (x: 420..1180, y: 150..700)
+            int cols = 6;
+            float thumbSize = 110.0f;
+            float gap = 15.0f;
+            float startX = 425.0f;
+            float startY = 150.0f;
+
+            for (size_t i = 0; i < _availableTextures.size(); ++i) {
+                int col = (int)(i % cols);
+                int row = (int)(i / cols);
+                float tx = startX + col * (thumbSize + gap);
+                float ty = startY + row * (thumbSize + gap);
+
+                if (mx >= tx && mx <= tx + thumbSize && my >= ty && my <= ty + thumbSize) {
+                    _selectedTexture = _availableTextures[i].filename;
+                    _textureIndex = (int)i;
+                    logMessage("Selected Texture: " + _selectedTexture);
+                    _browserOpen = false;
+                    return;
+                }
+            }
+            return;
+        }
+
+        // Left Toolbar Tools (x: 5..45)
+        if (mx >= 5.0f && mx <= 45.0f) {
             float startY = 70.0f;
             for (int i = 0; i < 8; ++i) {
                 float ty = startY + i * 36.0f;
                 if (my >= ty && my <= ty + 32.0f) {
                     _activeTool = i;
-                    if (i == 0) logMessage("Tool: Selection Tool");
+                    if (i == 0) logMessage("Tool: Pointer / Selection Tool");
                     else if (i == 1) logMessage("Tool: Block / Brush Tool");
                     else if (i == 2) logMessage("Tool: Entity / Prop Tool");
                     else if (i == 3) logMessage("Tool: Texture Application Tool");
-                    else if (i == 4) logMessage("Tool: Clipping Tool");
+                    else if (i == 4) logMessage("Tool: Face Edit Tool");
+                    else if (i == 5) logMessage("Tool: Decal Tool");
+                    else if (i == 6) logMessage("Tool: Clipping Tool");
                     return;
                 }
             }
         }
 
-        // Right Sidebar Texture Picker Click (x: 1380..1580, y: 310..420)
-        if (mx >= 1380.0f && mx <= 1580.0f && my >= 280.0f && my <= 430.0f) {
-            // Next texture cycle
-            _textureIndex = (_textureIndex + 1) % _availableTextures.size();
-            _selectedTexture = _availableTextures[_textureIndex].filename;
-            logMessage("Selected Texture: " + _selectedTexture);
-            return;
+        // Right Sidebar Texture Thumbnail Click or Browse... Button
+        if (mx >= 1320.0f && mx <= 1580.0f) {
+            // Browse... button
+            if (my >= 370.0f && my <= 405.0f) {
+                _browserOpen = true;
+                logMessage("Opened Texture Browser (" + std::to_string(_availableTextures.size()) + " available)");
+                return;
+            }
+            // Texture thumbnail click (cycles textures)
+            if (my >= 280.0f && my <= 365.0f && mx <= 1420.0f) {
+                _textureIndex = (int)((_textureIndex + 1) % _availableTextures.size());
+                _selectedTexture = _availableTextures[_textureIndex].filename;
+                logMessage("Selected Texture: " + _selectedTexture);
+                return;
+            }
+            // Apply Texture button
+            if (my >= 410.0f && my <= 445.0f) {
+                placeCurrentObject();
+                return;
+            }
         }
 
         // Top Menu Bar Clicks
@@ -222,8 +270,9 @@ public:
                     logMessage("File -> Saved assets/maps/hammer_export.labmap");
                 }
             } else if (mx >= 50.0f && mx <= 90.0f) {
-                // Tools -> Place Brush
                 placeCurrentObject();
+            } else if (mx >= 130.0f && mx <= 175.0f) {
+                _browserOpen = true;
             }
         }
     }
@@ -233,12 +282,10 @@ public:
         Renderer::beginFrame(_camera);
 
         if (_map) {
-            // Brushes with their chosen textures
             for (const auto& b : _map->brushes) {
                 Texture* tex = b.texturePath.empty() ? nullptr : _textures[b.texturePath].get();
                 Renderer::drawCube(b.position, b.size, b.color, tex);
             }
-            // Doors
             for (const auto& d : _map->doors) {
                 Renderer::drawCube(d.position, d.size, d.color);
             }
@@ -254,23 +301,73 @@ public:
         // 2. Render 2D Valve Hammer Desktop Interface
         drawHammerInterface();
 
+        // 3. Render Modal Texture Browser if open
+        if (_browserOpen) {
+            drawTextureBrowser();
+        }
+
         Renderer::endFrame();
+    }
+
+    // Custom Icon Renderers for classic Hammer Toolbar
+    static void drawHammerIcon(int iconId, float x, float y, const Vec3& color, const Vec3& bg) {
+        Renderer::drawRect(x, y, 24.0f, 24.0f, bg);
+        Renderer::drawRect(x, y, 24.0f, 1.0f, Vec3(0.7f, 0.7f, 0.7f));
+        Renderer::drawRect(x, y + 23.0f, 24.0f, 1.0f, Vec3(0.5f, 0.5f, 0.5f));
+
+        switch(iconId) {
+            case 0: // Pointer / Selection Arrow
+                Renderer::drawRect(x + 5.0f, y + 5.0f, 3.0f, 13.0f, color);
+                Renderer::drawRect(x + 8.0f, y + 8.0f, 3.0f, 8.0f, color);
+                Renderer::drawRect(x + 11.0f, y + 11.0f, 3.0f, 4.0f, color);
+                Renderer::drawRect(x + 8.0f, y + 14.0f, 5.0f, 3.0f, color);
+                break;
+            case 1: // 3D Block / Cube Brush
+                Renderer::drawRect(x + 5.0f, y + 5.0f, 14.0f, 14.0f, color);
+                Renderer::drawRect(x + 7.0f, y + 7.0f, 10.0f, 10.0f, bg);
+                Renderer::drawRect(x + 9.0f, y + 9.0f, 6.0f, 6.0f, color);
+                break;
+            case 2: // Entity Lightbulb / Lamp
+                Renderer::drawRect(x + 8.0f, y + 4.0f, 8.0f, 8.0f, color);
+                Renderer::drawRect(x + 10.0f, y + 12.0f, 4.0f, 5.0f, color);
+                Renderer::drawRect(x + 6.0f, y + 8.0f, 12.0f, 2.0f, color);
+                break;
+            case 3: // Texture / Material Application
+                Renderer::drawRect(x + 4.0f, y + 4.0f, 16.0f, 16.0f, color);
+                Renderer::drawRect(x + 4.0f, y + 4.0f, 8.0f, 8.0f, Vec3(0.1f, 0.1f, 0.1f));
+                Renderer::drawRect(x + 12.0f, y + 12.0f, 8.0f, 8.0f, Vec3(0.1f, 0.1f, 0.1f));
+                break;
+            case 4: // Face Edit
+                Renderer::drawRect(x + 5.0f, y + 5.0f, 14.0f, 14.0f, color);
+                Renderer::drawRect(x + 7.0f, y + 7.0f, 10.0f, 10.0f, Vec3(0.9f, 0.2f, 0.2f));
+                break;
+            case 5: // Decal tool
+                Renderer::drawRect(x + 7.0f, y + 5.0f, 10.0f, 14.0f, color);
+                Renderer::drawRect(x + 9.0f, y + 7.0f, 6.0f, 4.0f, bg);
+                break;
+            case 6: // Clipping / Knife Tool
+                Renderer::drawRect(x + 5.0f, y + 5.0f, 14.0f, 2.0f, color);
+                Renderer::drawRect(x + 7.0f, y + 7.0f, 10.0f, 2.0f, color);
+                Renderer::drawRect(x + 9.0f, y + 9.0f, 6.0f, 2.0f, color);
+                Renderer::drawRect(x + 11.0f, y + 11.0f, 2.0f, 8.0f, color);
+                break;
+            default: // Generic tool
+                Renderer::drawRect(x + 6.0f, y + 6.0f, 12.0f, 12.0f, color);
+                break;
+        }
     }
 
     void drawHammerInterface() {
         int w = 1600, h = 900;
         Renderer::beginUI(w, h);
 
-        // Valve Hammer Desktop Gray Colors (Exact reference match)
         Vec3 winBg{ 0.94f, 0.94f, 0.94f };          // Classic Win32 Dialog Gray
         Vec3 winBorder{ 0.65f, 0.65f, 0.68f };      // Bevel Gray
         Vec3 textDark{ 0.12f, 0.12f, 0.12f };       // Black Text
         Vec3 textDim{ 0.45f, 0.45f, 0.45f };        // Dim Label
-        Vec3 toolDark{ 0.35f, 0.37f, 0.40f };       // Dark Tool Button
         Vec3 cyanGlow{ 0.2f, 0.75f, 0.95f };        // Frozen-Life Palette accent
 
         // ==================== 1. TOP TITLEBAR & MENUS ====================
-        // Menu Bar (File, Edit, View, Tools, Help)
         Renderer::drawRect(0, 0, (float)w, 24.0f, winBg);
         Renderer::drawRect(0, 23.0f, (float)w, 1.0f, winBorder);
 
@@ -280,43 +377,41 @@ public:
         LabFont::drawText(130.0f, 6.0f, "Tools", 1.8f, textDark);
         LabFont::drawText(180.0f, 6.0f, "Help", 1.8f, textDark);
 
-        // Title text in corner
         LabFont::drawText((float)w - 240.0f, 6.0f, "Hammer - Frozen-Life", 1.7f, Vec3(0.2f, 0.4f, 0.6f));
 
-        // ==================== 2. MAIN TOOLBAR (Row of Action Icons) ====================
+        // ==================== 2. MAIN TOOLBAR ====================
         float tbY = 24.0f;
         float tbH = 34.0f;
         Renderer::drawRect(0, tbY, (float)w, tbH, winBg);
         Renderer::drawRect(0, tbY + tbH - 1.0f, (float)w, 1.0f, winBorder);
 
-        // Grid icon boxes (24x24 icons)
+        // Render actual icons for the top bar
         for (int i = 0; i < 18; ++i) {
             float bx = 8.0f + i * 28.0f;
-            Renderer::drawRect(bx, tbY + 5.0f, 24.0f, 24.0f, Vec3(0.88f, 0.88f, 0.90f));
-            Renderer::drawRect(bx, tbY + 5.0f, 24.0f, 1.0f, winBorder);
-            // Inner icon symbol glyph
-            Renderer::drawRect(bx + 6.0f, tbY + 11.0f, 12.0f, 12.0f, (i % 2 == 0) ? cyanGlow * 0.7f : Vec3(0.4f, 0.4f, 0.4f));
+            drawHammerIcon(i % 7, bx, tbY + 5.0f, (i % 2 == 0) ? cyanGlow * 0.7f : Vec3(0.3f, 0.35f, 0.4f), Vec3(0.88f, 0.88f, 0.90f));
         }
 
-        // ==================== 3. LEFT TOOLS PALETTE (Selection, Brush, Clip, etc.) ====================
+        // ==================== 3. LEFT TOOLS PALETTE ====================
         float leftW = 42.0f;
         float leftY = tbY + tbH;
         float leftH = (float)h - leftY - 24.0f;
         Renderer::drawRect(0, leftY, leftW, leftH, winBg);
         Renderer::drawRect(leftW - 1.0f, leftY, 1.0f, leftH, winBorder);
 
-        // Vertical Tool Buttons
-        for (int i = 0; i < 8; ++i) {
+        // Render actual individual icons for each tool on the left palette
+        for (int i = 0; i < 7; ++i) {
             float ty = leftY + 10.0f + i * 36.0f;
             bool isSel = (_activeTool == i);
-            Renderer::drawRect(6.0f, ty, 30.0f, 30.0f, isSel ? Vec3(0.78f, 0.85f, 0.95f) : Vec3(0.85f, 0.85f, 0.87f));
+            Vec3 bgCol = isSel ? Vec3(0.78f, 0.88f, 1.0f) : Vec3(0.88f, 0.88f, 0.90f);
+            Vec3 iconCol = isSel ? Vec3(1.0f, 0.55f, 0.1f) : Vec3(0.25f, 0.28f, 0.32f);
+
+            Renderer::drawRect(6.0f, ty, 30.0f, 30.0f, bgCol);
             Renderer::drawRect(6.0f, ty, 30.0f, 1.0f, isSel ? cyanGlow : winBorder);
-            // Icon inner square
-            Renderer::drawRect(12.0f, ty + 6.0f, 18.0f, 18.0f, isSel ? Vec3(1.0f, 0.55f, 0.1f) : toolDark);
+            drawHammerIcon(i, 9.0f, ty + 3.0f, iconCol, bgCol);
         }
 
-        // ==================== 4. RIGHT SIDEBAR (Texture, Groups, VisGroups, Manifest) ====================
-        float rightW = 260.0f;
+        // ==================== 4. RIGHT SIDEBAR ====================
+        float rightW = 280.0f;
         float rightX = (float)w - rightW;
         float rightY = leftY;
         float rightH = leftH;
@@ -325,67 +420,63 @@ public:
 
         // Section A: "Select:"
         LabFont::drawText(rightX + 12.0f, rightY + 10.0f, "Select:", 1.7f, textDark);
-        Renderer::drawRect(rightX + 12.0f, rightY + 28.0f, 110.0f, 22.0f, Vec3(0.88f, 0.88f, 0.90f));
+        Renderer::drawRect(rightX + 12.0f, rightY + 28.0f, 120.0f, 22.0f, Vec3(0.88f, 0.88f, 0.90f));
         LabFont::drawText(rightX + 22.0f, rightY + 34.0f, "Groups", 1.6f, textDim);
-        Renderer::drawRect(rightX + 12.0f, rightY + 54.0f, 110.0f, 22.0f, Vec3(0.88f, 0.88f, 0.90f));
+        Renderer::drawRect(rightX + 12.0f, rightY + 54.0f, 120.0f, 22.0f, Vec3(0.88f, 0.88f, 0.90f));
         LabFont::drawText(rightX + 22.0f, rightY + 60.0f, "Objects", 1.6f, textDim);
-        Renderer::drawRect(rightX + 12.0f, rightY + 80.0f, 110.0f, 22.0f, Vec3(0.88f, 0.88f, 0.90f));
+        Renderer::drawRect(rightX + 12.0f, rightY + 80.0f, 120.0f, 22.0f, Vec3(0.88f, 0.88f, 0.90f));
         LabFont::drawText(rightX + 22.0f, rightY + 86.0f, "Solids", 1.6f, textDim);
 
         // Section B: "Texture group:" & "Current texture:"
         float texSecY = rightY + 115.0f;
         LabFont::drawText(rightX + 12.0f, texSecY, "Texture group:", 1.7f, textDark);
-        Renderer::drawRect(rightX + 12.0f, texSecY + 16.0f, 236.0f, 22.0f, Vec3(1, 1, 1));
-        Renderer::drawRect(rightX + 12.0f, texSecY + 16.0f, 236.0f, 1.0f, winBorder);
-        LabFont::drawText(rightX + 20.0f, texSecY + 22.0f, "All Textures", 1.6f, textDark);
+        Renderer::drawRect(rightX + 12.0f, texSecY + 16.0f, 256.0f, 22.0f, Vec3(1, 1, 1));
+        Renderer::drawRect(rightX + 12.0f, texSecY + 16.0f, 256.0f, 1.0f, winBorder);
+        LabFont::drawText(rightX + 20.0f, texSecY + 22.0f, "All Textures (" + std::to_string(_availableTextures.size()) + ")", 1.6f, textDark);
 
         LabFont::drawText(rightX + 12.0f, texSecY + 45.0f, "Current texture:", 1.7f, textDark);
-        Renderer::drawRect(rightX + 12.0f, texSecY + 62.0f, 236.0f, 22.0f, Vec3(1, 1, 1));
-        Renderer::drawRect(rightX + 12.0f, texSecY + 62.0f, 236.0f, 1.0f, winBorder);
+        Renderer::drawRect(rightX + 12.0f, texSecY + 62.0f, 256.0f, 22.0f, Vec3(1, 1, 1));
+        Renderer::drawRect(rightX + 12.0f, texSecY + 62.0f, 256.0f, 1.0f, winBorder);
         LabFont::drawText(rightX + 20.0f, texSecY + 68.0f, _selectedTexture, 1.6f, textDark);
 
-        // Texture Thumbnail Preview Box (Exact match to big black box in Hammer screenshot!)
+        // Texture Thumbnail Preview Box (Exact match to Valve Hammer)
         float thumbX = rightX + 12.0f;
         float thumbY = texSecY + 92.0f;
         float thumbS = 85.0f;
-        Renderer::drawRect(thumbX, thumbY, thumbS, thumbS, Vec3(0, 0, 0)); // Black backdrop
+        Renderer::drawRect(thumbX, thumbY, thumbS, thumbS, Vec3(0, 0, 0));
 
         // Draw Actual 2D Texture Thumbnail Preview
         if (_textures.contains(_selectedTexture)) {
             Renderer::drawTextureRect(thumbX + 2.0f, thumbY + 2.0f, thumbS - 4.0f, thumbS - 4.0f, *_textures[_selectedTexture]);
         }
 
-        // Browse... & Replace... Buttons
-        Renderer::drawRect(rightX + 110.0f, thumbY + 12.0f, 138.0f, 26.0f, Vec3(0.88f, 0.88f, 0.90f));
-        Renderer::drawRect(rightX + 110.0f, thumbY + 12.0f, 138.0f, 1.0f, winBorder);
-        LabFont::drawText(rightX + 125.0f, thumbY + 20.0f, "Browse... [Click]", 1.6f, textDark);
+        // Browse... & Apply Texture Buttons
+        Renderer::drawRect(rightX + 105.0f, thumbY + 12.0f, 160.0f, 28.0f, Vec3(0.88f, 0.88f, 0.90f));
+        Renderer::drawRect(rightX + 105.0f, thumbY + 12.0f, 160.0f, 1.0f, winBorder);
+        LabFont::drawText(rightX + 115.0f, thumbY + 20.0f, "Browse Textures...", 1.6f, textDark);
 
-        Renderer::drawRect(rightX + 110.0f, thumbY + 46.0f, 138.0f, 26.0f, Vec3(0.88f, 0.88f, 0.90f));
-        Renderer::drawRect(rightX + 110.0f, thumbY + 46.0f, 138.0f, 1.0f, winBorder);
-        LabFont::drawText(rightX + 125.0f, thumbY + 54.0f, "Apply Texture", 1.6f, textDark);
+        Renderer::drawRect(rightX + 105.0f, thumbY + 48.0f, 160.0f, 28.0f, Vec3(0.88f, 0.88f, 0.90f));
+        Renderer::drawRect(rightX + 105.0f, thumbY + 48.0f, 160.0f, 1.0f, winBorder);
+        LabFont::drawText(rightX + 120.0f, thumbY + 56.0f, "Apply to Brush", 1.6f, textDark);
 
         // Section C: "VisGroups:" Box
         float visY = thumbY + thumbS + 18.0f;
         LabFont::drawText(rightX + 12.0f, visY, "VisGroups:", 1.7f, textDark);
-        Renderer::drawRect(rightX + 12.0f, visY + 16.0f, 236.0f, 130.0f, Vec3(1, 1, 1));
-        Renderer::drawRect(rightX + 12.0f, visY + 16.0f, 236.0f, 1.0f, winBorder);
+        Renderer::drawRect(rightX + 12.0f, visY + 16.0f, 256.0f, 130.0f, Vec3(1, 1, 1));
+        Renderer::drawRect(rightX + 12.0f, visY + 16.0f, 256.0f, 1.0f, winBorder);
 
-        // Visgroup items
         LabFont::drawText(rightX + 20.0f, visY + 26.0f, "[x] World Geometry", 1.6f, textDark);
         LabFont::drawText(rightX + 20.0f, visY + 46.0f, "[x] Entities & Props", 1.6f, textDark);
         LabFont::drawText(rightX + 20.0f, visY + 66.0f, "[x] Dynamic Doors", 1.6f, textDark);
         LabFont::drawText(rightX + 20.0f, visY + 86.0f, "[x] Player Spawns", 1.6f, textDark);
 
         // ==================== 5. BOTTOM CONSOLE / "Messages" WINDOW ====================
-        // Floating tool window matched to bottom of reference screenshot
         float conW = 750.0f;
         float conH = 140.0f;
         float conX = leftW + 30.0f;
         float conY = (float)h - conH - 35.0f;
 
-        // Window Frame
         Renderer::drawRect(conX, conY, conW, conH, Vec3(1, 1, 1));
-        // Windows Aero / Classic Titlebar
         Renderer::drawRect(conX, conY, conW, 22.0f, Vec3(0.85f, 0.90f, 0.96f));
         Renderer::drawRect(conX, conY, conW, 1.0f, winBorder);
         Renderer::drawRect(conX, conY + conH - 1.0f, conW, 1.0f, winBorder);
@@ -394,19 +485,73 @@ public:
 
         LabFont::drawText(conX + 10.0f, conY + 6.0f, "Messages", 1.7f, textDark);
 
-        // Print Search Path / Log messages
         for (int i = 0; i < (int)_consoleMessages.size(); ++i) {
             LabFont::drawText(conX + 12.0f, conY + 30.0f + i * 14.0f, _consoleMessages[i], 1.5f, Vec3(0.1f, 0.15f, 0.2f));
         }
 
-        // ==================== 6. STATUS BAR AT VERY BOTTOM ====================
+        // ==================== 6. STATUS BAR ====================
         float sbY = (float)h - 22.0f;
         Renderer::drawRect(0, sbY, (float)w, 22.0f, winBg);
         Renderer::drawRect(0, sbY, (float)w, 1.0f, winBorder);
 
-        LabFont::drawText(10.0f, sbY + 5.0f, "For Help, press F1 | Hold RMB: Fly & Look | E: Place Brush | K: Save Map", 1.6f, textDark);
+        LabFont::drawText(10.0f, sbY + 5.0f, "Hold RMB: Fly & Look | E: Place Brush | K: Save Map | Click 'Browse Textures...' for full picker", 1.6f, textDark);
         std::string gridStr = "Snap: " + std::to_string((int)_gridSnap);
         LabFont::drawText((float)w - 280.0f, sbY + 5.0f, gridStr, 1.6f, textDark);
+
+        Renderer::endUI();
+    }
+
+    // Modal Texture Browser Gallery
+    void drawTextureBrowser() {
+        int w = 1600, h = 900;
+        Renderer::beginUI(w, h);
+
+        // Dim background overlay
+        Renderer::drawRect(0, 0, (float)w, (float)h, Vec3(0.05f, 0.06f, 0.08f));
+
+        // Window Frame
+        float bw = 820.0f;
+        float bh = 600.0f;
+        float bx = ((float)w - bw) * 0.5f;
+        float by = ((float)h - bh) * 0.5f;
+
+        Renderer::drawRect(bx, by, bw, bh, Vec3(0.92f, 0.92f, 0.94f));
+        Renderer::drawRect(bx, by, bw, 28.0f, Vec3(0.2f, 0.35f, 0.55f)); // Titlebar
+        LabFont::drawText(bx + 14.0f, by + 8.0f, "Texture Browser - Choose Surface Material", 1.8f, Vec3(1, 1, 1));
+
+        // Close 'X' Button
+        Renderer::drawRect(bx + bw - 32.0f, by + 4.0f, 24.0f, 20.0f, Vec3(0.85f, 0.25f, 0.25f));
+        LabFont::drawText(bx + bw - 25.0f, by + 7.0f, "X", 1.8f, Vec3(1, 1, 1));
+
+        // Texture Gallery Grid (6 columns)
+        int cols = 6;
+        float thumbSize = 110.0f;
+        float gap = 15.0f;
+        float startX = bx + 25.0f;
+        float startY = by + 45.0f;
+
+        for (size_t i = 0; i < _availableTextures.size(); ++i) {
+            int col = (int)(i % cols);
+            int row = (int)(i / cols);
+            float tx = startX + col * (thumbSize + gap);
+            float ty = startY + row * (thumbSize + gap);
+
+            bool isSelected = (_availableTextures[i].filename == _selectedTexture);
+
+            // Thumbnail Border / Highlight
+            Renderer::drawRect(tx - 3.0f, ty - 3.0f, thumbSize + 6.0f, thumbSize + 22.0f, isSelected ? Vec3(1.0f, 0.55f, 0.1f) : Vec3(0.7f, 0.72f, 0.75f));
+            Renderer::drawRect(tx, ty, thumbSize, thumbSize, Vec3(0, 0, 0));
+
+            // Render Actual 2D Texture Image
+            if (_textures.contains(_availableTextures[i].filename)) {
+                Renderer::drawTextureRect(tx, ty, thumbSize, thumbSize, *_textures[_availableTextures[i].filename]);
+            }
+
+            // Label underneath
+            std::string label = _availableTextures[i].filename;
+            if (label.size() > 12) label = label.substr(0, 10) + "..";
+            LabFont::drawText(tx, ty + thumbSize + 4.0f, label, 1.4f, Vec3(0.1f, 0.1f, 0.1f));
+        }
 
         Renderer::endUI();
     }
@@ -420,8 +565,9 @@ private:
     std::unique_ptr<LabMap> _map;
     std::unordered_map<std::string, std::unique_ptr<Texture>> _textures;
     std::vector<TextureEntry> _availableTextures;
-    std::string _selectedTexture = "wall_concrete.bmp";
+    std::string _selectedTexture = "concrete_wall.bmp";
     int _textureIndex = 0;
+    bool _browserOpen = false;
 
     int _activeTool = 1; // 1 = Brush Tool
     Vec3 _cursorPos{ 0, 0, 0 };

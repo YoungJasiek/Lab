@@ -62,7 +62,7 @@ namespace Lab {
             b.position = cursor.position;
             b.size = cursor.brushSize;
             b.color = cursor.brushColor;
-            b.texturePath = "Test.bmp";
+            b.texturePath = "concrete_wall.bmp";
             map.brushes.push_back(b);
             statusMessage = "Placed Brush at (" + std::to_string((int)b.position.x) + ", " + std::to_string((int)b.position.y) + ", " + std::to_string((int)b.position.z) + ")";
         }

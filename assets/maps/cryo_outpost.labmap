@@ -1,4 +1,4 @@
-﻿LABMAP_VERSION 1
+LABMAP_VERSION 1
 
 METADATA
     name "Cryo Wasteland Outpost"
@@ -10,17 +10,21 @@ END_METADATA
 ENTITIES
     spawn 0.0 1.8 5.0 0.0
 
-    // Vast frozen baseplate
-    brush cube 0.0 -0.5 0.0 200.0 1.0 200.0 0.9 0.95 1.0 Test.bmp
+    // Vast frozen baseplate with snow frost
+    brush cube 0.0 -0.5 0.0 200.0 1.0 200.0 0.9 0.95 1.0 snow_frost.bmp
 
     // Cryo Monolith in the distance
-    prop Model.stl 0.0 2.5 -15.0 0.0 45.0 0.0 2.5 2.5 2.5 0.7 0.85 1.0 Test.bmp
+    prop Model.stl 0.0 2.5 -15.0 0.0 45.0 0.0 2.5 2.5 2.5 0.7 0.85 1.0 metal_hull.bmp
 
     // Outpost Bunker Door
     door bunker_airlock 0.0 1.75 -3.0 3.0 3.5 0.5 3.5 0.0 0.0 0.2 0.3 0.4 2.0 4.5
 
-    // Ice Shards
-    brush cube -10.0 3.0 -8.0 1.5 6.0 1.5 0.4 0.6 0.85 ""
-    brush cube   8.0 4.0 -6.0 1.8 8.0 1.8 0.4 0.65 0.9 ""
-    brush cube -12.0 2.5  5.0 2.0 5.0 2.0 0.5 0.7 0.95 ""
+    // Ice Shards & Pillars
+    brush cube -10.0 3.0 -8.0 1.5 6.0 1.5 0.4 0.6 0.85 cryo_ice.bmp
+    brush cube   8.0 4.0 -6.0 1.8 8.0 1.8 0.4 0.65 0.9 cryo_ice.bmp
+    brush cube -12.0 2.5  5.0 2.0 5.0 2.0 0.5 0.7 0.95 cryo_ice.bmp
+
+    // Outpost Bunker Wall
+    brush cube 0.0 3.0 -8.0 12.0 6.0 1.0 1.0 1.0 1.0 concrete_wall.bmp
+    brush cube 0.0 0.5 -7.4 12.0 1.0 0.2 1.0 1.0 1.0 hazard_stripes.bmp
 END_ENTITIES

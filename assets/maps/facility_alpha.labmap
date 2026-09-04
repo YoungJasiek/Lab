@@ -1,4 +1,4 @@
-﻿LABMAP_VERSION 1
+LABMAP_VERSION 1
 
 METADATA
     name "Research Complex Alpha"
@@ -11,20 +11,21 @@ ENTITIES
     spawn 0.0 1.8 0.0 0.0
 
     // Floor Baseplate
-    brush cube 0.0 -0.5 0.0 160.0 1.0 160.0 1.0 1.0 1.0 Test.bmp
+    brush cube 0.0 -0.5 0.0 160.0 1.0 160.0 1.0 1.0 1.0 floor_tiles.bmp
 
     // Central Facility Model
-    prop Model.stl 0.0 1.5 -6.0 0.0 0.0 0.0 1.5 1.5 1.5 0.9 0.9 0.9 Test.bmp
+    prop Model.stl 0.0 1.5 -6.0 0.0 0.0 0.0 1.5 1.5 1.5 0.9 0.9 0.9 metal_hull.bmp
 
     // Interactive Hydraulic Security Door (opens when player approaches closer than 5 units)
     door security_gate_a 0.0 1.75 -12.0 4.0 3.5 0.4 0.0 4.0 0.0 0.25 0.35 0.45 2.5 5.5
 
     // Perimeter Cryo-Pillars
-    brush cube -15.0 5.0 -10.0 2.0 10.0 2.0 0.5 0.7 0.95 ""
-    brush cube  15.0 5.0 -10.0 2.0 10.0 2.0 0.5 0.7 0.95 ""
-    brush cube -15.0 5.0  10.0 2.0 10.0 2.0 0.5 0.7 0.95 ""
-    brush cube  15.0 5.0  10.0 2.0 10.0 2.0 0.5 0.7 0.95 ""
+    brush cube -15.0 5.0 -10.0 2.0 10.0 2.0 0.5 0.7 0.95 cryo_ice.bmp
+    brush cube  15.0 5.0 -10.0 2.0 10.0 2.0 0.5 0.7 0.95 cryo_ice.bmp
+    brush cube -15.0 5.0  10.0 2.0 10.0 2.0 0.5 0.7 0.95 cryo_ice.bmp
+    brush cube  15.0 5.0  10.0 2.0 10.0 2.0 0.5 0.7 0.95 cryo_ice.bmp
 
-    // Test Wall
-    brush cube 0.0 4.0 -20.0 10.0 8.0 0.5 0.8 0.85 0.9 Test.bmp
+    // North Concrete Wall with Hazard Stripes
+    brush cube 0.0 4.0 -20.0 24.0 8.0 1.0 1.0 1.0 1.0 concrete_wall.bmp
+    brush cube 0.0 0.5 -19.4 24.0 1.0 0.2 1.0 1.0 1.0 hazard_stripes.bmp
 END_ENTITIES

@@ -29,8 +29,8 @@ public:
         // Discover available maps in assets/maps/
         scanMapFiles();
 
-        // Load Default Test Texture
-        _textures["Test.bmp"] = std::make_unique<Texture>("Test.bmp");
+        // Preload Core Industrial Texture
+        _textures["concrete_wall.bmp"] = std::make_unique<Texture>("concrete_wall.bmp");
 
         // Load glTF 2.0 animation from Blender
         SkeletalAnimation::loadGLTFAnimation("assets/animations/bot_walk.gltf", _botAnim);
@@ -252,7 +252,6 @@ public:
         _weaponAnimator.update(time.delta, Input::mouseDelta, horizontalSpeed);
 
         // Feed real dynamic player values to HUD
-        _hud.speedVal = (int)(horizontalSpeed * 2.0f);
         if (_currentMap) _hud.mapName = _currentMap->metadata.name;
 
         // Update Animated Patrol Bot
