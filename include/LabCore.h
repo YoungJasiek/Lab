@@ -14,13 +14,24 @@ namespace Lab {
         float fixedDelta;
     };
 
+    class LabLog {
+    public:
+        static void info(const std::string& msg);
+        static void warn(const std::string& msg);
+        static void error(const std::string& msg);
+        static void debug(const std::string& msg);
+    };
+
     struct Input {
         static bool keys[512];
         static bool mouseButtons[8];
         static Vec2 mousePos;
         static Vec2 mouseDelta;
 
-        static bool isKeyPressed(int key) { return key >= 0 && key < 512 && keys[key]; }
+        static bool isKeyPressed(int key) {
+            if (key >= 'a' && key <= 'z') key = key - 'a' + 'A';
+            return key >= 0 && key < 512 && keys[key];
+        }
         static bool isMouseButtonPressed(int button) { return button >= 0 && button < 8 && mouseButtons[button]; }
     };
 

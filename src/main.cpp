@@ -81,7 +81,9 @@ public:
 
     void onFixedUpdate(float fixedDelta) override {
         // Physics tick rate (64 ticks per second)
-        float speed = (Input::isKeyPressed(' ') && !_isJumping) ? 8.0f : 4.5f;
+        // Left Shift = 340 in GLFW
+        bool isSprinting = Input::isKeyPressed(340);
+        float speed = isSprinting ? 8.5f : 4.5f;
         Vec3 inputDir = { 0, 0, 0 };
 
         Vec3 front = _camera.getFront();
@@ -92,10 +94,10 @@ public:
         right.y = 0;
         right = right.normalized();
 
-        if (Input::isKeyPressed('w')) inputDir += front;
-        if (Input::isKeyPressed('s')) inputDir -= front;
-        if (Input::isKeyPressed('a')) inputDir -= right;
-        if (Input::isKeyPressed('d')) inputDir += right;
+        if (Input::isKeyPressed('W') || Input::isKeyPressed('w')) inputDir += front;
+        if (Input::isKeyPressed('S') || Input::isKeyPressed('s')) inputDir -= front;
+        if (Input::isKeyPressed('A') || Input::isKeyPressed('a')) inputDir -= right;
+        if (Input::isKeyPressed('D') || Input::isKeyPressed('d')) inputDir += right;
 
         if (inputDir.lengthSq() > 0) {
             inputDir = inputDir.normalized();
@@ -108,9 +110,9 @@ public:
             _velocity.z *= 0.85f;
         }
 
-        // Jump physics
-        if (Input::isKeyPressed(' ') && _isGrounded) {
-            _velocity.y = 4.5f;
+        // Jump physics (Spacebar = 32)
+        if (Input::isKeyPressed(32) && _isGrounded) {
+            _velocity.y = 5.0f;
             _isGrounded = false;
         }
 
@@ -142,6 +144,29 @@ public:
 
         if (_muzzleFlashTime > 0.0f) {
             _muzzleFlashTime -= time.delta;
+        }
+
+        // F3 Debug Mode Toggle
+        if (Input::isKeyPressed(292)) { // GLFW_KEY_F3 = 292
+            if (!_f3PressedLast) {
+                _debugMode = !_debugMode;
+                LabLog::info("Debug mode toggled: " + std::string(_debugMode ? "ON" : "OFF"));
+                _f3PressedLast = true;
+            }
+        } else {
+            _f3PressedLast = false;
+        }
+
+        // F1 Wireframe Toggle
+        if (Input::isKeyPressed(290)) { // GLFW_KEY_F1 = 290
+            if (!_f1PressedLast) {
+                _wireframeMode = !_wireframeMode;
+                glPolygonMode(GL_FRONT_AND_BACK, _wireframeMode ? GL_LINE : GL_FILL);
+                LabLog::info("Wireframe mode toggled: " + std::string(_wireframeMode ? "ON" : "OFF"));
+                _f1PressedLast = true;
+            }
+        } else {
+            _f1PressedLast = false;
         }
     }
 
@@ -181,6 +206,21 @@ public:
         Renderer::drawRect(centerX - size, centerY - 1.0f, size * 2, 2.0f, { 1, 1, 1 });
         Renderer::drawRect(centerX - 1.0f, centerY - size, 2.0f, size * 2, { 1, 1, 1 });
 
+        // Debug mode overlay (F3)
+        if (_debugMode) {
+            // Visual debug indicators
+            // Top-left debug status bar
+            Renderer::drawRect(10.0f, 10.0f, 220.0f, 25.0f, { 0.1f, 0.1f, 0.15f });
+            Renderer::drawRect(12.0f, 12.0f, 216.0f, 21.0f, { 0.2f, 0.8f, 0.2f });
+
+            // Small bar indicator for player velocity
+            float speedMag = std::sqrt(_velocity.x * _velocity.x + _velocity.z * _velocity.z);
+            Renderer::drawRect(10.0f, 40.0f, speedMag * 20.0f, 8.0f, { 0.2f, 0.6f, 1.0f });
+
+            // Grounded indicator
+            Renderer::drawRect(10.0f, 52.0f, 15.0f, 15.0f, _isGrounded ? Vec3(0.1f, 1.0f, 0.2f) : Vec3(1.0f, 0.2f, 0.1f));
+        }
+
         Renderer::endUI();
     }
 
@@ -194,8 +234,8 @@ public:
         if (_stlModel) {
             // Draw a small red cube at the base as a marker
             Renderer::drawCube({ 0, 0.5f, -5 }, { 0.2f, 1.0f, 0.2f }, { 1.0f, 0, 0 });
-            // Position: X=0, Y=1.0 (above floor), Z=-5
-            Renderer::drawMesh(*_stlModel, { 0, 1.0f, -5 }, { 0, 0, 0 }, { 1, 1, 1 }, { 0.8f, 0.8f, 0.8f }, _testTexture.get());
+            // Position: X=0, Y=1.5 (above floor), Z=-5, scaled up slightly if needed
+            Renderer::drawMesh(*_stlModel, { 0, 1.5f, -5 }, { 0, 0, 0 }, { 1.5f, 1.5f, 1.5f }, { 0.9f, 0.9f, 0.9f }, _testTexture.get());
         }
 
         // Draw the Test Quad (further away)
@@ -235,6 +275,12 @@ private:
 
     // Combat state
     float _muzzleFlashTime;
+
+    // Debug mode
+    bool _debugMode = false;
+    bool _wireframeMode = false;
+    bool _f3PressedLast = false;
+    bool _f1PressedLast = false;
 };
 
 int main() {

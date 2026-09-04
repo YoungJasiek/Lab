@@ -622,7 +622,9 @@ namespace Lab {
             _defaultShader->setInt("useTexture", 0);
         }
         
+        glDisable(GL_CULL_FACE);
         mesh.draw();
+        glEnable(GL_CULL_FACE);
     }
 
     void Renderer::drawBaseplate(float size, const Texture* texture) {

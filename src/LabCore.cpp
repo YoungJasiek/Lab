@@ -2,8 +2,33 @@
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
+#include <fstream>
+#include <chrono>
+#include <ctime>
 
 namespace Lab {
+
+    static std::ofstream g_logFile("lab_engine.log", std::ios::out | std::ios::app);
+
+    static void logOutput(const std::string& level, const std::string& msg) {
+        auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+        char timeBuf[32];
+        struct tm tmBuf;
+        localtime_s(&tmBuf, &now);
+        strftime(timeBuf, sizeof(timeBuf), "%H:%M:%S", &tmBuf);
+
+        std::string line = "[" + std::string(timeBuf) + "] [" + level + "] " + msg;
+        std::cout << line << std::endl;
+        if (g_logFile.is_open()) {
+            g_logFile << line << std::endl;
+            g_logFile.flush();
+        }
+    }
+
+    void LabLog::info(const std::string& msg) { logOutput("INFO", msg); }
+    void LabLog::warn(const std::string& msg) { logOutput("WARN", msg); }
+    void LabLog::error(const std::string& msg) { logOutput("ERROR", msg); }
+    void LabLog::debug(const std::string& msg) { logOutput("DEBUG", msg); }
 
     Engine* Engine::_instance = nullptr;
     bool Input::keys[512] = { false };
