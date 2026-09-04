@@ -191,11 +191,28 @@ namespace Lab {
     }
 
     static std::string resolveAssetPath(const std::string& path) {
-        if (std::filesystem::exists(path)) return path;
-        if (std::filesystem::exists("../" + path)) return "../" + path;
-        if (std::filesystem::exists("../../" + path)) return "../../" + path;
-        if (std::filesystem::exists("Debug/" + path)) return "Debug/" + path;
-        if (std::filesystem::exists("build/Debug/" + path)) return "build/Debug/" + path;
+        std::vector<std::string> candidates = {
+            path,
+            "assets/textures/" + path,
+            "assets/models/" + path,
+            "assets/" + path,
+            "../" + path,
+            "../assets/textures/" + path,
+            "../assets/models/" + path,
+            "../assets/" + path,
+            "../../" + path,
+            "../../assets/textures/" + path,
+            "../../assets/models/" + path,
+            "../../assets/" + path,
+            "build/Debug/" + path,
+            "Debug/" + path
+        };
+
+        for (const auto& candidate : candidates) {
+            if (std::filesystem::exists(candidate)) {
+                return candidate;
+            }
+        }
         return path;
     }
 

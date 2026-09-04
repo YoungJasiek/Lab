@@ -127,9 +127,7 @@
     <PostBuildEvent>
       <Message></Message>
       <Command>setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different C:/Users/jancz/Desktop/Lab/Test.bmp C:/Users/jancz/Desktop/Lab/build/Debug/Test.bmp
-if %errorlevel% neq 0 goto :cmEnd
-"C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different C:/Users/jancz/Desktop/Lab/Model.stl C:/Users/jancz/Desktop/Lab/build/Debug/Model.stl
+"C:\Program Files\CMake\bin\cmake.exe" -E copy_directory C:/Users/jancz/Desktop/Lab/assets C:/Users/jancz/Desktop/Lab/build/Debug/assets
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
@@ -200,9 +198,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <PostBuildEvent>
       <Message></Message>
       <Command>setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different C:/Users/jancz/Desktop/Lab/Test.bmp C:/Users/jancz/Desktop/Lab/build/Release/Test.bmp
-if %errorlevel% neq 0 goto :cmEnd
-"C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different C:/Users/jancz/Desktop/Lab/Model.stl C:/Users/jancz/Desktop/Lab/build/Release/Model.stl
+"C:\Program Files\CMake\bin\cmake.exe" -E copy_directory C:/Users/jancz/Desktop/Lab/assets C:/Users/jancz/Desktop/Lab/build/Release/assets
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
@@ -273,9 +269,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <PostBuildEvent>
       <Message></Message>
       <Command>setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different C:/Users/jancz/Desktop/Lab/Test.bmp C:/Users/jancz/Desktop/Lab/build/MinSizeRel/Test.bmp
-if %errorlevel% neq 0 goto :cmEnd
-"C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different C:/Users/jancz/Desktop/Lab/Model.stl C:/Users/jancz/Desktop/Lab/build/MinSizeRel/Model.stl
+"C:\Program Files\CMake\bin\cmake.exe" -E copy_directory C:/Users/jancz/Desktop/Lab/assets C:/Users/jancz/Desktop/Lab/build/MinSizeRel/assets
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
@@ -345,9 +339,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <PostBuildEvent>
       <Message></Message>
       <Command>setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different C:/Users/jancz/Desktop/Lab/Test.bmp C:/Users/jancz/Desktop/Lab/build/RelWithDebInfo/Test.bmp
-if %errorlevel% neq 0 goto :cmEnd
-"C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different C:/Users/jancz/Desktop/Lab/Model.stl C:/Users/jancz/Desktop/Lab/build/RelWithDebInfo/Model.stl
+"C:\Program Files\CMake\bin\cmake.exe" -E copy_directory C:/Users/jancz/Desktop/Lab/assets C:/Users/jancz/Desktop/Lab/build/RelWithDebInfo/assets
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
