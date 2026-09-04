@@ -1,4 +1,4 @@
-﻿#include "Lab.h"
+#include "Lab.h"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
@@ -31,6 +31,10 @@ public:
 
         // Load Default Test Texture
         _textures["Test.bmp"] = std::make_unique<Texture>("Test.bmp");
+
+        // Load glTF 2.0 animation from Blender
+        SkeletalAnimation::loadGLTFAnimation("assets/animations/bot_walk.gltf", _botAnim);
+        _patrolBot.position = Vec3(0.0f, 0.0f, -6.0f);
 
         // Start in Map Selection Menu
         _inMenu = true;
@@ -202,13 +206,21 @@ public:
             return;
         }
 
-        // Combat cooldown
+        // Combat cooldown & Procedural Recoil
         if (Input::isMouseButtonPressed(0) && _muzzleFlashTime <= 0.0f) {
-            _muzzleFlashTime = 0.1f;
+            _muzzleFlashTime = 0.08f;
+            _weaponAnimator.onFire();
         }
         if (_muzzleFlashTime > 0.0f) {
             _muzzleFlashTime -= time.delta;
         }
+
+        // Procedural Weapon Sway and Bob update
+        float horizontalSpeed = std::sqrt(_velocity.x * _velocity.x + _velocity.z * _velocity.z);
+        _weaponAnimator.update(time.delta, Input::mouseDelta, horizontalSpeed);
+
+        // Update Animated Patrol Bot
+        _patrolBot.update(time.delta);
 
         // F3 Debug Mode Toggle
         if (Input::isKeyPressed(292)) { // GLFW_KEY_F3
@@ -237,22 +249,22 @@ public:
     void drawWeapon() {
         Renderer::beginViewModel();
 
-        float swayX = Input::mouseDelta.x * -0.001f;
-        float swayY = Input::mouseDelta.y * 0.001f;
-        float bobX = std::cos(_bobTime * 0.5f) * 0.02f;
-        float bobY = std::abs(std::sin(_bobTime)) * 0.02f;
+        Vec3 gunDefaultPos = { 0.38f, -0.36f, -0.6f };
+        Vec3 gunDefaultRot = { 0.0f, -4.0f, 0.0f };
 
-        Vec3 gunBasePos = { 0.4f + swayX + bobX, -0.4f + swayY - bobY, -0.6f };
-        Vec3 gunRot = { 0.0f, -5.0f, 0.0f };
+        Vec3 gunBasePos = _weaponAnimator.calculatePositionOffset(gunDefaultPos);
+        Vec3 gunRot = _weaponAnimator.calculateRotationOffset(gunDefaultRot);
 
-        // Gun barrel
-        Renderer::drawCube(gunBasePos, gunRot, { 0.1f, 0.15f, 0.5f }, { 0.15f, 0.15f, 0.18f });
-        // Gun handle
-        Renderer::drawCube(gunBasePos + Vec3(0, -0.1f, 0.1f), gunRot, { 0.08f, 0.25f, 0.1f }, { 0.1f, 0.1f, 0.1f });
+        // Gun barrel / receiver
+        Renderer::drawCube(gunBasePos, gunRot, { 0.09f, 0.14f, 0.52f }, { 0.16f, 0.18f, 0.22f });
+        // Gun top rail (Source HL2 style cyan strip)
+        Renderer::drawCube(gunBasePos + Vec3(0.0f, 0.075f, -0.05f), gunRot, { 0.04f, 0.03f, 0.38f }, { 0.2f, 0.7f, 0.9f });
+        // Gun handle / grip
+        Renderer::drawCube(gunBasePos + Vec3(0.0f, -0.11f, 0.12f), gunRot + Vec3(12.0f, 0.0f, 0.0f), { 0.07f, 0.22f, 0.1f }, { 0.1f, 0.1f, 0.12f });
 
-        // Muzzle Flash
+        // Dynamic Muzzle Flash
         if (_muzzleFlashTime > 0.0f) {
-            Renderer::drawCube(gunBasePos + Vec3(0, 0, -0.3f), gunRot, { 0.2f, 0.2f, 0.2f }, { 1.0f, 0.8f, 0.2f }, nullptr, false);
+            Renderer::drawCube(gunBasePos + Vec3(0.0f, 0.02f, -0.32f), gunRot, { 0.18f, 0.18f, 0.18f }, { 1.0f, 0.85f, 0.2f }, nullptr, false);
         }
 
         Renderer::endViewModel(_camera);
@@ -353,6 +365,23 @@ public:
             }
         }
 
+        // Render Animated Patrol Bot (Half-Life 2 / Combine Synth style)
+        {
+            float legSwing = std::sin(_patrolBot.walkCycle) * 0.25f;
+            float bodyBob = std::abs(std::sin(_patrolBot.walkCycle * 2.0f)) * 0.05f;
+            Vec3 botPos = _patrolBot.position + Vec3(0, bodyBob, 0);
+
+            // Torso (Dark industrial steel)
+            Renderer::drawCube(botPos + Vec3(0, 1.2f, 0), _patrolBot.rotation, Vec3(0.5f, 0.7f, 0.35f), Vec3(0.18f, 0.22f, 0.26f));
+            // Head / Visor (Cyan optics)
+            Renderer::drawCube(botPos + Vec3(0, 1.7f, 0), _patrolBot.rotation, Vec3(0.3f, 0.25f, 0.3f), Vec3(0.12f, 0.14f, 0.18f));
+            Renderer::drawCube(botPos + Vec3(0, 1.7f, 0.16f), _patrolBot.rotation, Vec3(0.24f, 0.08f, 0.04f), Vec3(0.2f, 0.8f, 1.0f), nullptr, false);
+            // Left Leg (Animated swing)
+            Renderer::drawCube(botPos + Vec3(-0.16f, 0.5f, legSwing), _patrolBot.rotation, Vec3(0.12f, 0.8f, 0.15f), Vec3(0.15f, 0.15f, 0.18f));
+            // Right Leg (Opposite swing)
+            Renderer::drawCube(botPos + Vec3(0.16f, 0.5f, -legSwing), _patrolBot.rotation, Vec3(0.12f, 0.8f, 0.15f), Vec3(0.15f, 0.15f, 0.18f));
+        }
+
         // Viewmodel and HUD
         drawWeapon();
         drawUI();
@@ -383,7 +412,10 @@ private:
     bool _isJumping;
     float _bobTime;
 
-    // Combat state
+    // Animation & Combat state
+    WeaponAnimator _weaponAnimator;
+    AnimatedBot _patrolBot;
+    SkeletalAnimation _botAnim;
     float _muzzleFlashTime;
 
     // Debug mode

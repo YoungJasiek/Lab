@@ -4,3 +4,4 @@
 #include "LabCamera.h"
 #include "LabRenderer.h"
 #include "LabMap.h"
+#include "LabAnim.h"
