@@ -7,6 +7,7 @@
 #include <vector>
 #include <filesystem>
 #include <unordered_map>
+#include <cmath>
 
 using namespace Lab;
 
@@ -39,12 +40,9 @@ public:
             getTexture(texName);
         }
 
-        // Load glTF 2.0 animation from Blender
-        SkeletalAnimation::loadGLTFAnimation("assets/animations/bot_walk.gltf", _botAnim);
-        _patrolBot.position = Vec3(0.0f, 0.0f, -6.0f);
-
-        // Start in Map Selection Menu so the player can choose a mission
+        // Start in Main Menu
         _inMenu = true;
+        _menuScreen = MenuScreen::Main;
         glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     }
 
@@ -139,6 +137,26 @@ public:
         }
     }
 
+    void startSession(const GameSessionConfig& config) {
+        _sessionConfig = config;
+        loadSelectedMap(_sessionConfig.mapPath);
+
+        _hud.mapName = _currentMap ? _currentMap->metadata.name : "Sector";
+        _hud.gameModeName = _sessionConfig.getModeString();
+        _hud.frags = 0;
+        _hud.health = _hud.maxHealth;
+        _hud.suitArmor = 50.0f;
+        _tracers.clear();
+
+        if (_sessionConfig.enableBots && _sessionConfig.botCount > 0) {
+            _aiManager.spawnBotsForMap(_sessionConfig.mapPath, _sessionConfig.botCount, _sessionConfig.mode);
+            _hud.showCombatMessage("MATCH HOSTED: " + _sessionConfig.getModeString() + " WITH " + std::to_string(_sessionConfig.botCount) + " BOTS", 3.0f);
+        } else {
+            _aiManager.clear();
+            _hud.showCombatMessage("MATCH STARTED: BOTS DISABLED (SOLO)", 3.0f);
+        }
+    }
+
     void onFixedUpdate(float fixedDelta) override {
         if (_inMenu) return;
 
@@ -227,118 +245,154 @@ public:
             float scaleY = 720.0f / (float)std::max(1, getHeight());
             float mx = Input::mousePos.x * scaleX;
             float my = Input::mousePos.y * scaleY;
+            bool lmbJustPressed = false;
 
-            // Check for key navigation in map menu
-            if (Input::isKeyPressed(GLFW_KEY_UP)) {
-                if (!_upPressedLast) {
-                    if (_selectedMapIndex > 0) _selectedMapIndex--;
-                    _upPressedLast = true;
-                }
-            } else {
-                _upPressedLast = false;
-            }
-
-            if (Input::isKeyPressed(GLFW_KEY_DOWN)) {
-                if (!_downPressedLast) {
-                    if (_selectedMapIndex + 1 < (int)_availableMaps.size()) _selectedMapIndex++;
-                    _downPressedLast = true;
-                }
-            } else {
-                _downPressedLast = false;
-            }
-
-            if (Input::isKeyPressed(GLFW_KEY_ENTER)) {
-                if (!_availableMaps.empty() && _selectedMapIndex < (int)_availableMaps.size()) {
-                    loadSelectedMap(_availableMaps[_selectedMapIndex]);
-                }
-            }
-
-            // ESC key: Resume mission if a map is already loaded
-            if (Input::isKeyPressed(GLFW_KEY_ESCAPE)) {
-                if (!_escPressedLast) {
-                    if (_currentMap) {
-                        _inMenu = false;
-                        glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-                    }
-                    _escPressedLast = true;
-                }
-            } else {
-                _escPressedLast = false;
-            }
-
-            // O key: Open native Windows File Dialog
-            if (Input::isKeyPressed('O') || Input::isKeyPressed('o')) {
-                if (!_oPressedLast) {
-                    std::string picked = LabDialogs::openFileDialog(getWindow(), "Lab Map Files (*.labmap)\0*.labmap\0All Files (*.*)\0*.*\0", "assets\\maps");
-                    if (!picked.empty()) {
-                        loadSelectedMap(picked);
-                    }
-                    _oPressedLast = true;
-                }
-            } else {
-                _oPressedLast = false;
-            }
-
-            // Mouse click on Launch, Open from disk, Resume, or list items
             if (Input::isMouseButtonPressed(0)) {
                 if (!_menuLmbLast) {
-                    // Click on Launch Map button (x: 140..390, y: 560..608)
-                    if (mx >= 140.0f && mx <= 390.0f && my >= 560.0f && my <= 608.0f) {
-                        if (!_availableMaps.empty() && _selectedMapIndex < (int)_availableMaps.size()) {
-                            loadSelectedMap(_availableMaps[_selectedMapIndex]);
-                        }
-                    }
-                    // Click on Open From Disk button (x: 410..690, y: 560..608)
-                    else if (mx >= 410.0f && mx <= 690.0f && my >= 560.0f && my <= 608.0f) {
-                        std::string picked = LabDialogs::openFileDialog(getWindow(), "Lab Map Files (*.labmap)\0*.labmap\0All Files (*.*)\0*.*\0", "assets\\maps");
-                        if (!picked.empty()) {
-                            loadSelectedMap(picked);
-                        }
-                    }
-                    // Click on Resume Mission button (x: 710..970, y: 560..608)
-                    else if (_currentMap && mx >= 710.0f && mx <= 970.0f && my >= 560.0f && my <= 608.0f) {
-                        _inMenu = false;
-                        glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-                    }
-                    // Click on map list items
-                    else if (mx >= 140.0f && mx <= 940.0f && my >= 130.0f) {
-                        int clickedIdx = (int)((my - 130.0f) / 55.0f);
-                        if (clickedIdx >= 0 && clickedIdx < (int)_availableMaps.size()) {
-                            if (_selectedMapIndex == clickedIdx) {
-                                loadSelectedMap(_availableMaps[clickedIdx]);
-                            } else {
-                                _selectedMapIndex = clickedIdx;
-                            }
-                        }
-                    }
+                    lmbJustPressed = true;
                     _menuLmbLast = true;
                 }
             } else {
                 _menuLmbLast = false;
             }
+
+            handleMenuInput(mx, my, lmbJustPressed);
             return;
         }
 
         // Gameplay camera orientation update
         _camera.update(Input::mouseDelta);
 
-        // Return to map menu with M or ESC key
+        // Return to menu with M or ESC key
         if (Input::isKeyPressed(GLFW_KEY_M) || Input::isKeyPressed(GLFW_KEY_ESCAPE)) {
             _inMenu = true;
+            _menuScreen = MenuScreen::Main;
             glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
             return;
         }
 
-        // Combat cooldown & Procedural Recoil
+        // ==================== PLAYER COMBAT: TAG-BASED RAYCAST SHOOTING ====================
         if (Input::isMouseButtonPressed(0) && _muzzleFlashTime <= 0.0f && !_hammerEditor.active) {
             if (_hud.ammoClip > 0) {
                 _hud.ammoClip--;
                 _muzzleFlashTime = 0.08f;
                 _weaponAnimator.onFire();
+
+                // Hitscan Raycast from camera center
+                Vec3 rayOrigin = _camera.getPosition();
+                Vec3 rayDir = _camera.getFront();
+                RaycastHit hit;
+
+                // 1. Test AI Combat Bots
+                _aiManager.testRaycast(rayOrigin, rayDir, hit);
+
+                // 2. Test Solid Map Geometry (Brushes & Doors)
+                if (_currentMap) {
+                    Vec3 norm;
+                    for (size_t i = 0; i < _currentMap->brushes.size(); ++i) {
+                        const auto& b = _currentMap->brushes[i];
+                        Vec3 half = b.size * 0.5f;
+                        float t = 0.0f;
+                        if (Raycast::rayIntersectAABB(rayOrigin, rayDir, b.position - half, b.position + half, t, &norm)) {
+                            if (t < hit.distance) {
+                                hit.hit = true;
+                                hit.distance = t;
+                                hit.point = rayOrigin + rayDir * t;
+                                hit.normal = norm;
+                                hit.tag = EntityTag::World;
+                                hit.entityIndex = (int)i;
+                                hit.isHeadshot = false;
+                            }
+                        }
+                    }
+
+                    for (size_t i = 0; i < _currentMap->doors.size(); ++i) {
+                        const auto& d = _currentMap->doors[i];
+                        Vec3 animPos = d.position + d.openOffset * d.currentProgress;
+                        Vec3 half = d.size * 0.5f;
+                        float t = 0.0f;
+                        if (Raycast::rayIntersectAABB(rayOrigin, rayDir, animPos - half, animPos + half, t, &norm)) {
+                            if (t < hit.distance) {
+                                hit.hit = true;
+                                hit.distance = t;
+                                hit.point = rayOrigin + rayDir * t;
+                                hit.normal = norm;
+                                hit.tag = EntityTag::Door;
+                                hit.entityIndex = (int)i;
+                                hit.isHeadshot = false;
+                            }
+                        }
+                    }
+                }
+
+                // 3. Bullet Tracer from Gun Muzzle
+                BulletTracer tr;
+                tr.start = rayOrigin + _camera.getRight() * 0.22f - _camera.getUp() * 0.18f + _camera.getFront() * 0.45f;
+                tr.end = hit.hit ? hit.point : (rayOrigin + rayDir * 200.0f);
+                tr.color = Vec3(1.0f, 0.95f, 0.55f);
+                tr.lifetime = 0.0f;
+                tr.maxLifetime = 0.08f;
+                tr.thickness = 0.035f;
+                _tracers.push_back(tr);
+
+                // 4. Hit Processing on Bots
+                if (hit.hit && hit.tag == EntityTag::Bot) {
+                    for (auto& bot : _aiManager.bots) {
+                        if (bot.id == hit.entityIndex && bot.isAlive()) {
+                            float dmg = hit.isHeadshot ? 100.0f : 34.0f;
+                            bool killed = bot.takeDamage(dmg, hit.isHeadshot);
+                            _hud.triggerHitmarker(hit.isHeadshot);
+
+                            if (killed) {
+                                _hud.frags++;
+                                if (hit.isHeadshot) {
+                                    _hud.showCombatMessage("HEADSHOT! ELIMINATED " + bot.name + " [" + std::to_string(_hud.frags) + " FRAGS]", 2.5f);
+                                } else {
+                                    _hud.showCombatMessage("ELIMINATED " + bot.name + " [" + std::to_string(_hud.frags) + " FRAGS]", 2.0f);
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
             }
         }
         if (_muzzleFlashTime > 0.0f) {
             _muzzleFlashTime -= time.delta;
+        }
+
+        // ==================== COMBAT AI BOTS UPDATE & RETALIATION ====================
+        float botDamageToPlayer = 0.0f;
+        if (_currentMap) {
+            _aiManager.update(time.delta, _camera.getPosition(), *_currentMap, _tracers, botDamageToPlayer);
+        }
+
+        if (botDamageToPlayer > 0.0f) {
+            _hud.triggerDamageFlash();
+            if (_hud.suitArmor > 0.0f) {
+                float absorb = std::min(_hud.suitArmor, botDamageToPlayer * 0.7f);
+                _hud.suitArmor -= absorb;
+                _hud.health -= (botDamageToPlayer - absorb);
+            } else {
+                _hud.health -= botDamageToPlayer;
+            }
+
+            if (_hud.health <= 0.0f) {
+                _hud.health = _hud.maxHealth;
+                _hud.suitArmor = 50.0f;
+                if (_currentMap) {
+                    _camera.setPosition(_currentMap->spawn.position);
+                    _velocity = { 0, 0, 0 };
+                }
+                _hud.showCombatMessage("YOU WERE ELIMINATED! RESPAWNED AT BASE", 3.0f);
+            }
+        }
+
+        // Update active Bullet Tracers
+        for (auto it = _tracers.begin(); it != _tracers.end(); ) {
+            it->lifetime += time.delta;
+            if (it->isExpired()) it = _tracers.erase(it);
+            else ++it;
         }
 
         // Weapon Reload (R key when not in Hammer Editor)
@@ -358,9 +412,7 @@ public:
 
         // Feed real dynamic player values to HUD
         if (_currentMap) _hud.mapName = _currentMap->metadata.name;
-
-        // Update Animated Patrol Bot
-        _patrolBot.update(time.delta);
+        _hud.update(time.delta);
 
         // F2 Hammer Editor Toggle
         if (Input::isKeyPressed(291)) { // GLFW_KEY_F2
@@ -446,6 +498,219 @@ public:
         }
     }
 
+    void handleMenuInput(float mx, float my, bool lmbClick) {
+        // Keyboard shortcuts in menu
+        if (Input::isKeyPressed(GLFW_KEY_ESCAPE)) {
+            if (!_escPressedLast) {
+                if (_menuScreen == MenuScreen::HostGame || _menuScreen == MenuScreen::JoinGame) {
+                    _menuScreen = MenuScreen::MultiSelect;
+                } else if (_menuScreen == MenuScreen::MultiSelect || _menuScreen == MenuScreen::Singleplayer) {
+                    _menuScreen = MenuScreen::Main;
+                } else if (_menuScreen == MenuScreen::Main && _currentMap) {
+                    _inMenu = false;
+                    glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+                }
+                _escPressedLast = true;
+            }
+        } else {
+            _escPressedLast = false;
+        }
+
+        if (_menuScreen == MenuScreen::Main) {
+            if (lmbClick) {
+                // Button 0: Campaign / Singleplayer (x: 120..420, y: 200..248)
+                if (mx >= 120.0f && mx <= 420.0f && my >= 200.0f && my <= 248.0f) {
+                    _menuScreen = MenuScreen::Singleplayer;
+                    return;
+                }
+                // Button 1: Multiplayer (x: 120..420, y: 268..316)
+                if (mx >= 120.0f && mx <= 420.0f && my >= 268.0f && my <= 316.0f) {
+                    _menuScreen = MenuScreen::MultiSelect;
+                    return;
+                }
+                // Button 2: Resume Mission (x: 120..420, y: 336..384)
+                if (_currentMap && mx >= 120.0f && mx <= 420.0f && my >= 336.0f && my <= 384.0f) {
+                    _inMenu = false;
+                    glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+                    return;
+                }
+                // Button 3: Quit Game (x: 120..420, y: 404..452)
+                if (mx >= 120.0f && mx <= 420.0f && my >= 404.0f && my <= 452.0f) {
+                    stop();
+                    return;
+                }
+            }
+        }
+        else if (_menuScreen == MenuScreen::MultiSelect) {
+            if (lmbClick) {
+                // Card 1: Host Game / Create Server (x: 140..620, y: 200..400)
+                if (mx >= 140.0f && mx <= 620.0f && my >= 200.0f && my <= 400.0f) {
+                    _menuScreen = MenuScreen::HostGame;
+                    return;
+                }
+                // Card 2: Find Servers / Join Game (x: 660..1140, y: 200..400)
+                if (mx >= 660.0f && mx <= 1140.0f && my >= 200.0f && my <= 400.0f) {
+                    _menuScreen = MenuScreen::JoinGame;
+                    return;
+                }
+                // Back Button (x: 140..380, y: 580..628)
+                if (mx >= 140.0f && mx <= 380.0f && my >= 580.0f && my <= 628.0f) {
+                    _menuScreen = MenuScreen::Main;
+                    return;
+                }
+            }
+        }
+        else if (_menuScreen == MenuScreen::HostGame) {
+            // O key: Open native Windows File Dialog for map
+            if (Input::isKeyPressed('O') || Input::isKeyPressed('o')) {
+                if (!_oPressedLast) {
+                    std::string picked = LabDialogs::openFileDialog(getWindow(), "Lab Map Files (*.labmap)\0*.labmap\0All Files (*.*)\0*.*\0", "assets\\maps");
+                    if (!picked.empty()) {
+                        _sessionConfig.mapPath = picked;
+                    }
+                    _oPressedLast = true;
+                }
+            } else {
+                _oPressedLast = false;
+            }
+
+            if (lmbClick) {
+                // Left Panel: Map items (x: 120..520, y: 170 + i * 50)
+                for (int i = 0; i < (int)_availableMaps.size(); ++i) {
+                    float iy = 170.0f + i * 50.0f;
+                    if (mx >= 120.0f && mx <= 520.0f && my >= iy && my <= iy + 42.0f) {
+                        _selectedMapIndex = i;
+                        _sessionConfig.mapPath = _availableMaps[i];
+                        return;
+                    }
+                }
+
+                // Open from disk button (x: 120..520, y: 490..532)
+                if (mx >= 120.0f && mx <= 520.0f && my >= 490.0f && my <= 532.0f) {
+                    std::string picked = LabDialogs::openFileDialog(getWindow(), "Lab Map Files (*.labmap)\0*.labmap\0All Files (*.*)\0*.*\0", "assets\\maps");
+                    if (!picked.empty()) {
+                        _sessionConfig.mapPath = picked;
+                    }
+                    return;
+                }
+
+                // Game Mode buttons: FFA (580..740), DM (760..920), TDM (940..1100) at y: 190..232
+                if (my >= 190.0f && my <= 232.0f) {
+                    if (mx >= 580.0f && mx <= 740.0f) { _sessionConfig.mode = GameMode::FFA; return; }
+                    if (mx >= 760.0f && mx <= 920.0f) { _sessionConfig.mode = GameMode::DM; return; }
+                    if (mx >= 940.0f && mx <= 1100.0f) { _sessionConfig.mode = GameMode::TDM; return; }
+                }
+
+                // Bots toggle button (x: 580..920, y: 280..322)
+                if (mx >= 580.0f && mx <= 920.0f && my >= 280.0f && my <= 322.0f) {
+                    _sessionConfig.enableBots = !_sessionConfig.enableBots;
+                    return;
+                }
+
+                // Bot count [-] (580..625) and [+] (785..830) at y: 370..412
+                if (my >= 370.0f && my <= 412.0f) {
+                    if (mx >= 580.0f && mx <= 625.0f) { _sessionConfig.botCount = std::max(0, _sessionConfig.botCount - 1); return; }
+                    if (mx >= 785.0f && mx <= 830.0f) { _sessionConfig.botCount = std::min(8, _sessionConfig.botCount + 1); return; }
+                }
+
+                // Frag Limit [-] (580..625) and [+] (785..830) at y: 460..502
+                if (my >= 460.0f && my <= 502.0f) {
+                    if (mx >= 580.0f && mx <= 625.0f) { _sessionConfig.fragLimit = std::max(5, _sessionConfig.fragLimit - 5); return; }
+                    if (mx >= 785.0f && mx <= 830.0f) { _sessionConfig.fragLimit = std::min(100, _sessionConfig.fragLimit + 5); return; }
+                }
+
+                // Bottom Back button (x: 100..280, y: 570..618)
+                if (mx >= 100.0f && mx <= 280.0f && my >= 570.0f && my <= 618.0f) {
+                    _menuScreen = MenuScreen::MultiSelect;
+                    return;
+                }
+
+                // Bottom Start Server button (x: 820..1180, y: 570..618)
+                if (mx >= 820.0f && mx <= 1180.0f && my >= 570.0f && my <= 618.0f) {
+                    startSession(_sessionConfig);
+                    return;
+                }
+            }
+        }
+        else if (_menuScreen == MenuScreen::JoinGame) {
+            if (lmbClick) {
+                // Server Row 0 (x: 120..1160, y: 170..215)
+                if (mx >= 120.0f && mx <= 1160.0f && my >= 170.0f && my <= 215.0f) {
+                    _sessionConfig.mapPath = "assets/maps/facility_alpha.labmap";
+                    _sessionConfig.mode = GameMode::FFA;
+                    _sessionConfig.enableBots = true;
+                    _sessionConfig.botCount = 2;
+                    startSession(_sessionConfig);
+                    return;
+                }
+                // Server Row 1 (x: 120..1160, y: 225..270)
+                if (mx >= 120.0f && mx <= 1160.0f && my >= 225.0f && my <= 270.0f) {
+                    _sessionConfig.mapPath = "assets/maps/cryo_outpost.labmap";
+                    _sessionConfig.mode = GameMode::TDM;
+                    _sessionConfig.enableBots = true;
+                    _sessionConfig.botCount = 4;
+                    startSession(_sessionConfig);
+                    return;
+                }
+                // Direct Connect button (x: 840..1160, y: 560..608)
+                if (mx >= 840.0f && mx <= 1160.0f && my >= 560.0f && my <= 608.0f) {
+                    startSession(_sessionConfig);
+                    return;
+                }
+                // Back button (x: 100..280, y: 560..608)
+                if (mx >= 100.0f && mx <= 280.0f && my >= 560.0f && my <= 608.0f) {
+                    _menuScreen = MenuScreen::MultiSelect;
+                    return;
+                }
+            }
+        }
+        else if (_menuScreen == MenuScreen::Singleplayer) {
+            if (lmbClick) {
+                // Map list click (x: 140..940, y: 130 + i * 55)
+                for (int i = 0; i < (int)_availableMaps.size(); ++i) {
+                    float iy = 130.0f + i * 55.0f;
+                    if (mx >= 140.0f && mx <= 940.0f && my >= iy && my <= iy + 48.0f) {
+                        _selectedMapIndex = i;
+                        _sessionConfig.mapPath = _availableMaps[i];
+                        _sessionConfig.enableBots = false; // Solo singleplayer exploration
+                        return;
+                    }
+                }
+
+                // Launch Map (x: 140..370, y: 560..608)
+                if (mx >= 140.0f && mx <= 370.0f && my >= 560.0f && my <= 608.0f) {
+                    if (!_availableMaps.empty() && _selectedMapIndex < (int)_availableMaps.size()) {
+                        _sessionConfig.mapPath = _availableMaps[_selectedMapIndex];
+                        _sessionConfig.enableBots = false;
+                        startSession(_sessionConfig);
+                    }
+                    return;
+                }
+                // Open from disk (x: 390..660, y: 560..608)
+                if (mx >= 390.0f && mx <= 660.0f && my >= 560.0f && my <= 608.0f) {
+                    std::string picked = LabDialogs::openFileDialog(getWindow(), "Lab Map Files (*.labmap)\0*.labmap\0All Files (*.*)\0*.*\0", "assets\\maps");
+                    if (!picked.empty()) {
+                        _sessionConfig.mapPath = picked;
+                        _sessionConfig.enableBots = false;
+                        startSession(_sessionConfig);
+                    }
+                    return;
+                }
+                // Resume (x: 680..920, y: 560..608)
+                if (_currentMap && mx >= 680.0f && mx <= 920.0f && my >= 560.0f && my <= 608.0f) {
+                    _inMenu = false;
+                    glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+                    return;
+                }
+                // Back (x: 940..1120, y: 560..608)
+                if (mx >= 940.0f && mx <= 1120.0f && my >= 560.0f && my <= 608.0f) {
+                    _menuScreen = MenuScreen::Main;
+                    return;
+                }
+            }
+        }
+    }
+
     void drawWeapon() {
         Renderer::beginViewModel();
 
@@ -470,62 +735,257 @@ public:
         Renderer::endViewModel(_camera);
     }
 
-    void drawMapMenu() {
+    void drawMenu() {
         int w = 1280, h = 720;
         Renderer::beginUI(w, h);
 
         // Dark background overlay (Half-Life 2 style backdrop)
         Renderer::drawRect(0, 0, (float)w, (float)h, { 0.06f, 0.08f, 0.11f });
 
-        // Menu Banner Frame
-        Renderer::drawRect(100.0f, 60.0f, 1080.0f, 600.0f, { 0.1f, 0.13f, 0.18f });
-        Renderer::drawRect(102.0f, 62.0f, 1076.0f, 40.0f, { 0.15f, 0.22f, 0.32f });
+        if (_menuScreen == MenuScreen::Main) {
+            // Main Frame
+            Renderer::drawRect(80.0f, 60.0f, 1120.0f, 600.0f, { 0.1f, 0.13f, 0.18f });
+            Renderer::drawRect(82.0f, 62.0f, 1116.0f, 44.0f, { 0.15f, 0.22f, 0.32f });
+            Renderer::drawRect(82.0f, 106.0f, 1116.0f, 4.0f, { 0.2f, 0.75f, 0.95f });
 
-        // Header indicator (Cyan strip)
-        Renderer::drawRect(102.0f, 100.0f, 1076.0f, 4.0f, { 0.2f, 0.75f, 0.95f });
+            LabFont::drawText(100.0f, 74.0f, "FROZEN-LIFE : LAB FPS ENGINE", 2.4f, Vec3(0.95f, 0.98f, 1.0f), LabFontType::GeoSans);
+            LabFont::drawText(720.0f, 76.0f, "v0.4 Tactical Combat & Bot Arena", 1.7f, Vec3(0.4f, 0.7f, 0.95f), LabFontType::GeoSans);
 
-        // Header title
-        LabFont::drawText(120.0f, 72.0f, "FROZEN-LIFE : MAP SELECTION & MISSION SELECT", 2.2f, Vec3(0.9f, 0.95f, 1.0f), LabFontType::GeoSans);
+            // Left Navigation Menu
+            struct MenuItem {
+                std::string title;
+                std::string desc;
+                float y;
+                bool active;
+            };
 
-        // List available maps with titles
-        float startY = 130.0f;
-        for (int i = 0; i < (int)_availableMaps.size(); ++i) {
-            bool isSelected = (i == _selectedMapIndex);
-            float itemY = startY + i * 55.0f;
+            std::vector<MenuItem> items = {
+                { "CAMPAIGN / MISSIONS", "Explore maps solo without hostile combat bot squads", 200.0f, true },
+                { "MULTIPLAYER (HOST / JOIN)", "Host a custom LAN match with bots, game modes (FFA/DM/TDM) & rules", 268.0f, true },
+                { "RESUME MISSION [ESC]", "Return to current active gameplay session", 336.0f, (_currentMap != nullptr) },
+                { "QUIT GAME", "Exit to desktop", 404.0f, true }
+            };
 
-            // Highlight bar
-            Vec3 barColor = isSelected ? Vec3(0.18f, 0.45f, 0.75f) : Vec3(0.12f, 0.16f, 0.22f);
-            Renderer::drawRect(140.0f, itemY, 800.0f, 45.0f, barColor);
+            for (const auto& it : items) {
+                Vec3 bgCol = it.active ? Vec3(0.18f, 0.28f, 0.40f) : Vec3(0.12f, 0.14f, 0.18f);
+                Vec3 txtCol = it.active ? Vec3(1, 1, 1) : Vec3(0.4f, 0.4f, 0.45f);
 
-            // Selection indicator marker
-            if (isSelected) {
-                Renderer::drawRect(140.0f, itemY, 6.0f, 45.0f, Vec3(0.98f, 0.78f, 0.08f));
+                Renderer::drawRect(120.0f, it.y, 380.0f, 48.0f, bgCol);
+                Renderer::drawRect(120.0f, it.y, 4.0f, 48.0f, Vec3(0.2f, 0.75f, 0.95f));
+                LabFont::drawText(140.0f, it.y + 14.0f, it.title, 2.0f, txtCol, LabFontType::GeoSans);
             }
 
-            // Map filename / path label
-            std::string mapDisplay = _availableMaps[i];
-            LabFont::drawText(160.0f, itemY + 14.0f, mapDisplay, 2.0f, isSelected ? Vec3(1, 1, 1) : Vec3(0.7f, 0.75f, 0.8f), LabFontType::GeoSans);
+            // Right side status panel
+            Renderer::drawRect(540.0f, 200.0f, 620.0f, 252.0f, Vec3(0.08f, 0.10f, 0.14f));
+            Renderer::drawRect(540.0f, 200.0f, 620.0f, 1.0f, Vec3(0.2f, 0.3f, 0.4f));
+            LabFont::drawText(560.0f, 220.0f, "ENGINE SUBSYSTEMS STATUS", 2.0f, Vec3(0.95f, 0.75f, 0.1f), LabFontType::GeoSans);
+            LabFont::drawText(560.0f, 260.0f, "> Rendering: OpenGL 4.5 Core (Direct State Access + Source Engine UV)", 1.6f, Vec3(0.8f, 0.85f, 0.9f), LabFontType::GeoSans);
+            LabFont::drawText(560.0f, 290.0f, "> Optimization: 6-Plane Frustum Culling ('To czego oko nie widzi...')", 1.6f, Vec3(0.8f, 0.85f, 0.9f), LabFontType::GeoSans);
+            LabFont::drawText(560.0f, 320.0f, "> Combat: Hitscan Raycast with Headshot Multiplier + 3D Tracers", 1.6f, Vec3(0.8f, 0.85f, 0.9f), LabFontType::GeoSans);
+            LabFont::drawText(560.0f, 350.0f, "> AI Squad: Tactical Patrol & Combat State Machine (LoS + Bursts)", 1.6f, Vec3(0.8f, 0.85f, 0.9f), LabFontType::GeoSans);
+            LabFont::drawText(560.0f, 380.0f, "> Multiplayer: Host Match with FFA / DM / TDM Rules & Custom Bots", 1.6f, Vec3(0.8f, 0.85f, 0.9f), LabFontType::GeoSans);
+
+            LabFont::drawText(120.0f, 625.0f, "USE MOUSE TO CLICK MENU OPTIONS | F2: HAMMER EDITOR | F9: RUN", 1.4f, Vec3(0.45f, 0.55f, 0.65f), LabFontType::GeoSans);
         }
+        else if (_menuScreen == MenuScreen::MultiSelect) {
+            // Multiplayer Mode Selection Frame
+            Renderer::drawRect(80.0f, 60.0f, 1120.0f, 600.0f, { 0.1f, 0.13f, 0.18f });
+            Renderer::drawRect(82.0f, 62.0f, 1116.0f, 44.0f, { 0.15f, 0.22f, 0.32f });
+            Renderer::drawRect(82.0f, 106.0f, 1116.0f, 4.0f, { 0.2f, 0.75f, 0.95f });
 
-        // Action Button 1: Launch Map [ENTER]
-        Renderer::drawRect(140.0f, 560.0f, 250.0f, 48.0f, Vec3(0.18f, 0.65f, 0.45f));
-        Renderer::drawRect(142.0f, 562.0f, 246.0f, 44.0f, Vec3(0.22f, 0.75f, 0.52f));
-        LabFont::drawText(160.0f, 576.0f, "LAUNCH MAP [ENTER]", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            LabFont::drawText(100.0f, 74.0f, "MULTIPLAYER : SELECT MODE", 2.4f, Vec3(0.95f, 0.98f, 1.0f), LabFontType::GeoSans);
 
-        // Action Button 2: Browse File... [O key / Click] (Native Windows Open Dialog)
-        Renderer::drawRect(410.0f, 560.0f, 280.0f, 48.0f, Vec3(0.22f, 0.45f, 0.75f));
-        Renderer::drawRect(412.0f, 562.0f, 276.0f, 44.0f, Vec3(0.28f, 0.55f, 0.88f));
-        LabFont::drawText(425.0f, 576.0f, "OPEN FROM DISK... [O]", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            // Card 1: Host Game / Create Server
+            Renderer::drawRect(140.0f, 180.0f, 460.0f, 240.0f, Vec3(0.14f, 0.18f, 0.25f));
+            Renderer::drawRect(140.0f, 180.0f, 460.0f, 36.0f, Vec3(0.18f, 0.45f, 0.75f));
+            LabFont::drawText(160.0f, 192.0f, "CREATE SERVER / HOST GAME", 2.0f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            LabFont::drawText(160.0f, 240.0f, "Host a custom LAN match with bots.", 1.7f, Vec3(0.8f, 0.85f, 0.9f), LabFontType::GeoSans);
+            LabFont::drawText(160.0f, 270.0f, "Select map, choose FFA / DM / TDM mode,", 1.6f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::GeoSans);
+            LabFont::drawText(160.0f, 300.0f, "and configure exact bot squad count (0-8).", 1.6f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::GeoSans);
+            Renderer::drawRect(160.0f, 350.0f, 420.0f, 45.0f, Vec3(0.20f, 0.65f, 0.42f));
+            LabFont::drawText(220.0f, 364.0f, "CONFIGURE & HOST SERVER", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
 
-        // Action Button 3: Resume Mission [ESC] (only visible when a map is loaded)
-        if (_currentMap) {
-            Renderer::drawRect(710.0f, 560.0f, 260.0f, 48.0f, Vec3(0.75f, 0.45f, 0.15f));
-            Renderer::drawRect(712.0f, 562.0f, 256.0f, 44.0f, Vec3(0.88f, 0.55f, 0.20f));
-            LabFont::drawText(725.0f, 576.0f, "RESUME MISSION [ESC]", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            // Card 2: Find Servers / Join Game
+            Renderer::drawRect(680.0f, 180.0f, 460.0f, 240.0f, Vec3(0.14f, 0.18f, 0.25f));
+            Renderer::drawRect(680.0f, 180.0f, 460.0f, 36.0f, Vec3(0.25f, 0.35f, 0.55f));
+            LabFont::drawText(700.0f, 192.0f, "FIND SERVERS / JOIN GAME", 2.0f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            LabFont::drawText(700.0f, 240.0f, "Browse active servers on local LAN.", 1.7f, Vec3(0.8f, 0.85f, 0.9f), LabFontType::GeoSans);
+            LabFont::drawText(700.0f, 270.0f, "View ping, active map, and player counts.", 1.6f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::GeoSans);
+            LabFont::drawText(700.0f, 300.0f, "Direct connect to servers via IP address.", 1.6f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::GeoSans);
+            Renderer::drawRect(700.0f, 350.0f, 420.0f, 45.0f, Vec3(0.22f, 0.48f, 0.78f));
+            LabFont::drawText(770.0f, 364.0f, "OPEN SERVER BROWSER", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            // Back button
+            Renderer::drawRect(140.0f, 580.0f, 240.0f, 48.0f, Vec3(0.20f, 0.25f, 0.35f));
+            LabFont::drawText(170.0f, 596.0f, "< BACK TO MAIN MENU", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
         }
+        else if (_menuScreen == MenuScreen::HostGame) {
+            // Host Game Configuration Screen
+            Renderer::drawRect(80.0f, 60.0f, 1120.0f, 600.0f, { 0.1f, 0.13f, 0.18f });
+            Renderer::drawRect(82.0f, 62.0f, 1116.0f, 44.0f, { 0.15f, 0.22f, 0.32f });
+            Renderer::drawRect(82.0f, 106.0f, 1116.0f, 4.0f, { 0.2f, 0.75f, 0.95f });
 
-        // Instructions Footer
-        LabFont::drawText(140.0f, 622.0f, "USE ARROWS / MOUSE TO SELECT | ENTER: LAUNCH | O: OPEN FILE | ESC / M: MENU", 1.4f, Vec3(0.55f, 0.65f, 0.75f), LabFontType::GeoSans);
+            LabFont::drawText(100.0f, 74.0f, "MULTIPLAYER : HOST SERVER & MATCH SETUP", 2.4f, Vec3(0.95f, 0.98f, 1.0f), LabFontType::GeoSans);
+
+            // Left Column: Map Selection Box
+            Renderer::drawRect(100.0f, 120.0f, 440.0f, 425.0f, Vec3(0.08f, 0.10f, 0.14f));
+            Renderer::drawRect(100.0f, 120.0f, 440.0f, 32.0f, Vec3(0.18f, 0.35f, 0.55f));
+            LabFont::drawText(120.0f, 128.0f, "1. SELECT MAP", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            for (int i = 0; i < (int)_availableMaps.size(); ++i) {
+                float iy = 170.0f + i * 50.0f;
+                bool isSel = (_sessionConfig.mapPath == _availableMaps[i]);
+                Renderer::drawRect(115.0f, iy, 410.0f, 42.0f, isSel ? Vec3(0.18f, 0.45f, 0.75f) : Vec3(0.12f, 0.15f, 0.20f));
+                if (isSel) Renderer::drawRect(115.0f, iy, 5.0f, 42.0f, Vec3(0.98f, 0.78f, 0.08f));
+                LabFont::drawText(130.0f, iy + 12.0f, _availableMaps[i], 1.7f, isSel ? Vec3(1, 1, 1) : Vec3(0.7f, 0.75f, 0.8f), LabFontType::GeoSans);
+            }
+
+            Renderer::drawRect(115.0f, 485.0f, 410.0f, 42.0f, Vec3(0.20f, 0.32f, 0.48f));
+            LabFont::drawText(170.0f, 498.0f, "OPEN MAP FROM DISK... [O]", 1.6f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            // Right Column: Rules & Bot Settings Box
+            Renderer::drawRect(560.0f, 120.0f, 620.0f, 425.0f, Vec3(0.08f, 0.10f, 0.14f));
+            Renderer::drawRect(560.0f, 120.0f, 620.0f, 32.0f, Vec3(0.18f, 0.35f, 0.55f));
+            LabFont::drawText(580.0f, 128.0f, "2. SERVER & MATCH RULES", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            // Game Mode Buttons
+            LabFont::drawText(580.0f, 165.0f, "GAME MODE:", 1.8f, Vec3(0.85f, 0.88f, 0.95f), LabFontType::GeoSans);
+            bool isFFA = (_sessionConfig.mode == GameMode::FFA);
+            bool isDM  = (_sessionConfig.mode == GameMode::DM);
+            bool isTDM = (_sessionConfig.mode == GameMode::TDM);
+
+            Renderer::drawRect(580.0f, 190.0f, 160.0f, 42.0f, isFFA ? Vec3(0.18f, 0.65f, 0.45f) : Vec3(0.14f, 0.18f, 0.24f));
+            if (isFFA) Renderer::drawRect(580.0f, 190.0f, 160.0f, 2.0f, Vec3(0.98f, 0.78f, 0.08f));
+            LabFont::drawText(620.0f, 202.0f, "FFA (All)", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            Renderer::drawRect(760.0f, 190.0f, 160.0f, 42.0f, isDM ? Vec3(0.18f, 0.65f, 0.45f) : Vec3(0.14f, 0.18f, 0.24f));
+            if (isDM) Renderer::drawRect(760.0f, 190.0f, 160.0f, 2.0f, Vec3(0.98f, 0.78f, 0.08f));
+            LabFont::drawText(800.0f, 202.0f, "Deathmatch", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            Renderer::drawRect(940.0f, 190.0f, 160.0f, 42.0f, isTDM ? Vec3(0.18f, 0.65f, 0.45f) : Vec3(0.14f, 0.18f, 0.24f));
+            if (isTDM) Renderer::drawRect(940.0f, 190.0f, 160.0f, 2.0f, Vec3(0.98f, 0.78f, 0.08f));
+            LabFont::drawText(980.0f, 202.0f, "Team DM", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            // Bots Toggle Button
+            LabFont::drawText(580.0f, 255.0f, "COMBAT AI BOTS:", 1.8f, Vec3(0.85f, 0.88f, 0.95f), LabFontType::GeoSans);
+            Vec3 botBtnBg = _sessionConfig.enableBots ? Vec3(0.18f, 0.65f, 0.35f) : Vec3(0.24f, 0.26f, 0.30f);
+            std::string botBtnText = _sessionConfig.enableBots ? "BOTS: ENABLED (ON)" : "BOTS: DISABLED (OFF)";
+            Renderer::drawRect(580.0f, 280.0f, 340.0f, 42.0f, botBtnBg);
+            LabFont::drawText(620.0f, 292.0f, botBtnText, 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            // Bot Count Adjuster
+            LabFont::drawText(580.0f, 345.0f, "BOT COUNT (0 - 8):", 1.8f, Vec3(0.85f, 0.88f, 0.95f), LabFontType::GeoSans);
+            Renderer::drawRect(580.0f, 370.0f, 45.0f, 42.0f, Vec3(0.22f, 0.28f, 0.38f));
+            LabFont::drawText(598.0f, 380.0f, "-", 2.4f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            Renderer::drawRect(635.0f, 370.0f, 140.0f, 42.0f, Vec3(0.12f, 0.15f, 0.20f));
+            std::string botCountStr = std::to_string(_sessionConfig.botCount) + " BOTS";
+            LabFont::drawText(660.0f, 382.0f, botCountStr, 2.0f, Vec3(0.95f, 0.85f, 0.2f), LabFontType::GeoSans);
+
+            Renderer::drawRect(785.0f, 370.0f, 45.0f, 42.0f, Vec3(0.22f, 0.28f, 0.38f));
+            LabFont::drawText(802.0f, 380.0f, "+", 2.4f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            // Frag Limit Adjuster
+            LabFont::drawText(580.0f, 435.0f, "FRAG LIMIT:", 1.8f, Vec3(0.85f, 0.88f, 0.95f), LabFontType::GeoSans);
+            Renderer::drawRect(580.0f, 460.0f, 45.0f, 42.0f, Vec3(0.22f, 0.28f, 0.38f));
+            LabFont::drawText(598.0f, 470.0f, "-", 2.4f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            Renderer::drawRect(635.0f, 460.0f, 140.0f, 42.0f, Vec3(0.12f, 0.15f, 0.20f));
+            std::string fragLimitStr = std::to_string(_sessionConfig.fragLimit) + " KILLS";
+            LabFont::drawText(660.0f, 472.0f, fragLimitStr, 2.0f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::GeoSans);
+
+            Renderer::drawRect(785.0f, 460.0f, 45.0f, 42.0f, Vec3(0.22f, 0.28f, 0.38f));
+            LabFont::drawText(802.0f, 470.0f, "+", 2.4f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            // Bottom Buttons: Back and Launch
+            Renderer::drawRect(100.0f, 570.0f, 200.0f, 48.0f, Vec3(0.20f, 0.25f, 0.35f));
+            LabFont::drawText(150.0f, 586.0f, "< BACK", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            Renderer::drawRect(820.0f, 570.0f, 360.0f, 48.0f, Vec3(0.18f, 0.65f, 0.35f));
+            Renderer::drawRect(820.0f, 570.0f, 360.0f, 2.0f, Vec3(0.98f, 0.78f, 0.08f));
+            LabFont::drawText(860.0f, 586.0f, "START SERVER / LAUNCH MATCH", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
+        }
+        else if (_menuScreen == MenuScreen::JoinGame) {
+            // Server Browser Frame
+            Renderer::drawRect(80.0f, 60.0f, 1120.0f, 600.0f, { 0.1f, 0.13f, 0.18f });
+            Renderer::drawRect(82.0f, 62.0f, 1116.0f, 44.0f, { 0.15f, 0.22f, 0.32f });
+            Renderer::drawRect(82.0f, 106.0f, 1116.0f, 4.0f, { 0.2f, 0.75f, 0.95f });
+
+            LabFont::drawText(100.0f, 74.0f, "MULTIPLAYER : LOCAL LAN SERVER BROWSER", 2.4f, Vec3(0.95f, 0.98f, 1.0f), LabFontType::GeoSans);
+
+            // Table Header
+            Renderer::drawRect(110.0f, 130.0f, 1060.0f, 32.0f, Vec3(0.15f, 0.25f, 0.38f));
+            LabFont::drawText(130.0f, 138.0f, "SERVER NAME", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            LabFont::drawText(500.0f, 138.0f, "MAP", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            LabFont::drawText(720.0f, 138.0f, "MODE", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            LabFont::drawText(880.0f, 138.0f, "PLAYERS", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            LabFont::drawText(1030.0f, 138.0f, "PING", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            // Server Rows
+            Renderer::drawRect(110.0f, 170.0f, 1060.0f, 44.0f, Vec3(0.18f, 0.45f, 0.75f));
+            LabFont::drawText(130.0f, 184.0f, "Research Complex Alpha Arena", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            LabFont::drawText(500.0f, 184.0f, "facility_alpha.labmap", 1.8f, Vec3(0.85f, 0.9f, 1.0f), LabFontType::GeoSans);
+            LabFont::drawText(720.0f, 184.0f, "FFA", 1.8f, Vec3(0.95f, 0.85f, 0.2f), LabFontType::GeoSans);
+            LabFont::drawText(880.0f, 184.0f, "1 / 8", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            LabFont::drawText(1030.0f, 184.0f, "4 ms", 1.8f, Vec3(0.2f, 0.9f, 0.3f), LabFontType::GeoSans);
+
+            Renderer::drawRect(110.0f, 222.0f, 1060.0f, 44.0f, Vec3(0.12f, 0.16f, 0.22f));
+            LabFont::drawText(130.0f, 236.0f, "Cryo Outpost Team Fortress", 1.8f, Vec3(0.8f, 0.85f, 0.9f), LabFontType::GeoSans);
+            LabFont::drawText(500.0f, 236.0f, "cryo_outpost.labmap", 1.8f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::GeoSans);
+            LabFont::drawText(720.0f, 236.0f, "TDM", 1.8f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::GeoSans);
+            LabFont::drawText(880.0f, 236.0f, "4 / 8", 1.8f, Vec3(0.8f, 0.85f, 0.9f), LabFontType::GeoSans);
+            LabFont::drawText(1030.0f, 236.0f, "12 ms", 1.8f, Vec3(0.2f, 0.9f, 0.3f), LabFontType::GeoSans);
+
+            // Direct Connect field
+            Renderer::drawRect(110.0f, 470.0f, 600.0f, 44.0f, Vec3(0.08f, 0.10f, 0.14f));
+            LabFont::drawText(130.0f, 482.0f, "DIRECT CONNECT IP:  127.0.0.1:27015", 1.8f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::GeoSans);
+
+            // Bottom Buttons
+            Renderer::drawRect(110.0f, 560.0f, 200.0f, 48.0f, Vec3(0.20f, 0.25f, 0.35f));
+            LabFont::drawText(160.0f, 576.0f, "< BACK", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            Renderer::drawRect(860.0f, 560.0f, 310.0f, 48.0f, Vec3(0.20f, 0.65f, 0.42f));
+            LabFont::drawText(900.0f, 576.0f, "CONNECT TO SERVER", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
+        }
+        else if (_menuScreen == MenuScreen::Singleplayer) {
+            // Existing Singleplayer Map Selection
+            Renderer::drawRect(100.0f, 60.0f, 1080.0f, 600.0f, { 0.1f, 0.13f, 0.18f });
+            Renderer::drawRect(102.0f, 62.0f, 1076.0f, 40.0f, { 0.15f, 0.22f, 0.32f });
+            Renderer::drawRect(102.0f, 100.0f, 1076.0f, 4.0f, { 0.2f, 0.75f, 0.95f });
+
+            LabFont::drawText(120.0f, 72.0f, "CAMPAIGN & SOLO SECTOR EXPLORATION", 2.2f, Vec3(0.9f, 0.95f, 1.0f), LabFontType::GeoSans);
+
+            float startY = 130.0f;
+            for (int i = 0; i < (int)_availableMaps.size(); ++i) {
+                bool isSelected = (i == _selectedMapIndex);
+                float itemY = startY + i * 55.0f;
+
+                Vec3 barColor = isSelected ? Vec3(0.18f, 0.45f, 0.75f) : Vec3(0.12f, 0.16f, 0.22f);
+                Renderer::drawRect(140.0f, itemY, 800.0f, 45.0f, barColor);
+                if (isSelected) Renderer::drawRect(140.0f, itemY, 6.0f, 45.0f, Vec3(0.98f, 0.78f, 0.08f));
+
+                std::string mapDisplay = _availableMaps[i];
+                LabFont::drawText(160.0f, itemY + 14.0f, mapDisplay, 2.0f, isSelected ? Vec3(1, 1, 1) : Vec3(0.7f, 0.75f, 0.8f), LabFontType::GeoSans);
+            }
+
+            // Launch button
+            Renderer::drawRect(140.0f, 560.0f, 230.0f, 48.0f, Vec3(0.18f, 0.65f, 0.45f));
+            LabFont::drawText(160.0f, 576.0f, "LAUNCH MAP [ENTER]", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            // Open from disk
+            Renderer::drawRect(390.0f, 560.0f, 270.0f, 48.0f, Vec3(0.22f, 0.45f, 0.75f));
+            LabFont::drawText(405.0f, 576.0f, "OPEN FROM DISK... [O]", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            // Resume
+            if (_currentMap) {
+                Renderer::drawRect(680.0f, 560.0f, 240.0f, 48.0f, Vec3(0.75f, 0.45f, 0.15f));
+                LabFont::drawText(695.0f, 576.0f, "RESUME [ESC]", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            }
+
+            // Back
+            Renderer::drawRect(940.0f, 560.0f, 180.0f, 48.0f, Vec3(0.20f, 0.25f, 0.35f));
+            LabFont::drawText(980.0f, 576.0f, "< BACK", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+        }
 
         Renderer::endUI();
     }
@@ -533,23 +993,21 @@ public:
     void drawUI() {
         int w = 1280, h = 720;
 
-        // Half-Life 2 Inspired Amber & Cyan HUD (when not in editor mode)
         if (!_hammerEditor.active) {
             _hud.render(w, h);
         } else {
-            // Lab Hammer Editor UI toolbar & status overlay
             _hammerEditor.drawUI(w, h);
         }
 
         // Debug mode overlay (F3)
         if (_debugMode) {
             Renderer::beginUI(w, h);
-            Renderer::drawRect(10.0f, 10.0f, 220.0f, 25.0f, { 0.1f, 0.1f, 0.15f });
-            Renderer::drawRect(12.0f, 12.0f, 216.0f, 21.0f, { 0.2f, 0.8f, 0.2f });
+            Renderer::drawRect(10.0f, 10.0f, 280.0f, 45.0f, { 0.1f, 0.1f, 0.15f });
+            Renderer::drawRect(12.0f, 12.0f, 276.0f, 41.0f, { 0.18f, 0.35f, 0.55f });
 
-            float speedMag = std::sqrt(_velocity.x * _velocity.x + _velocity.z * _velocity.z);
-            Renderer::drawRect(10.0f, 40.0f, speedMag * 20.0f, 8.0f, { 0.2f, 0.6f, 1.0f });
-            Renderer::drawRect(10.0f, 52.0f, 15.0f, 15.0f, _isGrounded ? Vec3(0.1f, 1.0f, 0.2f) : Vec3(1.0f, 0.2f, 0.1f));
+            std::string dbgBots = "Alive Bots: " + std::to_string(std::count_if(_aiManager.bots.begin(), _aiManager.bots.end(), [](const auto& b){ return b.isAlive(); })) +
+                                  " | Tracers: " + std::to_string(_tracers.size());
+            LabFont::drawText(20.0f, 25.0f, dbgBots, 1.5f, Vec3(1, 1, 1), LabFontType::System);
             Renderer::endUI();
         }
     }
@@ -557,7 +1015,7 @@ public:
     void onRender() override {
         if (_inMenu) {
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-            drawMapMenu();
+            drawMenu();
             return;
         }
 
@@ -600,21 +1058,18 @@ public:
             }
         }
 
-        // Render Animated Patrol Bot (Half-Life 2 / Combine Synth style)
-        {
-            float legSwing = std::sin(_patrolBot.walkCycle) * 0.25f;
-            float bodyBob = std::abs(std::sin(_patrolBot.walkCycle * 2.0f)) * 0.05f;
-            Vec3 botPos = _patrolBot.position + Vec3(0, bodyBob, 0);
+        // Render Combat AI Bots
+        _aiManager.render();
 
-            // Torso (Dark industrial steel)
-            Renderer::drawCube(botPos + Vec3(0, 1.2f, 0), _patrolBot.rotation, Vec3(0.5f, 0.7f, 0.35f), Vec3(0.18f, 0.22f, 0.26f));
-            // Head / Visor (Cyan optics)
-            Renderer::drawCube(botPos + Vec3(0, 1.7f, 0), _patrolBot.rotation, Vec3(0.3f, 0.25f, 0.3f), Vec3(0.12f, 0.14f, 0.18f));
-            Renderer::drawCube(botPos + Vec3(0, 1.7f, 0.16f), _patrolBot.rotation, Vec3(0.24f, 0.08f, 0.04f), Vec3(0.2f, 0.8f, 1.0f), nullptr, false);
-            // Left Leg (Animated swing)
-            Renderer::drawCube(botPos + Vec3(-0.16f, 0.5f, legSwing), _patrolBot.rotation, Vec3(0.12f, 0.8f, 0.15f), Vec3(0.15f, 0.15f, 0.18f));
-            // Right Leg (Opposite swing)
-            Renderer::drawCube(botPos + Vec3(0.16f, 0.5f, -legSwing), _patrolBot.rotation, Vec3(0.12f, 0.8f, 0.15f), Vec3(0.15f, 0.15f, 0.18f));
+        // Render 3D Bullet Tracers (Source / Half-Life 2 style luminous beams)
+        for (const auto& tr : _tracers) {
+            Vec3 diff = tr.end - tr.start;
+            float len = diff.length();
+            if (len < 0.05f) continue;
+            Vec3 mid = tr.start + diff * 0.5f;
+            float yaw = std::atan2(diff.x, diff.z) * 180.0f / 3.14159265f;
+            float pitch = -std::asin(std::clamp(diff.y / len, -1.0f, 1.0f)) * 180.0f / 3.14159265f;
+            Renderer::drawCube(mid, Vec3(pitch, yaw, 0.0f), Vec3(tr.thickness, tr.thickness, len), tr.color, nullptr, false);
         }
 
         // Lab Hammer Editor 3D Ghost/Grid Overlay
@@ -640,13 +1095,15 @@ private:
     std::unordered_map<std::string, std::unique_ptr<Texture>> _textures;
     std::unordered_map<std::string, std::unique_ptr<Mesh>> _meshes;
 
-    // Map selection menu state
+    // Session & Menu state
+    GameSessionConfig _sessionConfig;
+    MenuScreen _menuScreen = MenuScreen::Main;
     bool _inMenu = true;
     std::vector<std::string> _availableMaps;
     int _selectedMapIndex = 0;
-    bool _upPressedLast = false;
-    bool _downPressedLast = false;
     bool _escPressedLast = false;
+    bool _oPressedLast = false;
+    bool _menuLmbLast = false;
 
     // Movement state
     Vec3 _velocity;
@@ -656,8 +1113,8 @@ private:
 
     // Animation & Combat state
     WeaponAnimator _weaponAnimator;
-    AnimatedBot _patrolBot;
-    SkeletalAnimation _botAnim;
+    AIManager _aiManager;
+    std::vector<BulletTracer> _tracers;
     float _muzzleFlashTime;
 
     // Hammer Editor & HUD
@@ -668,8 +1125,6 @@ private:
     bool _rPressedLast = false;
     bool _kPressedLast = false;
     bool _backspacePressedLast = false;
-    bool _oPressedLast = false;
-    bool _menuLmbLast = false;
 
     // Debug mode
     bool _debugMode = false;

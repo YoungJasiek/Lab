@@ -38,6 +38,8 @@ set(ENGINE_SOURCES
     src/LabRenderer.cpp
     src/LabMap.cpp
     src/LabAnim.cpp
+    src/LabCombat.cpp
+    src/LabAI.cpp
     src/glad/src/gl.c
 )
 
@@ -48,6 +50,9 @@ set(ENGINE_HEADERS
     include/LabCamera.h
     include/LabMap.h
     include/LabAnim.h
+    include/LabSession.h
+    include/LabCombat.h
+    include/LabAI.h
     include/Lab.h
 )
 

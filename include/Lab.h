@@ -7,3 +7,6 @@
 #include "LabAnim.h"
 #include "LabEditor.h"
 #include "LabHUD.h"
+#include "LabSession.h"
+#include "LabCombat.h"
+#include "LabAI.h"
