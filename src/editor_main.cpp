@@ -33,6 +33,7 @@ public:
         std::string targetMap = "assets/maps/facility_alpha.labmap";
         if (std::filesystem::exists(targetMap)) {
             _map = LabMap::loadFromFile(targetMap);
+            if (_map) _currentMapPath = targetMap;
         }
         if (!_map) {
             _map = std::make_unique<LabMap>();
@@ -47,6 +48,7 @@ public:
             floor.color = Vec3(1.0f, 1.0f, 1.0f);
             floor.texturePath = "floor_tiles.bmp";
             _map->brushes.push_back(floor);
+            _currentMapPath = "";
         }
 
         // Camera initial pose
@@ -111,6 +113,51 @@ public:
         }
     }
 
+    void newMap() {
+        _map = std::make_unique<LabMap>();
+
+        _map->metadata.name = "untitled_map";
+        _map->metadata.author = "Mapper";
+        _map->spawn.position = Vec3(0, 1.8f, 0);
+
+        MapBrush floor;
+        floor.position = Vec3(0, -0.5f, 0);
+        floor.size = Vec3(32.0f, 1.0f, 32.0f);
+        floor.color = Vec3(1.0f, 1.0f, 1.0f);
+        floor.texturePath = "floor_tiles.bmp";
+        _map->brushes.push_back(floor);
+
+        _currentMapPath = "";
+        logMessage("Created New Map.");
+    }
+
+    void openMapDialog() {
+        std::string openPath = LabDialogs::openFileDialog(getWindow(), "Lab Map Files (*.labmap)\0*.labmap\0All Files (*.*)\0*.*\0", "assets\\maps");
+        if (!openPath.empty()) {
+            auto loaded = LabMap::loadFromFile(openPath);
+            if (loaded) {
+                _map = std::move(loaded);
+                _currentMapPath = openPath;
+                logMessage("Loaded Map: " + openPath);
+            }
+        }
+    }
+
+    void saveMapAction(bool forceSaveAs = false) {
+        if (!_map) return;
+        if (forceSaveAs || _currentMapPath.empty()) {
+            std::string savePath = LabDialogs::saveFileDialog(getWindow(), "Lab Map Files (*.labmap)\0*.labmap\0All Files (*.*)\0*.*\0", "my_level.labmap", "assets\\maps");
+            if (!savePath.empty()) {
+                _currentMapPath = savePath;
+                _map->saveToFile(_currentMapPath);
+                logMessage("Map saved to: " + _currentMapPath);
+            }
+        } else {
+            _map->saveToFile(_currentMapPath);
+            logMessage("Map saved to: " + _currentMapPath);
+        }
+    }
+
     void onUpdate(const Time& time) override {
         (void)time;
 
@@ -133,8 +180,41 @@ public:
         }
 
         // Keyboard Shortcuts
+        bool ctrlDown = Input::isKeyPressed(341) || Input::isKeyPressed(345); // Left/Right Ctrl
+
+        // Ctrl+N: New Map
+        if (ctrlDown && (Input::isKeyPressed('N') || Input::isKeyPressed('n'))) {
+            if (!_ctrlNPressed) {
+                newMap();
+                _ctrlNPressed = true;
+            }
+        } else {
+            _ctrlNPressed = false;
+        }
+
+        // Ctrl+O: Open Map
+        if (ctrlDown && (Input::isKeyPressed('O') || Input::isKeyPressed('o'))) {
+            if (!_ctrlOPressed) {
+                openMapDialog();
+                _ctrlOPressed = true;
+            }
+        } else {
+            _ctrlOPressed = false;
+        }
+
+        // Ctrl+S or K: Save Map
+        if ((ctrlDown && (Input::isKeyPressed('S') || Input::isKeyPressed('s'))) || 
+            (!ctrlDown && (Input::isKeyPressed('K') || Input::isKeyPressed('k')))) {
+            if (!_ctrlSPressed) {
+                saveMapAction(false);
+                _ctrlSPressed = true;
+            }
+        } else {
+            _ctrlSPressed = false;
+        }
+
         // E: Place Brush or Entity with active texture
-        if (Input::isKeyPressed('E') || Input::isKeyPressed('e')) {
+        if (!ctrlDown && (Input::isKeyPressed('E') || Input::isKeyPressed('e'))) {
             if (!_ePressed && _map) {
                 placeCurrentObject();
                 _ePressed = true;
@@ -144,28 +224,14 @@ public:
         }
 
         // Backspace / Delete: Undo last brush
-        if (Input::isKeyPressed(259)) {
+        if (Input::isKeyPressed(259) || Input::isKeyPressed(261)) {
             if (!_delPressed && _map && !_map->brushes.empty()) {
                 _map->brushes.pop_back();
-                logMessage("Deleted last brush.");
+                logMessage("Undo: Deleted last brush.");
                 _delPressed = true;
             }
         } else {
             _delPressed = false;
-        }
-
-        // K or Ctrl+S: Native Windows Save File Dialog
-        if (Input::isKeyPressed('K') || Input::isKeyPressed('k')) {
-            if (!_kPressed && _map) {
-                std::string savePath = LabDialogs::saveFileDialog(getWindow(), "Lab Map Files (*.labmap)\0*.labmap\0All Files (*.*)\0*.*\0", "my_level.labmap", "assets\\maps");
-                if (!savePath.empty()) {
-                    _map->saveToFile(savePath);
-                    logMessage("Map saved to: " + savePath);
-                }
-                _kPressed = true;
-            }
-        } else {
-            _kPressed = false;
         }
     }
 
@@ -193,6 +259,32 @@ public:
     }
 
     void handleMouseClick(float mx, float my) {
+        // Dropdown File Menu Clicks (when open)
+        if (_fileMenuOpen) {
+            float menuX = 10.0f;
+            float menuY = 24.0f;
+            float menuW = 190.0f;
+            float menuH = 125.0f;
+            if (mx >= menuX && mx <= menuX + menuW && my >= menuY && my <= menuY + menuH) {
+                int itemIdx = (int)((my - menuY) / 24.0f);
+                if (itemIdx == 0) { // New Map
+                    newMap();
+                } else if (itemIdx == 1) { // Open Map...
+                    openMapDialog();
+                } else if (itemIdx == 2) { // Save Map
+                    saveMapAction(false);
+                } else if (itemIdx == 3) { // Save Map As...
+                    saveMapAction(true);
+                } else if (itemIdx >= 4) { // Exit
+                    glfwSetWindowShouldClose(getWindow(), GLFW_TRUE);
+                }
+                _fileMenuOpen = false;
+                return;
+            } else {
+                _fileMenuOpen = false;
+            }
+        }
+
         // Texture Browser Grid Clicks (Inside Browse Window if open)
         if (_browserOpen) {
             // Close button click
@@ -265,39 +357,72 @@ public:
             }
         }
 
-        // Top Menu Bar Clicks
+        // Top Menu Bar Clicks (y: 0..24)
         if (my >= 0.0f && my <= 24.0f) {
-            // File -> Open Map (x: 10..45)
-            if (mx >= 10.0f && mx <= 45.0f) {
-                std::string openPath = LabDialogs::openFileDialog(getWindow(), "Lab Map Files (*.labmap)\0*.labmap\0All Files (*.*)\0*.*\0", "assets\\maps");
-                if (!openPath.empty()) {
-                    auto loaded = LabMap::loadFromFile(openPath);
-                    if (loaded) {
-                        _map = std::move(loaded);
-                        logMessage("Loaded Map: " + openPath);
-                    }
+            // File dropdown toggle (x: 10..48)
+            if (mx >= 10.0f && mx <= 48.0f) {
+                _fileMenuOpen = !_fileMenuOpen;
+                return;
+            }
+            // Edit (x: 50..85)
+            else if (mx >= 50.0f && mx <= 85.0f) {
+                if (_map && !_map->brushes.empty()) {
+                    _map->brushes.pop_back();
+                    logMessage("Undo: Deleted last brush.");
                 }
+                return;
             }
-            // Save Map (x: 50..90)
-            else if (mx >= 50.0f && mx <= 90.0f) {
-                if (_map) {
-                    std::string savePath = LabDialogs::saveFileDialog(getWindow(), "Lab Map Files (*.labmap)\0*.labmap\0All Files (*.*)\0*.*\0", "my_level.labmap", "assets\\maps");
-                    if (!savePath.empty()) {
-                        _map->saveToFile(savePath);
-                        logMessage("Saved to: " + savePath);
-                    }
+            // View (x: 88..130)
+            else if (mx >= 88.0f && mx <= 130.0f) {
+                logMessage("View: 3D Textured Viewport Active");
+                return;
+            }
+            // Tools (x: 132..180)
+            else if (mx >= 132.0f && mx <= 180.0f) {
+                _browserOpen = !_browserOpen;
+                logMessage("Tools: Toggled Texture Browser");
+                return;
+            }
+            // Help (x: 182..225)
+            else if (mx >= 182.0f && mx <= 225.0f) {
+                logMessage("Lab Hammer 1.0 - Controls: RMB to Fly, E to Place, Ctrl+O Open, Ctrl+S Save");
+                return;
+            }
+        }
+
+        // Main Toolbar Clicks (y: 24..58)
+        if (my >= 24.0f && my <= 58.0f) {
+            // Button 0: New Map (x: 8..34)
+            if (mx >= 8.0f && mx <= 34.0f) {
+                newMap();
+                return;
+            }
+            // Button 1: Open Map (x: 36..62)
+            else if (mx >= 36.0f && mx <= 62.0f) {
+                openMapDialog();
+                return;
+            }
+            // Button 2: Save Map (x: 64..90)
+            else if (mx >= 64.0f && mx <= 90.0f) {
+                saveMapAction(false);
+                return;
+            }
+            // Button 3: Undo (x: 92..118)
+            else if (mx >= 92.0f && mx <= 118.0f) {
+                if (_map && !_map->brushes.empty()) {
+                    _map->brushes.pop_back();
+                    logMessage("Undo: Deleted last brush.");
                 }
+                return;
             }
-            // Textures -> Open Browser (x: 95..145)
-            else if (mx >= 95.0f && mx <= 155.0f) {
-                _browserOpen = true;
-            }
-            // Tools -> Place Brush (x: 160..210)
-            else if (mx >= 160.0f && mx <= 210.0f) {
-                placeCurrentObject();
+            // Button 4: Texture Browser (x: 120..146)
+            else if (mx >= 120.0f && mx <= 146.0f) {
+                _browserOpen = !_browserOpen;
+                return;
             }
         }
     }
+
 
     void onRender() override {
         // 1. Render 3D World Viewport
@@ -379,6 +504,54 @@ public:
         }
     }
 
+    // Classic Hammer Top Toolbar Icons (New, Open, Save, Undo, Browser)
+    static void drawToolbarIcon(int iconId, float x, float y, const Vec3& color, const Vec3& bg) {
+        Renderer::drawRect(x, y, 24.0f, 24.0f, bg);
+        Renderer::drawRect(x, y, 24.0f, 1.0f, Vec3(0.7f, 0.7f, 0.7f));
+        Renderer::drawRect(x, y + 23.0f, 24.0f, 1.0f, Vec3(0.5f, 0.5f, 0.5f));
+
+        switch(iconId) {
+            case 0: // New Document (white page with folded corner)
+                Renderer::drawRect(x + 6.0f, y + 4.0f, 11.0f, 15.0f, Vec3(1, 1, 1));
+                Renderer::drawRect(x + 6.0f, y + 4.0f, 11.0f, 1.0f, color);
+                Renderer::drawRect(x + 6.0f, y + 4.0f, 1.0f, 15.0f, color);
+                Renderer::drawRect(x + 16.0f, y + 7.0f, 1.0f, 12.0f, color);
+                Renderer::drawRect(x + 6.0f, y + 19.0f, 11.0f, 1.0f, color);
+                Renderer::drawRect(x + 9.0f, y + 8.0f, 5.0f, 1.0f, color);
+                Renderer::drawRect(x + 9.0f, y + 11.0f, 5.0f, 1.0f, color);
+                Renderer::drawRect(x + 9.0f, y + 14.0f, 5.0f, 1.0f, color);
+                break;
+            case 1: // Open Folder
+                Renderer::drawRect(x + 5.0f, y + 6.0f, 6.0f, 2.0f, Vec3(0.9f, 0.75f, 0.2f));
+                Renderer::drawRect(x + 5.0f, y + 8.0f, 14.0f, 10.0f, Vec3(0.95f, 0.8f, 0.25f));
+                Renderer::drawRect(x + 5.0f, y + 8.0f, 14.0f, 1.0f, Vec3(0.7f, 0.55f, 0.1f));
+                Renderer::drawRect(x + 5.0f, y + 17.0f, 14.0f, 1.0f, Vec3(0.7f, 0.55f, 0.1f));
+                break;
+            case 2: // Save Floppy Disk
+                Renderer::drawRect(x + 5.0f, y + 5.0f, 14.0f, 14.0f, Vec3(0.2f, 0.45f, 0.85f));
+                Renderer::drawRect(x + 8.0f, y + 5.0f, 8.0f, 4.0f, Vec3(0.85f, 0.85f, 0.9f));
+                Renderer::drawRect(x + 7.0f, y + 11.0f, 10.0f, 7.0f, Vec3(1, 1, 1));
+                Renderer::drawRect(x + 8.0f, y + 13.0f, 8.0f, 1.0f, Vec3(0.3f, 0.4f, 0.5f));
+                break;
+            case 3: // Undo Arrow
+                Renderer::drawRect(x + 6.0f, y + 11.0f, 9.0f, 2.0f, color);
+                Renderer::drawRect(x + 13.0f, y + 7.0f, 2.0f, 6.0f, color);
+                Renderer::drawRect(x + 6.0f, y + 9.0f, 2.0f, 6.0f, color);
+                Renderer::drawRect(x + 8.0f, y + 10.0f, 2.0f, 4.0f, color);
+                break;
+            case 4: // Texture Browser Grid
+                Renderer::drawRect(x + 5.0f, y + 5.0f, 14.0f, 14.0f, Vec3(0.3f, 0.35f, 0.4f));
+                Renderer::drawRect(x + 6.0f, y + 6.0f, 5.0f, 5.0f, Vec3(0.9f, 0.5f, 0.1f));
+                Renderer::drawRect(x + 13.0f, y + 6.0f, 5.0f, 5.0f, Vec3(0.2f, 0.7f, 0.9f));
+                Renderer::drawRect(x + 6.0f, y + 13.0f, 5.0f, 5.0f, Vec3(0.8f, 0.8f, 0.85f));
+                Renderer::drawRect(x + 13.0f, y + 13.0f, 5.0f, 5.0f, Vec3(0.4f, 0.45f, 0.5f));
+                break;
+            default:
+                drawHammerIcon(iconId % 7, x, y, color, bg);
+                break;
+        }
+    }
+
     void drawHammerInterface() {
         int w = 1600, h = 900;
         Renderer::beginUI(w, h);
@@ -393,13 +566,13 @@ public:
         Renderer::drawRect(0, 0, (float)w, 24.0f, winBg);
         Renderer::drawRect(0, 23.0f, (float)w, 1.0f, winBorder);
 
-        LabFont::drawText(10.0f, 6.0f, "Open", 1.8f, textDark);
-        LabFont::drawText(50.0f, 6.0f, "Save", 1.8f, textDark);
-        LabFont::drawText(95.0f, 6.0f, "Textures", 1.8f, textDark);
-        LabFont::drawText(160.0f, 6.0f, "Tools", 1.8f, textDark);
-        LabFont::drawText(210.0f, 6.0f, "Help", 1.8f, textDark);
+        LabFont::drawText(14.0f, 5.0f, "File", 1.8f, textDark, LabFontType::System);
+        LabFont::drawText(54.0f, 5.0f, "Edit", 1.8f, textDark, LabFontType::System);
+        LabFont::drawText(94.0f, 5.0f, "View", 1.8f, textDark, LabFontType::System);
+        LabFont::drawText(140.0f, 5.0f, "Tools", 1.8f, textDark, LabFontType::System);
+        LabFont::drawText(190.0f, 5.0f, "Help", 1.8f, textDark, LabFontType::System);
 
-        LabFont::drawText((float)w - 240.0f, 6.0f, "Hammer - Frozen-Life", 1.7f, Vec3(0.2f, 0.4f, 0.6f));
+        LabFont::drawText((float)w - 240.0f, 5.0f, "Hammer - Frozen-Life", 1.8f, Vec3(0.15f, 0.45f, 0.75f), LabFontType::GeoSans);
 
         // ==================== 2. MAIN TOOLBAR ====================
         float tbY = 24.0f;
@@ -407,10 +580,10 @@ public:
         Renderer::drawRect(0, tbY, (float)w, tbH, winBg);
         Renderer::drawRect(0, tbY + tbH - 1.0f, (float)w, 1.0f, winBorder);
 
-        // Render actual icons for the top bar
+        // Render actual icons for the top toolbar (New, Open, Save, Undo, Browser, tools...)
         for (int i = 0; i < 18; ++i) {
             float bx = 8.0f + i * 28.0f;
-            drawHammerIcon(i % 7, bx, tbY + 5.0f, (i % 2 == 0) ? cyanGlow * 0.7f : Vec3(0.3f, 0.35f, 0.4f), Vec3(0.88f, 0.88f, 0.90f));
+            drawToolbarIcon(i, bx, tbY + 5.0f, (i % 2 == 0) ? cyanGlow * 0.7f : Vec3(0.3f, 0.35f, 0.4f), Vec3(0.88f, 0.88f, 0.90f));
         }
 
         // ==================== 3. LEFT TOOLS PALETTE ====================
@@ -441,25 +614,25 @@ public:
         Renderer::drawRect(rightX, rightY, 1.0f, rightH, winBorder);
 
         // Section A: "Select:"
-        LabFont::drawText(rightX + 12.0f, rightY + 10.0f, "Select:", 1.7f, textDark);
+        LabFont::drawText(rightX + 12.0f, rightY + 10.0f, "Select:", 1.7f, textDark, LabFontType::System);
         Renderer::drawRect(rightX + 12.0f, rightY + 28.0f, 120.0f, 22.0f, Vec3(0.88f, 0.88f, 0.90f));
-        LabFont::drawText(rightX + 22.0f, rightY + 34.0f, "Groups", 1.6f, textDim);
+        LabFont::drawText(rightX + 22.0f, rightY + 34.0f, "Groups", 1.6f, textDim, LabFontType::System);
         Renderer::drawRect(rightX + 12.0f, rightY + 54.0f, 120.0f, 22.0f, Vec3(0.88f, 0.88f, 0.90f));
-        LabFont::drawText(rightX + 22.0f, rightY + 60.0f, "Objects", 1.6f, textDim);
+        LabFont::drawText(rightX + 22.0f, rightY + 60.0f, "Objects", 1.6f, textDim, LabFontType::System);
         Renderer::drawRect(rightX + 12.0f, rightY + 80.0f, 120.0f, 22.0f, Vec3(0.88f, 0.88f, 0.90f));
-        LabFont::drawText(rightX + 22.0f, rightY + 86.0f, "Solids", 1.6f, textDim);
+        LabFont::drawText(rightX + 22.0f, rightY + 86.0f, "Solids", 1.6f, textDim, LabFontType::System);
 
         // Section B: "Texture group:" & "Current texture:"
         float texSecY = rightY + 115.0f;
-        LabFont::drawText(rightX + 12.0f, texSecY, "Texture group:", 1.7f, textDark);
+        LabFont::drawText(rightX + 12.0f, texSecY, "Texture group:", 1.7f, textDark, LabFontType::System);
         Renderer::drawRect(rightX + 12.0f, texSecY + 16.0f, 256.0f, 22.0f, Vec3(1, 1, 1));
         Renderer::drawRect(rightX + 12.0f, texSecY + 16.0f, 256.0f, 1.0f, winBorder);
-        LabFont::drawText(rightX + 20.0f, texSecY + 22.0f, "All Textures (" + std::to_string(_availableTextures.size()) + ")", 1.6f, textDark);
+        LabFont::drawText(rightX + 20.0f, texSecY + 22.0f, "All Textures (" + std::to_string(_availableTextures.size()) + ")", 1.6f, textDark, LabFontType::System);
 
-        LabFont::drawText(rightX + 12.0f, texSecY + 45.0f, "Current texture:", 1.7f, textDark);
+        LabFont::drawText(rightX + 12.0f, texSecY + 45.0f, "Current texture:", 1.7f, textDark, LabFontType::System);
         Renderer::drawRect(rightX + 12.0f, texSecY + 62.0f, 256.0f, 22.0f, Vec3(1, 1, 1));
         Renderer::drawRect(rightX + 12.0f, texSecY + 62.0f, 256.0f, 1.0f, winBorder);
-        LabFont::drawText(rightX + 20.0f, texSecY + 68.0f, _selectedTexture, 1.6f, textDark);
+        LabFont::drawText(rightX + 20.0f, texSecY + 68.0f, _selectedTexture, 1.6f, textDark, LabFontType::System);
 
         // Texture Thumbnail Preview Box (Exact match to Valve Hammer)
         float thumbX = rightX + 12.0f;
@@ -475,22 +648,22 @@ public:
         // Browse... & Apply Texture Buttons
         Renderer::drawRect(rightX + 105.0f, thumbY + 12.0f, 160.0f, 28.0f, Vec3(0.88f, 0.88f, 0.90f));
         Renderer::drawRect(rightX + 105.0f, thumbY + 12.0f, 160.0f, 1.0f, winBorder);
-        LabFont::drawText(rightX + 115.0f, thumbY + 20.0f, "Browse Textures...", 1.6f, textDark);
+        LabFont::drawText(rightX + 115.0f, thumbY + 20.0f, "Browse Textures...", 1.6f, textDark, LabFontType::System);
 
         Renderer::drawRect(rightX + 105.0f, thumbY + 48.0f, 160.0f, 28.0f, Vec3(0.88f, 0.88f, 0.90f));
         Renderer::drawRect(rightX + 105.0f, thumbY + 48.0f, 160.0f, 1.0f, winBorder);
-        LabFont::drawText(rightX + 120.0f, thumbY + 56.0f, "Apply to Brush", 1.6f, textDark);
+        LabFont::drawText(rightX + 120.0f, thumbY + 56.0f, "Apply to Brush", 1.6f, textDark, LabFontType::System);
 
         // Section C: "VisGroups:" Box
         float visY = thumbY + thumbS + 18.0f;
-        LabFont::drawText(rightX + 12.0f, visY, "VisGroups:", 1.7f, textDark);
+        LabFont::drawText(rightX + 12.0f, visY, "VisGroups:", 1.7f, textDark, LabFontType::System);
         Renderer::drawRect(rightX + 12.0f, visY + 16.0f, 256.0f, 130.0f, Vec3(1, 1, 1));
         Renderer::drawRect(rightX + 12.0f, visY + 16.0f, 256.0f, 1.0f, winBorder);
 
-        LabFont::drawText(rightX + 20.0f, visY + 26.0f, "[x] World Geometry", 1.6f, textDark);
-        LabFont::drawText(rightX + 20.0f, visY + 46.0f, "[x] Entities & Props", 1.6f, textDark);
-        LabFont::drawText(rightX + 20.0f, visY + 66.0f, "[x] Dynamic Doors", 1.6f, textDark);
-        LabFont::drawText(rightX + 20.0f, visY + 86.0f, "[x] Player Spawns", 1.6f, textDark);
+        LabFont::drawText(rightX + 20.0f, visY + 26.0f, "[x] World Geometry", 1.6f, textDark, LabFontType::System);
+        LabFont::drawText(rightX + 20.0f, visY + 46.0f, "[x] Entities & Props", 1.6f, textDark, LabFontType::System);
+        LabFont::drawText(rightX + 20.0f, visY + 66.0f, "[x] Dynamic Doors", 1.6f, textDark, LabFontType::System);
+        LabFont::drawText(rightX + 20.0f, visY + 86.0f, "[x] Player Spawns", 1.6f, textDark, LabFontType::System);
 
         // ==================== 5. BOTTOM CONSOLE / "Messages" WINDOW ====================
         float conW = 750.0f;
@@ -505,10 +678,10 @@ public:
         Renderer::drawRect(conX, conY, 1.0f, conH, winBorder);
         Renderer::drawRect(conX + conW - 1.0f, conY, 1.0f, conH, winBorder);
 
-        LabFont::drawText(conX + 10.0f, conY + 6.0f, "Messages", 1.7f, textDark);
+        LabFont::drawText(conX + 10.0f, conY + 6.0f, "Messages", 1.7f, textDark, LabFontType::System);
 
         for (int i = 0; i < (int)_consoleMessages.size(); ++i) {
-            LabFont::drawText(conX + 12.0f, conY + 30.0f + i * 14.0f, _consoleMessages[i], 1.5f, Vec3(0.1f, 0.15f, 0.2f));
+            LabFont::drawText(conX + 12.0f, conY + 30.0f + i * 14.0f, _consoleMessages[i], 1.5f, Vec3(0.1f, 0.15f, 0.2f), LabFontType::System);
         }
 
         // ==================== 6. STATUS BAR ====================
@@ -516,12 +689,54 @@ public:
         Renderer::drawRect(0, sbY, (float)w, 22.0f, winBg);
         Renderer::drawRect(0, sbY, (float)w, 1.0f, winBorder);
 
-        LabFont::drawText(10.0f, sbY + 5.0f, "Hold RMB: Fly & Look | E: Place Brush | K: Save Map | Click 'Browse Textures...' for full picker", 1.6f, textDark);
+        std::string sbText = "Hold RMB: Fly & Look | E: Place | Ctrl+O: Open | Ctrl+S: Save | Map: " + 
+                             (_currentMapPath.empty() ? "Untitled" : _currentMapPath);
+        LabFont::drawText(10.0f, sbY + 5.0f, sbText, 1.6f, textDark, LabFontType::System);
         std::string gridStr = "Snap: " + std::to_string((int)_gridSnap);
-        LabFont::drawText((float)w - 280.0f, sbY + 5.0f, gridStr, 1.6f, textDark);
+        LabFont::drawText((float)w - 280.0f, sbY + 5.0f, gridStr, 1.6f, textDark, LabFontType::System);
+
+        // ==================== 7. DROPDOWN FILE MENU ====================
+        if (_fileMenuOpen) {
+            float menuX = 10.0f;
+            float menuY = 24.0f;
+            float menuW = 190.0f;
+            float menuH = 125.0f;
+            Vec3 menuBg{ 0.96f, 0.96f, 0.97f };
+            Vec3 menuBorder{ 0.55f, 0.55f, 0.60f };
+            Vec3 menuShadow{ 0.2f, 0.2f, 0.2f };
+
+            // Drop shadow & Menu frame
+            Renderer::drawRect(menuX + 3.0f, menuY + 3.0f, menuW, menuH, menuShadow * 0.35f);
+            Renderer::drawRect(menuX, menuY, menuW, menuH, menuBg);
+            Renderer::drawRect(menuX, menuY, menuW, 1.0f, menuBorder);
+            Renderer::drawRect(menuX, menuY, 1.0f, menuH, menuBorder);
+            Renderer::drawRect(menuX + menuW - 1.0f, menuY, 1.0f, menuH, menuBorder);
+            Renderer::drawRect(menuX, menuY + menuH - 1.0f, menuW, 1.0f, menuBorder);
+
+            struct MenuItem { std::string name; std::string shortcut; };
+            MenuItem items[] = {
+                { "New Map", "Ctrl+N" },
+                { "Open Map...", "Ctrl+O" },
+                { "Save Map", "Ctrl+S" },
+                { "Save Map As...", "" },
+                { "Exit", "Alt+F4" }
+            };
+
+            for (int i = 0; i < 5; ++i) {
+                float iy = menuY + 3.0f + i * 24.0f;
+                if (i == 4) {
+                    Renderer::drawRect(menuX + 6.0f, iy - 2.0f, menuW - 12.0f, 1.0f, menuBorder);
+                }
+                LabFont::drawText(menuX + 14.0f, iy + 4.0f, items[i].name, 1.6f, textDark, LabFontType::System);
+                if (!items[i].shortcut.empty()) {
+                    LabFont::drawText(menuX + menuW - 65.0f, iy + 4.0f, items[i].shortcut, 1.5f, textDim, LabFontType::System);
+                }
+            }
+        }
 
         Renderer::endUI();
     }
+
 
     // Modal Texture Browser Gallery
     void drawTextureBrowser() {
@@ -539,11 +754,11 @@ public:
 
         Renderer::drawRect(bx, by, bw, bh, Vec3(0.92f, 0.92f, 0.94f));
         Renderer::drawRect(bx, by, bw, 28.0f, Vec3(0.2f, 0.35f, 0.55f)); // Titlebar
-        LabFont::drawText(bx + 14.0f, by + 8.0f, "Texture Browser - Choose Surface Material", 1.8f, Vec3(1, 1, 1));
+        LabFont::drawText(bx + 14.0f, by + 8.0f, "Texture Browser - Choose Surface Material", 1.8f, Vec3(1, 1, 1), LabFontType::System);
 
         // Close 'X' Button
         Renderer::drawRect(bx + bw - 32.0f, by + 4.0f, 24.0f, 20.0f, Vec3(0.85f, 0.25f, 0.25f));
-        LabFont::drawText(bx + bw - 25.0f, by + 7.0f, "X", 1.8f, Vec3(1, 1, 1));
+        LabFont::drawText(bx + bw - 25.0f, by + 7.0f, "X", 1.8f, Vec3(1, 1, 1), LabFontType::System);
 
         // Texture Gallery Grid (6 columns)
         int cols = 6;
@@ -572,7 +787,7 @@ public:
             // Label underneath
             std::string label = _availableTextures[i].filename;
             if (label.size() > 12) label = label.substr(0, 10) + "..";
-            LabFont::drawText(tx, ty + thumbSize + 4.0f, label, 1.4f, Vec3(0.1f, 0.1f, 0.1f));
+            LabFont::drawText(tx, ty + thumbSize + 4.0f, label, 1.4f, Vec3(0.1f, 0.1f, 0.1f), LabFontType::System);
         }
 
         Renderer::endUI();
@@ -590,6 +805,8 @@ private:
     std::string _selectedTexture = "concrete_wall.bmp";
     int _textureIndex = 0;
     bool _browserOpen = false;
+    bool _fileMenuOpen = false;
+    std::string _currentMapPath = "";
 
     int _activeTool = 1; // 1 = Brush Tool
     Vec3 _cursorPos{ 0, 0, 0 };
@@ -600,7 +817,9 @@ private:
 
     bool _lmbPressed = false;
     bool _ePressed = false;
-    bool _kPressed = false;
+    bool _ctrlSPressed = false;
+    bool _ctrlOPressed = false;
+    bool _ctrlNPressed = false;
     bool _delPressed = false;
 };
 

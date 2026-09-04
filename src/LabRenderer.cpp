@@ -679,6 +679,8 @@ namespace Lab {
 
     void Renderer::beginUI(int windowWidth, int windowHeight) {
         glDisable(GL_DEPTH_TEST);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         
         // Ortho projection
         _uiProjMatrix.m[0] = 2.0f / windowWidth; _uiProjMatrix.m[4] = 0.0f; _uiProjMatrix.m[8] = 0.0f; _uiProjMatrix.m[12] = -1.0f;
@@ -688,6 +690,7 @@ namespace Lab {
     }
 
     void Renderer::endUI() {
+        glDisable(GL_BLEND);
         glEnable(GL_DEPTH_TEST);
     }
 
@@ -712,6 +715,10 @@ namespace Lab {
     }
 
     void Renderer::drawTextureRect(float x, float y, float w, float h, const Texture& texture, const Vec3& tint) {
+        drawTextureRect(x, y, w, h, texture, 0.0f, 0.0f, 1.0f, 1.0f, tint);
+    }
+
+    void Renderer::drawTextureRect(float x, float y, float w, float h, const Texture& texture, float u0, float v0, float u1, float v1, const Vec3& tint) {
         _uiShader->use();
         _uiShader->setMat4("projection", _uiProjMatrix);
         _uiShader->setVec3("color", tint);
@@ -720,10 +727,10 @@ namespace Lab {
         texture.bind(0);
 
         float vertices[4][4] = {
-            { x,     y + h, 0.0f, 1.0f },
-            { x + w, y + h, 1.0f, 1.0f },
-            { x + w, y,     1.0f, 0.0f },
-            { x,     y,     0.0f, 0.0f }
+            { x,     y + h, u0, v1 },
+            { x + w, y + h, u1, v1 },
+            { x + w, y,     u1, v0 },
+            { x,     y,     u0, v0 }
         };
 
         glNamedBufferSubData(_uiVbo, 0, sizeof(vertices), vertices);
@@ -732,4 +739,5 @@ namespace Lab {
         glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
         glBindVertexArray(0);
     }
+
 }

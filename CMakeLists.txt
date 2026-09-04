@@ -68,15 +68,27 @@ add_executable(LabHammer src/editor_main.cpp)
 target_compile_options(LabHammer PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabHammer PRIVATE LabEngineLib)
 
-# Automatically copy entire assets directory into output directory
+# Windows system libraries
+if(WIN32)
+    target_link_libraries(LabEngineLib PUBLIC gdi32 comdlg32)
+endif()
+
+# Automatically copy entire assets and fonts directory into output directory
 add_custom_command(TARGET Lab POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_SOURCE_DIR}/assets"
         "$<TARGET_FILE_DIR:Lab>/assets"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/fonts"
+        "$<TARGET_FILE_DIR:Lab>/fonts"
 )
 
 add_custom_command(TARGET LabHammer POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_SOURCE_DIR}/assets"
         "$<TARGET_FILE_DIR:LabHammer>/assets"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/fonts"
+        "$<TARGET_FILE_DIR:LabHammer>/fonts"
 )
+
