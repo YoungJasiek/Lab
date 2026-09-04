@@ -40,6 +40,7 @@ namespace Lab {
 
         Vec3 getPosition() const { return _position; }
         Vec3 getFront() const { return _front; }
+        Vec3 getForward() const { return _front; }
         Vec3 getRight() const { return _right; }
 
     private:

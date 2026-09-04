@@ -120,6 +120,20 @@ public:
         if (Input::isKeyPressed('A') || Input::isKeyPressed('a')) inputDir -= right;
         if (Input::isKeyPressed('D') || Input::isKeyPressed('d')) inputDir += right;
 
+        // Free-cam Noclip flying in Hammer Editor mode
+        if (_hammerEditor.active) {
+            Vec3 camPos = _camera.getPosition();
+            float flySpeed = isSprinting ? 24.0f : 12.0f;
+            if (Input::isKeyPressed('W') || Input::isKeyPressed('w')) camPos += _camera.getFront() * flySpeed * fixedDelta;
+            if (Input::isKeyPressed('S') || Input::isKeyPressed('s')) camPos -= _camera.getFront() * flySpeed * fixedDelta;
+            if (Input::isKeyPressed('A') || Input::isKeyPressed('a')) camPos -= _camera.getRight() * flySpeed * fixedDelta;
+            if (Input::isKeyPressed('D') || Input::isKeyPressed('d')) camPos += _camera.getRight() * flySpeed * fixedDelta;
+            if (Input::isKeyPressed(32)) camPos.y += flySpeed * fixedDelta; // Space = Up
+            if (Input::isKeyPressed(341)) camPos.y -= flySpeed * fixedDelta; // Left Ctrl = Down
+            _camera.setPosition(camPos);
+            return;
+        }
+
         if (inputDir.lengthSq() > 0) {
             inputDir = inputDir.normalized();
             _velocity.x = inputDir.x * speed;
@@ -207,12 +221,26 @@ public:
         }
 
         // Combat cooldown & Procedural Recoil
-        if (Input::isMouseButtonPressed(0) && _muzzleFlashTime <= 0.0f) {
-            _muzzleFlashTime = 0.08f;
-            _weaponAnimator.onFire();
+        if (Input::isMouseButtonPressed(0) && _muzzleFlashTime <= 0.0f && !_hammerEditor.active) {
+            if (_hud.ammoClip > 0) {
+                _hud.ammoClip--;
+                _muzzleFlashTime = 0.08f;
+                _weaponAnimator.onFire();
+            }
         }
         if (_muzzleFlashTime > 0.0f) {
             _muzzleFlashTime -= time.delta;
+        }
+
+        // Weapon Reload (R key when not in Hammer Editor)
+        if (Input::isKeyPressed('R') || Input::isKeyPressed('r')) {
+            if (!_hammerEditor.active && _hud.ammoClip < 18 && _hud.ammoReserve > 0) {
+                int needed = 18 - _hud.ammoClip;
+                int transfer = std::min(needed, _hud.ammoReserve);
+                _hud.ammoClip += transfer;
+                _hud.ammoReserve -= transfer;
+                _weaponAnimator.recoilSpring.addImpulse(Vec3(0.0f, -0.05f, 0.05f));
+            }
         }
 
         // Procedural Weapon Sway and Bob update
@@ -221,6 +249,66 @@ public:
 
         // Update Animated Patrol Bot
         _patrolBot.update(time.delta);
+
+        // F2 Hammer Editor Toggle
+        if (Input::isKeyPressed(291)) { // GLFW_KEY_F2
+            if (!_f2PressedLast) {
+                _hammerEditor.toggle(_camera);
+                LabLog::info("Lab Hammer Editor: " + std::string(_hammerEditor.active ? "OPENED" : "CLOSED"));
+                _f2PressedLast = true;
+            }
+        } else {
+            _f2PressedLast = false;
+        }
+
+        // Hammer Editor Controls when active
+        if (_hammerEditor.active && _currentMap) {
+            _hammerEditor.update(time.delta, _camera, *_currentMap);
+
+            // E key: Place object (Brush or Door)
+            if (Input::isKeyPressed('E') || Input::isKeyPressed('e')) {
+                if (!_ePressedLast) {
+                    if (_hammerEditor.currentTool == EditorTool::CreateBrush) {
+                        _hammerEditor.placeBrush(*_currentMap);
+                    } else if (_hammerEditor.currentTool == EditorTool::CreateDoor) {
+                        _hammerEditor.placeDoor(*_currentMap);
+                    }
+                    _ePressedLast = true;
+                }
+            } else {
+                _ePressedLast = false;
+            }
+
+            // R key: Toggle Tool (Brush <-> Door)
+            if (Input::isKeyPressed('R') || Input::isKeyPressed('r')) {
+                if (!_rPressedLast) {
+                    _hammerEditor.currentTool = (_hammerEditor.currentTool == EditorTool::CreateBrush) ? EditorTool::CreateDoor : EditorTool::CreateBrush;
+                    _rPressedLast = true;
+                }
+            } else {
+                _rPressedLast = false;
+            }
+
+            // K key: Quick Save Map to assets/maps/hammer_export.labmap
+            if (Input::isKeyPressed('K') || Input::isKeyPressed('k')) {
+                if (!_kPressedLast) {
+                    _hammerEditor.saveMap(*_currentMap, "assets/maps/hammer_export.labmap");
+                    _kPressedLast = true;
+                }
+            } else {
+                _kPressedLast = false;
+            }
+
+            // Backspace / Delete: Delete last placed brush
+            if (Input::isKeyPressed(259)) { // GLFW_KEY_BACKSPACE
+                if (!_backspacePressedLast) {
+                    _hammerEditor.deleteLast(*_currentMap);
+                    _backspacePressedLast = true;
+                }
+            } else {
+                _backspacePressedLast = false;
+            }
+        }
 
         // F3 Debug Mode Toggle
         if (Input::isKeyPressed(292)) { // GLFW_KEY_F3
@@ -312,26 +400,26 @@ public:
 
     void drawUI() {
         int w = 1280, h = 720;
-        Renderer::beginUI(w, h);
 
-        // Simple crosshair
-        float size = 4.0f;
-        float centerX = w / 2.0f;
-        float centerY = h / 2.0f;
-        Renderer::drawRect(centerX - size, centerY - 1.0f, size * 2, 2.0f, { 1, 1, 1 });
-        Renderer::drawRect(centerX - 1.0f, centerY - size, 2.0f, size * 2, { 1, 1, 1 });
+        // Half-Life 2 Inspired Amber & Cyan HUD (when not in editor mode)
+        if (!_hammerEditor.active) {
+            _hud.render(w, h);
+        } else {
+            // Lab Hammer Editor UI toolbar & status overlay
+            _hammerEditor.drawUI(w, h);
+        }
 
         // Debug mode overlay (F3)
         if (_debugMode) {
+            Renderer::beginUI(w, h);
             Renderer::drawRect(10.0f, 10.0f, 220.0f, 25.0f, { 0.1f, 0.1f, 0.15f });
             Renderer::drawRect(12.0f, 12.0f, 216.0f, 21.0f, { 0.2f, 0.8f, 0.2f });
 
             float speedMag = std::sqrt(_velocity.x * _velocity.x + _velocity.z * _velocity.z);
             Renderer::drawRect(10.0f, 40.0f, speedMag * 20.0f, 8.0f, { 0.2f, 0.6f, 1.0f });
             Renderer::drawRect(10.0f, 52.0f, 15.0f, 15.0f, _isGrounded ? Vec3(0.1f, 1.0f, 0.2f) : Vec3(1.0f, 0.2f, 0.1f));
+            Renderer::endUI();
         }
-
-        Renderer::endUI();
     }
 
     void onRender() override {
@@ -382,8 +470,14 @@ public:
             Renderer::drawCube(botPos + Vec3(0.16f, 0.5f, -legSwing), _patrolBot.rotation, Vec3(0.12f, 0.8f, 0.15f), Vec3(0.15f, 0.15f, 0.18f));
         }
 
-        // Viewmodel and HUD
-        drawWeapon();
+        // Lab Hammer Editor 3D Ghost/Grid Overlay
+        _hammerEditor.draw3DOverlay();
+
+        // Viewmodel (only drawn when not in Hammer Editor mode)
+        if (!_hammerEditor.active) {
+            drawWeapon();
+        }
+
         drawUI();
 
         Renderer::endFrame();
@@ -417,6 +511,15 @@ private:
     AnimatedBot _patrolBot;
     SkeletalAnimation _botAnim;
     float _muzzleFlashTime;
+
+    // Hammer Editor & HUD
+    LabHammerEditor _hammerEditor;
+    LabHUD _hud;
+    bool _f2PressedLast = false;
+    bool _ePressedLast = false;
+    bool _rPressedLast = false;
+    bool _kPressedLast = false;
+    bool _backspacePressedLast = false;
 
     // Debug mode
     bool _debugMode = false;

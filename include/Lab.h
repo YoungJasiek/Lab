@@ -5,3 +5,5 @@
 #include "LabRenderer.h"
 #include "LabMap.h"
 #include "LabAnim.h"
+#include "LabEditor.h"
+#include "LabHUD.h"
