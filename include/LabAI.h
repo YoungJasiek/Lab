@@ -48,6 +48,8 @@ namespace Lab {
         int kills = 0;
         int deaths = 0;
         float respawnTimer = 0.0f;
+        float strafeTimer = 0.0f;
+        int strafeDirection = 1; // -1 = Left, +1 = Right
 
         CombatBot() = default;
         CombatBot(int botId, const std::string& botName, const Vec3& spawnPos, const Vec3& pEnd, int botTeam = -1);
@@ -65,13 +67,22 @@ namespace Lab {
         void render() const;
     };
 
+    class PickupManager;
+    class LabChat;
+
     class AIManager {
     public:
         std::vector<CombatBot> bots;
 
         void clear() { bots.clear(); }
         void spawnBotsForMap(const std::string& mapName, int count, GameMode mode);
-        void update(float dt, const Vec3& playerPos, const LabMap& map, std::vector<BulletTracer>& outTracers, float& outDamageToPlayer);
+        void update(float dt, const Vec3& playerPos, bool isPlayerAlive, int playerTeam,
+                    const LabMap& map, std::vector<BulletTracer>& outTracers, float& outDamageToPlayer,
+                    PickupManager* pickupMgr = nullptr, LabChat* chat = nullptr);
+        void update(float dt, const Vec3& playerPos, const LabMap& map,
+                    std::vector<BulletTracer>& outTracers, float& outDamageToPlayer) {
+            update(dt, playerPos, true, -1, map, outTracers, outDamageToPlayer, nullptr, nullptr);
+        }
         bool testRaycast(const Vec3& rayOrigin, const Vec3& rayDir, RaycastHit& outHit, int excludeBotId = -1);
         void render() const;
     };

@@ -1,5 +1,8 @@
 #include "LabAI.h"
 #include "LabRenderer.h"
+#include "LabCollision.h"
+#include "LabPickups.h"
+#include "LabChat.h"
 #include <cmath>
 #include <algorithm>
 
@@ -77,38 +80,60 @@ namespace Lab {
             float targetYaw = std::atan2(vecToPlayer.x, vecToPlayer.z) * 180.0f / 3.14159265f;
             rotation.y = targetYaw;
 
-            if (distToPlayer > attackRange) {
+            // Tactical movement cycle: update strafe direction
+            strafeTimer -= dt;
+            if (strafeTimer <= 0.0f) {
+                strafeTimer = 1.2f + static_cast<float>(rand() % 15) * 0.1f;
+                strafeDirection = (rand() % 2 == 0) ? 1 : -1;
+            }
+
+            Vec3 forward = Vec3(vecToPlayer.x, 0.0f, vecToPlayer.z).normalized();
+            Vec3 right = Vec3(forward.z, 0.0f, -forward.x);
+
+            Vec3 moveVel{ 0.0f, 0.0f, 0.0f };
+            if (distToPlayer > 8.0f) {
                 state = AIState::Chase;
-                Vec3 moveDir = Vec3(vecToPlayer.x, 0.0f, vecToPlayer.z).normalized();
-                position = position + (moveDir * (moveSpeed * dt));
-                walkCycle += dt * 8.0f;
+                moveVel = forward * (moveSpeed * 1.0f) + right * (static_cast<float>(strafeDirection) * moveSpeed * 0.45f);
+            } else if (distToPlayer > 3.5f) {
+                state = AIState::Attack;
+                moveVel = forward * (moveSpeed * 0.35f) + right * (static_cast<float>(strafeDirection) * moveSpeed * 0.85f);
             } else {
                 state = AIState::Attack;
-                shootCooldown -= dt;
-                if (shootCooldown <= 0.0f) {
-                    shootCooldown = shootInterval;
-                    muzzleFlashTimer = 0.08f;
+                moveVel = -forward * (moveSpeed * 0.75f) + right * (static_cast<float>(strafeDirection) * moveSpeed * 0.6f);
+            }
 
-                    // Bullet tracer from bot weapon muzzle
-                    Vec3 gunMuzzle = position + Vec3(0.2f, 1.15f, 0.3f);
-                    bool hit = (rand() % 100) < 70; // 70% accuracy
+            auto solidBoxes = LabCollision::getMapSolidBoxes(map);
+            Vec3 nextPos = position;
+            Vec3 tempVel = moveVel;
+            bool grounded = true;
+            LabCollision::moveAndSlide(nextPos, tempVel, grounded, dt, solidBoxes, 1.6f, 0.35f, 1.8f);
+            position = nextPos;
+            walkCycle += dt * 8.0f;
 
-                    Vec3 tracerEnd = playerTargetPos;
-                    if (!hit) {
-                        float missOffset = ((rand() % 100) / 50.0f - 1.0f) * 1.5f;
-                        tracerEnd = tracerEnd + Vec3(missOffset, missOffset * 0.5f, -missOffset);
-                    } else {
-                        outDamageToPlayer += 14.0f; // Deal 14 damage to player
-                    }
+            // Combat weapons firing
+            shootCooldown -= dt;
+            if (shootCooldown <= 0.0f) {
+                shootCooldown = shootInterval;
+                muzzleFlashTimer = 0.08f;
 
-                    BulletTracer tr;
-                    tr.start = gunMuzzle;
-                    tr.end = tracerEnd;
-                    tr.color = Vec3(1.0f, 0.35f, 0.2f); // Red/Orange enemy tracer
-                    tr.lifetime = 0.0f;
-                    tr.maxLifetime = 0.09f;
-                    outTracers.push_back(tr);
+                Vec3 gunMuzzle = position + Vec3(0.2f, 1.15f, 0.3f);
+                bool hit = (rand() % 100) < 68;
+                Vec3 tracerEnd = playerTargetPos;
+                if (!hit) {
+                    float missOffset = ((rand() % 100) / 50.0f - 1.0f) * 1.2f;
+                    tracerEnd = tracerEnd + Vec3(missOffset, missOffset * 0.5f, -missOffset);
+                } else {
+                    outDamageToPlayer += 14.0f;
                 }
+
+                BulletTracer tr;
+                tr.start = gunMuzzle;
+                tr.end = tracerEnd;
+                tr.color = Vec3(1.0f, 0.35f, 0.2f);
+                tr.lifetime = 0.0f;
+                tr.maxLifetime = 0.09f;
+                tr.thickness = 0.035f;
+                outTracers.push_back(tr);
             }
         } else {
             // Return to / continue patrol
@@ -237,10 +262,196 @@ namespace Lab {
         }
     }
 
-    void AIManager::update(float dt, const Vec3& playerPos, const LabMap& map,
-                           std::vector<BulletTracer>& outTracers, float& outDamageToPlayer) {
-        for (auto& bot : bots) {
-            bot.update(dt, playerPos, map, outTracers, outDamageToPlayer);
+    void AIManager::update(float dt, const Vec3& playerPos, bool isPlayerAlive, int playerTeam,
+                           const LabMap& map, std::vector<BulletTracer>& outTracers, float& outDamageToPlayer,
+                           PickupManager* pickupMgr, LabChat* chat) {
+        auto solidBoxes = LabCollision::getMapSolidBoxes(map);
+
+        for (size_t i = 0; i < bots.size(); ++i) {
+            auto& bot = bots[i];
+            if (!bot.isAlive()) {
+                bot.deathTimer += dt;
+                bot.respawnTimer -= dt;
+                if (bot.respawnTimer <= 0.0f) {
+                    bot.state = AIState::Patrol;
+                    bot.health = bot.maxHealth;
+                    bot.position = bot.patrolStart;
+                    bot.rotation.x = 0.0f;
+                    bot.patrolT = 0.0f;
+                    bot.patrolDir = 1;
+                    bot.shootCooldown = bot.shootInterval;
+                    bot.hurtTimer = 0.0f;
+                    bot.muzzleFlashTimer = 0.0f;
+                }
+                continue;
+            }
+
+            if (bot.hurtTimer > 0.0f) bot.hurtTimer -= dt;
+            if (bot.muzzleFlashTimer > 0.0f) bot.muzzleFlashTimer -= dt;
+
+            // ==================== MULTI-TARGET SELECTION ====================
+            // Find closest visible enemy (either the player or another enemy bot)
+            float bestDist = 1e9f;
+            Vec3 bestTargetPos{ 0.0f, 0.0f, 0.0f };
+            bool targetIsPlayer = false;
+            int targetBotIdx = -1;
+
+            Vec3 botEye = bot.position + Vec3(0.0f, 1.6f, 0.0f);
+
+            // 1. Evaluate Player
+            if (isPlayerAlive && (playerTeam == -1 || playerTeam != bot.team)) {
+                Vec3 toPlayer = playerPos - bot.position;
+                float d = toPlayer.length();
+                if (d <= bot.sightRange) {
+                    Vec3 playerEye = playerPos + Vec3(0.0f, 0.8f, 0.0f);
+                    if (CombatBot::hasLineOfSight(botEye, playerEye, map)) {
+                        bestDist = d;
+                        bestTargetPos = playerPos;
+                        targetIsPlayer = true;
+                    }
+                }
+            }
+
+            // 2. Evaluate other Bots (FFA: all other bots; TDM: opposing team bots)
+            for (size_t j = 0; j < bots.size(); ++j) {
+                if (i == j || !bots[j].isAlive()) continue;
+                if (bot.team != -1 && bot.team == bots[j].team) continue; // Teammate in TDM
+
+                Vec3 toBot = bots[j].position - bot.position;
+                float d = toBot.length();
+                if (d <= bot.sightRange && d < bestDist) {
+                    Vec3 targetBotEye = bots[j].position + Vec3(0.0f, 1.6f, 0.0f);
+                    if (CombatBot::hasLineOfSight(botEye, targetBotEye, map)) {
+                        bestDist = d;
+                        bestTargetPos = bots[j].position;
+                        targetIsPlayer = false;
+                        targetBotIdx = static_cast<int>(j);
+                    }
+                }
+            }
+
+            // ==================== TACTICAL COMBAT ENGAGEMENT ====================
+            if (bestDist < 1e8f) {
+                Vec3 vecToTarget = bestTargetPos - bot.position;
+                float dist = vecToTarget.length();
+
+                // Turn to face target
+                float targetYaw = std::atan2(vecToTarget.x, vecToTarget.z) * 180.0f / 3.14159265f;
+                bot.rotation.y = targetYaw;
+
+                // Update strafe cycle timer
+                bot.strafeTimer -= dt;
+                if (bot.strafeTimer <= 0.0f) {
+                    bot.strafeTimer = 1.2f + static_cast<float>(rand() % 15) * 0.1f;
+                    bot.strafeDirection = (rand() % 2 == 0) ? 1 : -1;
+                }
+
+                Vec3 forward = Vec3(vecToTarget.x, 0.0f, vecToTarget.z).normalized();
+                Vec3 right = Vec3(forward.z, 0.0f, -forward.x);
+
+                // Tactical Movement velocity: Push, Circle, or Backpedal
+                Vec3 moveVel{ 0.0f, 0.0f, 0.0f };
+                if (dist > 8.0f) {
+                    // Aggressive advance while strafing
+                    bot.state = AIState::Chase;
+                    moveVel = forward * (bot.moveSpeed * 1.0f) + right * (static_cast<float>(bot.strafeDirection) * bot.moveSpeed * 0.45f);
+                } else if (dist > 3.5f) {
+                    // Mid-range combat: actively circle and strafe with light forward press
+                    bot.state = AIState::Attack;
+                    moveVel = forward * (bot.moveSpeed * 0.35f) + right * (static_cast<float>(bot.strafeDirection) * bot.moveSpeed * 0.85f);
+                } else {
+                    // Too close: backpedal and evasive strafe
+                    bot.state = AIState::Attack;
+                    moveVel = -forward * (bot.moveSpeed * 0.75f) + right * (static_cast<float>(bot.strafeDirection) * bot.moveSpeed * 0.6f);
+                }
+
+                // Apply movement with wall sliding collision
+                Vec3 nextPos = bot.position;
+                Vec3 tempVel = moveVel;
+                bool grounded = true;
+                LabCollision::moveAndSlide(nextPos, tempVel, grounded, dt, solidBoxes, 1.6f, 0.35f, 1.8f);
+                bot.position = nextPos;
+                bot.walkCycle += dt * 8.0f;
+
+                // ==================== WEAPONS FIRING ====================
+                bot.shootCooldown -= dt;
+                if (bot.shootCooldown <= 0.0f) {
+                    bot.shootCooldown = bot.shootInterval;
+                    bot.muzzleFlashTimer = 0.08f;
+                    Vec3 gunMuzzle = bot.position + Vec3(0.2f, 1.15f, 0.3f);
+                    bool hit = (rand() % 100) < 68;
+
+                    if (targetIsPlayer) {
+                        Vec3 targetHitPos = playerPos + Vec3(0.0f, 0.8f, 0.0f);
+                        if (!hit) {
+                            float miss = ((rand() % 100) / 50.0f - 1.0f) * 1.2f;
+                            targetHitPos = targetHitPos + Vec3(miss, miss * 0.5f, -miss);
+                        } else {
+                            outDamageToPlayer += 14.0f;
+                        }
+
+                        BulletTracer tr;
+                        tr.start = gunMuzzle;
+                        tr.end = targetHitPos;
+                        tr.color = Vec3(1.0f, 0.35f, 0.2f);
+                        tr.lifetime = 0.0f;
+                        tr.maxLifetime = 0.09f;
+                        tr.thickness = 0.035f;
+                        outTracers.push_back(tr);
+                    } else if (targetBotIdx >= 0 && targetBotIdx < (int)bots.size()) {
+                        Vec3 targetHitPos = bots[targetBotIdx].position + Vec3(0.0f, 1.1f, 0.0f);
+                        if (!hit) {
+                            float miss = ((rand() % 100) / 50.0f - 1.0f) * 1.2f;
+                            targetHitPos = targetHitPos + Vec3(miss, miss * 0.5f, -miss);
+                        } else {
+                            bool isHeadshot = (rand() % 100) < 25;
+                            float dmg = isHeadshot ? 50.0f : 25.0f;
+                            bool killed = bots[targetBotIdx].takeDamage(dmg, isHeadshot);
+
+                            if (killed) {
+                                bot.kills++;
+                                if (chat) {
+                                    chat->addMessage("[SERVER]", bot.name + " eliminated " + bots[targetBotIdx].name, Vec3(0.85f, 0.45f, 0.2f));
+                                }
+                                if (pickupMgr) {
+                                    pickupMgr->spawnPickup(PickupType::Ammo, bots[targetBotIdx].position + Vec3(0.0f, 0.35f, 0.0f), 36);
+                                    if ((rand() % 100) < 50) {
+                                        pickupMgr->spawnPickup(PickupType::Medkit, bots[targetBotIdx].position + Vec3(0.3f, 0.35f, -0.3f), 50);
+                                    }
+                                }
+                            }
+                        }
+
+                        BulletTracer tr;
+                        tr.start = gunMuzzle;
+                        tr.end = targetHitPos;
+                        tr.color = (bot.team == 0) ? Vec3(1.0f, 0.3f, 0.2f) : Vec3(0.2f, 0.6f, 1.0f);
+                        tr.lifetime = 0.0f;
+                        tr.maxLifetime = 0.09f;
+                        tr.thickness = 0.035f;
+                        outTracers.push_back(tr);
+                    }
+                }
+            } else {
+                // ==================== PATROL NAVIGATION ====================
+                bot.state = AIState::Patrol;
+                float pathLen = (bot.patrolEnd - bot.patrolStart).length();
+                if (pathLen > 0.5f) {
+                    bot.patrolT += bot.patrolDir * (bot.moveSpeed / pathLen) * dt;
+                    if (bot.patrolT >= 1.0f) {
+                        bot.patrolT = 1.0f;
+                        bot.patrolDir = -1;
+                    } else if (bot.patrolT <= 0.0f) {
+                        bot.patrolT = 0.0f;
+                        bot.patrolDir = 1;
+                    }
+                    bot.position = bot.patrolStart * (1.0f - bot.patrolT) + bot.patrolEnd * bot.patrolT;
+                    bot.walkCycle += dt * 6.0f;
+
+                    Vec3 dir = (bot.patrolDir > 0) ? (bot.patrolEnd - bot.patrolStart) : (bot.patrolStart - bot.patrolEnd);
+                    bot.rotation.y = std::atan2(dir.x, dir.z) * 180.0f / 3.14159265f;
+                }
+            }
         }
     }
 

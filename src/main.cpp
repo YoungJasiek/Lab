@@ -467,7 +467,8 @@ public:
         // ==================== COMBAT AI BOTS UPDATE & RETALIATION ====================
         float botDamageToPlayer = 0.0f;
         if (_currentMap) {
-            _aiManager.update(time.delta, _camera.getPosition(), *_currentMap, _tracers, botDamageToPlayer);
+            int pTeam = (_sessionConfig.mode == GameMode::TDM) ? 1 : -1;
+            _aiManager.update(time.delta, _camera.getPosition(), !_isPlayerDead, pTeam, *_currentMap, _tracers, botDamageToPlayer, &_pickups, &_chat);
         }
 
         if (botDamageToPlayer > 0.0f) {
