@@ -72,6 +72,9 @@ namespace Lab {
             return;
         }
 
+        // Enable VSync (caps framerate to monitor refresh rate, prevents 100% GPU utilization)
+        glfwSwapInterval(1);
+
         // Callbacks
         glfwSetKeyCallback(_window, _keyCallback);
         glfwSetMouseButtonCallback(_window, _mouseButtonCallback);
@@ -157,8 +160,8 @@ namespace Lab {
                 _instance->_firstMouse = false;
             }
 
-            Input::mouseDelta.x = (float)xpos - _instance->_lastMousePos.x;
-            Input::mouseDelta.y = (float)ypos - _instance->_lastMousePos.y;
+            Input::mouseDelta.x += (float)xpos - _instance->_lastMousePos.x;
+            Input::mouseDelta.y += (float)ypos - _instance->_lastMousePos.y;
             _instance->_lastMousePos.x = (float)xpos;
             _instance->_lastMousePos.y = (float)ypos;
 

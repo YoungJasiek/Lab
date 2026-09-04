@@ -36,9 +36,13 @@ public:
         SkeletalAnimation::loadGLTFAnimation("assets/animations/bot_walk.gltf", _botAnim);
         _patrolBot.position = Vec3(0.0f, 0.0f, -6.0f);
 
-        // Start in Map Selection Menu
-        _inMenu = true;
-        glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        // Load primary default map immediately so gameplay begins instantly
+        if (!_availableMaps.empty()) {
+            loadSelectedMap(_availableMaps[0]);
+        } else {
+            _inMenu = true;
+            glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        }
     }
 
     void scanMapFiles() {

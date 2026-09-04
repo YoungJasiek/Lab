@@ -63,9 +63,20 @@ add_executable(Lab src/main.cpp)
 target_compile_options(Lab PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(Lab PRIVATE LabEngineLib)
 
+# Standalone Hammer Map Editor executable
+add_executable(LabHammer src/editor_main.cpp)
+target_compile_options(LabHammer PRIVATE ${COMPILER_FLAGS})
+target_link_libraries(LabHammer PRIVATE LabEngineLib)
+
 # Automatically copy entire assets directory into output directory
 add_custom_command(TARGET Lab POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_SOURCE_DIR}/assets"
         "$<TARGET_FILE_DIR:Lab>/assets"
+)
+
+add_custom_command(TARGET LabHammer POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets"
+        "$<TARGET_FILE_DIR:LabHammer>/assets"
 )
