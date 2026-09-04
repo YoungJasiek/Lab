@@ -74,6 +74,18 @@ namespace Lab {
             } else if (currentSection == "ENTITIES") {
                 if (token == "spawn") {
                     ss >> map->spawn.position.x >> map->spawn.position.y >> map->spawn.position.z >> map->spawn.yaw;
+                } else if (token == "spawn_point") {
+                    MapSpawnPoint sp;
+                    std::string typeStr;
+                    ss >> sp.entityClass >> sp.position.x >> sp.position.y >> sp.position.z >> sp.yaw >> typeStr;
+                    if (typeStr == "team_alpha" || typeStr == "1" || sp.entityClass == "info_player_team1") {
+                        sp.type = SpawnType::TeamAlpha;
+                    } else if (typeStr == "team_beta" || typeStr == "2" || sp.entityClass == "info_player_team2") {
+                        sp.type = SpawnType::TeamBeta;
+                    } else {
+                        sp.type = SpawnType::FFA;
+                    }
+                    map->spawnPoints.push_back(sp);
                 } else if (token == "brush") {
                     MapBrush b;
                     ss >> b.type >> b.position.x >> b.position.y >> b.position.z
@@ -108,9 +120,92 @@ namespace Lab {
             }
         }
 
-        LabLog::info("Loaded .LABMAP: " + map->metadata.name + " (" + std::to_string(map->brushes.size()) + " brushes, " +
-                     std::to_string(map->props.size()) + " props, " + std::to_string(map->doors.size()) + " doors)");
+        if (map->spawnPoints.empty()) {
+            MapSpawnPoint defaultSp;
+            defaultSp.entityClass = "info_player_deathmatch";
+            defaultSp.position = map->spawn.position;
+            defaultSp.yaw = map->spawn.yaw;
+            defaultSp.type = SpawnType::FFA;
+            map->spawnPoints.push_back(defaultSp);
+        } else {
+            map->spawn.position = map->spawnPoints[0].position;
+            map->spawn.yaw = map->spawnPoints[0].yaw;
+        }
+
+        LabLog::info("Loaded .LABMAP: " + map->metadata.name + " (" +
+                     std::to_string(map->spawnPoints.size()) + " spawns, " +
+                     std::to_string(map->brushes.size()) + " brushes, " +
+                     std::to_string(map->props.size()) + " props, " +
+                     std::to_string(map->doors.size()) + " doors)");
         return map;
+    }
+
+    std::vector<MapSpawnPoint> LabMap::getSpawnsForTeam(GameMode mode, int team) const {
+        std::vector<MapSpawnPoint> result;
+        if (mode == GameMode::TDM) {
+            // Team 1 = Blue / Alpha, Team 0 = Red / Beta
+            SpawnType targetType = (team == 1) ? SpawnType::TeamAlpha : SpawnType::TeamBeta;
+            for (const auto& sp : spawnPoints) {
+                if (sp.type == targetType) result.push_back(sp);
+            }
+            // Fallback to FFA spawns if this team has none defined
+            if (result.empty()) {
+                for (const auto& sp : spawnPoints) {
+                    if (sp.type == SpawnType::FFA) result.push_back(sp);
+                }
+            }
+        } else {
+            // FFA / DM: return neutral FFA spawns
+            for (const auto& sp : spawnPoints) {
+                if (sp.type == SpawnType::FFA) result.push_back(sp);
+            }
+            // Fallback to all available spawns if none tagged explicitly FFA
+            if (result.empty()) {
+                result = spawnPoints;
+            }
+        }
+        if (result.empty()) {
+            MapSpawnPoint fallback;
+            fallback.position = spawn.position;
+            fallback.yaw = spawn.yaw;
+            fallback.type = SpawnType::FFA;
+            result.push_back(fallback);
+        }
+        return result;
+    }
+
+    MapSpawnPoint LabMap::selectBestSpawn(GameMode mode, int team, const std::vector<Vec3>& enemyPositions) const {
+        auto candidates = getSpawnsForTeam(mode, team);
+        if (candidates.empty()) {
+            MapSpawnPoint fallback;
+            fallback.position = spawn.position;
+            fallback.yaw = spawn.yaw;
+            return fallback;
+        }
+        if (candidates.size() == 1 || enemyPositions.empty()) {
+            int idx = rand() % (int)candidates.size();
+            return candidates[idx];
+        }
+
+        // Smart anti-spawncamp: pick spawn with maximum minimum distance to all active enemies
+        float bestMinDistSq = -1.0f;
+        int bestIdx = 0;
+
+        for (int i = 0; i < (int)candidates.size(); ++i) {
+            float minDistSq = 1e9f;
+            for (const auto& enemy : enemyPositions) {
+                float dSq = (candidates[i].position - enemy).lengthSq();
+                if (dSq < minDistSq) {
+                    minDistSq = dSq;
+                }
+            }
+            if (minDistSq > bestMinDistSq) {
+                bestMinDistSq = minDistSq;
+                bestIdx = i;
+            }
+        }
+
+        return candidates[bestIdx];
     }
 
     bool LabMap::saveToFile(const std::string& filePath) const {
@@ -130,6 +225,14 @@ namespace Lab {
 
         file << "ENTITIES\n";
         file << "    spawn " << spawn.position.x << " " << spawn.position.y << " " << spawn.position.z << " " << spawn.yaw << "\n";
+
+        for (const auto& sp : spawnPoints) {
+            std::string typeStr = (sp.type == SpawnType::TeamAlpha) ? "team_alpha" :
+                                  (sp.type == SpawnType::TeamBeta)  ? "team_beta"  : "ffa";
+            file << "    spawn_point " << sp.entityClass << " "
+                 << sp.position.x << " " << sp.position.y << " " << sp.position.z << " "
+                 << sp.yaw << " " << typeStr << "\n";
+        }
 
         for (const auto& b : brushes) {
             file << "    brush " << b.type << " "

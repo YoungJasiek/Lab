@@ -99,8 +99,10 @@ public:
                 _currentMap->metadata.ambientColor
             );
 
-            // Set player spawn
-            _camera.setPosition(_currentMap->spawn.position);
+            // Set player spawn according to current mode & team
+            int pTeam = (_sessionConfig.mode == GameMode::TDM) ? 1 : -1;
+            MapSpawnPoint sp = _currentMap->selectBestSpawn(_sessionConfig.mode, pTeam);
+            _camera.setPosition(sp.position);
             _velocity = { 0, 0, 0 };
 
             // Preload props and meshes
@@ -168,7 +170,7 @@ public:
         _chat.addMessage("[SYSTEM]", "Hold [TAB] for scoreboard, press [Y] for chat, [R] to reload", Vec3(1.0f, 0.9f, 0.3f));
 
         if (_sessionConfig.enableBots && _sessionConfig.botCount > 0) {
-            _aiManager.spawnBotsForMap(_sessionConfig.mapPath, _sessionConfig.botCount, _sessionConfig.mode);
+            _aiManager.spawnBotsForMap(_currentMap.get(), _sessionConfig.botCount, _sessionConfig.mode);
             _hud.showCombatMessage("MATCH HOSTED: " + _sessionConfig.getModeString() + " WITH " + std::to_string(_sessionConfig.botCount) + " BOTS", 3.0f);
         } else {
             _aiManager.clear();
@@ -312,11 +314,17 @@ public:
                 _hud.ammoClip = 18;
                 _hud.ammoReserve = 144;
                 if (_currentMap) {
-                    _camera.setPosition(_currentMap->spawn.position);
+                    std::vector<Vec3> enemies;
+                    for (const auto& b : _aiManager.bots) {
+                        if (b.isAlive()) enemies.push_back(b.position);
+                    }
+                    int pTeam = (_sessionConfig.mode == GameMode::TDM) ? 1 : -1;
+                    MapSpawnPoint sp = _currentMap->selectBestSpawn(_sessionConfig.mode, pTeam, enemies);
+                    _camera.setPosition(sp.position);
                     _velocity = { 0, 0, 0 };
                 }
-                _chat.addMessage("[SERVER]", "Player respawned at base!", Vec3(0.3f, 0.85f, 1.0f));
-                _hud.showCombatMessage("RESPAWNED AT BASE - READY FOR COMBAT!", 2.5f);
+                _chat.addMessage("[SERVER]", "Player respawned at designated base!", Vec3(0.3f, 0.85f, 1.0f));
+                _hud.showCombatMessage("RESPAWNED - READY FOR COMBAT!", 2.5f);
             }
             return;
         }

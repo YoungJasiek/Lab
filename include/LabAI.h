@@ -75,6 +75,7 @@ namespace Lab {
         std::vector<CombatBot> bots;
 
         void clear() { bots.clear(); }
+        void spawnBotsForMap(const LabMap* map, int count, GameMode mode);
         void spawnBotsForMap(const std::string& mapName, int count, GameMode mode);
         void update(float dt, const Vec3& playerPos, bool isPlayerAlive, int playerTeam,
                     const LabMap& map, std::vector<BulletTracer>& outTracers, float& outDamageToPlayer,

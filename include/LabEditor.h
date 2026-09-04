@@ -11,7 +11,8 @@ namespace Lab {
 
     enum class SidebarTab {
         Properties,
-        Hierarchy
+        Hierarchy,
+        Prebuilts
     };
 
     struct SidebarLayout {
@@ -23,6 +24,7 @@ namespace Lab {
         // Tabs
         float tabPropX, tabPropY, tabPropW, tabPropH;
         float tabOutX, tabOutY, tabOutW, tabOutH;
+        float tabPreX, tabPreY, tabPreW, tabPreH;
 
         // Outliner
         float outListX, outListY, outListW, outListH;
@@ -48,21 +50,27 @@ namespace Lab {
 
     inline SidebarLayout getSidebarLayout(float w, float h) {
         SidebarLayout l;
-        l.rightW = 300.0f;
+        l.rightW = 320.0f;
         l.rightX = w - l.rightW;
         l.rightY = 58.0f;
         l.rightH = h - l.rightY - 22.0f;
 
-        // Tabs
-        l.tabPropX = l.rightX + 10.0f;
+        // Tabs (Properties, Struktura, Prebuilty)
+        float tabW = 96.0f;
+        l.tabPropX = l.rightX + 8.0f;
         l.tabPropY = l.rightY + 6.0f;
-        l.tabPropW = 135.0f;
+        l.tabPropW = tabW;
         l.tabPropH = 26.0f;
 
-        l.tabOutX = l.rightX + 150.0f;
+        l.tabOutX = l.tabPropX + tabW + 6.0f;
         l.tabOutY = l.rightY + 6.0f;
-        l.tabOutW = 135.0f;
+        l.tabOutW = tabW;
         l.tabOutH = 26.0f;
+
+        l.tabPreX = l.tabOutX + tabW + 6.0f;
+        l.tabPreY = l.rightY + 6.0f;
+        l.tabPreW = tabW;
+        l.tabPreH = 26.0f;
 
         // Outliner
         l.outListX = l.rightX + 10.0f;

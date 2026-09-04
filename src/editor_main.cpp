@@ -539,15 +539,16 @@ public:
             }
         }
 
-        // Test Spawn
-        {
-            Vec3 half(0.5f, 0.9f, 0.5f);
+        // Test Spawns
+        for (size_t i = 0; i < _map->spawnPoints.size(); ++i) {
+            const auto& sp = _map->spawnPoints[i];
+            Vec3 half(0.6f, 0.9f, 0.6f);
             float t = 0;
-            if (rayIntersectAABB(rayOrigin, rayDir, _map->spawn.position - half, _map->spawn.position + half, t)) {
+            if (rayIntersectAABB(rayOrigin, rayDir, sp.position - half, sp.position + half, t)) {
                 if (t < closestT) {
                     closestT = t;
                     hitType = SelectionType::Spawn;
-                    hitIndex = 0;
+                    hitIndex = (int)i;
                 }
             }
         }
@@ -580,7 +581,7 @@ public:
             } else if (_selectionType == SelectionType::Door) {
                 logMessage("Selected Door #" + std::to_string(hitIndex) + " (" + _map->doors[hitIndex].name + ")");
             } else if (_selectionType == SelectionType::Spawn) {
-                logMessage("Selected Player Spawn");
+                logMessage("Selected " + _map->spawnPoints[hitIndex].getDisplayName() + " #" + std::to_string(hitIndex));
             } else {
                 logMessage("Deselected all");
             }
@@ -595,8 +596,9 @@ public:
             _map->props[_selectedIndex].position += Vec3(dx, dy, dz);
         } else if (_selectionType == SelectionType::Door && _selectedIndex >= 0 && _selectedIndex < (int)_map->doors.size()) {
             _map->doors[_selectedIndex].position += Vec3(dx, dy, dz);
-        } else if (_selectionType == SelectionType::Spawn) {
-            _map->spawn.position += Vec3(dx, dy, dz);
+        } else if (_selectionType == SelectionType::Spawn && _selectedIndex >= 0 && _selectedIndex < (int)_map->spawnPoints.size()) {
+            _map->spawnPoints[_selectedIndex].position += Vec3(dx, dy, dz);
+            _map->spawn.position = _map->spawnPoints[0].position;
         }
     }
 
@@ -642,6 +644,13 @@ public:
             _map->doors.push_back(d);
             _selectedIndex = (int)_map->doors.size() - 1;
             logMessage("Duplicated Door to #" + std::to_string(_selectedIndex));
+        } else if (_selectionType == SelectionType::Spawn && _selectedIndex >= 0 && _selectedIndex < (int)_map->spawnPoints.size()) {
+            MapSpawnPoint sp = _map->spawnPoints[_selectedIndex];
+            sp.position.x += _gridSnap;
+            sp.position.z += _gridSnap;
+            _map->spawnPoints.push_back(sp);
+            _selectedIndex = (int)_map->spawnPoints.size() - 1;
+            logMessage("Duplicated " + sp.getDisplayName() + " to #" + std::to_string(_selectedIndex));
         }
     }
 
@@ -662,6 +671,15 @@ public:
             logMessage("Deleted Door #" + std::to_string(_selectedIndex));
             _selectionType = SelectionType::None;
             _selectedIndex = -1;
+        } else if (_selectionType == SelectionType::Spawn && _selectedIndex >= 0 && _selectedIndex < (int)_map->spawnPoints.size()) {
+            if (_map->spawnPoints.size() > 1) {
+                _map->spawnPoints.erase(_map->spawnPoints.begin() + _selectedIndex);
+                logMessage("Deleted Spawn Point #" + std::to_string(_selectedIndex));
+                _selectionType = SelectionType::None;
+                _selectedIndex = -1;
+            } else {
+                logMessage("Cannot delete the last remaining spawn point!");
+            }
         }
     }
 
@@ -673,11 +691,128 @@ public:
             targetPos = _map->props[_selectedIndex].position;
         } else if (_selectionType == SelectionType::Door && _selectedIndex >= 0 && _selectedIndex < (int)_map->doors.size()) {
             targetPos = _map->doors[_selectedIndex].position;
-        } else if (_selectionType == SelectionType::Spawn) {
-            targetPos = _map->spawn.position;
+        } else if (_selectionType == SelectionType::Spawn && _selectedIndex >= 0 && _selectedIndex < (int)_map->spawnPoints.size()) {
+            targetPos = _map->spawnPoints[_selectedIndex].position;
         }
         _camera.setPosition(targetPos - _camera.getFront() * 10.0f);
         logMessage("Focused Camera on selection at (" + std::to_string((int)targetPos.x) + ", " + std::to_string((int)targetPos.y) + ", " + std::to_string((int)targetPos.z) + ")");
+    }
+
+    void placePrebuilt(int prebuiltId) {
+        if (!_map) return;
+        switch (prebuiltId) {
+            case 0: { // Spawn: FFA / DM (Neutral)
+                MapSpawnPoint sp;
+                sp.entityClass = "info_player_deathmatch";
+                sp.position = _cursorPos;
+                sp.yaw = 0.0f;
+                sp.type = SpawnType::FFA;
+                _map->spawnPoints.push_back(sp);
+                _selectionType = SelectionType::Spawn;
+                _selectedIndex = (int)_map->spawnPoints.size() - 1;
+                logMessage("Placed Prebuilt: Spawn [FFA / DM] at (" + std::to_string((int)_cursorPos.x) + ", " + std::to_string((int)_cursorPos.z) + ")");
+                break;
+            }
+            case 1: { // Spawn: Team Alpha (Blue)
+                MapSpawnPoint sp;
+                sp.entityClass = "info_player_team1";
+                sp.position = _cursorPos;
+                sp.yaw = 0.0f;
+                sp.type = SpawnType::TeamAlpha;
+                _map->spawnPoints.push_back(sp);
+                _selectionType = SelectionType::Spawn;
+                _selectedIndex = (int)_map->spawnPoints.size() - 1;
+                logMessage("Placed Prebuilt: Spawn [Team Alpha - Blue HQ] at (" + std::to_string((int)_cursorPos.x) + ", " + std::to_string((int)_cursorPos.z) + ")");
+                break;
+            }
+            case 2: { // Spawn: Team Beta (Red)
+                MapSpawnPoint sp;
+                sp.entityClass = "info_player_team2";
+                sp.position = _cursorPos;
+                sp.yaw = 180.0f;
+                sp.type = SpawnType::TeamBeta;
+                _map->spawnPoints.push_back(sp);
+                _selectionType = SelectionType::Spawn;
+                _selectedIndex = (int)_map->spawnPoints.size() - 1;
+                logMessage("Placed Prebuilt: Spawn [Team Beta - Red HQ] at (" + std::to_string((int)_cursorPos.x) + ", " + std::to_string((int)_cursorPos.z) + ")");
+                break;
+            }
+            case 3: { // Prebuilt: Skrzynka Amunicji
+                MapBrush b;
+                b.type = "cube";
+                b.position = _cursorPos + Vec3(0, 0.25f, 0);
+                b.size = Vec3(0.8f, 0.5f, 0.5f);
+                b.color = Vec3(0.2f, 0.45f, 0.22f);
+                b.texturePath = "hazard_stripes.bmp";
+                b.uvScale = Vec2(0.5f, 0.5f);
+                b.uvMode = 1;
+                _map->brushes.push_back(b);
+                _selectionType = SelectionType::Brush;
+                _selectedIndex = (int)_map->brushes.size() - 1;
+                logMessage("Placed Prebuilt: Skrzynka Amunicji");
+                break;
+            }
+            case 4: { // Prebuilt: Apteczka Polowa
+                MapBrush b;
+                b.type = "cube";
+                b.position = _cursorPos + Vec3(0, 0.25f, 0);
+                b.size = Vec3(0.6f, 0.45f, 0.4f);
+                b.color = Vec3(0.95f, 0.95f, 0.95f);
+                b.texturePath = "";
+                b.uvScale = Vec2(1.0f, 1.0f);
+                b.uvMode = 1;
+                _map->brushes.push_back(b);
+                _selectionType = SelectionType::Brush;
+                _selectedIndex = (int)_map->brushes.size() - 1;
+                logMessage("Placed Prebuilt: Apteczka Polowa");
+                break;
+            }
+            case 5: { // Prebuilt: Barykada Taktyczna
+                MapBrush b;
+                b.type = "cube";
+                b.position = _cursorPos + Vec3(0, 0.6f, 0);
+                b.size = Vec3(3.0f, 1.2f, 0.6f);
+                b.color = Vec3(0.8f, 0.8f, 0.85f);
+                b.texturePath = "concrete_wall.bmp";
+                b.uvScale = Vec2(0.25f, 0.25f);
+                b.uvMode = 1;
+                _map->brushes.push_back(b);
+                _selectionType = SelectionType::Brush;
+                _selectedIndex = (int)_map->brushes.size() - 1;
+                logMessage("Placed Prebuilt: Barykada Taktyczna (3x1.2)");
+                break;
+            }
+            case 6: { // Prebuilt: Filar Betonowy
+                MapBrush b;
+                b.type = "cube";
+                b.position = _cursorPos + Vec3(0, 3.0f, 0);
+                b.size = Vec3(1.5f, 6.0f, 1.5f);
+                b.color = Vec3(0.7f, 0.75f, 0.8f);
+                b.texturePath = "concrete_wall.bmp";
+                b.uvScale = Vec2(0.25f, 0.25f);
+                b.uvMode = 1;
+                _map->brushes.push_back(b);
+                _selectionType = SelectionType::Brush;
+                _selectedIndex = (int)_map->brushes.size() - 1;
+                logMessage("Placed Prebuilt: Filar Betonowy (1.5x6)");
+                break;
+            }
+            case 7: { // Prebuilt: Brama Bezpieczenstwa
+                MapDoor d;
+                d.name = "security_gate_" + std::to_string(_map->doors.size());
+                d.position = _cursorPos + Vec3(0, 1.75f, 0);
+                d.size = Vec3(3.5f, 3.5f, 0.4f);
+                d.openOffset = Vec3(0.0f, 4.0f, 0.0f);
+                d.color = Vec3(0.25f, 0.35f, 0.45f);
+                d.openSpeed = 2.5f;
+                d.triggerRadius = 5.0f;
+                _map->doors.push_back(d);
+                _selectionType = SelectionType::Door;
+                _selectedIndex = (int)_map->doors.size() - 1;
+                logMessage("Placed Prebuilt: Brama Bezpieczenstwa (Drzwi)");
+                break;
+            }
+        }
     }
 
     void placeCurrentObject() {
@@ -720,10 +855,17 @@ public:
             _selectedIndex = (int)_map->doors.size() - 1;
             logMessage("Placed Dynamic Door #" + std::to_string(_selectedIndex));
         } else if (_activeTool == 5) { // Spawn Tool
-            _map->spawn.position = _cursorPos;
+            MapSpawnPoint sp;
+            sp.position = _cursorPos;
+            sp.yaw = 0.0f;
+            sp.type = _spawnToolType;
+            if (sp.type == SpawnType::TeamAlpha) sp.entityClass = "info_player_team1";
+            else if (sp.type == SpawnType::TeamBeta) sp.entityClass = "info_player_team2";
+            else sp.entityClass = "info_player_deathmatch";
+            _map->spawnPoints.push_back(sp);
             _selectionType = SelectionType::Spawn;
-            _selectedIndex = 0;
-            logMessage("Set Player Spawn to (" + std::to_string((int)_cursorPos.x) + ", " + std::to_string((int)_cursorPos.y) + ", " + std::to_string((int)_cursorPos.z) + ")");
+            _selectedIndex = (int)_map->spawnPoints.size() - 1;
+            logMessage("Placed " + sp.getDisplayName() + " #" + std::to_string(_selectedIndex) + " at (" + std::to_string((int)_cursorPos.x) + ", " + std::to_string((int)_cursorPos.z) + ")");
         }
     }
 
@@ -914,7 +1056,18 @@ public:
                         case 2: logMessage("Tool 2: Entity / Prop Tool (E to place model)"); break;
                         case 3: logMessage("Tool 3: Texture Tool (LMB apply, RMB pipette)"); break;
                         case 4: logMessage("Tool 4: Door Tool (E to place dynamic door)"); break;
-                        case 5: logMessage("Tool 5: Spawn Tool (E to place player spawn)"); break;
+                        case 5:
+                            if (_spawnToolType == SpawnType::FFA) {
+                                _spawnToolType = SpawnType::TeamAlpha;
+                                logMessage("Tool 5: Spawn Tool [Team Alpha - Blue HQ] (E to place)");
+                            } else if (_spawnToolType == SpawnType::TeamAlpha) {
+                                _spawnToolType = SpawnType::TeamBeta;
+                                logMessage("Tool 5: Spawn Tool [Team Beta - Red HQ] (E to place)");
+                            } else {
+                                _spawnToolType = SpawnType::FFA;
+                                logMessage("Tool 5: Spawn Tool [FFA / DM Neutral] (E to place)");
+                            }
+                            break;
                         case 6: // Resize tool
                             resizeSelection(_gridSnap, _gridSnap, _gridSnap);
                             break;
@@ -936,7 +1089,7 @@ public:
         // 8. Right Sidebar (Using exact synchronized layout!)
         SidebarLayout l = getSidebarLayout(w, h);
         if (mx >= l.rightX && mx <= w && my >= l.rightY && my <= h - 22.0f) {
-            // Tab headers (Properties vs Outliner)
+            // Tab headers (Properties vs Outliner vs Prebuilts)
             if (mx >= l.tabPropX && mx <= l.tabPropX + l.tabPropW && my >= l.tabPropY && my <= l.tabPropY + l.tabPropH) {
                 _sidebarTab = SidebarTab::Properties;
                 logMessage("Sidebar: Switched to Properties Tab");
@@ -947,10 +1100,31 @@ public:
                 logMessage("Sidebar: Switched to Struktura (Outliner) Tab");
                 return;
             }
+            if (mx >= l.tabPreX && mx <= l.tabPreX + l.tabPreW && my >= l.tabPreY && my <= l.tabPreY + l.tabPreH) {
+                _sidebarTab = SidebarTab::Prebuilts;
+                logMessage("Sidebar: Switched to Prebuilty & Encje Tab");
+                return;
+            }
+
+            // PREBUILTS TAB INTERACTIONS
+            if (_sidebarTab == SidebarTab::Prebuilts) {
+                float startY = l.rightY + 58.0f;
+                float cardH = 46.0f;
+                float cardSpacing = 52.0f;
+                for (int i = 0; i < 8; ++i) {
+                    float cy = startY + i * cardSpacing;
+                    if (mx >= l.rightX + 10.0f && mx <= l.rightX + l.rightW - 10.0f && my >= cy && my <= cy + cardH) {
+                        placePrebuilt(i);
+                        return;
+                    }
+                }
+                return;
+            }
 
             // OUTLINER TAB INTERACTIONS
             if (_sidebarTab == SidebarTab::Hierarchy) {
-                int totalEntities = (int)(1 + _map->brushes.size() + _map->props.size() + _map->doors.size());
+                int totalSpawns = (int)_map->spawnPoints.size();
+                int totalEntities = (int)(totalSpawns + _map->brushes.size() + _map->props.size() + _map->doors.size());
                 int maxItems = (int)(l.outListH / l.outItemSpacing);
 
                 // Click on entity items
@@ -958,12 +1132,12 @@ public:
                     int clickedSlot = (int)((my - l.outListY - 4.0f) / l.outItemSpacing);
                     int itemIdx = _outlinerScroll + clickedSlot;
                     if (clickedSlot >= 0 && itemIdx >= 0 && itemIdx < totalEntities) {
-                        if (itemIdx == 0) {
+                        if (itemIdx < totalSpawns) {
                             _selectionType = SelectionType::Spawn;
-                            _selectedIndex = 0;
-                            logMessage("Outliner: Selected Player Spawn");
+                            _selectedIndex = itemIdx;
+                            logMessage("Outliner: Selected " + _map->spawnPoints[itemIdx].getDisplayName() + " #" + std::to_string(itemIdx));
                         } else {
-                            int bOffset = 1;
+                            int bOffset = totalSpawns;
                             int pOffset = bOffset + (int)_map->brushes.size();
                             int dOffset = pOffset + (int)_map->props.size();
 
@@ -1017,6 +1191,53 @@ public:
 
             // PROPERTIES TAB INTERACTIONS
             if (_sidebarTab == SidebarTab::Properties) {
+                // Spawn Point Properties Interactions
+                if (_selectionType == SelectionType::Spawn && _selectedIndex >= 0 && _selectedIndex < (int)_map->spawnPoints.size()) {
+                    float propY = l.rightY + 38.0f;
+                    float typeBtnY = propY + 114.0f;
+                    float btnW = 94.0f;
+                    auto& sp = _map->spawnPoints[_selectedIndex];
+
+                    if (my >= typeBtnY && my <= typeBtnY + 26.0f) {
+                        if (mx >= l.rightX + 10.0f && mx <= l.rightX + 10.0f + btnW) {
+                            sp.type = SpawnType::FFA;
+                            sp.entityClass = "info_player_deathmatch";
+                            logMessage("Set Spawn #" + std::to_string(_selectedIndex) + " to FFA / DM");
+                            return;
+                        }
+                        if (mx >= l.rightX + 110.0f && mx <= l.rightX + 110.0f + btnW) {
+                            sp.type = SpawnType::TeamAlpha;
+                            sp.entityClass = "info_player_team1";
+                            logMessage("Set Spawn #" + std::to_string(_selectedIndex) + " to Team Alpha (Blue)");
+                            return;
+                        }
+                        if (mx >= l.rightX + 210.0f && mx <= l.rightX + 210.0f + btnW) {
+                            sp.type = SpawnType::TeamBeta;
+                            sp.entityClass = "info_player_team2";
+                            logMessage("Set Spawn #" + std::to_string(_selectedIndex) + " to Team Beta (Red)");
+                            return;
+                        }
+                    }
+
+                    float yawBtnY = typeBtnY + 58.0f;
+                    if (my >= yawBtnY && my <= yawBtnY + 24.0f) {
+                        float yBtnW = 55.0f;
+                        float yVals[5] = { -45.0f, 0.0f, 90.0f, 180.0f, 45.0f };
+                        for (int k = 0; k < 5; ++k) {
+                            float yx = l.rightX + 10.0f + k * 58.0f;
+                            if (mx >= yx && mx <= yx + yBtnW) {
+                                if (k == 0) sp.yaw -= 45.0f;
+                                else if (k == 4) sp.yaw += 45.0f;
+                                else sp.yaw = yVals[k];
+                                while (sp.yaw < 0.0f) sp.yaw += 360.0f;
+                                while (sp.yaw >= 360.0f) sp.yaw -= 360.0f;
+                                logMessage("Set Spawn #" + std::to_string(_selectedIndex) + " Yaw: " + std::to_string((int)sp.yaw));
+                                return;
+                            }
+                        }
+                    }
+                }
+
                 // UV Scale buttons [0.125] [0.25] [0.5] [1.0]
                 float scales[4] = { 0.125f, 0.25f, 0.5f, 1.0f };
                 for (int i = 0; i < 4; ++i) {
@@ -1154,9 +1375,26 @@ public:
                 Renderer::drawCube(d.position, d.size, d.color);
             }
 
-            // Render Player Spawn Marker
-            Renderer::drawWireCube(_map->spawn.position, Vec3(1.0f, 1.8f, 1.0f), Vec3(0.2f, 0.85f, 1.0f));
-            Renderer::drawCube(_map->spawn.position, Vec3(0.8f, 0.1f, 0.8f), Vec3(0.1f, 0.6f, 0.9f), false);
+            // Render All Spawn Markers with Team Colors, Landing Pads, and Facing Yaw Arrows
+            for (size_t i = 0; i < _map->spawnPoints.size(); ++i) {
+                const auto& sp = _map->spawnPoints[i];
+                Vec3 teamCol = (sp.type == SpawnType::TeamAlpha) ? Vec3(0.2f, 0.6f, 1.0f) :
+                               (sp.type == SpawnType::TeamBeta)  ? Vec3(1.0f, 0.25f, 0.25f) :
+                                                                   Vec3(0.2f, 0.9f, 0.4f);
+                // Base landing pad
+                Renderer::drawCube(sp.position + Vec3(0.0f, -0.85f, 0.0f), Vec3(1.2f, 0.1f, 1.2f), teamCol * 0.7f, nullptr, false);
+                Renderer::drawWireCube(sp.position + Vec3(0.0f, -0.85f, 0.0f), Vec3(1.22f, 0.11f, 1.22f), teamCol);
+
+                // Holographic player silhouette
+                Renderer::drawWireCube(sp.position, Vec3(0.8f, 1.8f, 0.8f), teamCol);
+                Renderer::drawCube(sp.position + Vec3(0.0f, 0.55f, 0.0f), Vec3(0.35f, 0.35f, 0.35f), teamCol * 0.85f, nullptr, false);
+
+                // Yaw directional pointer arrow
+                float rad = sp.yaw * 3.14159265f / 180.0f;
+                Vec3 fwd(std::sin(rad), 0.0f, std::cos(rad));
+                Vec3 arrowPos = sp.position + fwd * 0.85f + Vec3(0.0f, -0.2f, 0.0f);
+                Renderer::drawCube(arrowPos, Vec3(0.18f, 0.18f, 0.42f), teamCol, nullptr, false);
+            }
         }
 
         _cullingStats = "Frustum Culling: Brushes " + std::to_string(renderedBrushes) + "/" + std::to_string(totalBrushes) +
@@ -1180,10 +1418,11 @@ public:
                 Vec3 half = d.size * 0.5f;
                 Renderer::drawBoundingBox(d.position - half, d.position + half, hammerOrange);
                 drawGizmo(d.position);
-            } else if (_selectionType == SelectionType::Spawn) {
-                Vec3 half(0.5f, 0.9f, 0.5f);
-                Renderer::drawBoundingBox(_map->spawn.position - half, _map->spawn.position + half, Vec3(0.2f, 0.85f, 1.0f));
-                drawGizmo(_map->spawn.position);
+            } else if (_selectionType == SelectionType::Spawn && _selectedIndex >= 0 && _selectedIndex < (int)_map->spawnPoints.size()) {
+                const auto& sp = _map->spawnPoints[_selectedIndex];
+                Vec3 half(0.6f, 0.9f, 0.6f);
+                Renderer::drawBoundingBox(sp.position - half, sp.position + half, hammerOrange);
+                drawGizmo(sp.position);
             }
         }
 
@@ -1198,7 +1437,11 @@ public:
             Renderer::drawWireCube(_cursorPos, Vec3(2.5f, 3.5f, 0.4f), Vec3(0.9f, 0.5f, 0.2f));
             drawGizmo(_cursorPos);
         } else if (_activeTool == 5) {
-            Renderer::drawWireCube(_cursorPos, Vec3(1.0f, 1.8f, 1.0f), Vec3(0.2f, 0.9f, 0.5f));
+            Vec3 toolCol = (_spawnToolType == SpawnType::TeamAlpha) ? Vec3(0.2f, 0.6f, 1.0f) :
+                           (_spawnToolType == SpawnType::TeamBeta)  ? Vec3(1.0f, 0.25f, 0.25f) :
+                                                                     Vec3(0.2f, 0.9f, 0.4f);
+            Renderer::drawWireCube(_cursorPos, Vec3(0.8f, 1.8f, 0.8f), toolCol);
+            Renderer::drawCube(_cursorPos + Vec3(0.0f, -0.85f, 0.0f), Vec3(1.2f, 0.1f, 1.2f), toolCol * 0.5f, nullptr, false);
             drawGizmo(_cursorPos);
         }
 
@@ -1430,17 +1673,58 @@ public:
         Renderer::drawRect(l.rightX, l.rightY, l.rightW, l.rightH, winBg);
         Renderer::drawRect(l.rightX, l.rightY, 1.0f, l.rightH, winBorder);
 
-        // Sidebar Tabs: [ Properties ] and [ Outliner / Struktura ]
+        // Sidebar Tabs: [ Properties ] [ Struktura ] [ Prebuilty ]
         bool isPropTab = (_sidebarTab == SidebarTab::Properties);
         bool isOutTab = (_sidebarTab == SidebarTab::Hierarchy);
+        bool isPreTab = (_sidebarTab == SidebarTab::Prebuilts);
 
         Renderer::drawRect(l.tabPropX, l.tabPropY, l.tabPropW, l.tabPropH, isPropTab ? Vec3(1, 1, 1) : Vec3(0.85f, 0.85f, 0.88f));
         Renderer::drawRect(l.tabPropX, l.tabPropY, l.tabPropW, 1.0f, isPropTab ? orangeGlow : winBorder);
-        LabFont::drawText(l.tabPropX + 25.0f, l.tabPropY + 5.0f, "Properties", 1.6f, isPropTab ? textDark : textDim, LabFontType::System);
+        LabFont::drawText(l.tabPropX + 12.0f, l.tabPropY + 5.0f, "Properties", 1.5f, isPropTab ? textDark : textDim, LabFontType::System);
 
         Renderer::drawRect(l.tabOutX, l.tabOutY, l.tabOutW, l.tabOutH, isOutTab ? Vec3(1, 1, 1) : Vec3(0.85f, 0.85f, 0.88f));
         Renderer::drawRect(l.tabOutX, l.tabOutY, l.tabOutW, 1.0f, isOutTab ? orangeGlow : winBorder);
-        LabFont::drawText(l.tabOutX + 25.0f, l.tabOutY + 5.0f, "Struktura", 1.6f, isOutTab ? textDark : textDim, LabFontType::System);
+        LabFont::drawText(l.tabOutX + 16.0f, l.tabOutY + 5.0f, "Struktura", 1.5f, isOutTab ? textDark : textDim, LabFontType::System);
+
+        Renderer::drawRect(l.tabPreX, l.tabPreY, l.tabPreW, l.tabPreH, isPreTab ? Vec3(1, 1, 1) : Vec3(0.85f, 0.85f, 0.88f));
+        Renderer::drawRect(l.tabPreX, l.tabPreY, l.tabPreW, 1.0f, isPreTab ? orangeGlow : winBorder);
+        LabFont::drawText(l.tabPreX + 16.0f, l.tabPreY + 5.0f, "Prebuilty", 1.5f, isPreTab ? textDark : textDim, LabFontType::System);
+
+        // ==================== TAB CONTENT: PREBUILTS & ENTITIES ====================
+        if (_sidebarTab == SidebarTab::Prebuilts) {
+            LabFont::drawText(l.rightX + 12.0f, l.rightY + 38.0f, "Prebuilts & Map Entities (Click to Place):", 1.6f, textDark, LabFontType::System);
+
+            struct PrebuiltDesc {
+                std::string title;
+                std::string desc;
+                Vec3 color;
+            };
+
+            PrebuiltDesc items[] = {
+                { "Spawn: FFA / DM", "Neutralny spawn dla kazdego gracza", Vec3(0.18f, 0.65f, 0.35f) },
+                { "Spawn: Team Alpha", "Baza Druzyny 1 (Niebiescy / Blue HQ)", Vec3(0.18f, 0.45f, 0.85f) },
+                { "Spawn: Team Beta", "Baza Druzyny 2 (Czerwoni / Red HQ)", Vec3(0.85f, 0.25f, 0.25f) },
+                { "Skrzynka Amunicji", "Zasobnik amunicji (+36 pociskow)", Vec3(0.75f, 0.65f, 0.15f) },
+                { "Apteczka Polowa", "Pakiet medyczny (+50 HP zdrowia)", Vec3(0.85f, 0.85f, 0.90f) },
+                { "Barykada Taktyczna", "Mur ochronny ze skrajnia (3x1.2m)", Vec3(0.45f, 0.50f, 0.58f) },
+                { "Filar Betonowy", "Cylinder nosny konstrukcji (1.5x6m)", Vec3(0.55f, 0.58f, 0.65f) },
+                { "Brama Bezpieczenstwa", "Przesuwne pancerne drzwi z czujnikiem", Vec3(0.25f, 0.35f, 0.45f) }
+            };
+
+            float startY = l.rightY + 58.0f;
+            float cardH = 46.0f;
+            float cardSpacing = 52.0f;
+
+            for (int i = 0; i < 8; ++i) {
+                float cy = startY + i * cardSpacing;
+                Renderer::drawRect(l.rightX + 10.0f, cy, l.rightW - 20.0f, cardH, Vec3(1, 1, 1));
+                Renderer::drawRect(l.rightX + 10.0f, cy, l.rightW - 20.0f, 1.0f, winBorder);
+                Renderer::drawRect(l.rightX + 10.0f, cy, 6.0f, cardH, items[i].color);
+
+                LabFont::drawText(l.rightX + 22.0f, cy + 6.0f, items[i].title, 1.6f, textDark, LabFontType::System);
+                LabFont::drawText(l.rightX + 22.0f, cy + 24.0f, items[i].desc, 1.3f, textDim, LabFontType::System);
+            }
+        }
 
         // ==================== TAB CONTENT: OUTLINER (STRUKTURA MAPY) ====================
         if (_sidebarTab == SidebarTab::Hierarchy) {
@@ -1449,7 +1733,8 @@ public:
             Renderer::drawRect(l.outListX, l.outListY, l.outListW, l.outListH, Vec3(1, 1, 1));
             Renderer::drawRect(l.outListX, l.outListY, l.outListW, 1.0f, winBorder);
 
-            int totalEntities = (int)(1 + _map->brushes.size() + _map->props.size() + _map->doors.size());
+            int totalSpawns = (int)_map->spawnPoints.size();
+            int totalEntities = (int)(totalSpawns + _map->brushes.size() + _map->props.size() + _map->doors.size());
             int maxItems = (int)(l.outListH / l.outItemSpacing);
 
             for (int i = 0; i < maxItems; ++i) {
@@ -1460,11 +1745,13 @@ public:
                 bool isSelected = false;
                 std::string itemText = "";
 
-                if (itemIdx == 0) {
-                    isSelected = (_selectionType == SelectionType::Spawn);
-                    itemText = "[Spawn] Player Start (" + std::to_string((int)_map->spawn.position.x) + "," + std::to_string((int)_map->spawn.position.z) + ")";
+                if (itemIdx < totalSpawns) {
+                    isSelected = (_selectionType == SelectionType::Spawn && _selectedIndex == itemIdx);
+                    const auto& sp = _map->spawnPoints[itemIdx];
+                    itemText = "[" + sp.getDisplayName() + " #" + std::to_string(itemIdx) + "] (" +
+                               std::to_string((int)sp.position.x) + "," + std::to_string((int)sp.position.z) + ")";
                 } else {
-                    int bOffset = 1;
+                    int bOffset = totalSpawns;
                     int pOffset = bOffset + (int)_map->brushes.size();
                     int dOffset = pOffset + (int)_map->props.size();
 
@@ -1521,6 +1808,61 @@ public:
         // ==================== TAB CONTENT: PROPERTIES ====================
         if (_sidebarTab == SidebarTab::Properties) {
             float propY = l.rightY + 38.0f;
+
+            // Dedicated Spawn Properties when a spawn is selected
+            if (_selectionType == SelectionType::Spawn && _selectedIndex >= 0 && _selectedIndex < (int)_map->spawnPoints.size()) {
+                auto& sp = _map->spawnPoints[_selectedIndex];
+                std::string selHeader = "Selection: " + sp.getDisplayName() + " #" + std::to_string(_selectedIndex);
+                LabFont::drawText(l.rightX + 12.0f, propY, selHeader, 1.7f, orangeGlow, LabFontType::System);
+
+                std::string classStr = "Class: " + sp.entityClass;
+                LabFont::drawText(l.rightX + 12.0f, propY + 24.0f, classStr, 1.5f, textDark, LabFontType::System);
+
+                std::string posStr = "Pos: (" + std::to_string((int)sp.position.x) + ", " + std::to_string((int)sp.position.y) + ", " + std::to_string((int)sp.position.z) + ")";
+                LabFont::drawText(l.rightX + 12.0f, propY + 46.0f, posStr, 1.5f, textDark, LabFontType::System);
+
+                std::string yawStr = "Facing Yaw: " + std::to_string((int)sp.yaw) + " deg";
+                LabFont::drawText(l.rightX + 12.0f, propY + 68.0f, yawStr, 1.5f, textDark, LabFontType::System);
+
+                // Team Type selector buttons
+                LabFont::drawText(l.rightX + 12.0f, propY + 98.0f, "Spawn Mode & Team Allocation:", 1.6f, textDark, LabFontType::System);
+                float typeBtnY = propY + 114.0f;
+                float btnW = 94.0f;
+
+                bool isFFA = (sp.type == SpawnType::FFA);
+                bool isAlpha = (sp.type == SpawnType::TeamAlpha);
+                bool isBeta = (sp.type == SpawnType::TeamBeta);
+
+                Renderer::drawRect(l.rightX + 10.0f, typeBtnY, btnW, 26.0f, isFFA ? Vec3(0.2f, 0.75f, 0.4f) : Vec3(0.88f, 0.88f, 0.90f));
+                LabFont::drawText(l.rightX + 22.0f, typeBtnY + 5.0f, "FFA / DM", 1.5f, isFFA ? Vec3(1, 1, 1) : textDark, LabFontType::System);
+
+                Renderer::drawRect(l.rightX + 110.0f, typeBtnY, btnW, 26.0f, isAlpha ? Vec3(0.2f, 0.5f, 0.85f) : Vec3(0.88f, 0.88f, 0.90f));
+                LabFont::drawText(l.rightX + 118.0f, typeBtnY + 5.0f, "Team Alpha", 1.5f, isAlpha ? Vec3(1, 1, 1) : textDark, LabFontType::System);
+
+                Renderer::drawRect(l.rightX + 210.0f, typeBtnY, btnW, 26.0f, isBeta ? Vec3(0.85f, 0.25f, 0.25f) : Vec3(0.88f, 0.88f, 0.90f));
+                LabFont::drawText(l.rightX + 220.0f, typeBtnY + 5.0f, "Team Beta", 1.5f, isBeta ? Vec3(1, 1, 1) : textDark, LabFontType::System);
+
+                // Yaw Rotate buttons
+                LabFont::drawText(l.rightX + 12.0f, typeBtnY + 38.0f, "Rotate Spawn Facing Direction:", 1.6f, textDark, LabFontType::System);
+                float yawBtnY = typeBtnY + 58.0f;
+                float yBtnW = 55.0f;
+                const char* yLabels[5] = { "-45", "0", "90", "180", "+45" };
+                for (int k = 0; k < 5; ++k) {
+                    float yx = l.rightX + 10.0f + k * 58.0f;
+                    Renderer::drawRect(yx, yawBtnY, yBtnW, 24.0f, Vec3(0.88f, 0.88f, 0.90f));
+                    Renderer::drawRect(yx, yawBtnY, yBtnW, 1.0f, winBorder);
+                    LabFont::drawText(yx + 12.0f, yawBtnY + 4.0f, yLabels[k], 1.5f, textDark, LabFontType::System);
+                }
+
+                // Deselect & Delete buttons
+                Renderer::drawRect(l.deselX, l.deselY, l.deselW, l.deselH, Vec3(0.88f, 0.88f, 0.90f));
+                Renderer::drawRect(l.deselX, l.deselY, l.deselW, 1.0f, winBorder);
+                LabFont::drawText(l.deselX + 85.0f, l.deselY + 7.0f, "Deselect All", 1.6f, textDark, LabFontType::System);
+
+                Renderer::drawRect(l.delX, l.delY, l.delW, l.delH, Vec3(0.88f, 0.88f, 0.90f));
+                Renderer::drawRect(l.delX, l.delY, l.delW, 1.0f, winBorder);
+                LabFont::drawText(l.delX + 75.0f, l.delY + 7.0f, "Delete Spawn Point", 1.6f, Vec3(0.7f, 0.1f, 0.1f), LabFontType::System);
+            } else {
 
             // Header info on selection
             std::string selHeader = "Selection: None";
@@ -1629,8 +1971,9 @@ public:
             Renderer::drawRect(l.delX, l.delY, l.delW, 1.0f, winBorder);
             LabFont::drawText(l.delX + 75.0f, l.delY + 7.0f, "Delete Selected", 1.6f, Vec3(0.7f, 0.1f, 0.1f), LabFontType::System);
         }
+    }
 
-        // ==================== 5. BOTTOM CONSOLE / "Messages" ====================
+    // ==================== 5. BOTTOM CONSOLE / "Messages" ====================
         float conW = std::min(720.0f, l.rightX - leftW - 40.0f);
         float conH = 135.0f;
         float conX = leftW + 20.0f;
@@ -1870,6 +2213,7 @@ private:
     int _outlinerScroll = 0;
 
     int _activeTool = 1; // 0=Select, 1=Brush, 2=Prop, 3=Texture, 4=Door, 5=Spawn, 6=Resize, 7=Sun
+    SpawnType _spawnToolType = SpawnType::FFA;
     Vec3 _cursorPos{ 0, 0, 0 };
     Vec3 _brushSize{ 2.0f, 2.0f, 2.0f };
     Vec3 _propScale{ 1.0f, 1.0f, 1.0f };

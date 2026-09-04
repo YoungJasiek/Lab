@@ -1,6 +1,7 @@
 #pragma once
 
 #include "LabMath.h"
+#include "LabSession.h"
 #include <string>
 #include <vector>
 #include <memory>
@@ -53,13 +54,39 @@ namespace Lab {
         float yaw = 0.0f;
     };
 
+    enum class SpawnType {
+        FFA = 0,        // Deathmatch / FFA neutral spawn (info_player_deathmatch)
+        TeamAlpha = 1,  // TDM Team 1 / Blue / Combine (info_player_team1)
+        TeamBeta = 2    // TDM Team 2 / Red / Rebels (info_player_team2)
+    };
+
+    struct MapSpawnPoint {
+        std::string entityClass = "info_player_deathmatch";
+        Vec3 position = { 0.0f, 1.8f, 0.0f };
+        float yaw = 0.0f;
+        SpawnType type = SpawnType::FFA;
+
+        std::string getDisplayName() const {
+            switch (type) {
+                case SpawnType::TeamAlpha: return "Spawn [Team Alpha]";
+                case SpawnType::TeamBeta:  return "Spawn [Team Beta]";
+                case SpawnType::FFA:
+                default:                   return "Spawn [FFA / DM]";
+            }
+        }
+    };
+
     class LabMap {
     public:
         MapMetadata metadata;
-        MapSpawn spawn;
+        MapSpawn spawn; // Legacy fallback single spawn
         std::vector<MapBrush> brushes;
         std::vector<MapProp> props;
         std::vector<MapDoor> doors;
+        std::vector<MapSpawnPoint> spawnPoints;
+
+        std::vector<MapSpawnPoint> getSpawnsForTeam(GameMode mode, int team) const;
+        MapSpawnPoint selectBestSpawn(GameMode mode, int team, const std::vector<Vec3>& enemyPositions = {}) const;
 
         static std::unique_ptr<LabMap> loadFromFile(const std::string& filePath);
         bool saveToFile(const std::string& filePath) const;

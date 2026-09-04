@@ -233,33 +233,46 @@ namespace Lab {
         Renderer::drawCube(bPos + Vec3(0.0f, 2.05f, 0.01f), Vec3(0.0f, rotation.y, 0.0f), Vec3(0.68f * hpRatio, 0.05f, 0.03f), hpColor, nullptr, false);
     }
 
-    void AIManager::spawnBotsForMap(const std::string& mapName, int count, GameMode mode) {
-        (void)mapName;
+    void AIManager::spawnBotsForMap(const LabMap* map, int count, GameMode mode) {
         clear();
         if (count <= 0) return;
 
-        struct SpawnNode {
-            Vec3 start;
-            Vec3 end;
-        };
-
-        std::vector<SpawnNode> nodes = {
-            { Vec3(0.0f, 0.0f, -8.0f),   Vec3(6.0f, 0.0f, -8.0f) },
-            { Vec3(-10.0f, 0.0f, 0.0f),  Vec3(-10.0f, 0.0f, 8.0f) },
-            { Vec3(10.0f, 0.0f, 4.0f),   Vec3(10.0f, 0.0f, -4.0f) },
-            { Vec3(-6.0f, 0.0f, -14.0f), Vec3(6.0f, 0.0f, -14.0f) },
-            { Vec3(-12.0f, 0.0f, 10.0f), Vec3(-2.0f, 0.0f, 10.0f) },
-            { Vec3(12.0f, 0.0f, 10.0f),  Vec3(12.0f, 0.0f, 2.0f) },
-            { Vec3(-7.0f, 0.0f, -5.0f),  Vec3(-7.0f, 0.0f, 5.0f) },
-            { Vec3(7.0f, 0.0f, -5.0f),   Vec3(7.0f, 0.0f, 5.0f) }
-        };
-
-        int toSpawn = std::min(count, (int)nodes.size());
-        for (int i = 0; i < toSpawn; ++i) {
+        for (int i = 0; i < count; ++i) {
             int botTeam = (mode == GameMode::TDM) ? (i % 2) : -1;
             std::string bName = "Bot #" + std::to_string(i + 1);
-            bots.emplace_back(i, bName, nodes[i].start, nodes[i].end, botTeam);
+
+            MapSpawnPoint sp;
+            if (map) {
+                auto teamSpawns = map->getSpawnsForTeam(mode, botTeam);
+                if (!teamSpawns.empty()) {
+                    sp = teamSpawns[i % teamSpawns.size()];
+                } else {
+                    sp.position = map->spawn.position;
+                    sp.yaw = map->spawn.yaw;
+                }
+            } else {
+                sp.position = Vec3(-8.0f + (i % 4) * 5.0f, 0.0f, -6.0f + (i / 4) * 6.0f);
+                sp.yaw = 0.0f;
+            }
+
+            // Slight spatial offset so bots at the same spawn point do not overlap initially
+            float offsetX = ((i % 3) - 1) * 0.75f;
+            float offsetZ = ((i / 3) - 1) * 0.75f;
+            Vec3 botSpawnPos = sp.position + Vec3(offsetX, 0.0f, offsetZ);
+
+            float rad = sp.yaw * 3.14159265f / 180.0f;
+            Vec3 forward(std::sin(rad), 0.0f, std::cos(rad));
+            if (forward.lengthSq() < 0.01f) forward = Vec3(0, 0, 1);
+            Vec3 patrolEnd = botSpawnPos + forward * 8.0f;
+
+            bots.emplace_back(i, bName, botSpawnPos, patrolEnd, botTeam);
+            bots.back().rotation.y = sp.yaw;
         }
+    }
+
+    void AIManager::spawnBotsForMap(const std::string& mapName, int count, GameMode mode) {
+        auto loaded = LabMap::loadFromFile(mapName);
+        spawnBotsForMap(loaded.get(), count, mode);
     }
 
     void AIManager::update(float dt, const Vec3& playerPos, bool isPlayerAlive, int playerTeam,
@@ -275,8 +288,33 @@ namespace Lab {
                 if (bot.respawnTimer <= 0.0f) {
                     bot.state = AIState::Patrol;
                     bot.health = bot.maxHealth;
-                    bot.position = bot.patrolStart;
-                    bot.rotation.x = 0.0f;
+
+                    // Collect active enemy positions for anti-spawncamp selection
+                    std::vector<Vec3> enemies;
+                    if (isPlayerAlive) {
+                        if (bot.team == -1 || (playerTeam != -1 && bot.team != playerTeam)) {
+                            enemies.push_back(playerPos);
+                        }
+                    }
+                    for (size_t other = 0; other < bots.size(); ++other) {
+                        if (other != i && bots[other].isAlive()) {
+                            if (bot.team == -1 || bots[other].team != bot.team) {
+                                enemies.push_back(bots[other].position);
+                            }
+                        }
+                    }
+
+                    GameMode botMode = (bot.team == -1) ? GameMode::FFA : GameMode::TDM;
+                    MapSpawnPoint sp = map.selectBestSpawn(botMode, bot.team, enemies);
+
+                    bot.position = sp.position;
+                    bot.rotation = Vec3(0.0f, sp.yaw, 0.0f);
+                    bot.patrolStart = sp.position;
+                    float rad = sp.yaw * 3.14159265f / 180.0f;
+                    Vec3 forward(std::sin(rad), 0.0f, std::cos(rad));
+                    if (forward.lengthSq() < 0.01f) forward = Vec3(0, 0, 1);
+                    bot.patrolEnd = sp.position + forward * 8.0f;
+
                     bot.patrolT = 0.0f;
                     bot.patrolDir = 1;
                     bot.shootCooldown = bot.shootInterval;
