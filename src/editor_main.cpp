@@ -1,5 +1,6 @@
 #include "Lab.h"
 #include "LabFont.h"
+#include "LabDialogs.h"
 #include <iostream>
 #include <filesystem>
 #include <unordered_map>
@@ -153,11 +154,14 @@ public:
             _delPressed = false;
         }
 
-        // K or Ctrl+S: Save Map
+        // K or Ctrl+S: Native Windows Save File Dialog
         if (Input::isKeyPressed('K') || Input::isKeyPressed('k')) {
             if (!_kPressed && _map) {
-                _map->saveToFile("assets/maps/hammer_export.labmap");
-                logMessage("Map saved successfully to assets/maps/hammer_export.labmap");
+                std::string savePath = LabDialogs::saveFileDialog(getWindow(), "Lab Map Files (*.labmap)\0*.labmap\0All Files (*.*)\0*.*\0", "my_level.labmap", "assets\\maps");
+                if (!savePath.empty()) {
+                    _map->saveToFile(savePath);
+                    logMessage("Map saved to: " + savePath);
+                }
                 _kPressed = true;
             }
         } else {
@@ -263,16 +267,34 @@ public:
 
         // Top Menu Bar Clicks
         if (my >= 0.0f && my <= 24.0f) {
+            // File -> Open Map (x: 10..45)
             if (mx >= 10.0f && mx <= 45.0f) {
-                // File -> Save
-                if (_map) {
-                    _map->saveToFile("assets/maps/hammer_export.labmap");
-                    logMessage("File -> Saved assets/maps/hammer_export.labmap");
+                std::string openPath = LabDialogs::openFileDialog(getWindow(), "Lab Map Files (*.labmap)\0*.labmap\0All Files (*.*)\0*.*\0", "assets\\maps");
+                if (!openPath.empty()) {
+                    auto loaded = LabMap::loadFromFile(openPath);
+                    if (loaded) {
+                        _map = std::move(loaded);
+                        logMessage("Loaded Map: " + openPath);
+                    }
                 }
-            } else if (mx >= 50.0f && mx <= 90.0f) {
-                placeCurrentObject();
-            } else if (mx >= 130.0f && mx <= 175.0f) {
+            }
+            // Save Map (x: 50..90)
+            else if (mx >= 50.0f && mx <= 90.0f) {
+                if (_map) {
+                    std::string savePath = LabDialogs::saveFileDialog(getWindow(), "Lab Map Files (*.labmap)\0*.labmap\0All Files (*.*)\0*.*\0", "my_level.labmap", "assets\\maps");
+                    if (!savePath.empty()) {
+                        _map->saveToFile(savePath);
+                        logMessage("Saved to: " + savePath);
+                    }
+                }
+            }
+            // Textures -> Open Browser (x: 95..145)
+            else if (mx >= 95.0f && mx <= 155.0f) {
                 _browserOpen = true;
+            }
+            // Tools -> Place Brush (x: 160..210)
+            else if (mx >= 160.0f && mx <= 210.0f) {
+                placeCurrentObject();
             }
         }
     }
@@ -371,11 +393,11 @@ public:
         Renderer::drawRect(0, 0, (float)w, 24.0f, winBg);
         Renderer::drawRect(0, 23.0f, (float)w, 1.0f, winBorder);
 
-        LabFont::drawText(10.0f, 6.0f, "File", 1.8f, textDark);
-        LabFont::drawText(50.0f, 6.0f, "Edit", 1.8f, textDark);
-        LabFont::drawText(90.0f, 6.0f, "View", 1.8f, textDark);
-        LabFont::drawText(130.0f, 6.0f, "Tools", 1.8f, textDark);
-        LabFont::drawText(180.0f, 6.0f, "Help", 1.8f, textDark);
+        LabFont::drawText(10.0f, 6.0f, "Open", 1.8f, textDark);
+        LabFont::drawText(50.0f, 6.0f, "Save", 1.8f, textDark);
+        LabFont::drawText(95.0f, 6.0f, "Textures", 1.8f, textDark);
+        LabFont::drawText(160.0f, 6.0f, "Tools", 1.8f, textDark);
+        LabFont::drawText(210.0f, 6.0f, "Help", 1.8f, textDark);
 
         LabFont::drawText((float)w - 240.0f, 6.0f, "Hammer - Frozen-Life", 1.7f, Vec3(0.2f, 0.4f, 0.6f));
 
