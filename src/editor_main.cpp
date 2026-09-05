@@ -7,6 +7,7 @@
 #include <iostream>
 #include <filesystem>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <string>
 #include <algorithm>
@@ -53,6 +54,9 @@ public:
         if (!_map) {
             newMap();
         }
+
+        // Check weapon assets once at startup
+        cacheWeaponAssets();
 
         // Camera initial pose
         _camera.setPosition(Vec3(0, 8.0f, 18.0f));
@@ -118,13 +122,53 @@ public:
         if (path.empty()) return nullptr;
         auto it = _textures.find(path);
         if (it != _textures.end()) return it->second.get();
+        if (_missingTextures.contains(path)) return nullptr;
+
         auto tex = std::make_unique<Texture>(path);
         if (tex && tex->getId() != 0) {
             Texture* ptr = tex.get();
             _textures[path] = std::move(tex);
             return ptr;
         }
+        _missingTextures.insert(path);
         return nullptr;
+    }
+
+    Mesh* getMesh(const std::string& path) {
+        if (path.empty()) return nullptr;
+        auto it = _meshes.find(path);
+        if (it != _meshes.end()) return it->second.get();
+        if (_missingMeshes.contains(path)) return nullptr;
+
+        Mesh* m = Mesh::loadSTL(path);
+        if (m) {
+            Mesh* ptr = m;
+            _meshes[path] = std::unique_ptr<Mesh>(m);
+            return ptr;
+        }
+        _missingMeshes.insert(path);
+        return nullptr;
+    }
+
+    void cacheWeaponAssets() {
+        const char* stlNames[9] = {
+            "assets/models/pipe.stl", "assets/models/pistol.stl", "assets/models/shotgun.stl",
+            "assets/models/m4a4s.stl", "assets/models/sg553.stl", "assets/models/minigun.stl",
+            "assets/models/plasma.stl", "assets/models/railgun.stl", "assets/models/rpg.stl"
+        };
+        const char* texFallbacks[9] = {
+            "weapon_pipe.bmp", "weapon_pistol.bmp", "weapon_shotgun.bmp",
+            "weapon_m4a4s.bmp", "weapon_sg553.bmp", "weapon_minigun.bmp",
+            "weapon_plasma.bmp", "weapon_railgun.bmp", "weapon_rpg.bmp"
+        };
+        int customCount = 0;
+        for (int i = 0; i < 9; ++i) {
+            _weaponMeshes[i] = getMesh(stlNames[i]);
+            std::string texName = Renderer::resolveModelTexture(stlNames[i], texFallbacks[i]);
+            _weaponTextures[i] = getTexture(texName);
+            if (_weaponMeshes[i]) customCount++;
+        }
+        logMessage("Weapons check-once: " + std::to_string(customCount) + " STL, " + std::to_string(9 - customCount) + " built-in procedural.");
     }
 
     void logMessage(const std::string& msg) {
@@ -1572,13 +1616,12 @@ public:
                 if (!_camera.isInFrustum(pMin, pMax)) continue; // Frustum culling
 
                 renderedProps++;
-                if (!_meshes.contains(p.modelPath)) {
-                    Mesh* m = Mesh::loadSTL(p.modelPath);
-                    if (m) _meshes[p.modelPath] = std::unique_ptr<Mesh>(m);
-                }
-                if (_meshes.contains(p.modelPath)) {
-                    Texture* tex = p.texturePath.empty() ? nullptr : getTexture(p.texturePath);
-                    Renderer::drawMesh(*_meshes[p.modelPath], p.position, p.rotation, p.scale, p.color, tex);
+                Mesh* m = getMesh(p.modelPath);
+                Texture* tex = p.texturePath.empty() ? nullptr : getTexture(p.texturePath);
+                if (m) {
+                    Renderer::drawMesh(*m, p.position, p.rotation, p.scale, p.color, tex);
+                } else {
+                    Renderer::drawCube(p.position, p.scale, p.color, tex);
                 }
             }
 
@@ -1610,7 +1653,7 @@ public:
                 Renderer::drawCube(arrowPos, Vec3(0.18f, 0.18f, 0.42f), teamCol, nullptr, false);
             }
 
-            // Render All Weapon Spawners with Pedestal & 3D Weapon Model
+            // Render All Weapon Spawners with Pedestal & 3D Weapon Model (Check-once cached assets)
             for (size_t i = 0; i < _map->weaponSpawners.size(); ++i) {
                 const auto& ws = _map->weaponSpawners[i];
                 // Base ground pedestal
@@ -1619,29 +1662,14 @@ public:
                 Renderer::drawCube(ws.position + Vec3(0.0f, 0.082f, 0.0f), Vec3(0.0f, ws.yaw, 0.0f),
                                    Vec3(1.15f, 0.01f, 1.15f), Vec3(0.2f, 0.75f, 0.95f), nullptr, false);
 
-                // Render 3D Weapon Model (Using STL mesh if loaded, or procedural)
+                // Render 3D Weapon Model (Using pre-cached STL mesh or built-in procedural)
                 float weaponY = ws.position.y + 0.38f;
-                const char* stlNames[9] = {
-                    "assets/models/pipe.stl", "assets/models/pistol.stl", "assets/models/shotgun.stl",
-                    "assets/models/m4a4s.stl", "assets/models/sg553.stl", "assets/models/minigun.stl",
-                    "assets/models/plasma.stl", "assets/models/railgun.stl", "assets/models/rpg.stl"
-                };
-                const char* texFallbacks[9] = {
-                    "weapon_pipe.bmp", "weapon_pistol.bmp", "weapon_shotgun.bmp",
-                    "weapon_m4a4s.bmp", "weapon_sg553.bmp", "weapon_minigun.bmp",
-                    "weapon_plasma.bmp", "weapon_railgun.bmp", "weapon_rpg.bmp"
-                };
-                std::string stlFile = (ws.weaponId >= 0 && ws.weaponId < 9) ? stlNames[ws.weaponId] : "";
-                if (!stlFile.empty() && !_meshes.contains(stlFile)) {
-                    Mesh* m = Mesh::loadSTL(stlFile);
-                    if (m) _meshes[stlFile] = std::unique_ptr<Mesh>(m);
-                }
-                std::string texFallback = (ws.weaponId >= 0 && ws.weaponId < 9) ? texFallbacks[ws.weaponId] : "";
-                std::string texName = Renderer::resolveModelTexture(stlFile, texFallback);
-                Texture* wTex = texName.empty() ? nullptr : getTexture(texName);
+                int wId = (ws.weaponId >= 0 && ws.weaponId < 9) ? ws.weaponId : 0;
+                Mesh* wMesh = _weaponMeshes[wId];
+                Texture* wTex = _weaponTextures[wId];
 
-                if (!stlFile.empty() && _meshes.contains(stlFile)) {
-                    Renderer::drawMesh(*_meshes[stlFile], Vec3(ws.position.x, weaponY, ws.position.z),
+                if (wMesh) {
+                    Renderer::drawMesh(*wMesh, Vec3(ws.position.x, weaponY, ws.position.z),
                                        Vec3(0.0f, ws.yaw, 0.0f), Vec3(0.018f, 0.018f, 0.018f), Vec3(1, 1, 1), wTex);
                 } else {
                     Renderer::drawCube(Vec3(ws.position.x, weaponY, ws.position.z), Vec3(0.0f, ws.yaw, 0.0f),
@@ -2529,6 +2557,10 @@ private:
     std::unique_ptr<LabMap> _map;
     std::unordered_map<std::string, std::unique_ptr<Texture>> _textures;
     std::unordered_map<std::string, std::unique_ptr<Mesh>> _meshes;
+    std::unordered_set<std::string> _missingTextures;
+    std::unordered_set<std::string> _missingMeshes;
+    Mesh* _weaponMeshes[9] = { nullptr };
+    Texture* _weaponTextures[9] = { nullptr };
 
     std::vector<TextureEntry> _availableTextures;
     std::vector<std::string> _availableModels;

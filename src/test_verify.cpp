@@ -1526,6 +1526,25 @@ int main() {
     // ==========================================
     std::cout << "[Test 22] Running Model Texture Resolution & Visual Verification...\n";
     {
+        // Test check-once caching for missing model & texture
+        std::string missingTex = Lab::Renderer::resolveModelTexture("assets/models/nonexistent.stl", "weapon_pistol.bmp");
+        if (missingTex != "weapon_pistol.bmp") {
+            std::cerr << "Assertion failed: fallback texture returned for nonexistent model\n";
+            return 1;
+        }
+        std::string cachedTex = Lab::Renderer::resolveModelTexture("assets/models/nonexistent.stl", "different_fallback.bmp");
+        if (cachedTex != "weapon_pistol.bmp") {
+            std::cerr << "Assertion failed: cached texture returned without re-probing disk\n";
+            return 1;
+        }
+        Lab::Mesh* missingMesh1 = Lab::Mesh::loadSTL("assets/models/nonexistent.stl");
+        Lab::Mesh* missingMesh2 = Lab::Mesh::loadSTL("assets/models/nonexistent.stl");
+        if (missingMesh1 != nullptr || missingMesh2 != nullptr) {
+            std::cerr << "Assertion failed: nonexistent mesh returns nullptr\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Check-once caching validated for missing models and textures.\n";
+
         std::string resolvedPipe = Lab::Renderer::resolveModelTexture("assets/models/pipe.stl", "weapon_pipe.bmp");
         std::cout << "  Model 'assets/models/pipe.stl' resolved texture: " << resolvedPipe << "\n";
 

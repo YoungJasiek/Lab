@@ -4,6 +4,8 @@
 #include <iostream>
 #include <algorithm>
 #include <filesystem>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace Lab {
 
@@ -200,7 +202,14 @@ namespace Lab {
 
     // --- Texture Loaders ---
     static std::string resolveAssetPath(const std::string& path) {
-        if (std::filesystem::exists(path)) return path;
+        static std::unordered_map<std::string, std::string> s_pathCache;
+        auto it = s_pathCache.find(path);
+        if (it != s_pathCache.end()) return it->second;
+
+        if (std::filesystem::exists(path)) {
+            s_pathCache[path] = path;
+            return path;
+        }
         std::string fname = std::filesystem::path(path).filename().string();
         std::vector<std::string> candidates = {
             fname,
@@ -235,9 +244,11 @@ namespace Lab {
 
         for (const auto& candidate : candidates) {
             if (std::filesystem::exists(candidate)) {
+                s_pathCache[path] = candidate;
                 return candidate;
             }
         }
+        s_pathCache[path] = path;
         return path;
     }
 
@@ -271,7 +282,6 @@ namespace Lab {
         std::string resolved = resolveAssetPath(filename);
         std::ifstream file(resolved, std::ios::binary);
         if (!file.is_open()) {
-            std::cerr << "[BMP] Could not open file: " << filename << " (resolved: " << resolved << ")\n";
             return nullptr;
         }
 
@@ -279,7 +289,6 @@ namespace Lab {
         file.read((char*)header, 54);
 
         if (header[0] != 'B' || header[1] != 'M') {
-            std::cerr << "[BMP] Invalid BM header: " << filename << "\n";
             return nullptr;
         }
 
@@ -288,7 +297,6 @@ namespace Lab {
         *bpp = *(short*)&header[28];
 
         if (*width <= 0 || *height == 0 || (*bpp != 24 && *bpp != 32)) {
-            std::cerr << "[BMP] Unsupported dimensions/bpp: " << *width << "x" << *height << " @" << *bpp << "bpp\n";
             return nullptr;
         }
 
@@ -334,25 +342,65 @@ namespace Lab {
             _channels /= 8;
         }
 
-        if (data) {
-            glGenTextures(1, &_id);
-            glBindTexture(GL_TEXTURE_2D, _id);
-            GLenum internalFormat = (_channels == 4) ? GL_RGBA8 : GL_RGB8;
-            GLenum dataFormat = (_channels == 4) ? GL_RGBA : GL_RGB;
+        // If file does not exist on disk, seamlessly use built-in procedural texture
+        if (!data) {
+            _width = 64;
+            _height = 64;
+            _channels = 3;
+            unsigned char* procData = new unsigned char[_width * _height * 3];
 
-            glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, _width, _height, 0, dataFormat, GL_UNSIGNED_BYTE, data);
-            glGenerateMipmap(GL_TEXTURE_2D);
+            std::string lowerPath = path;
+            std::transform(lowerPath.begin(), lowerPath.end(), lowerPath.begin(), [](unsigned char c) { return (char)::tolower(c); });
 
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+            unsigned char baseR = 70, baseG = 75, baseB = 85;
+            if (lowerPath.find("pipe") != std::string::npos) {
+                baseR = 145; baseG = 148; baseB = 152; // Steel / Cast Iron
+            } else if (lowerPath.find("pistol") != std::string::npos) {
+                baseR = 42; baseG = 45; baseB = 50;   // Tactical polymer
+            } else if (lowerPath.find("shotgun") != std::string::npos) {
+                baseR = 52; baseG = 56; baseB = 64;   // Gunmetal blue
+            } else if (lowerPath.find("m4a4") != std::string::npos) {
+                baseR = 48; baseG = 54; baseB = 60;   // Matte black carbine
+            } else if (lowerPath.find("sg553") != std::string::npos) {
+                baseR = 58; baseG = 72; baseB = 58;   // Military olive
+            } else if (lowerPath.find("minigun") != std::string::npos) {
+                baseR = 64; baseG = 66; baseB = 72;   // Heavy dark metal
+            } else if (lowerPath.find("plasma") != std::string::npos) {
+                baseR = 25; baseG = 110; baseB = 140; // Pulse cyan core
+            } else if (lowerPath.find("railgun") != std::string::npos) {
+                baseR = 140; baseG = 80; baseB = 35;  // Copper magnetic rail
+            } else if (lowerPath.find("rpg") != std::string::npos) {
+                baseR = 70; baseG = 80; baseB = 52;   // Olive explosive
+            }
 
-            glBindTexture(GL_TEXTURE_2D, 0);
-            delete[] data;
-        } else {
-            std::cerr << "[Texture] Failed to load texture: " << path << std::endl;
+            for (int y = 0; y < _height; ++y) {
+                for (int x = 0; x < _width; ++x) {
+                    int idx = (y * _width + x) * 3;
+                    bool border = (x == 0 || x == _width - 1 || y == 0 || y == _height - 1 || (x % 16 == 0) || (y % 16 == 0));
+                    int noise = ((x ^ y) & 7) * 3;
+                    procData[idx + 0] = (unsigned char)std::clamp((int)baseR + (border ? -18 : noise), 0, 255);
+                    procData[idx + 1] = (unsigned char)std::clamp((int)baseG + (border ? -18 : noise), 0, 255);
+                    procData[idx + 2] = (unsigned char)std::clamp((int)baseB + (border ? -18 : noise), 0, 255);
+                }
+            }
+            data = procData;
         }
+
+        glGenTextures(1, &_id);
+        glBindTexture(GL_TEXTURE_2D, _id);
+        GLenum internalFormat = (_channels == 4) ? GL_RGBA8 : GL_RGB8;
+        GLenum dataFormat = (_channels == 4) ? GL_RGBA : GL_RGB;
+
+        glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, _width, _height, 0, dataFormat, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+        glBindTexture(GL_TEXTURE_2D, 0);
+        delete[] data;
     }
 
     Texture::Texture(const unsigned char* data, int width, int height, int channels)
@@ -520,10 +568,13 @@ namespace Lab {
     }
 
     Mesh* Mesh::loadSTL(const std::string& path) {
+        static std::unordered_set<std::string> s_missingSTL;
+        if (s_missingSTL.contains(path)) return nullptr;
+
         std::string resolved = resolveAssetPath(path);
         std::ifstream file(resolved, std::ios::binary);
         if (!file.is_open()) {
-            std::cerr << "ERROR: Could not open STL file: " << path << " (resolved: " << resolved << ")" << std::endl;
+            s_missingSTL.insert(path);
             return nullptr;
         }
 
@@ -532,7 +583,7 @@ namespace Lab {
         file.read((char*)&triangleCount, 4);
 
         if (triangleCount == 0 || triangleCount > 5000000) {
-            std::cerr << "WARNING: Invalid triangle count in STL: " << triangleCount << std::endl;
+            s_missingSTL.insert(path);
             return nullptr;
         }
 
@@ -890,6 +941,11 @@ namespace Lab {
 
     std::string Renderer::resolveModelTexture(const std::string& modelPath, const std::string& fallbackTexture) {
         if (modelPath.empty()) return fallbackTexture;
+
+        static std::unordered_map<std::string, std::string> s_modelTexCache;
+        auto it = s_modelTexCache.find(modelPath);
+        if (it != s_modelTexCache.end()) return it->second;
+
         std::filesystem::path p(modelPath);
         std::string stem = p.stem().string();
         std::string parentDir = p.parent_path().string();
@@ -909,9 +965,12 @@ namespace Lab {
         for (const auto& c : candidates) {
             std::string resolved = resolveAssetPath(c);
             if (std::filesystem::exists(resolved)) {
+                s_modelTexCache[modelPath] = resolved;
                 return resolved;
             }
         }
+
+        s_modelTexCache[modelPath] = fallbackTexture;
         return fallbackTexture;
     }
 

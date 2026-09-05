@@ -7,6 +7,7 @@
 #include <vector>
 #include <filesystem>
 #include <unordered_map>
+#include <unordered_set>
 #include <cmath>
 
 using namespace Lab;
@@ -50,19 +51,24 @@ public:
             getTexture(texName);
         }
 
-        // Check and preload user STL models for weapons if available
-        std::vector<std::string> weaponModels = {
-            "assets/models/pipe.stl", "assets/models/pistol.stl", "assets/models/shotgun.stl",
-            "assets/models/m4a4s.stl", "assets/models/sg553.stl", "assets/models/minigun.stl",
-            "assets/models/plasma.stl", "assets/models/railgun.stl", "assets/models/rpg.stl"
-        };
-        for (const auto& wModel : weaponModels) {
-            getMesh(wModel);
-        }
-
         // Initialize Weapon System & Particles
         _weaponSystem.init();
         _particleSystem.init();
+
+        // Check ONCE at startup which weapons have custom STL models and textures
+        _cachedWeaponMeshes.resize(9, nullptr);
+        _cachedWeaponTextures.resize(9, nullptr);
+        int customSTLCount = 0;
+        for (int i = 0; i < 9; ++i) {
+            const auto& wDef = _weaponSystem.getWeapon((WeaponID)i).def;
+            _cachedWeaponMeshes[i] = getMesh(wDef.modelFile);
+            std::string resolvedTex = Renderer::resolveModelTexture(wDef.modelFile, wDef.textureFile);
+            _cachedWeaponTextures[i] = getTexture(resolvedTex);
+            if (_cachedWeaponMeshes[i]) customSTLCount++;
+        }
+        std::cout << "[Weapons] Checked 9 weapons at startup: " << customSTLCount << " custom STL, " 
+                  << (9 - customSTLCount) << " built-in procedural.\n";
+
         syncHudWeapon();
 
         // Start in Main Menu
@@ -92,12 +98,15 @@ public:
         if (path.empty()) return nullptr;
         auto it = _textures.find(path);
         if (it != _textures.end()) return it->second.get();
+        if (_missingTextures.contains(path)) return nullptr;
+
         auto tex = std::make_unique<Texture>(path);
         if (tex && tex->getId() != 0) {
             Texture* ptr = tex.get();
             _textures[path] = std::move(tex);
             return ptr;
         }
+        _missingTextures.insert(path);
         return nullptr;
     }
 
@@ -105,12 +114,15 @@ public:
         if (path.empty()) return nullptr;
         auto it = _meshes.find(path);
         if (it != _meshes.end()) return it->second.get();
+        if (_missingMeshes.contains(path)) return nullptr;
+
         Mesh* m = Mesh::loadSTL(path);
         if (m) {
             Mesh* ptr = m;
             _meshes[path] = std::unique_ptr<Mesh>(m);
             return ptr;
         }
+        _missingMeshes.insert(path);
         return nullptr;
     }
 
@@ -1155,10 +1167,9 @@ public:
     }
 
     void drawWeapon() {
-        const auto& def = _weaponSystem.getActiveDef();
-        std::string resolvedTex = Renderer::resolveModelTexture(def.modelFile, def.textureFile);
-        Texture* tex = getTexture(resolvedTex);
-        Mesh* stlMesh = getMesh(def.modelFile);
+        int curIdx = (int)_weaponSystem.getActiveId();
+        Texture* tex = (curIdx >= 0 && curIdx < (int)_cachedWeaponTextures.size()) ? _cachedWeaponTextures[curIdx] : nullptr;
+        Mesh* stlMesh = (curIdx >= 0 && curIdx < (int)_cachedWeaponMeshes.size()) ? _cachedWeaponMeshes[curIdx] : nullptr;
         _weaponSystem.renderViewModel(_camera, _weaponAnimator, tex, stlMesh, _muzzleFlashTime);
     }
 
@@ -1532,15 +1543,7 @@ public:
         _aiManager.render();
 
         // Render 3D World Pickups (Ammo crates, Medkits, and 1-min Weapon Spawn Pads)
-        std::vector<Mesh*> wepMeshes(9, nullptr);
-        std::vector<Texture*> wepTextures(9, nullptr);
-        for (int i = 0; i < 9; ++i) {
-            const auto& wDef = _weaponSystem.getWeapon((WeaponID)i).def;
-            wepMeshes[i] = getMesh(wDef.modelFile);
-            std::string wTexName = Renderer::resolveModelTexture(wDef.modelFile, wDef.textureFile);
-            wepTextures[i] = getTexture(wTexName);
-        }
-        _pickups.render(wepMeshes, wepTextures);
+        _pickups.render(_cachedWeaponMeshes, _cachedWeaponTextures);
 
         // Render 3D Bullet Tracers (Source / Half-Life 2 style luminous beams)
         for (const auto& tr : _tracers) {
@@ -1587,6 +1590,10 @@ private:
     std::unique_ptr<LabMap> _currentMap;
     std::unordered_map<std::string, std::unique_ptr<Texture>> _textures;
     std::unordered_map<std::string, std::unique_ptr<Mesh>> _meshes;
+    std::unordered_set<std::string> _missingTextures;
+    std::unordered_set<std::string> _missingMeshes;
+    std::vector<Mesh*> _cachedWeaponMeshes;
+    std::vector<Texture*> _cachedWeaponTextures;
 
     // Session & Menu state
     GameSessionConfig _sessionConfig;
