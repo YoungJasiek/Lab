@@ -15,3 +15,4 @@
 #include "LabPickups.h"
 #include "LabWeapon.h"
 #include "LabParticles.h"
+#include "LabAudio.h"

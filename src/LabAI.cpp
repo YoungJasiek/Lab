@@ -3,6 +3,7 @@
 #include "LabCollision.h"
 #include "LabPickups.h"
 #include "LabChat.h"
+#include "LabAudio.h"
 #include <cmath>
 #include <algorithm>
 
@@ -117,6 +118,7 @@ namespace Lab {
                 muzzleFlashTimer = 0.08f;
 
                 Vec3 gunMuzzle = position + Vec3(0.2f, 1.15f, 0.3f);
+                AudioEngine::playSound3D(SoundID::SG553Shot, gunMuzzle, 0.85f);
                 bool hit = (rand() % 100) < 68;
                 Vec3 tracerEnd = playerTargetPos;
                 if (!hit) {

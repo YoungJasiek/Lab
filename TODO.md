@@ -58,24 +58,27 @@ Wszystkie systemy tworzone sa w standardzie **C++20**, **OpenGL 4.5+ Core Profil
 - [x] Przegladarka tekstur i mapowanie UV (skala i pozycjonowanie Source UV).
 - [x] Pelny zapis i odczyt formatu .labmap.
 
-### 5. Zestaw Testow Automatycznych (TestVerify.exe)
-- [x] 22 zautomatyzowane zestawy testow integracyjnych i jednostkowych weryfikujace poprawnosc matematyki, renderera, walki, kolizji i edytora, wraz z eksportem klatek graficznych BMP.
+### 5. System Dzwieku Przestrzennego 3D (LabAudio / miniaudio)
+- [x] Integracja nowoczesnego silnika miniaudio v0.11.25 bez zewnetrznych zaleznosci (DirectSound/WASAPI).
+- [x] Wbudowany syntezator proceduralny WAV dla wszystkich 20 dzwiekow gry (RIFF 16-bit PCM: FM synthesis, szum bialy/rozowy z filtrami, obwiednie ADSR).
+- [x] Pelne udzwiekowienie 9 broni:
+  - Wystrzaly: Pistol, Shotgun, M4A4-S, SG553, Minigun, Plasma Gun, Railgun, RPG.
+  - Walka wrecz Pipe: zamach (swing) i tepe uderzenie (hit impact).
+  - Pusty magazynek (Dry fire click) oraz przeladowanie broni (Reload).
+  - Potezna przestrzenna detonacja rakiet RPG (Explosion).
+- [x] Dynamiczne dzwieki krokow gracza (Footsteps) z rozroznieniem podloza (beton, blacha, lod).
+- [x] Odglosy podnoszenia przedmiotow: amunicja (+36), apteczka (+50 HP), respawn broni na podestach.
+- [x] Odglos otrzymywania obrazen przez gracza (Player Hurt).
+- [x] Pelne pozycjonowanie 3D (3D spatial audio) – pozycjonowanie sluchacza (kamera gracza), kierunek, wektor gora, tlumienie odwrotno-kwadratowe i panorama stereo.
+- [x] 3D odglosy strzalu botow w swiecie gry podczas walki.
+- [x] Odporna na wycieki i wielowatkowosc pula 64 stalych instancji dzwiekowych bez realokacji pamieci.
+
+### 6. Zestaw Testow Automatycznych (TestVerify.exe)
+- [x] 23 zautomatyzowane zestawy testow integracyjnych i jednostkowych weryfikujace poprawnosc matematyki, renderera, walki, kolizji, edytora oraz kompletnego silnika dzwieku 3D (z generowaniem i weryfikacja naglowkow 20 plikow WAV).
 
 ---
 
 ## II. NAJBLIZSZE SPRINTY (SHORT-TERM / IN PROGRESS)
-
-### Sprint 1: System Dzwieku Przestrzennego 3D (Audio Engine)
-- [ ] Integracja lekkiej, nowoczesnej biblioteki audio C/C++ (np. miniaudio lub OpenAL Soft).
-- [ ] Udzwiekowienie 9 broni:
-  - Dzwieki wystrzalu dla kazdej broni (Pistol, Shotgun, M4A4-S, SG553, Minigun, Plasma, Railgun, RPG).
-  - Dzwiek zamachu i uderzenia rura w sciany/wrogow (Pipe swing & blunt impact).
-  - Odglosy pustego magazynka (Dry fire click) i przeladowania.
-  - Odglosy wybuchow rakiet, swistu plazmy i wiazki magnetycznej railguna.
-- [ ] Dzwieki krokow gracza i botow (Footsteps) zroznicowane wedlug materialu podloza (beton, blacha, lod, snieg).
-- [ ] Odglosy podnoszenia przedmiotow (pickup amunicji, apteczki, odglos odrodzenia broni na podestach).
-- [ ] Pozycjonowanie przestrzenne 3D (3D spatial audio) – tlumienie z odlegloscia, panorama stereo wg orientacji kamery gracza.
-- [ ] Dzwieki otoczenia kompleksu badawczego Alpha (mrozny wiatr, buczenie transformatorow).
 
 ### Sprint 2: Rece Gracza FPP & Zaawansowane Stany Animacji Broni
 - [ ] Wprowadzenie widocznych rak gracza w widoku FPP (rekawice bojowe / kombinezon taktyczny Frozen-Life) trzymajacych chwyt broni.

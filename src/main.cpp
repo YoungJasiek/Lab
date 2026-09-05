@@ -71,6 +71,9 @@ public:
 
         syncHudWeapon();
 
+        // Initialize 3D Spatial Audio Engine (miniaudio)
+        AudioEngine::init(true);
+
         // Start in Main Menu
         _inMenu = true;
         _menuScreen = MenuScreen::Main;
@@ -489,6 +492,27 @@ public:
 
         _weaponSystem.update(time.delta);
 
+        // ==================== 3D SPATIAL AUDIO SYSTEM & LISTENER UPDATE ====================
+        AudioEngine::setListener(_camera.getPosition(), _camera.getFront(), _camera.getUp());
+        AudioEngine::update(time.delta);
+
+        // Procedural footstep audio on walking/running across map terrain
+        float horizSpeed = std::sqrt(_velocity.x * _velocity.x + _velocity.z * _velocity.z);
+        if (_isGrounded && horizSpeed > 1.2f && !_isPlayerDead && !_inMenu) {
+            _footstepTimer += time.delta * (horizSpeed / 3.8f);
+            if (_footstepTimer >= 0.42f) {
+                _footstepTimer = 0.0f;
+                bool isCryo = (_currentMap && _currentMap->metadata.name.find("Cryo") != std::string::npos);
+                if (isCryo) {
+                    AudioEngine::playSound(SoundID::FootstepIce, 0.6f);
+                } else {
+                    AudioEngine::playSound(SoundID::FootstepConcrete, 0.6f);
+                }
+            }
+        } else {
+            _footstepTimer = 0.0f;
+        }
+
         // ==================== 3D PARTICLE SYSTEM UPDATE & AMBIENT WEATHER ====================
         if (_currentMap) {
             _particleSystem.update(time.delta, _currentMap.get());
@@ -529,6 +553,19 @@ public:
                 _weaponAnimator.onFire();
                 _weaponAnimator.recoilSpring.addImpulse(Vec3(0.0f, def.recoilPitch, def.recoilKick));
 
+                switch (def.id) {
+                    case WeaponID::Pipe:      AudioEngine::playSound(SoundID::PipeSwing); break;
+                    case WeaponID::Pistol:    AudioEngine::playSound(SoundID::PistolShot); break;
+                    case WeaponID::Shotgun:   AudioEngine::playSound(SoundID::ShotgunShot); break;
+                    case WeaponID::M4A4S:     AudioEngine::playSound(SoundID::M4A4SShot); break;
+                    case WeaponID::SG553:     AudioEngine::playSound(SoundID::SG553Shot); break;
+                    case WeaponID::Minigun:   AudioEngine::playSound(SoundID::MinigunShot); break;
+                    case WeaponID::PlasmaGun: AudioEngine::playSound(SoundID::PlasmaShot); break;
+                    case WeaponID::Railgun:   AudioEngine::playSound(SoundID::RailgunShot); break;
+                    case WeaponID::RPG:       AudioEngine::playSound(SoundID::RPGLaunch); break;
+                    default: break;
+                }
+
                 Vec3 rayOrigin = _camera.getPosition();
                 Vec3 forward = _camera.getFront();
                 Vec3 right = _camera.getRight();
@@ -547,6 +584,7 @@ public:
                     hit.distance = def.range;
                     _aiManager.testRaycast(rayOrigin, forward, hit);
                     if (hit.hit && hit.distance <= def.range && hit.tag == EntityTag::Bot) {
+                        AudioEngine::playSound(SoundID::PipeHit);
                         for (auto& bot : _aiManager.bots) {
                             if (bot.id == hit.entityIndex && bot.isAlive()) {
                                 float dmg = hit.isHeadshot ? (def.damage * def.headshotMultiplier) : def.damage;
@@ -687,6 +725,9 @@ public:
                     }
                 }
                 syncHudWeapon();
+            } else {
+                AudioEngine::playSound(SoundID::DryFire);
+                _weaponSystem.setFireCooldown(0.25f);
             }
         }
 
@@ -733,6 +774,7 @@ public:
             if (hitAnything) {
                 proj.active = false;
                 _particleSystem.spawnExplosion(hitPos, proj.splashRadius, proj.color);
+                AudioEngine::playSound3D(SoundID::RPGExplosion, hitPos);
                 float radiusSq = proj.splashRadius * proj.splashRadius;
 
                 for (auto& bot : _aiManager.bots) {
@@ -787,6 +829,7 @@ public:
         }
 
         if (botDamageToPlayer > 0.0f) {
+            AudioEngine::playSound(SoundID::PlayerHurt);
             _hud.triggerDamageFlash();
             if (_hud.suitArmor > 0.0f) {
                 float absorb = std::min(_hud.suitArmor, botDamageToPlayer * 0.7f);
@@ -821,9 +864,11 @@ public:
             _hud.showCombatMessage(pickupNotice, 2.5f);
             _chat.addMessage("[ARSENAL]", pickupNotice, Vec3(0.3f, 0.85f, 1.0f));
             _particleSystem.spawnBeamSparks(_camera.getPosition(), _camera.getPosition() + Vec3(0, 1.2f, 0), Vec3(0.2f, 0.85f, 1.0f), 16);
+            AudioEngine::playSound(SoundID::WeaponSpawn);
         }
         if (weaponRespawned) {
             _chat.addMessage("[ARSENAL]", "A weapon has respawned on the arena pad!", Vec3(0.3f, 0.7f, 0.9f));
+            AudioEngine::playSound(SoundID::WeaponSpawn);
         }
         if (ammoAdded > 0) {
             _weaponSystem.getActiveWeapon().addAmmo(ammoAdded);
@@ -832,11 +877,13 @@ public:
                 _hud.showCombatMessage(pickupNotice, 2.0f);
                 _chat.addMessage("[ITEM]", pickupNotice, Vec3(0.95f, 0.82f, 0.15f));
             }
+            AudioEngine::playSound(SoundID::PickupAmmo);
         }
         if (healthAdded > 0.0f) {
             _hud.health = std::min(_hud.maxHealth, _hud.health + healthAdded);
             _hud.showCombatMessage(pickupNotice, 2.0f);
             _chat.addMessage("[ITEM]", pickupNotice, Vec3(0.2f, 0.95f, 0.4f));
+            AudioEngine::playSound(SoundID::PickupMedkit);
         }
 
         // Update active Bullet Tracers
@@ -854,6 +901,7 @@ public:
                     curWep.reload();
                     syncHudWeapon();
                     _weaponAnimator.recoilSpring.addImpulse(Vec3(0.0f, -0.05f, 0.05f));
+                    AudioEngine::playSound(SoundID::Reload);
                 }
             }
         }
@@ -1580,6 +1628,7 @@ public:
     }
 
     void onShutdown() override {
+        AudioEngine::shutdown();
         _particleSystem.shutdown();
         Renderer::shutdown();
     }
@@ -1635,6 +1684,7 @@ private:
     AIManager _aiManager;
     std::vector<BulletTracer> _tracers;
     float _muzzleFlashTime;
+    float _footstepTimer = 0.0f;
 
     // Hammer Editor & HUD
     LabHammerEditor _hammerEditor;

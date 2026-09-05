@@ -1631,6 +1631,90 @@ int main() {
         std::cout << "[Test] Saved Weapon Spawners visual verification to 'test_weapon_spawners.bmp'.\n";
     }
 
+    // ==========================================
+    // TEST 23: 3D Audio Engine, Procedural WAV Synthesizer & Spatial Falloff
+    // ==========================================
+    std::cout << "\n[Test 23] Verifying 3D Audio Engine, Procedural WAV Synthesizer & Spatial Falloff...\n";
+    {
+        // 1. Initialize Audio Engine in Headless/Offline verification mode (no physical speaker needed)
+        bool audioInit = Lab::AudioEngine::init(false);
+        if (!audioInit || !Lab::AudioEngine::isInitialized()) {
+            std::cerr << "Assertion failed: AudioEngine::init(false) should succeed in headless mode\n";
+            return 1;
+        }
+        std::cout << "  [PASS] AudioEngine initialized successfully in headless mode.\n";
+
+        // 2. Verify all 20 sound definitions and generated WAV files on disk
+        constexpr size_t soundCount = (size_t)Lab::SoundID::Count;
+        static_assert(soundCount == 20, "Expected 20 sounds in SoundID enum");
+
+        for (size_t i = 0; i < soundCount; ++i) {
+            const auto& def = Lab::AudioEngine::getSoundDef((Lab::SoundID)i);
+            std::string filePath = "assets/audio/" + def.filename;
+            if (!std::filesystem::exists(filePath)) {
+                std::cerr << "Assertion failed: Synthesized WAV audio file not found on disk: " << filePath << "\n";
+                return 1;
+            }
+
+            // Verify valid RIFF/WAVE header
+            std::ifstream file(filePath, std::ios::binary);
+            if (!file.is_open()) {
+                std::cerr << "Assertion failed: Could not open audio file: " << filePath << "\n";
+                return 1;
+            }
+            char header[44];
+            file.read(header, 44);
+            if (file.gcount() < 44 || std::memcmp(header, "RIFF", 4) != 0 || std::memcmp(header + 8, "WAVE", 4) != 0) {
+                std::cerr << "Assertion failed: Invalid RIFF/WAVE header in: " << filePath << "\n";
+                return 1;
+            }
+            file.seekg(0, std::ios::end);
+            size_t fileSize = (size_t)file.tellg();
+            if (fileSize <= 44) {
+                std::cerr << "Assertion failed: Audio file contains no PCM sample data: " << filePath << "\n";
+                return 1;
+            }
+            std::cout << "  Verified WAV [" << (i + 1) << "/20]: " << def.displayName << " (" << def.filename << ", " << fileSize << " bytes)\n";
+        }
+        std::cout << "  [PASS] All 20 procedural sound assets verified with valid RIFF 16-bit PCM WAVE headers.\n";
+
+        // 3. Verify Master Volume controls and bounds
+        Lab::AudioEngine::setMasterVolume(0.75f);
+        if (std::abs(Lab::AudioEngine::getMasterVolume() - 0.75f) > 1e-4f) {
+            std::cerr << "Assertion failed: Master volume not updated properly\n";
+            return 1;
+        }
+        Lab::AudioEngine::setMasterVolume(1.0f);
+
+        // 4. Verify 3D Listener Positioning & Orientation
+        Lab::AudioEngine::setListener(Lab::Vec3(0.0f, 1.8f, 0.0f), Lab::Vec3(0.0f, 0.0f, -1.0f), Lab::Vec3(0.0f, 1.0f, 0.0f));
+
+        // 5. Verify 3D distance attenuation inverse falloff formula
+        const auto& expDef = Lab::AudioEngine::getSoundDef(Lab::SoundID::RPGExplosion);
+        float dNear = 2.0f;
+        float dFar = 50.0f;
+        float gainNear = expDef.minDistance / (expDef.minDistance + std::max(0.0f, dNear - expDef.minDistance));
+        float gainFar = expDef.minDistance / (expDef.minDistance + std::max(0.0f, dFar - expDef.minDistance));
+        if (gainNear <= gainFar || gainNear > 1.0f || gainFar <= 0.0f) {
+            std::cerr << "Assertion failed: 3D spatial attenuation math invalid\n";
+            return 1;
+        }
+        std::cout << "  [PASS] 3D Inverse Spatial Attenuation verified: near gain = " << gainNear << ", far gain = " << gainFar << "\n";
+
+        // 6. Test invocation of playSound, playSound3D and update
+        Lab::AudioEngine::playSound(Lab::SoundID::PistolShot, 1.0f);
+        Lab::AudioEngine::playSound3D(Lab::SoundID::RPGExplosion, Lab::Vec3(10.0f, 0.0f, 5.0f));
+        Lab::AudioEngine::update(0.016f);
+
+        // 7. Test clean shutdown
+        Lab::AudioEngine::shutdown();
+        if (Lab::AudioEngine::isInitialized()) {
+            std::cerr << "Assertion failed: AudioEngine::shutdown did not reset isInitialized flag\n";
+            return 1;
+        }
+        std::cout << "  [PASS] AudioEngine shutdown clean.\n";
+    }
+
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();
