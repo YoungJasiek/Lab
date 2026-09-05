@@ -17,3 +17,4 @@
 #include "LabParticles.h"
 #include "LabAudio.h"
 #include "LabArms.h"
+#include "LabLight.h"

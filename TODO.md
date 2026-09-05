@@ -84,14 +84,26 @@ Wszystkie systemy tworzone sa w standardzie **C++20**, **OpenGL 4.5+ Core Profil
 - [x] Dynamiczny luk zamachu rura (Heavy Melee Slash) z efektem smugi ruchu (Kinetic Motion Trail).
 - [x] Cyber-karwasz z dioda telemetryczna LED (cyan) i kompozytowymi wkladkami ochronnymi.
 
+### 8. Oswietlenie w Czasie Rzeczywistym, Latarka Half-Life 2 & Dynamiczne Cienie (Sprint 3 - 100% DONE)
+- [x] Rzutowanie perspektywiczne i ortograficzne (`Mat4::ortho`, `Mat4::perspective`).
+- [x] Podsystem swiatel `LabLight` (klasa `Flashlight` – taktyczny reflektor HL2 ze stozkiem wewnetrznym/zewnetrznym, tlumieniem odleglosciowym i zbieznoscia na linie wzroku).
+- [x] Dynamiczny bufor cieni `ShadowMap` – FBO 2048x2048 `GL_DEPTH_COMPONENT24` z Direct State Access (DSA) i bezpiecznym zarzadzaniem viewportem.
+- [x] Syntetyzator przelacznika latarki (`SoundID::FlashlightToggle`, mechaniczny dzwiek klikniecia w `LabAudio`).
+- [x] Pipeline shaderow cieni (Vertex & Fragment pass glebokosci `shadowDepth`, 3x3 Percentage-Closer Filtering PCF z dynamicznym slope-scaled normal bias w glownym shaderze).
+- [x] Dwufazowy render sceny w `main.cpp` (Pass 1: mapa glebokosci cieni; Pass 2: oswietlenie sceny i cienkowanie).
+- [x] Sterowanie: klawisz `F` do wlaczenia/wylaczenia latarki z dynamicznym cieniem, klawisz `V` do inspekcji broni FPP.
+- [x] Zautomatyzowany i wizualny test 25 w `TestVerify.exe` weryfikujacy 2048x2048 FBO, stozek latarki i cienkowanie (`test_flashlight_and_shadows.bmp`).
+
 ---
 
 ## II. NAJBLIZSZE SPRINTY (SHORT-TERM / IN PROGRESS)
 
-### Sprint 3: Oswietlenie w Czasie Rzeczywistym & Cienie (Shadow Mapping & Flashlight)
-- [ ] Latarka gracza w stylu Half-Life 2 (Spotlight ze stozkiem swiatla na klawisz F/L z dynamicznym rzucaniem cieni).
-- [ ] Dynamiczne mapy cieni (Shadow Mapping FBO / CSM) dla glownego oswietlenia kierunkowego i latarki.
-- [ ] Modul statycznego wypalania oswietlenia (Baking Lightmaps) w geometrii Hammera dla klimatycznych cieni w korytarzach.
+### Sprint 4: Silnik Animacji Szkieletowej glTF 2.0 & GPU Vertex Skinning (IN PROGRESS)
+- [ ] Loader glTF 2.0 / GLB z odczytem hierarchii wezlow (Nodes), kosci (Joints/Bones), odwrotnych macierzy wiazania (Inverse Bind Matrices) i kanalow animacji (Translation, Rotation Quaternions, Scale).
+- [ ] Interpolacja klatek kluczowych (Keyframe Sampling & Slerp kwaternionow) z plynna obsluga cykli animacji (Idle, Walk, Run, Shoot).
+- [ ] GPU Vertex Skinning w shaderach GLSL (atrybuty `aBoneIDs`, `aBoneWeights`, tablica `uBoneMatrices[64]`).
+- [ ] Architektura hybrydowa glTF + STL: system gniazda kosci (Bone Socket Attachment) mocujacy sztywne modele broni STL do dloni animowanego szkieletu glTF.
+- [ ] Wizualny test weryfikacyjny szkieletu i GPU skinningu w `TestVerify.exe`.
 
 ---
 

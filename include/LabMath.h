@@ -71,6 +71,18 @@ namespace Lab {
             return res;
         }
 
+        static Mat4 ortho(float left, float right, float bottom, float top, float near, float far) {
+            Mat4 res;
+            res.m[0] = 2.0f / (right - left);
+            res.m[5] = 2.0f / (top - bottom);
+            res.m[10] = -2.0f / (far - near);
+            res.m[12] = -(right + left) / (right - left);
+            res.m[13] = -(top + bottom) / (top - bottom);
+            res.m[14] = -(far + near) / (far - near);
+            res.m[15] = 1.0f;
+            return res;
+        }
+
         static Mat4 translate(const Vec3& v) {
             Mat4 res;
             res.m[12] = v.x;

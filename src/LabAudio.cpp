@@ -53,7 +53,8 @@ namespace Lab {
         { SoundID::PickupAmmo,       "pickup_ammo.wav",       "Pickup Ammo",       0.90f, 1.0f, 1.5f, 25.0f },
         { SoundID::PickupMedkit,     "pickup_medkit.wav",     "Pickup Medkit",     0.90f, 1.0f, 1.5f, 25.0f },
         { SoundID::WeaponSpawn,      "weapon_spawn.wav",      "Weapon Respawn Pad",0.85f, 1.0f, 2.0f, 30.0f },
-        { SoundID::PlayerHurt,       "player_hurt.wav",       "Player Hurt",       0.85f, 1.0f, 1.5f, 25.0f }
+        { SoundID::PlayerHurt,       "player_hurt.wav",       "Player Hurt",       0.85f, 1.0f, 1.5f, 25.0f },
+        { SoundID::FlashlightToggle, "flashlight_toggle.wav", "Flashlight Toggle", 0.90f, 1.0f, 1.0f, 15.0f }
     }};
 
     struct ActiveSpatialSound {
@@ -120,6 +121,7 @@ namespace Lab {
             case SoundID::PickupMedkit:     duration = 0.32f; break;
             case SoundID::WeaponSpawn:      duration = 0.85f; break;
             case SoundID::PlayerHurt:       duration = 0.24f; break;
+            case SoundID::FlashlightToggle: duration = 0.08f; break;
             default:                        duration = 0.25f; break;
         }
 
@@ -290,6 +292,15 @@ namespace Lab {
                     float env = std::exp(-t * 20.0f);
                     float grunt = std::sin(2.0f * PI * 95.0f * t) * 0.75f + nextNoise() * 0.3f;
                     out = grunt * env;
+                    break;
+                }
+                case SoundID::FlashlightToggle: {
+                    // Crisp mechanical toggle switch click (HEV suit tactical illuminator)
+                    float env = std::exp(-t * 80.0f);
+                    float click = std::sin(2.0f * PI * 2400.0f * t) * 0.7f;
+                    float body = std::sin(2.0f * PI * 850.0f * t) * 0.5f;
+                    float noise = nextNoise() * 0.3f * std::exp(-t * 120.0f);
+                    out = (click + body + noise) * env;
                     break;
                 }
                 default:

@@ -85,8 +85,20 @@ namespace Lab {
         static void beginViewModel();
         static void endViewModel(const Camera& camera);
 
-        // Lighting configuration
+        // Lighting & Shadows configuration
         static void setSunLight(const Vec3& direction, const Vec3& color, const Vec3& ambient);
+        static void setFlashlight(const Vec3& pos, const Vec3& dir, const Vec3& color,
+                                  float innerCone, float outerCone, float range, float intensity);
+        static void disableFlashlight();
+        static void setShadowMap(const Mat4& lightSpaceMatrix, unsigned int depthTexture);
+        static void disableShadowMap();
+
+        // Shadow depth pass rendering
+        static void beginShadowDepthPass(const Mat4& lightSpaceMatrix);
+        static void endShadowDepthPass();
+        static void drawShadowCube(const Vec3& position, const Vec3& rotation, const Vec3& scale);
+        static void drawShadowCube(const Vec3& position, const Vec3& size);
+        static void drawShadowMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale);
 
         // 3D Rendering
         static void drawCube(const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color, const Texture* texture = nullptr, bool enableLighting = true, const Vec2& uvTiling = { 0.25f, 0.25f }, int uvMode = 1);
@@ -107,8 +119,10 @@ namespace Lab {
 
     private:
         static Mat4 getTransform(const Vec3& pos, const Vec3& rot, const Vec3& scale);
+        static void applyLightingAndShadowUniforms(Shader* shader);
         
         static Shader* _defaultShader;
+        static Shader* _shadowDepthShader;
         static Shader* _uiShader;
         static Mesh* _cubeMesh;
         static Mesh* _quadMesh; // For baseplate
@@ -122,5 +136,19 @@ namespace Lab {
         static Vec3 _lightDir;
         static Vec3 _lightColor;
         static Vec3 _ambientColor;
+
+        // Dynamic Spotlight & Shadows state
+        static bool _enableSpotlight;
+        static Vec3 _spotLightPos;
+        static Vec3 _spotLightDir;
+        static Vec3 _spotLightColor;
+        static float _spotLightInnerCone;
+        static float _spotLightOuterCone;
+        static float _spotLightRange;
+        static float _spotLightIntensity;
+
+        static bool _enableShadows;
+        static Mat4 _lightSpaceMatrix;
+        static unsigned int _shadowDepthTexture;
     };
 }

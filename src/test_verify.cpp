@@ -1644,9 +1644,9 @@ int main() {
         }
         std::cout << "  [PASS] AudioEngine initialized successfully in headless mode.\n";
 
-        // 2. Verify all 20 sound definitions and generated WAV files on disk
+        // 2. Verify all 21 sound definitions and generated WAV files on disk
         constexpr size_t soundCount = (size_t)Lab::SoundID::Count;
-        static_assert(soundCount == 20, "Expected 20 sounds in SoundID enum");
+        static_assert(soundCount == 21, "Expected 21 sounds in SoundID enum");
 
         for (size_t i = 0; i < soundCount; ++i) {
             const auto& def = Lab::AudioEngine::getSoundDef((Lab::SoundID)i);
@@ -1827,6 +1827,118 @@ int main() {
         glFinish();
         saveFrameToBMP("test_arms_and_viewmodel.bmp", w, h);
         std::cout << "  [PASS] Saved visual FPP Arms & Viewmodel verification to 'test_arms_and_viewmodel.bmp'.\n";
+    }
+
+    // =========================================================================
+    // [Test 25] Verifying Real-Time Lighting, Half-Life 2 Flashlight & Dynamic Shadows (Shadow Mapping + PCF)
+    // =========================================================================
+    {
+        std::cout << "\n[Test 25] Verifying Real-Time Lighting, Tactical Flashlight & Shadow Mapping...\n";
+
+        // 1. Initialize ShadowMap FBO & Depth Texture (OpenGL 4.5 Direct State Access)
+        Lab::ShadowMap shadowMap;
+        if (!shadowMap.init(2048, 2048)) {
+            std::cerr << "Assertion failed: ShadowMap FBO initialization failed\n";
+            return 1;
+        }
+        if (shadowMap.getFbo() == 0 || shadowMap.getDepthTexture() == 0) {
+            std::cerr << "Assertion failed: Invalid shadow FBO or depth texture handles\n";
+            return 1;
+        }
+        GLenum fboStatus = glCheckNamedFramebufferStatus(shadowMap.getFbo(), GL_FRAMEBUFFER);
+        if (fboStatus != GL_FRAMEBUFFER_COMPLETE) {
+            std::cerr << "Assertion failed: ShadowMap FBO not complete, status: " << fboStatus << "\n";
+            return 1;
+        }
+        std::cout << "  [PASS] ShadowMap FBO 2048x2048 (DSA) initialized and complete.\n";
+
+        // 2. Setup Tactical Flashlight (HL2 style Spotlight)
+        Lab::Flashlight flashlight;
+        flashlight.enabled = true;
+        Lab::Vec3 camPos(0.0f, 1.8f, 5.0f);
+        Lab::Vec3 camFwd(0.0f, -0.15f, -1.0f);
+        camFwd = camFwd.normalized();
+        flashlight.update(camPos, camFwd, Lab::Vec3(1, 0, 0), Lab::Vec3(0, 1, 0));
+
+        if (!flashlight.enabled || flashlight.range <= 0.0f) {
+            std::cerr << "Assertion failed: Flashlight should be enabled with positive range\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Tactical Flashlight spotlight parameters verified (Range=" << flashlight.range << "m, InnerCone=" << flashlight.innerCone << ")\n";
+
+        // 3. Shadow Depth Pass (Compute light space matrix and render shadow casters)
+        Lab::Vec3 sunDir(-0.45f, -0.85f, -0.28f);
+        Lab::Mat4 lightSpaceMatrix = Lab::ShadowMap::computeSunLightSpaceMatrix(sunDir, Lab::Vec3(0, 0, 0), 25.0f);
+
+        shadowMap.beginShadowPass(lightSpaceMatrix);
+        Lab::Renderer::beginShadowDepthPass(lightSpaceMatrix);
+
+        // Ground floor
+        Lab::Renderer::drawShadowCube(Lab::Vec3(0.0f, -0.1f, 0.0f), Lab::Vec3(30.0f, 0.2f, 30.0f));
+        // Back wall
+        Lab::Renderer::drawShadowCube(Lab::Vec3(0.0f, 3.0f, -6.0f), Lab::Vec3(30.0f, 6.0f, 0.5f));
+        // Monolithic Pillar (Primary shadow caster)
+        Lab::Renderer::drawShadowCube(Lab::Vec3(-1.5f, 2.5f, -1.5f), Lab::Vec3(1.2f, 5.0f, 1.2f));
+        // Tactical Barricade crate
+        Lab::Renderer::drawShadowCube(Lab::Vec3(2.0f, 0.75f, 0.5f), Lab::Vec3(1.8f, 1.5f, 1.5f));
+
+        Lab::Renderer::endShadowDepthPass();
+        shadowMap.endShadowPass(w, h);
+        std::cout << "  [PASS] Shadow Depth Pass completed: Occluders written to depth map.\n";
+
+        // 4. Color & Lighting Pass with Shadow Mapping + Spotlight illumination
+        glClearColor(0.04f, 0.05f, 0.07f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        Lab::Camera lightCam(70.0f, (float)w / (float)h, 0.01f, 1000.0f);
+        lightCam.setPosition(camPos);
+        lightCam.update(Lab::Vec2(0.0f, 10.0f)); // slight downward pitch
+        Lab::Renderer::beginFrame(lightCam);
+
+        // Set sun lighting (cool Source Engine directional light)
+        Lab::Renderer::setSunLight(sunDir, Lab::Vec3(1.0f, 0.95f, 0.90f), Lab::Vec3(0.18f, 0.22f, 0.28f));
+
+        // Bind shadow map and spotlight
+        Lab::Renderer::setShadowMap(lightSpaceMatrix, shadowMap.getDepthTexture());
+        Lab::Renderer::setFlashlight(flashlight.position, flashlight.direction, flashlight.color,
+                                    flashlight.innerCone, flashlight.outerCone, flashlight.range, flashlight.intensity);
+
+        // Render scene geometry with shadows and textures
+        Lab::Texture floorTex("assets/textures/floor_tiles.bmp");
+        Lab::Texture wallTex("assets/textures/concrete_wall.bmp");
+        Lab::Texture hazardTex("assets/textures/hazard_stripes.bmp");
+
+        Lab::Renderer::drawCube(Lab::Vec3(0.0f, -0.1f, 0.0f), Lab::Vec3(30.0f, 0.2f, 30.0f), Lab::Vec3(0.85f, 0.85f, 0.85f), &floorTex, true);
+        Lab::Renderer::drawCube(Lab::Vec3(0.0f, 3.0f, -6.0f), Lab::Vec3(30.0f, 6.0f, 0.5f), Lab::Vec3(0.80f, 0.80f, 0.80f), &wallTex, true);
+        Lab::Renderer::drawCube(Lab::Vec3(-1.5f, 2.5f, -1.5f), Lab::Vec3(1.2f, 5.0f, 1.2f), Lab::Vec3(0.35f, 0.38f, 0.45f), &hazardTex, true);
+        Lab::Renderer::drawCube(Lab::Vec3(2.0f, 0.75f, 0.5f), Lab::Vec3(1.8f, 1.5f, 1.5f), Lab::Vec3(0.55f, 0.45f, 0.30f), &wallTex, true);
+
+        // Render tactical weapon viewmodel with arms held in front
+        Lab::WeaponSystem ws;
+        ws.init();
+        ws.unlockAll();
+        ws.switchWeapon(Lab::WeaponID::M4A4S);
+        ws.update(0.5f);
+
+        Lab::WeaponAnimator testAnim;
+        testAnim.update(0.1f, Lab::Vec2(0, 0), 0.0f);
+        ws.renderViewModel(lightCam, testAnim, nullptr, nullptr, 0.0f);
+
+        Lab::Renderer::disableShadowMap();
+        Lab::Renderer::disableFlashlight();
+
+        // 5. UI Overlay
+        Lab::Renderer::beginUI(w, h);
+        Lab::Renderer::drawRect(40.0f, 30.0f, 680.0f, 85.0f, Lab::Vec3(0.10f, 0.12f, 0.16f));
+        Lab::Renderer::drawRect(40.0f, 30.0f, 680.0f, 1.0f, Lab::Vec3(0.2f, 0.85f, 1.0f));
+        Lab::LabFont::drawText(56.0f, 44.0f, "REAL-TIME LIGHTING, TACTICAL FLASHLIGHT & SHADOW MAPPING", 2.0f, Lab::Vec3(0.20f, 0.85f, 1.0f), Lab::LabFontType::GeoSans);
+        Lab::LabFont::drawText(56.0f, 74.0f, "OPENGL 4.5 DSA FBO | 3x3 PCF SOFT PENUMBRA | HL2 SPOTLIGHT CONE", 1.6f, Lab::Vec3(0.85f, 0.90f, 0.95f), Lab::LabFontType::GeoSans);
+        Lab::Renderer::endUI();
+
+        Lab::Renderer::endFrame();
+        glFinish();
+        saveFrameToBMP("test_flashlight_and_shadows.bmp", w, h);
+        std::cout << "  [PASS] Saved visual Real-Time Lighting & Shadows verification to 'test_flashlight_and_shadows.bmp'.\n";
     }
 
     Lab::Renderer::shutdown();

@@ -74,6 +74,9 @@ public:
         // Initialize 3D Spatial Audio Engine (miniaudio)
         AudioEngine::init(true);
 
+        // Initialize Dynamic Shadow Map (2048x2048 high-resolution depth FBO)
+        _shadowMap.init(2048, 2048);
+
         // Start in Main Menu
         _inMenu = true;
         _menuScreen = MenuScreen::Main;
@@ -906,17 +909,32 @@ public:
             }
         }
 
-        // Weapon Inspect (F key when not in Hammer Editor)
+        // Tactical Flashlight (F key - Half-Life 2 style toggleable spotlight)
         if (Input::isKeyPressed('F') || Input::isKeyPressed('f')) {
             if (!_hammerEditor.active && !_chat.isOpen && !_isPlayerDead && !_fPressedLast) {
-                if (!_weaponAnimator.isReloading() && !_weaponAnimator.isInspecting()) {
-                    _weaponAnimator.onInspect(2.4f);
-                }
+                _flashlight.toggle();
+                AudioEngine::playSound(SoundID::FlashlightToggle);
+                _hud.showCombatMessage(_flashlight.enabled ? "FLASHLIGHT: ACTIVATED" : "FLASHLIGHT: DEACTIVATED", 1.5f);
                 _fPressedLast = true;
             }
         } else {
             _fPressedLast = false;
         }
+
+        // Weapon Inspect (V key when not in Hammer Editor)
+        if (Input::isKeyPressed('V') || Input::isKeyPressed('v')) {
+            if (!_hammerEditor.active && !_chat.isOpen && !_isPlayerDead && !_vPressedLast) {
+                if (!_weaponAnimator.isReloading() && !_weaponAnimator.isInspecting()) {
+                    _weaponAnimator.onInspect(2.4f);
+                }
+                _vPressedLast = true;
+            }
+        } else {
+            _vPressedLast = false;
+        }
+
+        // Update tactical flashlight beam kinematics
+        _flashlight.update(_camera.getPosition(), _camera.getFront(), _camera.getRight(), _camera.getUp());
 
         // Procedural Weapon Sway and Bob update
         float horizontalSpeed = std::sqrt(_velocity.x * _velocity.x + _velocity.z * _velocity.z);
@@ -1560,7 +1578,49 @@ public:
             return;
         }
 
+        // ==================== PASS 1: DYNAMIC SHADOW DEPTH PASS ====================
+        Mat4 lightSpaceMatrix;
+        if (_currentMap && _shadowMap.isInitialized()) {
+            Vec3 sunDir = Vec3(-0.35f, -1.0f, -0.45f);
+            lightSpaceMatrix = ShadowMap::computeSunLightSpaceMatrix(sunDir, _camera.getPosition(), 38.0f);
+            _shadowMap.beginShadowPass(lightSpaceMatrix);
+            Renderer::beginShadowDepthPass(lightSpaceMatrix);
+
+            // Render map brushes into shadow map
+            for (const auto& b : _currentMap->brushes) {
+                Renderer::drawShadowCube(b.position, b.size);
+            }
+            // Render props into shadow map
+            for (const auto& p : _currentMap->props) {
+                if (_meshes.contains(p.modelPath)) {
+                    Renderer::drawShadowMesh(*_meshes[p.modelPath], p.position, p.rotation, p.scale);
+                }
+            }
+            // Render doors into shadow map
+            for (const auto& d : _currentMap->doors) {
+                Vec3 animatedPos = d.position + d.openOffset * d.currentProgress;
+                Renderer::drawShadowCube(animatedPos, d.size);
+            }
+
+            Renderer::endShadowDepthPass();
+            _shadowMap.endShadowPass(getWidth(), getHeight());
+        }
+
+        // ==================== PASS 2: COLOR & LIGHTING SCENE PASS ====================
         Renderer::beginFrame(_camera);
+
+        if (_shadowMap.isInitialized()) {
+            Renderer::setShadowMap(lightSpaceMatrix, _shadowMap.getDepthTexture());
+        } else {
+            Renderer::disableShadowMap();
+        }
+
+        if (_flashlight.enabled) {
+            Renderer::setFlashlight(_flashlight.position, _flashlight.direction, _flashlight.color,
+                                   _flashlight.innerCone, _flashlight.outerCone, _flashlight.range, _flashlight.intensity);
+        } else {
+            Renderer::disableFlashlight();
+        }
 
         if (_currentMap) {
             // Render map brushes with Frustum Culling & Source Tri-Planar UV scaling
@@ -1634,12 +1694,16 @@ public:
             drawWeapon();
         }
 
+        Renderer::disableShadowMap();
+        Renderer::disableFlashlight();
+
         drawUI();
 
         Renderer::endFrame();
     }
 
     void onShutdown() override {
+        _shadowMap.shutdown();
         AudioEngine::shutdown();
         _particleSystem.shutdown();
         Renderer::shutdown();
@@ -1707,6 +1771,11 @@ private:
     bool _kPressedLast = false;
     bool _backspacePressedLast = false;
     bool _fPressedLast = false;
+    bool _vPressedLast = false;
+
+    // Real-Time Lighting & Shadow Mapping (Sprint 3)
+    Flashlight _flashlight;
+    ShadowMap _shadowMap;
 
     // Debug mode
     bool _debugMode = false;

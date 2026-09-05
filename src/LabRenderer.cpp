@@ -18,6 +18,7 @@ namespace Lab {
         layout (location = 3) in vec3 aColor;
 
         out vec3 FragPos;
+        out vec4 FragPosLightSpace;
         out vec3 Normal;
         out vec2 TexCoords;
         out vec3 Color;
@@ -25,12 +26,15 @@ namespace Lab {
         uniform mat4 model;
         uniform mat4 view;
         uniform mat4 projection;
+        uniform mat4 lightSpaceMatrix;
         uniform vec3 brushSize;
         uniform vec2 uvTiling;
         uniform int uvMode;
 
         void main() {
             FragPos = vec3(model * vec4(aPos, 1.0));
+            FragPosLightSpace = lightSpaceMatrix * vec4(FragPos, 1.0);
+
             // Inverse transpose for accurate non-uniform scaling normals
             mat3 normalMatrix = transpose(inverse(mat3(model)));
             Normal = normalize(normalMatrix * aNormal);
@@ -58,6 +62,7 @@ namespace Lab {
         out vec4 FragColor;
 
         in vec3 FragPos;
+        in vec4 FragPosLightSpace;
         in vec3 Normal;
         in vec2 TexCoords;
         in vec3 Color;
@@ -70,6 +75,41 @@ namespace Lab {
         uniform vec3 lightDir;
         uniform vec3 lightColor;
         uniform vec3 ambientColor;
+
+        // Dynamic Spotlight (Flashlight)
+        uniform int enableSpotlight;
+        uniform vec3 spotLightPos;
+        uniform vec3 spotLightDir;
+        uniform vec3 spotLightColor;
+        uniform float spotLightInnerCone;
+        uniform float spotLightOuterCone;
+        uniform float spotLightRange;
+        uniform float spotLightIntensity;
+
+        // Dynamic Shadow Mapping
+        uniform int enableShadows;
+        uniform sampler2D shadowMap;
+
+        float calculateShadow(vec4 fragPosLightSpace, vec3 normal, vec3 lightDirection) {
+            vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+            projCoords = projCoords * 0.5 + 0.5;
+            if (projCoords.z > 1.0 || projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0) {
+                return 0.0;
+            }
+
+            float bias = max(0.0035 * (1.0 - dot(normal, -lightDirection)), 0.0008);
+            float shadow = 0.0;
+            vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+
+            // 3x3 Percentage-Closer Filtering (PCF) for smooth penumbra
+            for (int x = -1; x <= 1; ++x) {
+                for (int y = -1; y <= 1; ++y) {
+                    float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
+                    shadow += (projCoords.z - bias > pcfDepth) ? 1.0 : 0.0;
+                }
+            }
+            return shadow / 9.0;
+        }
 
         void main() {
             if (enableLighting == 0) {
@@ -84,7 +124,7 @@ namespace Lab {
             // Ambient (Half-Life 2 style cool ambient)
             vec3 ambient = ambientColor * albedo;
 
-            // Diffuse
+            // Diffuse (Sun / Directional Light)
             vec3 norm = normalize(Normal);
             vec3 lDir = normalize(-lightDir);
             float diff = max(dot(norm, lDir), 0.0);
@@ -96,8 +136,54 @@ namespace Lab {
             float spec = pow(max(dot(norm, halfwayDir), 0.0), 32.0);
             vec3 specular = lightColor * spec * 0.3;
 
-            vec3 result = ambient + diffuse + specular;
+            // Calculate directional shadow
+            float shadow = (enableShadows == 1) ? calculateShadow(FragPosLightSpace, norm, lightDir) : 0.0;
+            vec3 baseLighting = ambient + (1.0 - shadow * 0.85) * (diffuse + specular);
+
+            // Tactical Flashlight (HL2 style cone with distance attenuation and central hotspot)
+            vec3 spotResult = vec3(0.0);
+            if (enableSpotlight == 1) {
+                vec3 toSpot = spotLightPos - FragPos;
+                float dist = length(toSpot);
+                if (dist < spotLightRange) {
+                    vec3 spotDirNorm = normalize(toSpot);
+                    float theta = dot(spotDirNorm, normalize(-spotLightDir));
+                    float epsilon = spotLightInnerCone - spotLightOuterCone;
+                    float spotFactor = clamp((theta - spotLightOuterCone) / max(epsilon, 0.0001), 0.0, 1.0);
+
+                    if (spotFactor > 0.0) {
+                        float atten = 1.0 / (1.0 + 0.07 * dist + 0.012 * dist * dist);
+                        float spotDiff = max(dot(norm, spotDirNorm), 0.0);
+                        vec3 spotDiffuse = spotDiff * spotLightColor * albedo;
+
+                        vec3 spotHalfway = normalize(spotDirNorm + viewDir);
+                        float spotSpec = pow(max(dot(norm, spotHalfway), 0.0), 32.0);
+                        vec3 spotSpecular = spotLightColor * spotSpec * 0.4;
+
+                        spotResult = (spotDiffuse + spotSpecular) * (spotFactor * atten * spotLightIntensity);
+                    }
+                }
+            }
+
+            vec3 result = baseLighting + spotResult;
             FragColor = vec4(result, 1.0);
+        }
+    )";
+
+    const char* shadowDepthVertexShaderSrc = R"(
+        #version 450 core
+        layout (location = 0) in vec3 aPos;
+        uniform mat4 model;
+        uniform mat4 lightSpaceMatrix;
+        void main() {
+            gl_Position = lightSpaceMatrix * model * vec4(aPos, 1.0);
+        }
+    )";
+
+    const char* shadowDepthFragmentShaderSrc = R"(
+        #version 450 core
+        void main() {
+            // Depth is written automatically to gl_FragDepth
         }
     )";
 
@@ -635,6 +721,7 @@ namespace Lab {
 
     // --- Renderer Static Variables ---
     Shader* Renderer::_defaultShader = nullptr;
+    Shader* Renderer::_shadowDepthShader = nullptr;
     Shader* Renderer::_uiShader = nullptr;
     Mesh* Renderer::_cubeMesh = nullptr;
     Mesh* Renderer::_quadMesh = nullptr;
@@ -651,6 +738,45 @@ namespace Lab {
     Vec3 Renderer::_lightColor = { 1.0f, 0.95f, 0.9f };
     Vec3 Renderer::_ambientColor = { 0.25f, 0.28f, 0.35f };
 
+    bool Renderer::_enableSpotlight = false;
+    Vec3 Renderer::_spotLightPos = { 0, 0, 0 };
+    Vec3 Renderer::_spotLightDir = { 0, 0, -1 };
+    Vec3 Renderer::_spotLightColor = { 1.0f, 0.98f, 0.92f };
+    float Renderer::_spotLightInnerCone = 0.9781f;
+    float Renderer::_spotLightOuterCone = 0.9510f;
+    float Renderer::_spotLightRange = 42.0f;
+    float Renderer::_spotLightIntensity = 2.2f;
+
+    bool Renderer::_enableShadows = false;
+    Mat4 Renderer::_lightSpaceMatrix;
+    unsigned int Renderer::_shadowDepthTexture = 0;
+
+    void Renderer::applyLightingAndShadowUniforms(Shader* shader) {
+        shader->setVec3("viewPos", _cameraPos);
+        shader->setVec3("lightDir", Renderer::_lightDir);
+        shader->setVec3("lightColor", Renderer::_lightColor);
+        shader->setVec3("ambientColor", Renderer::_ambientColor);
+
+        shader->setMat4("lightSpaceMatrix", Renderer::_lightSpaceMatrix);
+        shader->setInt("enableShadows", Renderer::_enableShadows ? 1 : 0);
+        shader->setInt("enableSpotlight", Renderer::_enableSpotlight ? 1 : 0);
+
+        if (Renderer::_enableSpotlight) {
+            shader->setVec3("spotLightPos", Renderer::_spotLightPos);
+            shader->setVec3("spotLightDir", Renderer::_spotLightDir);
+            shader->setVec3("spotLightColor", Renderer::_spotLightColor);
+            shader->setFloat("spotLightInnerCone", Renderer::_spotLightInnerCone);
+            shader->setFloat("spotLightOuterCone", Renderer::_spotLightOuterCone);
+            shader->setFloat("spotLightRange", Renderer::_spotLightRange);
+            shader->setFloat("spotLightIntensity", Renderer::_spotLightIntensity);
+        }
+
+        if (Renderer::_enableShadows && Renderer::_shadowDepthTexture) {
+            glBindTextureUnit(1, Renderer::_shadowDepthTexture);
+            shader->setInt("shadowMap", 1);
+        }
+    }
+
     // --- Renderer Implementation ---
     void Renderer::init() {
         glClearColor(0.08f, 0.1f, 0.14f, 1.0f);
@@ -659,6 +785,7 @@ namespace Lab {
         glCullFace(GL_BACK);
 
         _defaultShader = new Shader(defaultVertexShaderSrc, defaultFragmentShaderSrc);
+        _shadowDepthShader = new Shader(shadowDepthVertexShaderSrc, shadowDepthFragmentShaderSrc);
         _uiShader = new Shader(uiVertexShaderSrc, uiFragmentShaderSrc);
 
         // Cube Mesh setup
@@ -730,6 +857,8 @@ namespace Lab {
 
     void Renderer::shutdown() {
         delete _defaultShader;
+        delete _shadowDepthShader;
+        _shadowDepthShader = nullptr;
         delete _uiShader;
         delete _cubeMesh;
         if (_wireCubeVao) glDeleteVertexArrays(1, &_wireCubeVao);
@@ -743,6 +872,59 @@ namespace Lab {
         _lightDir = direction;
         _lightColor = color;
         _ambientColor = ambient;
+    }
+
+    void Renderer::setFlashlight(const Vec3& pos, const Vec3& dir, const Vec3& color,
+                                float innerCone, float outerCone, float range, float intensity) {
+        _enableSpotlight = true;
+        _spotLightPos = pos;
+        _spotLightDir = dir;
+        _spotLightColor = color;
+        _spotLightInnerCone = innerCone;
+        _spotLightOuterCone = outerCone;
+        _spotLightRange = range;
+        _spotLightIntensity = intensity;
+    }
+
+    void Renderer::disableFlashlight() {
+        _enableSpotlight = false;
+    }
+
+    void Renderer::setShadowMap(const Mat4& lightSpaceMatrix, unsigned int depthTexture) {
+        _enableShadows = (depthTexture != 0);
+        _lightSpaceMatrix = lightSpaceMatrix;
+        _shadowDepthTexture = depthTexture;
+    }
+
+    void Renderer::disableShadowMap() {
+        _enableShadows = false;
+        _shadowDepthTexture = 0;
+    }
+
+    void Renderer::beginShadowDepthPass(const Mat4& lightSpaceMatrix) {
+        _lightSpaceMatrix = lightSpaceMatrix;
+        _shadowDepthShader->use();
+        _shadowDepthShader->setMat4("lightSpaceMatrix", lightSpaceMatrix);
+    }
+
+    void Renderer::endShadowDepthPass() {
+        // Depth pass completed
+    }
+
+    void Renderer::drawShadowCube(const Vec3& position, const Vec3& rotation, const Vec3& scale) {
+        _shadowDepthShader->use();
+        _shadowDepthShader->setMat4("model", getTransform(position, rotation, scale));
+        _cubeMesh->draw();
+    }
+
+    void Renderer::drawShadowCube(const Vec3& position, const Vec3& size) {
+        drawShadowCube(position, { 0, 0, 0 }, size);
+    }
+
+    void Renderer::drawShadowMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale) {
+        _shadowDepthShader->use();
+        _shadowDepthShader->setMat4("model", getTransform(position, rotation, scale));
+        mesh.draw();
     }
 
     void Renderer::beginFrame(const Camera& camera) {
@@ -793,10 +975,7 @@ namespace Lab {
         _defaultShader->setInt("uvMode", uvMode);
         _defaultShader->setVec3("objectColor", color);
         _defaultShader->setInt("enableLighting", enableLighting ? 1 : 0);
-        _defaultShader->setVec3("viewPos", _cameraPos);
-        _defaultShader->setVec3("lightDir", _lightDir);
-        _defaultShader->setVec3("lightColor", _lightColor);
-        _defaultShader->setVec3("ambientColor", _ambientColor);
+        applyLightingAndShadowUniforms(_defaultShader);
 
         if (texture && texture->getId() != 0) {
             _defaultShader->setInt("useTexture", 1);
@@ -847,10 +1026,7 @@ namespace Lab {
         _defaultShader->setInt("uvMode", 0);
         _defaultShader->setVec3("objectColor", color);
         _defaultShader->setInt("enableLighting", enableLighting ? 1 : 0);
-        _defaultShader->setVec3("viewPos", _cameraPos);
-        _defaultShader->setVec3("lightDir", _lightDir);
-        _defaultShader->setVec3("lightColor", _lightColor);
-        _defaultShader->setVec3("ambientColor", _ambientColor);
+        applyLightingAndShadowUniforms(_defaultShader);
 
         if (texture && texture->getId() != 0) {
             _defaultShader->setInt("useTexture", 1);

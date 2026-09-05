@@ -303,7 +303,9 @@
           <li><strong>Dynamic World Pickups:</strong> Rotating, floating item spawners for weapons, health medkits, and ammunition crates with automatic respawn timers.</li>
           <li><strong>Particle Emitter Pipeline:</strong> GPU particle emitters rendering ricochet sparks on metal walls, dust clouds on concrete, and plasma explosions.</li>
           <li><strong>Tactical FPP Arms &amp; Hands Kinematics:</strong> Articulated tactical cryo-suit sleeves, Kevlar reinforcement plates, illuminated cyan telemetry cyber-gauntlets, carbon knuckle guards, and custom multi-grip finger poses (two-handed rifle grip, cupped pistol support, and baseball pipe grip).</li>
-          <li><strong>Kinematic Weapon Animation State Machine:</strong> Multi-phase reload choreography (mag drop, pouch retrieval, mag slap, charging handle bolt rack), F-key tactical weapon inspection, spring-damper recoil kicks, walk/run bobbing, and melee kinetic motion trails.</li>
+          <li><strong>Kinematic Weapon Animation State Machine:</strong> Multi-phase reload choreography (mag drop, pouch retrieval, mag slap, charging handle bolt rack), V-key tactical weapon inspection, spring-damper recoil kicks, walk/run bobbing, and melee kinetic motion trails.</li>
+          <li><strong>Half-Life 2 Tactical Flashlight &amp; Dynamic Lighting:</strong> High-intensity spotlight with inner/outer beam falloff, chest harness convergence, and synthesized mechanical toggle audio.</li>
+          <li><strong>Dynamic Shadow Mapping (2048x2048 FBO + 3x3 PCF):</strong> Real-time depth buffer pass via OpenGL 4.5 Direct State Access (DSA) with slope-scaled normal bias and Percentage-Closer Filtering for soft, penumbral shadows.</li>
         </ul>
       </section>
 
@@ -360,8 +362,14 @@
                 <td>Replenishes magazine with animated drop, pouch retrieval, mag slap, and bolt rack</td>
               </tr>
               <tr>
-                <td><strong>Inspect Weapon</strong></td>
+                <td><strong>Toggle Flashlight</strong></td>
                 <td><code>F</code></td>
+                <td><code>Engine::toggleFlashlight</code></td>
+                <td>Toggles Half-Life 2 style chest tactical spotlight with real-time shadow casting</td>
+              </tr>
+              <tr>
+                <td><strong>Inspect Weapon</strong></td>
+                <td><code>V</code></td>
                 <td><code>WeaponAnimator::onInspect</code></td>
                 <td>Tactical first-person viewmodel inspection displaying receiver angles &amp; cyber-gauntlet</td>
               </tr>
@@ -543,6 +551,16 @@
               <div class="thumbcaption">
                 <span class="magnify-icon">&#128269;</span>
                 Tactical FPP Arms: cyber-gauntlet with telemetry LED, tactical sleeves, knuckle plates &amp; magazine reload choreography.
+              </div>
+            </div>
+          </div>
+
+          <div class="thumb">
+            <div class="thumbinner">
+              <img src="assets/img/test_flashlight_and_shadows.png" data-full="assets/img/test_flashlight_and_shadows.png" alt="Half-Life 2 Tactical Flashlight &amp; Dynamic Shadow Mapping" class="thumbimage">
+              <div class="thumbcaption">
+                <span class="magnify-icon">&#128269;</span>
+                Real-Time Dynamic Lighting: Half-Life 2 tactical spotlight cone and 2048x2048 shadow mapping with 3x3 PCF soft penumbra.
               </div>
             </div>
           </div>
