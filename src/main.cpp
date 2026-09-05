@@ -507,7 +507,7 @@ public:
                     // Projectile weapon: Plasma Gun & RPG
                     _weaponSystem.spawnProjectile(muzzlePos, forward);
                 } else if (def.isMelee) {
-                    // Melee sweep: Rura (2.6m sweep)
+                    // Melee sweep: Pipe (2.6m sweep)
                     RaycastHit hit;
                     hit.distance = def.range;
                     _aiManager.testRaycast(rayOrigin, forward, hit);

@@ -54,7 +54,7 @@ def smooth_noise(x, y, scale, seed=42):
     v11 = noise2d(x0 + 1, y0 + 1, seed)
     return (1.0 - fy) * ((1.0 - fx) * v00 + fx * v10) + fy * ((1.0 - fx) * v01 + fx * v11)
 
-# 1. RURA (Steel Pipe) - Industrial oxidized steel, scratches, rust streaks, screw thread bands
+# 1. PIPE (Steel Pipe) - Industrial oxidized steel, scratches, rust streaks, screw thread bands
 def tex_pipe(x, y, w, h):
     base_steel = 110 + int(smooth_noise(x, y, 16.0, 101) * 35)
     rust_val = smooth_noise(x, y, 28.0, 303)

@@ -19,7 +19,7 @@ namespace Lab {
     class AIManager;
 
     enum class WeaponID : int {
-        Pipe = 0,       // 1. Rura (Melee / Broń biała) - Startowa
+        Pipe = 0,       // 1. Pipe (Melee / Broń biała) - Startowa
         Pistol = 1,     // 2. Pistolet (Tactical Pistol) - Startowy
         Shotgun = 2,    // 3. Strzelba (Tactical Shotgun)
         M4A4S = 3,      // 4. Karabin w stylu M4A4-S (Silenced Carbine)

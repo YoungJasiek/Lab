@@ -47,10 +47,10 @@ namespace Lab {
     std::array<WeaponDef, 9> WeaponSystem::createWeaponDefinitions() {
         std::array<WeaponDef, 9> defs;
 
-        // 1. Rura (Steel Pipe) - Slot 1 (Melee)
+        // 1. Pipe (Steel Pipe) - Slot 1 (Melee)
         defs[0].id = WeaponID::Pipe;
         defs[0].slot = 1;
-        defs[0].name = "Rura";
+        defs[0].name = "Pipe";
         defs[0].shortName = "PIPE";
         defs[0].modelFile = "assets/models/pipe.stl";
         defs[0].textureFile = "weapon_pipe.bmp";
@@ -283,7 +283,7 @@ namespace Lab {
     void WeaponSystem::init() {
         auto defs = createWeaponDefinitions();
         for (size_t i = 0; i < 9; ++i) {
-            // User requested: Pistolet and Rura are granted at start
+            // Starting weapons: Pistol and Pipe are granted at start
             bool startUnlocked = (i == (size_t)WeaponID::Pipe || i == (size_t)WeaponID::Pistol);
             _weapons[i] = Weapon(defs[i], startUnlocked);
         }
@@ -431,7 +431,7 @@ namespace Lab {
 
     void WeaponSystem::drawProceduralWeapon(WeaponID id, const Vec3& basePos, const Vec3& rot, Texture* tex, float muzzleFlash) {
         switch (id) {
-            case WeaponID::Pipe: { // 1. RURA (Steel Pipe)
+            case WeaponID::Pipe: { // 1. PIPE (Steel Pipe)
                 // Main heavy iron pipe angled diagonally
                 Vec3 pRot = rot + Vec3(8.0f, -12.0f, 18.0f);
                 Renderer::drawCube(basePos + Vec3(0.02f, 0.04f, 0.05f), pRot, { 0.065f, 0.065f, 0.82f }, { 0.55f, 0.55f, 0.58f }, tex);
