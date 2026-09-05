@@ -4,12 +4,12 @@
 *.af
 *.kra
 logos/
-fonts/
 skills/
 scripts/
 auraTools/
 .agents/
 .vscode/
 build/
+Backups/
 .vs/
 bin/
