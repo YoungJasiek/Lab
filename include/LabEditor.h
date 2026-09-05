@@ -261,4 +261,150 @@ namespace Lab {
         }
     };
 
+    namespace HammerIcons {
+        inline void drawHammerIcon(int iconId, float x, float y, const Vec3& color, const Vec3& bg) {
+            Renderer::drawRect(x, y, 24.0f, 24.0f, bg);
+            Renderer::drawRect(x, y, 24.0f, 1.0f, Vec3(0.7f, 0.7f, 0.7f));
+            Renderer::drawRect(x, y + 23.0f, 24.0f, 1.0f, Vec3(0.5f, 0.5f, 0.5f));
+
+            switch(iconId) {
+                case 0: // Pointer / Selection Arrow
+                    Renderer::drawRect(x + 5.0f, y + 5.0f, 3.0f, 13.0f, color);
+                    Renderer::drawRect(x + 8.0f, y + 8.0f, 3.0f, 8.0f, color);
+                    Renderer::drawRect(x + 11.0f, y + 11.0f, 3.0f, 4.0f, color);
+                    Renderer::drawRect(x + 8.0f, y + 14.0f, 5.0f, 3.0f, color);
+                    break;
+                case 1: // 3D Block / Cube Brush
+                    Renderer::drawRect(x + 5.0f, y + 5.0f, 14.0f, 14.0f, color);
+                    Renderer::drawRect(x + 7.0f, y + 7.0f, 10.0f, 10.0f, bg);
+                    Renderer::drawRect(x + 9.0f, y + 9.0f, 6.0f, 6.0f, color);
+                    break;
+                case 2: // Entity Prop / Lamp / 3D Model
+                    Renderer::drawRect(x + 8.0f, y + 4.0f, 8.0f, 8.0f, color);
+                    Renderer::drawRect(x + 10.0f, y + 12.0f, 4.0f, 5.0f, color);
+                    Renderer::drawRect(x + 6.0f, y + 8.0f, 12.0f, 2.0f, color);
+                    break;
+                case 3: // Texture / Material Application Pipette
+                    Renderer::drawRect(x + 4.0f, y + 4.0f, 16.0f, 16.0f, color);
+                    Renderer::drawRect(x + 4.0f, y + 4.0f, 8.0f, 8.0f, Vec3(0.1f, 0.1f, 0.1f));
+                    Renderer::drawRect(x + 12.0f, y + 12.0f, 8.0f, 8.0f, Vec3(0.1f, 0.1f, 0.1f));
+                    break;
+                case 4: // Dynamic Door
+                    Renderer::drawRect(x + 6.0f, y + 4.0f, 12.0f, 16.0f, color);
+                    Renderer::drawRect(x + 8.0f, y + 6.0f, 8.0f, 12.0f, bg);
+                    Renderer::drawRect(x + 13.0f, y + 11.0f, 2.0f, 2.0f, color);
+                    break;
+                case 5: // Player Spawn
+                    Renderer::drawRect(x + 9.0f, y + 4.0f, 6.0f, 6.0f, color);
+                    Renderer::drawRect(x + 7.0f, y + 11.0f, 10.0f, 8.0f, color);
+                    Renderer::drawRect(x + 9.0f, y + 19.0f, 2.0f, 4.0f, color);
+                    Renderer::drawRect(x + 13.0f, y + 19.0f, 2.0f, 4.0f, color);
+                    break;
+                case 6: // Resize / Clip Tool
+                    Renderer::drawRect(x + 5.0f, y + 5.0f, 14.0f, 2.0f, color);
+                    Renderer::drawRect(x + 7.0f, y + 7.0f, 10.0f, 2.0f, color);
+                    Renderer::drawRect(x + 9.0f, y + 9.0f, 6.0f, 2.0f, color);
+                    Renderer::drawRect(x + 11.0f, y + 11.0f, 2.0f, 8.0f, color);
+                    break;
+                case 7: // Sun / Lighting Tool
+                    Renderer::drawRect(x + 9.0f, y + 9.0f, 6.0f, 6.0f, Vec3(1.0f, 0.85f, 0.2f));
+                    Renderer::drawRect(x + 11.0f, y + 4.0f, 2.0f, 4.0f, color);
+                    Renderer::drawRect(x + 11.0f, y + 16.0f, 2.0f, 4.0f, color);
+                    Renderer::drawRect(x + 4.0f, y + 11.0f, 4.0f, 2.0f, color);
+                    Renderer::drawRect(x + 16.0f, y + 11.0f, 4.0f, 2.0f, color);
+                    break;
+                default:
+                    Renderer::drawRect(x + 6.0f, y + 6.0f, 12.0f, 12.0f, color);
+                    break;
+            }
+        }
+
+        inline void drawToolbarIcon(int iconId, float x, float y, const Vec3& color, const Vec3& bg) {
+            Renderer::drawRect(x, y, 24.0f, 24.0f, bg);
+            Renderer::drawRect(x, y, 24.0f, 1.0f, Vec3(0.7f, 0.7f, 0.7f));
+            Renderer::drawRect(x, y + 23.0f, 24.0f, 1.0f, Vec3(0.5f, 0.5f, 0.5f));
+
+            switch(iconId) {
+                case 0: // New Document
+                    Renderer::drawRect(x + 6.0f, y + 4.0f, 11.0f, 15.0f, Vec3(1, 1, 1));
+                    Renderer::drawRect(x + 6.0f, y + 4.0f, 11.0f, 1.0f, color);
+                    Renderer::drawRect(x + 6.0f, y + 4.0f, 1.0f, 15.0f, color);
+                    Renderer::drawRect(x + 16.0f, y + 7.0f, 1.0f, 12.0f, color);
+                    Renderer::drawRect(x + 6.0f, y + 19.0f, 11.0f, 1.0f, color);
+                    break;
+                case 1: // Open Folder
+                    Renderer::drawRect(x + 5.0f, y + 6.0f, 6.0f, 2.0f, Vec3(0.9f, 0.75f, 0.2f));
+                    Renderer::drawRect(x + 5.0f, y + 8.0f, 14.0f, 10.0f, Vec3(0.95f, 0.8f, 0.25f));
+                    break;
+                case 2: // Save Floppy Disk
+                    Renderer::drawRect(x + 5.0f, y + 5.0f, 14.0f, 14.0f, Vec3(0.2f, 0.45f, 0.85f));
+                    Renderer::drawRect(x + 8.0f, y + 5.0f, 8.0f, 4.0f, Vec3(0.85f, 0.85f, 0.9f));
+                    Renderer::drawRect(x + 7.0f, y + 11.0f, 10.0f, 7.0f, Vec3(1, 1, 1));
+                    break;
+                case 3: // Save As (Disk with pencil)
+                    Renderer::drawRect(x + 5.0f, y + 5.0f, 14.0f, 14.0f, Vec3(0.2f, 0.6f, 0.8f));
+                    Renderer::drawRect(x + 12.0f, y + 12.0f, 6.0f, 6.0f, Vec3(1.0f, 0.8f, 0.1f));
+                    break;
+                case 4: // Undo Arrow
+                    Renderer::drawRect(x + 6.0f, y + 11.0f, 9.0f, 2.0f, color);
+                    Renderer::drawRect(x + 13.0f, y + 7.0f, 2.0f, 6.0f, color);
+                    Renderer::drawRect(x + 6.0f, y + 9.0f, 2.0f, 6.0f, color);
+                    break;
+                case 5: // Delete Cross
+                    Renderer::drawRect(x + 6.0f, y + 6.0f, 12.0f, 12.0f, Vec3(0.85f, 0.2f, 0.2f));
+                    Renderer::drawRect(x + 9.0f, y + 9.0f, 6.0f, 6.0f, Vec3(1, 1, 1));
+                    break;
+                case 6: // Duplicate Plus
+                    Renderer::drawRect(x + 6.0f, y + 6.0f, 12.0f, 12.0f, Vec3(0.2f, 0.7f, 0.4f));
+                    Renderer::drawRect(x + 11.0f, y + 8.0f, 2.0f, 8.0f, Vec3(1, 1, 1));
+                    Renderer::drawRect(x + 8.0f, y + 11.0f, 8.0f, 2.0f, Vec3(1, 1, 1));
+                    break;
+                case 7: // Focus Camera (Target Eye)
+                    Renderer::drawRect(x + 5.0f, y + 5.0f, 14.0f, 14.0f, color);
+                    Renderer::drawRect(x + 7.0f, y + 7.0f, 10.0f, 10.0f, bg);
+                    Renderer::drawRect(x + 10.0f, y + 10.0f, 4.0f, 4.0f, color);
+                    break;
+                case 8: // Texture Browser Grid
+                    Renderer::drawRect(x + 5.0f, y + 5.0f, 14.0f, 14.0f, Vec3(0.3f, 0.35f, 0.4f));
+                    Renderer::drawRect(x + 6.0f, y + 6.0f, 5.0f, 5.0f, Vec3(0.9f, 0.5f, 0.1f));
+                    Renderer::drawRect(x + 13.0f, y + 6.0f, 5.0f, 5.0f, Vec3(0.2f, 0.7f, 0.9f));
+                    break;
+                case 9: // Model Browser (3D Mesh Icon)
+                    Renderer::drawRect(x + 5.0f, y + 5.0f, 14.0f, 14.0f, Vec3(0.15f, 0.45f, 0.75f));
+                    Renderer::drawRect(x + 7.0f, y + 7.0f, 10.0f, 10.0f, Vec3(0.85f, 0.95f, 1.0f));
+                    Renderer::drawRect(x + 9.0f, y + 9.0f, 6.0f, 6.0f, Vec3(0.15f, 0.45f, 0.75f));
+                    break;
+                case 10: // Tool 0 (Selection)
+                    drawHammerIcon(0, x, y, color, bg);
+                    break;
+                case 11: // Tool 1 (Brush)
+                    drawHammerIcon(1, x, y, color, bg);
+                    break;
+                case 12: // Tool 2 (Prop)
+                    drawHammerIcon(2, x, y, color, bg);
+                    break;
+                case 13: // Tool 3 (Pipette)
+                    drawHammerIcon(3, x, y, color, bg);
+                    break;
+                case 14: // Tool 4 (Door)
+                    drawHammerIcon(4, x, y, color, bg);
+                    break;
+                case 15: // Grid -
+                    Renderer::drawRect(x + 7.0f, y + 11.0f, 10.0f, 2.0f, color);
+                    break;
+                case 16: // Grid +
+                    Renderer::drawRect(x + 7.0f, y + 11.0f, 10.0f, 2.0f, color);
+                    Renderer::drawRect(x + 11.0f, y + 7.0f, 2.0f, 10.0f, color);
+                    break;
+                case 17: // RUN IN ENGINE (Green Play Button)
+                    Renderer::drawRect(x + 4.0f, y + 4.0f, 16.0f, 16.0f, Vec3(0.15f, 0.65f, 0.35f));
+                    Renderer::drawRect(x + 8.0f, y + 6.0f, 8.0f, 12.0f, Vec3(1, 1, 1));
+                    break;
+                default:
+                    drawHammerIcon(iconId % 8, x, y, color, bg);
+                    break;
+            }
+        }
+    }
+
 }

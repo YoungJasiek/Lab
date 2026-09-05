@@ -350,18 +350,25 @@ int main() {
     Lab::LabFont::drawText(190.0f, 5.0f, "Help", 1.8f, textDark, Lab::LabFontType::System);
     Lab::LabFont::drawText((float)w - 360.0f, 5.0f, "Valve Hammer 4.1 - Frozen-Life Engine", 1.8f, Lab::Vec3(0.15f, 0.45f, 0.75f), Lab::LabFontType::GeoSans);
 
-    // Toolbar (18 buttons)
+    // Toolbar (18 buttons with icons)
     Lab::Renderer::drawRect(0, 24.0f, (float)w, 34.0f, winBg);
     Lab::Renderer::drawRect(0, 57.0f, (float)w, 1.0f, winBorder);
     for (int i = 0; i < 18; ++i) {
         float bx = 8.0f + i * 28.0f;
-        Lab::Renderer::drawRect(bx, 29.0f, 24.0f, 24.0f, (i == 17) ? Lab::Vec3(0.15f, 0.65f, 0.35f) : Lab::Vec3(0.88f, 0.88f, 0.90f));
+        Lab::HammerIcons::drawToolbarIcon(i, bx, 29.0f, (i == 17) ? Lab::Vec3(1, 1, 1) : Lab::Vec3(0.25f, 0.3f, 0.35f), (i == 17) ? Lab::Vec3(0.15f, 0.65f, 0.35f) : Lab::Vec3(0.88f, 0.88f, 0.90f));
     }
 
-    // Left Palette (8 tools)
+    // Left Palette (8 tools with icons)
     Lab::Renderer::drawRect(0, 58.0f, 42.0f, (float)h - 80.0f, winBg);
     for (int i = 0; i < 8; ++i) {
-        Lab::Renderer::drawRect(6.0f, 68.0f + i * 36.0f, 30.0f, 30.0f, (i == 0) ? Lab::Vec3(0.78f, 0.88f, 1.0f) : Lab::Vec3(0.88f, 0.88f, 0.90f));
+        float ty = 68.0f + i * 36.0f;
+        bool isSel = (i == 0);
+        Lab::Vec3 bgCol = isSel ? Lab::Vec3(0.78f, 0.88f, 1.0f) : Lab::Vec3(0.88f, 0.88f, 0.90f);
+        Lab::Vec3 iconCol = isSel ? orangeGlow : Lab::Vec3(0.25f, 0.28f, 0.32f);
+
+        Lab::Renderer::drawRect(6.0f, ty, 30.0f, 30.0f, bgCol);
+        Lab::Renderer::drawRect(6.0f, ty, 30.0f, 1.0f, isSel ? Lab::Vec3(0.2f, 0.75f, 0.95f) : winBorder);
+        Lab::HammerIcons::drawHammerIcon(i, 9.0f, ty + 3.0f, iconCol, bgCol);
     }
 
     // Right Sidebar (Outliner Tab active using SidebarLayout)
