@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="LabHammer – The official standalone 3D level editor for the Lab Engine and Frozen-Life. Full technical guide, 6 core tools, keyboard shortcuts, and .labmap format.">
+  <meta name="keywords" content="LabHammer, Level Editor, 3D Map Editor, Lab Engine, Frozen-Life, .labmap, Brush, Prop, Door, Spawn, OpenGL 4.5, C++20">
+  <meta name="author" content="YoungJasiek">
+
+  <title>LabHammer (3D Level Editor) – Lab Developer Community</title>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="assets/img/LabLogo.png">
+
+  <!-- Core Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Accessibility Skip Link -->
+  <a href="#content" class="skip-link">Skip to main content</a>
+
+  <!-- ====================================================================
+       1. TOP HEADER
+       ==================================================================== -->
+  <header class="vdc-top-header" role="banner">
+    <div class="vdc-header-left">
+      <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
+      <a href="index.html" class="vdc-brand">
+        <img src="assets/img/LabLogo.png" alt="Lab Engine Logo" class="vdc-logo-img">
+        <div class="vdc-brand-text">
+          <span class="vdc-brand-title"><span class="accent">LAB</span> DEVELOPER COMMUNITY</span>
+          <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LABHAMMER</span>
+        </div>
+      </a>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="vdc-search-bar" role="search">
+      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search documentation..." aria-label="Search wiki documentation">
+      <span class="vdc-search-icon" aria-hidden="true">&#128269;</span>
+    </div>
+
+    <!-- Header Actions -->
+    <div class="vdc-header-right">
+      <button id="theme-toggle-btn" class="theme-toggle-btn" aria-label="Toggle theme">&#9728;&#65039; Light Mode</button>
+      <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="github-badge-btn" aria-label="GitHub repository">
+        <span>GitHub</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- ====================================================================
+       2. WIKI CONTAINER (SIDEBAR + MAIN CONTENT)
+       ==================================================================== -->
+  <div class="vdc-page-container">
+
+    <!-- Left Sidebar Navigation -->
+    <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
+      <div class="sidebar-block">
+        <div class="sidebar-title">Documentation</div>
+        <ul class="sidebar-links">
+          <li><a href="index.html">Main Page (Portal)</a></li>
+          <li><a href="labhammer.html" class="active">LabHammer Editor</a></li>
+          <li><a href="frozen-life.html">Frozen-Life Build</a></li>
+          <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+          <li><a href="building.html">Building from Source</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">LabHammer Sections</div>
+        <ul class="sidebar-links">
+          <li><a href="#sec-overview">Overview &amp; Architecture</a></li>
+          <li><a href="#sec-navigation">3D Fly Navigation</a></li>
+          <li><a href="#sec-tools">The 6 Core Tools</a></li>
+          <li><a href="#sec-properties">Properties Inspector</a></li>
+          <li><a href="#sec-labmap-format">.labmap File Format</a></li>
+          <li><a href="#sec-shortcuts">Shortcuts Reference</a></li>
+          <li><a href="#sec-gallery">Editor Gallery</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Project &amp; Source</div>
+        <ul class="sidebar-links">
+          <li><a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer">GitHub Repository</a></li>
+          <li><a href="https://github.com/YoungJasiek/Lab/issues" target="_blank" rel="noopener noreferrer">Issue Tracker</a></li>
+          <li><a href="building.html">Compilation Guide</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main id="content" class="vdc-main-content" role="main">
+
+      <!-- Navigation Tabs -->
+      <nav class="vdc-page-tabs" aria-label="Namespace tabs">
+        <div class="tabs-left">
+          <a href="labhammer.html" class="wiki-tab active">Page</a>
+          <a href="index.html#welcome" class="wiki-tab">Main Portal</a>
+        </div>
+        <div class="tabs-right">
+          <a href="labhammer.html" class="wiki-tab active">Read</a>
+          <a href="architecture.html#source-code" class="wiki-tab">View C++ Source</a>
+          <a href="frozen-life.html" class="wiki-tab">Test in Frozen-Life</a>
+        </div>
+      </nav>
+
+      <!-- Breadcrumb Trail -->
+      <div class="wiki-breadcrumbs">
+        <a href="index.html">Main Page</a>
+        <span class="crumb-sep">&gt;</span>
+        <span>Tooling</span>
+        <span class="crumb-sep">&gt;</span>
+        <span class="crumb-current">LabHammer</span>
+      </div>
+
+      <!-- Article Header -->
+      <h1 class="firstHeading">
+        <span>LabHammer</span>
+        <span style="font-size: 0.85rem; font-weight: normal; font-family: var(--font-mono); color: var(--wiki-accent);">[3D Level Editor]</span>
+      </h1>
+      <div class="siteSub">From Lab Developer Community &ndash; Standalone 3D World Authoring Suite for Lab Engine</div>
+
+      <!-- ================================================================
+           RIGHT-FLOATING MEDIAWIKI INFOBOX
+           ================================================================ -->
+      <aside class="infobox" aria-label="LabHammer Technical Information">
+        <div class="infobox-title">
+          LabHammer
+          <span class="infobox-subtitle">STANDALONE 3D LEVEL EDITOR</span>
+        </div>
+        <div class="infobox-image">
+          <img src="assets/img/test_hammer_ui.webp" alt="LabHammer 3D Viewport and Editor UI">
+          <div class="infobox-caption">LabHammer 3D viewport, brush placement, and properties dock</div>
+        </div>
+        <table class="infobox-table">
+          <tbody>
+            <tr>
+              <td class="infobox-label">Developer</td>
+              <td class="infobox-data">YoungJasiek</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Engine</td>
+              <td class="infobox-data"><a href="architecture.html">Lab Engine</a> (<code>LabEngineLib</code>)</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Target Game</td>
+              <td class="infobox-data"><a href="frozen-life.html">Frozen-Life (FL)</a></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Binary</td>
+              <td class="infobox-data"><code>LabHammer.exe</code></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Source File</td>
+              <td class="infobox-data"><code>src/editor_main.cpp</code></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">File Format</td>
+              <td class="infobox-data"><code>.labmap</code> (Plain-Text)</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Hot Test Key</td>
+              <td class="infobox-data"><strong style="color:var(--wiki-accent);">F9</strong> (Instant Launch)</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Renderer</td>
+              <td class="infobox-data"><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">UI System</td>
+              <td class="infobox-data">Dear ImGui (Docking Branch)</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Language</td>
+              <td class="infobox-data">Modern C++20</td>
+            </tr>
+          </tbody>
+        </table>
+      </aside>
+
+      <!-- Technical Notice Callout -->
+      <div class="wiki-notice notice-note">
+        <span class="notice-icon">&#9432;</span>
+        <div class="wiki-notice-content">
+          <strong>1:1 Visual Parity Architecture:</strong>
+          <code>LabHammer.exe</code> links directly against the static <code>LabEngineLib</code> library. It utilizes the exact same OpenGL 4.5+ DSA shaders, material texture loaders, and spatial AABB mathematics as the game runtime <code>Lab.exe</code>. What you design in the editor renders with pixel-identical results in the game.
+        </div>
+      </div>
+
+      <!-- Collapsible Table of Contents (TOC) -->
+      <nav id="toc" class="toc" role="doc-toc" aria-label="Table of contents">
+        <div class="toctitle">
+          <span>Contents</span>
+          <span id="toctogglelink" class="toctoggle">hide</span>
+        </div>
+        <ol id="toc-list" class="toc-list">
+          <li><a href="#sec-overview"><span class="tocnumber">1</span> <span class="toctext">Overview &amp; Architecture</span></a></li>
+          <li><a href="#sec-navigation"><span class="tocnumber">2</span> <span class="toctext">3D Viewport Navigation &amp; Camera</span></a></li>
+          <li><a href="#sec-tools"><span class="tocnumber">3</span> <span class="toctext">The 6 Core Editing Tools</span></a>
+            <ol style="list-style:none; padding-left:14px; margin-top:2px;">
+              <li><a href="#sec-tool-0"><span class="tocnumber">3.1</span> <span class="toctext">Tool 0: Selection Pointer (Raycast Picker)</span></a></li>
+              <li><a href="#sec-tool-1"><span class="tocnumber">3.2</span> <span class="toctext">Tool 1: Block / Brush Tool (3D Primitive)</span></a></li>
+              <li><a href="#sec-tool-2"><span class="tocnumber">3.3</span> <span class="toctext">Tool 2: 3D Prop Tool (STL Mesh)</span></a></li>
+              <li><a href="#sec-tool-3"><span class="tocnumber">3.4</span> <span class="toctext">Tool 3: Texture Pipette (LMB / RMB)</span></a></li>
+              <li><a href="#sec-tool-4"><span class="tocnumber">3.5</span> <span class="toctext">Tool 4: Dynamic Door Tool (Airlock Sector)</span></a></li>
+              <li><a href="#sec-tool-5"><span class="tocnumber">3.6</span> <span class="toctext">Tool 5: Entity Spawn Tool (FFA / Team Spawns)</span></a></li>
+            </ol>
+          </li>
+          <li><a href="#sec-properties"><span class="tocnumber">4</span> <span class="toctext">Entity Properties Inspector Panel</span></a></li>
+          <li><a href="#sec-browsers"><span class="tocnumber">5</span> <span class="toctext">Asset Browsers (Textures &amp; 3D STL Models)</span></a></li>
+          <li><a href="#sec-prebuilts"><span class="tocnumber">6</span> <span class="toctext">Quick Prebuilt Template Library</span></a></li>
+          <li><a href="#sec-labmap-format"><span class="tocnumber">7</span> <span class="toctext">Plain-Text .labmap File Specification</span></a></li>
+          <li><a href="#sec-shortcuts"><span class="tocnumber">8</span> <span class="toctext">Keyboard &amp; Mouse Shortcuts Cheat-Sheet</span></a></li>
+          <li><a href="#sec-gallery"><span class="tocnumber">9</span> <span class="toctext">Editor Screenshots Gallery</span></a></li>
+        </ol>
+      </nav>
+
+      <!-- ================================================================
+           SECTION 1: OVERVIEW & ARCHITECTURE
+           ================================================================ -->
+      <section id="sec-overview" class="wiki-section-container">
+        <h2><span class="mw-headline">1. Overview &amp; Architecture</span></h2>
+        <p>
+          <strong>LabHammer</strong> is the dedicated, standalone 3D level authoring application designed specifically for the Lab Engine and Frozen-Life. Compiled as <code>LabHammer.exe</code> from <code>src/editor_main.cpp</code>, it provides a comprehensive real-time desktop CAD environment for designing, texturing, populating, and compiling level environments.
+        </p>
+        <p>
+          Unlike external DCC packages (e.g. Blender, Maya), LabHammer generates native, optimized spatial primitives and entities that are consumed directly by the engine's physics and rendering systems without intermediary conversion or baking pipelines.
+        </p>
+      </section>
+
+      <!-- ================================================================
+           SECTION 2: 3D VIEWPORT NAVIGATION
+           ================================================================ -->
+      <section id="sec-navigation" class="wiki-section-container">
+        <h2><span class="mw-headline">2. 3D Viewport Navigation &amp; Camera</span></h2>
+        <p>
+          LabHammer features an intuitive 6-DOF fly camera navigation system directly inside the real-time OpenGL 4.5 viewport:
+        </p>
+        <ul>
+          <li><strong>Hold Right Mouse Button (RMB) + Move Mouse:</strong> Free-look camera rotation (pitch and yaw).</li>
+          <li><strong>Hold RMB + W / A / S / D:</strong> Standard fly camera navigation (Forward, Strafe Left, Back, Strafe Right).</li>
+          <li><strong>Hold RMB + Space / Ctrl:</strong> Ascend vertically (Space) or descend vertically (Ctrl) in world space.</li>
+          <li><strong>Hold Shift while flying:</strong> Activates high-speed camera sprint, boosting movement speed from <strong>15.0 m/s to 35.0 m/s</strong> for traversing large map expanses.</li>
+          <li><strong>F Key:</strong> Instantly centers and focuses the 3D camera on the currently selected entity.</li>
+        </ul>
+      </section>
+
+      <!-- ================================================================
+           SECTION 3: THE 6 CORE EDITING TOOLS
+           ================================================================ -->
+      <section id="sec-tools" class="wiki-section-container">
+        <h2><span class="mw-headline">3. The 6 Core Editing Tools</span></h2>
+        <p>
+          The editor toolbar grants immediate access to 6 specialized editing modalities:
+        </p>
+
+        <div class="hammer-tools-grid">
+          
+          <div id="sec-tool-0" class="tool-tile">
+            <div class="tool-tile-header">
+              <h4>Tool 0: Selection Pointer</h4>
+              <span class="tool-badge">TOOL 0</span>
+            </div>
+            <p>
+              Raycast picker utilizing the camera's view frustum. Selects any Brush, Prop, Door, Spawn, or Weapon Pickup in 3D space. Highlights selection with a glowing wireframe bounding box and opens its parameters in the properties panel.
+            </p>
+          </div>
+
+          <div id="sec-tool-1" class="tool-tile">
+            <div class="tool-tile-header">
+              <h4>Tool 1: Block / Brush Tool</h4>
+              <span class="tool-badge">TOOL 1</span>
+            </div>
+            <p>
+              Creates volumetric solid 3D cubes/brushes. Automatically snaps placement to the active grid increment. Applies active texture and UV scale coordinates. Allows direct keyboard/mouse resizing on all 3 axes.
+            </p>
+          </div>
+
+          <div id="sec-tool-2" class="tool-tile">
+            <div class="tool-tile-header">
+              <h4>Tool 2: 3D Prop Tool</h4>
+              <span class="tool-badge">TOOL 2</span>
+            </div>
+            <p>
+              Places static and interactive 3D <code>.stl</code> meshes (e.g., machinery, structural monoliths). Supports independent 3-axis rotation (Pitch, Yaw, Roll) and non-uniform scaling vectors.
+            </p>
+          </div>
+
+          <div id="sec-tool-3" class="tool-tile">
+            <div class="tool-tile-header">
+              <h4>Tool 3: Texture Pipette</h4>
+              <span class="tool-badge">TOOL 3</span>
+            </div>
+            <p>
+              Two-in-one material management tool: <strong>Left-Click</strong> paints the active texture and UV scale onto any clicked brush surface; <strong>Right-Click</strong> acts as an eyedropper pipette to sample texture and UV scaling directly from geometry.
+            </p>
+          </div>
+
+          <div id="sec-tool-4" class="tool-tile">
+            <div class="tool-tile-header">
+              <h4>Tool 4: Dynamic Door Tool</h4>
+              <span class="tool-badge">TOOL 4</span>
+            </div>
+            <p>
+              Creates animated bunker airlock doors (<code>bunker_airlock</code>). Configures open displacement vector (dx, dy, dz), opening speed (m/s), and automatic proximity trigger radius.
+            </p>
+          </div>
+
+          <div id="sec-tool-5" class="tool-tile">
+            <div class="tool-tile-header">
+              <h4>Tool 5: Entity Spawn Tool</h4>
+              <span class="tool-badge">TOOL 5</span>
+            </div>
+            <p>
+              Places player spawn entities with team affiliation flags: neutral Deathmatch (<code>info_player_deathmatch</code>), Team Alpha Blue HQ (<code>info_player_team1</code>), and Team Beta Red HQ (<code>info_player_team2</code>).
+            </p>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ================================================================
+           SECTION 4: ENTITY PROPERTIES INSPECTOR
+           ================================================================ -->
+      <section id="sec-properties" class="wiki-section-container">
+        <h2><span class="mw-headline">4. Entity Properties Inspector Panel</span></h2>
+        <p>
+          When an object is selected in the 3D viewport, the right-hand inspector panel displays and allows live editing of its parameters:
+        </p>
+
+        <div class="table-wrapper">
+          <table class="wikitable">
+            <thead>
+              <tr>
+                <th>Entity Type</th>
+                <th>Configurable Parameters in LabHammer</th>
+                <th>Real-Time Impact</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>MapBrush (Geometry)</strong></td>
+                <td>Position <code>(X, Y, Z)</code>, Dimensions <code>(W, H, D)</code>, Texture path, UV Scale <code>(U, V)</code> (1.0x, 0.5x, 0.25x), Color tint, UV Mapping Mode (Planar/Box)</td>
+                <td>Directly mutates GPU vertex buffer coordinates; updates collision AABB bounding box immediately.</td>
+              </tr>
+              <tr>
+                <td><strong>MapProp (3D Model)</strong></td>
+                <td>3D Model path (<code>.stl</code>), Position, Rotation angles <code>(Pitch, Yaw, Roll)</code>, Scale <code>(Sx, Sy, Sz)</code>, Color tint</td>
+                <td>Evaluates model matrix TRS; loads STL topology into GPU memory via <code>Mesh::loadSTL</code>.</td>
+              </tr>
+              <tr>
+                <td><strong>MapDoor (Airlock)</strong></td>
+                <td>Door name, Position, Size, Open Offset Vector <code>(dx, dy, dz)</code>, Open Speed (m/s), Proximity Trigger Radius</td>
+                <td>Defines dynamic sliding physics; triggers automatic opening when player or bot crosses radius threshold.</td>
+              </tr>
+              <tr>
+                <td><strong>MapSpawnPoint</strong></td>
+                <td>Entity class (<code>info_player_*</code>), Position, Yaw orientation angle (0&deg;–360&deg;), Spawn Type (FFA, TeamAlpha, TeamBeta)</td>
+                <td>Registers spawn points in the engine session manager for round starts and respawn cycles.</td>
+              </tr>
+              <tr>
+                <td><strong>MapWeaponSpawner</strong></td>
+                <td>Weapon ID (Pipe to RPG), Position, Respawn cooldown timer (seconds), Initial spawned state</td>
+                <td>Spawns rotating 3D pickups with glowing ambient light and pickup sound collision volume.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           SECTION 5: ASSET BROWSERS
+           ================================================================ -->
+      <section id="sec-browsers" class="wiki-section-container">
+        <h2><span class="mw-headline">5. Asset Browsers (Textures &amp; 3D STL Models)</span></h2>
+        <ul>
+          <li><strong>Visual Texture Browser:</strong> Clicking "Browse Textures" opens a 6-column modal thumbnail grid scanning <code>assets/textures/*.bmp</code>. Shows live texture previews and allows instant one-click assignment to the active brush or tool.</li>
+          <li><strong>3D Model Browser:</strong> Scans <code>assets/models/*.stl</code> with an integrated "Browse Disk STL" button, allowing designers to import new custom 3D STL geometry into the level on the fly.</li>
+        </ul>
+      </section>
+
+      <!-- ================================================================
+           SECTION 6: PREBUILT STAMP LIBRARY
+           ================================================================ -->
+      <section id="sec-prebuilts" class="wiki-section-container">
+        <h2><span class="mw-headline">6. Quick Prebuilt Template Library</span></h2>
+        <p>
+          LabHammer features a rapid stamping library for common tactical level elements:
+        </p>
+        <ul>
+          <li><strong>Spawn [FFA / DM]:</strong> Neutral Deathmatch spawn point.</li>
+          <li><strong>Spawn [Team Alpha / Beta]:</strong> Base spawn locations for team modes.</li>
+          <li><strong>Ammunition Crate:</strong> Pre-textured military ammo crate with hazard striping.</li>
+          <li><strong>Field Medkit:</strong> First-aid station brush with cross insignia.</li>
+          <li><strong>Tactical Barricade:</strong> Waist-high concrete cover geometry (3.0 x 1.2 x 0.6 units).</li>
+        </ul>
+      </section>
+
+      <!-- ================================================================
+           SECTION 7: .LABMAP FILE SPECIFICATION
+           ================================================================ -->
+      <section id="sec-labmap-format" class="wiki-section-container">
+        <h2><span class="mw-headline">7. Plain-Text .labmap File Specification</span></h2>
+        <p>
+          Levels are stored in clean, human-readable <code>.labmap</code> plain-text files. The parser in <code>src/LabMap.cpp</code> reads spatial metadata, light coordinates, brushes, dynamic doors, and spawn entities without binary encoding:
+        </p>
+
+        <div class="code-container">
+          <div class="code-toolbar">
+            <span class="code-title">assets/maps/cryo_outpost.labmap &ndash; Plain-Text Spatial Specification</span>
+            <button class="btn-wiki-copy" data-target="code-labmap-snippet">Copy</button>
+          </div>
+          <pre><code id="code-labmap-snippet" class="code-pre">LABMAP_VERSION 1
+
+METADATA
+    name "Cryo Wasteland Outpost"
+    ambient 0.15 0.20 0.30
+    sun_dir -0.6 -0.7 -0.2
+    sun_color 0.85 0.92 1.0
+END_METADATA
+
+ENTITIES
+    spawn 0.0 1.8 5.0 0.0
+    spawn_point info_player_deathmatch 0.0 1.8 5.0 0.0 ffa
+    spawn_point info_player_team1 -14.0 1.8 8.0 45.0 team_alpha
+    spawn_point info_player_team2 14.0 1.8 -12.0 -135.0 team_beta
+
+    // Frozen terrain baseplate
+    brush cube 0.0 -0.5 0.0 200.0 1.0 200.0 0.9 0.95 1.0 snow_frost.bmp
+
+    // Cryo monolith in distance
+    prop Model.stl 0.0 2.5 -15.0 0.0 45.0 0.0 2.5 2.5 2.5 0.7 0.85 1.0 metal_hull.bmp
+
+    // Outpost bunker pressure airlock
+    door bunker_airlock 0.0 1.75 -3.0 3.0 3.5 0.5 3.5 0.0 0.0 0.2 0.3 0.4 2.0 4.5
+END_ENTITIES</code></pre>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           SECTION 8: SHORTCUTS CHEAT-SHEET
+           ================================================================ -->
+      <section id="sec-shortcuts" class="wiki-section-container">
+        <h2><span class="mw-headline">8. Keyboard &amp; Mouse Shortcuts Cheat-Sheet</span></h2>
+        <div class="table-wrapper">
+          <table class="wikitable">
+            <thead>
+              <tr>
+                <th>Shortcut / Input</th>
+                <th>Function in LabHammer</th>
+                <th>Scope</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>Hold RMB + Move Mouse</code></td>
+                <td>Free 3D viewport camera look (Pitch &amp; Yaw)</td>
+                <td>3D Viewport</td>
+              </tr>
+              <tr>
+                <td><code>Hold RMB + W / A / S / D</code></td>
+                <td>Fly camera navigation (Forward, Strafe Left, Back, Strafe Right)</td>
+                <td>3D Viewport</td>
+              </tr>
+              <tr>
+                <td><code>Hold RMB + Space / Ctrl</code></td>
+                <td>Ascend (Space) / Descend (Ctrl) in 3D space</td>
+                <td>3D Viewport</td>
+              </tr>
+              <tr>
+                <td><code>Hold Shift while Flying</code></td>
+                <td>Sprint camera boost (increases flight speed from 15 m/s to 35 m/s)</td>
+                <td>3D Viewport</td>
+              </tr>
+              <tr>
+                <td><code>E</code></td>
+                <td>Place currently selected object (Brush, Prop, Door, Spawn) at 3D cursor</td>
+                <td>3D Viewport</td>
+              </tr>
+              <tr>
+                <td><code>F</code></td>
+                <td>Focus and center 3D camera onto the currently selected entity</td>
+                <td>Global</td>
+              </tr>
+              <tr>
+                <td><code>Ctrl + D</code></td>
+                <td>Duplicate selected object with automatic grid offset</td>
+                <td>Selected Object</td>
+              </tr>
+              <tr>
+                <td><code>Delete</code> / <code>Backspace</code></td>
+                <td>Delete selected object (or undo/remove last placed brush)</td>
+                <td>Selected Object</td>
+              </tr>
+              <tr>
+                <td><code>Arrow Keys</code></td>
+                <td>Nudge selected object along X and Z axes (snapped to active grid)</td>
+                <td>Selected Object</td>
+              </tr>
+              <tr>
+                <td><code>Shift + Up / Down</code></td>
+                <td>Nudge selected object vertically along Y axis (elevation)</td>
+                <td>Selected Object</td>
+              </tr>
+              <tr>
+                <td><code>PageUp</code> / <code>PageDown</code></td>
+                <td>Nudge selected object vertically (alternative to Shift+Up/Down)</td>
+                <td>Selected Object</td>
+              </tr>
+              <tr>
+                <td><code>Ctrl + S</code></td>
+                <td>Save current map to <code>.labmap</code> file</td>
+                <td>Level File</td>
+              </tr>
+              <tr>
+                <td><code>Ctrl + O</code></td>
+                <td>Open Windows file dialog to load an existing <code>.labmap</code></td>
+                <td>Level File</td>
+              </tr>
+              <tr>
+                <td><code>Ctrl + N</code></td>
+                <td>Create new clean map with default ground brush</td>
+                <td>Level File</td>
+              </tr>
+              <tr style="background: rgba(56, 189, 248, 0.1);">
+                <td><strong style="color:var(--wiki-accent);">F9 / Run in Engine</strong></td>
+                <td><strong style="color:var(--wiki-accent);">Saves map and instantly launches <code>Lab.exe</code> in the game engine!</strong></td>
+                <td><strong style="color:var(--wiki-accent);">Real-Time Testing</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           SECTION 9: EDITOR GALLERY
+           ================================================================ -->
+      <section id="sec-gallery" class="wiki-section-container">
+        <h2><span class="mw-headline">9. Editor Screenshots Gallery</span></h2>
+        <p>
+          High-resolution captures from live LabHammer level editing sessions:
+        </p>
+
+        <div class="wiki-gallery-grid">
+          
+          <div class="thumb">
+            <div class="thumbinner">
+              <img src="assets/img/test_hammer_ui.webp" data-full="assets/img/test_hammer_ui.png" alt="LabHammer editor interface" class="thumbimage">
+              <div class="thumbcaption">
+                <span class="magnify-icon">&#128269;</span>
+                LabHammer Level Editor: 3D viewport, brush creation tools, and real-time map compiler.
+              </div>
+            </div>
+          </div>
+
+          <div class="thumb">
+            <div class="thumbinner">
+              <img src="assets/img/test_hammer_properties.webp" data-full="assets/img/test_hammer_properties.png" alt="Entity properties panel" class="thumbimage">
+              <div class="thumbcaption">
+                <span class="magnify-icon">&#128269;</span>
+                Entity Properties Panel in LabHammer: configuring airlock door speeds and trigger boundaries.
+              </div>
+            </div>
+          </div>
+
+          <div class="thumb">
+            <div class="thumbinner">
+              <img src="assets/img/test_hammer_spawns.webp" data-full="assets/img/test_hammer_spawns.png" alt="Player spawns in LabHammer" class="thumbimage">
+              <div class="thumbcaption">
+                <span class="magnify-icon">&#128269;</span>
+                Visual Placement of info_player_deathmatch and team spawn entities in LabHammer.
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- Wiki Category Tags -->
+      <div class="catlinks" role="navigation" aria-label="Wiki categories">
+        <span class="catlinks-label">Categories:</span>
+        <ul class="catlinks-list">
+          <li><a href="labhammer.html">Tooling</a></li>
+          <li><a href="labhammer.html">Editors</a></li>
+          <li><a href="labhammer.html">Level Design</a></li>
+          <li><a href="labhammer.html">LabHammer</a></li>
+          <li><a href="architecture.html">C++20 Game Engines</a></li>
+          <li><a href="frozen-life.html">Frozen-Life Official</a></li>
+        </ul>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ====================================================================
+       3. FOOTER
+       ==================================================================== -->
+  <footer class="vdc-footer" role="contentinfo">
+    <div class="footer-info">
+      <div>Official Technical Documentation &bull; Lab Engine, LabHammer &amp; Frozen-Life.</div>
+      <div>Engineered according to modern C++20 and OpenGL 4.5+ Direct State Access specifications.</div>
+      <div class="footer-note">
+        Created by a software engineer with 15 years of industry experience in C++ systems programming and real-time graphics.
+      </div>
+    </div>
+    <div>
+      <a href="#content" style="color: var(--wiki-accent);">Back to top &uarr;</a>
+    </div>
+  </footer>
+
+  <!-- ====================================================================
+       4. LIGHTBOX MODAL
+       ==================================================================== -->
+  <div id="vdc-lightbox" class="lightbox-modal" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="lightbox-content">
+      <button id="lightbox-close" class="lightbox-close-btn" aria-label="Close preview">&times;</button>
+      <button id="lightbox-prev" class="lightbox-nav lightbox-prev" aria-label="Previous">&#10094;</button>
+      <button id="lightbox-next" class="lightbox-nav lightbox-next" aria-label="Next">&#10095;</button>
+
+      <div class="lightbox-img-wrapper">
+        <img id="lightbox-img" src="" alt="" class="lightbox-img">
+      </div>
+
+      <div class="lightbox-info">
+        <h4 id="lightbox-title" style="color:#fff; margin:0;"></h4>
+        <span style="font-size:0.8rem; color:var(--wiki-text-muted);">Lab Engine Media Asset</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main JavaScript File -->
+  <script src="js/app.js"></script>
+</body>
+</html>

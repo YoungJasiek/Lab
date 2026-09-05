@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Lab Engine Architecture – Modern C++20 systems, fixed-step physics accumulator, strict RAII memory model, and Kay-Kajiya branchless slab ray-AABB math.">
+  <meta name="keywords" content="Lab Engine, C++20, Architecture, RAII, Raycast, AABB, Collision Math, Slab Algorithm, Fixed Timestep, Game Loop">
+  <meta name="author" content="YoungJasiek">
+
+  <title>Engine Architecture – Lab Developer Community</title>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="assets/img/LabLogo.png">
+
+  <!-- Core Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Accessibility Skip Link -->
+  <a href="#content" class="skip-link">Skip to main content</a>
+
+  <!-- ====================================================================
+       1. TOP HEADER
+       ==================================================================== -->
+  <header class="vdc-top-header" role="banner">
+    <div class="vdc-header-left">
+      <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
+      <a href="index.html" class="vdc-brand">
+        <img src="assets/img/LabLogo.png" alt="Lab Engine Logo" class="vdc-logo-img">
+        <div class="vdc-brand-text">
+          <span class="vdc-brand-title"><span class="accent">LAB</span> DEVELOPER COMMUNITY</span>
+          <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LABHAMMER</span>
+        </div>
+      </a>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="vdc-search-bar" role="search">
+      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search documentation..." aria-label="Search wiki documentation">
+      <span class="vdc-search-icon" aria-hidden="true">&#128269;</span>
+    </div>
+
+    <!-- Header Actions -->
+    <div class="vdc-header-right">
+      <button id="theme-toggle-btn" class="theme-toggle-btn" aria-label="Toggle theme">&#9728;&#65039; Light Mode</button>
+      <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="github-badge-btn" aria-label="GitHub repository">
+        <span>GitHub</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- ====================================================================
+       2. WIKI CONTAINER (SIDEBAR + MAIN CONTENT)
+       ==================================================================== -->
+  <div class="vdc-page-container">
+
+    <!-- Left Sidebar Navigation -->
+    <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
+      <div class="sidebar-block">
+        <div class="sidebar-title">Documentation</div>
+        <ul class="sidebar-links">
+          <li><a href="index.html">Main Page (Portal)</a></li>
+          <li><a href="labhammer.html">LabHammer Editor</a></li>
+          <li><a href="frozen-life.html">Frozen-Life Build</a></li>
+          <li><a href="architecture.html" class="active">Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+          <li><a href="building.html">Building from Source</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Architecture Topics</div>
+        <ul class="sidebar-links">
+          <li><a href="#sec-philosophy">C++20 Philosophy</a></li>
+          <li><a href="#sec-loop">Fixed Timestep Loop</a></li>
+          <li><a href="#sec-memory">Memory Model &amp; RAII</a></li>
+          <li><a href="#sec-combat">Combat Subsystem &amp; AI</a></li>
+          <li><a href="#sec-collision">Slab Ray-AABB Math</a></li>
+          <li><a href="#sec-source-code">C++ Source Inspector</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Project &amp; Source</div>
+        <ul class="sidebar-links">
+          <li><a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer">GitHub Repository</a></li>
+          <li><a href="opengl-dsa.html">Direct State Access</a></li>
+          <li><a href="building.html">CMake Build System</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main id="content" class="vdc-main-content" role="main">
+
+      <!-- Navigation Tabs -->
+      <nav class="vdc-page-tabs" aria-label="Namespace tabs">
+        <div class="tabs-left">
+          <a href="architecture.html" class="wiki-tab active">Page</a>
+          <a href="index.html#welcome" class="wiki-tab">Main Portal</a>
+        </div>
+        <div class="tabs-right">
+          <a href="architecture.html" class="wiki-tab active">Read</a>
+          <a href="#sec-source-code" class="wiki-tab">View C++ Source</a>
+          <a href="opengl-dsa.html" class="wiki-tab">DSA Pipeline</a>
+        </div>
+      </nav>
+
+      <!-- Breadcrumb Trail -->
+      <div class="wiki-breadcrumbs">
+        <a href="index.html">Main Page</a>
+        <span class="crumb-sep">&gt;</span>
+        <span>Engine</span>
+        <span class="crumb-sep">&gt;</span>
+        <span class="crumb-current">Architecture</span>
+      </div>
+
+      <!-- Article Header -->
+      <h1 class="firstHeading">
+        <span>Lab Engine Core Architecture</span>
+        <span style="font-size: 0.85rem; font-weight: normal; font-family: var(--font-mono); color: var(--wiki-accent);">[C++20 &amp; RAII]</span>
+      </h1>
+      <div class="siteSub">From Lab Developer Community &ndash; Low-Level Design, Object Lifetimes, and Collision Mathematics</div>
+
+      <!-- ================================================================
+           RIGHT-FLOATING MEDIAWIKI INFOBOX
+           ================================================================ -->
+      <aside class="infobox" aria-label="Lab Engine Architecture Information">
+        <div class="infobox-title">
+          Lab Engine
+          <span class="infobox-subtitle">CORE SUBSYSTEM ARCHITECTURE</span>
+        </div>
+        <div class="infobox-image">
+          <img src="assets/img/LabLogo.png" alt="Lab Engine Core Architecture" style="max-height:120px;">
+          <div class="infobox-caption">Modern C++20 Real-Time FPS Engine</div>
+        </div>
+        <table class="infobox-table">
+          <tbody>
+            <tr>
+              <td class="infobox-label">Developer</td>
+              <td class="infobox-data">YoungJasiek</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Standard</td>
+              <td class="infobox-data">Modern ISO C++20</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Core Paradigm</td>
+              <td class="infobox-data">Strict RAII &bull; Zero Raw <code>new</code>/<code>delete</code></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Timestep</td>
+              <td class="infobox-data">Fixed 60Hz Accumulator (<code>dt = 1/60s</code>)</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Collision</td>
+              <td class="infobox-data">Kay-Kajiya Branchless Slab Ray-AABB</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Graphics API</td>
+              <td class="infobox-data"><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Target Game</td>
+              <td class="infobox-data"><a href="frozen-life.html">Frozen-Life (FL)</a></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Level Editor</td>
+              <td class="infobox-data"><a href="labhammer.html">LabHammer.exe</a></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Build System</td>
+              <td class="infobox-data"><a href="building.html">CMake 3.22+</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </aside>
+
+      <!-- Technical Notice Callout -->
+      <div class="wiki-notice notice-tip">
+        <span class="notice-icon">&#128161;</span>
+        <div class="wiki-notice-content">
+          <strong>Deterministic Execution &amp; Memory Safety:</strong>
+          Manual memory management with raw <code>new</code> and <code>delete</code> is strictly forbidden in both engine and game code. All GPU buffers, shaders, textures, and scene entities are governed by explicit RAII wrappers (<code>std::unique_ptr</code>, <code>std::shared_ptr</code>, <code>std::span</code>).
+        </div>
+      </div>
+
+      <!-- Collapsible Table of Contents (TOC) -->
+      <nav id="toc" class="toc" role="doc-toc" aria-label="Table of contents">
+        <div class="toctitle">
+          <span>Contents</span>
+          <span id="toctogglelink" class="toctoggle">hide</span>
+        </div>
+        <ol id="toc-list" class="toc-list">
+          <li><a href="#sec-philosophy"><span class="tocnumber">1</span> <span class="toctext">Architectural Philosophy &amp; C++20 Standards</span></a></li>
+          <li><a href="#sec-loop"><span class="tocnumber">2</span> <span class="toctext">Deterministic Frame Loop &amp; Physics Accumulator</span></a></li>
+          <li><a href="#sec-memory"><span class="tocnumber">3</span> <span class="toctext">Memory Safety &amp; Zero Runtime Allocations</span></a></li>
+          <li><a href="#sec-combat"><span class="tocnumber">4</span> <span class="toctext">Combat Subsystem &amp; Bot AI Finite State Machine</span></a></li>
+          <li><a href="#sec-collision"><span class="tocnumber">5</span> <span class="toctext">Spatial Physics &amp; Branchless Ray-AABB Intersection</span></a></li>
+          <li><a href="#sec-source-code"><span class="tocnumber">6</span> <span class="toctext">Interactive C++ Source Code Inspector</span></a></li>
+        </ol>
+      </nav>
+
+      <!-- ================================================================
+           SECTION 1: PHILOSOPHY
+           ================================================================ -->
+      <section id="sec-philosophy" class="wiki-section-container">
+        <h2><span class="mw-headline">1. Architectural Philosophy &amp; C++20 Standards</span></h2>
+        <p>
+          <strong>Lab Engine</strong> is designed from the ground up on modern C++20 principles, prioritizing explicit object lifetimes, zero-cost abstractions, deterministic execution, and zero unnecessary dynamic allocations during the gameplay frame loop.
+        </p>
+        <p>
+          Following 15 years of game development best practices, the engine enforces strict separation of concerns:
+        </p>
+        <ul>
+          <li><strong>Modular Subsystems:</strong> Core logic, rendering (<a href="opengl-dsa.html">OpenGL 4.5+ DSA</a>), physics, spatial collision, camera, input, and AI operate as decoupled, testable components.</li>
+          <li><strong>Shared Engine Library:</strong> Compiled as <code>LabEngineLib.lib</code>, allowing both the game runtime (<code>Lab.exe</code>) and the 3D level editor (<a href="labhammer.html"><code>LabHammer.exe</code></a>) to link against the exact same rendering, math, and map serialization code.</li>
+          <li><strong>Zero Global Spaghetti:</strong> No global OpenGL mutable state or hidden singletons. Systems receive dependencies explicitly via constructors and service locators.</li>
+        </ul>
+      </section>
+
+      <!-- ================================================================
+           SECTION 2: FRAME LOOP
+           ================================================================ -->
+      <section id="sec-loop" class="wiki-section-container">
+        <h2><span class="mw-headline">2. Deterministic Frame Loop &amp; Physics Accumulator</span></h2>
+        <p>
+          The engine main loop in <code>src/LabCore.cpp</code> utilizes a semi-fixed timestep physics accumulator. High-resolution frame delta time is captured via <code>glfwGetTime()</code>, and physics updates are integrated in discrete fixed steps (<code>dt = 1.0f / 60.0f</code>) inside <code>onFixedUpdate()</code>:
+        </p>
+        <pre><code class="code-pre">float newTime = static_cast&lt;float&gt;(glfwGetTime());
+float frameTime = newTime - currentTime;
+currentTime = newTime;
+
+// Clamp accumulator to prevent spiral of death
+if (frameTime &gt; 0.25f) frameTime = 0.25f;
+accumulator += frameTime;
+
+while (accumulator &gt;= FIXED_DT) {
+    onFixedUpdate(FIXED_DT);
+    accumulator -= FIXED_DT;
+}
+
+// Alpha interpolation factor for ultra-smooth rendering at any refresh rate
+float alpha = accumulator / FIXED_DT;
+onRender(alpha);</code></pre>
+        <p>
+          This guarantees reproducible collision physics, consistent jump heights, and deterministic projectile trajectories regardless of whether the user plays at 60Hz, 144Hz, or 360Hz.
+        </p>
+      </section>
+
+      <!-- ================================================================
+           SECTION 3: MEMORY SAFETY
+           ================================================================ -->
+      <section id="sec-memory" class="wiki-section-container">
+        <h2><span class="mw-headline">3. Memory Safety &amp; Zero Runtime Allocations</span></h2>
+        <p>
+          Memory ownership throughout the engine adheres strictly to the C++ Core Guidelines:
+        </p>
+        <ul>
+          <li><strong>Exclusive Ownership:</strong> Managed with <code>std::unique_ptr&lt;T&gt;</code> for shaders, textures, and mesh instances. Destructors automatically release GPU and OS handles (e.g. <code>glDeleteTextures</code>, <code>glDeleteBuffers</code>).</li>
+          <li><strong>Non-Owning Views:</strong> Handled via <code>std::span&lt;T&gt;</code> and <code>const T&amp;</code> rather than raw pointer arithmetic, eliminating dangling pointer bugs and out-of-bounds reads.</li>
+          <li><strong>Zero Runtime Allocations:</strong> Vectors, particle pools, and entity buffers are pre-allocated and reserved upon level load. No <code>malloc</code>, <code>free</code>, <code>new</code>, or <code>delete</code> occur during active combat frames.</li>
+        </ul>
+      </section>
+
+      <!-- ================================================================
+           SECTION 4: COMBAT & BOT AI FSM
+           ================================================================ -->
+      <section id="sec-combat" class="wiki-section-container">
+        <h2><span class="mw-headline">4. Combat Subsystem &amp; Bot AI Finite State Machine</span></h2>
+        <p>
+          The combat engine in <code>src/LabCombat.cpp</code> coordinates weapons, ballistics, and bot AI routines:
+        </p>
+        <ul>
+          <li><strong>Critical Headshots:</strong> Bounding boxes are segmented into head (<code>boxMin.y + 0.75f * height</code>) and torso regions. Head hits apply a <strong>3.0x damage multiplier</strong> with distinct acoustic feedback.</li>
+          <li><strong>Combat AI States:</strong> Bots execute a continuous finite state machine (FSM):
+            <ul>
+              <li><code>State::Patrol</code> &ndash; Navigates between map waypoint spawners.</li>
+              <li><code>State::Alert</code> &ndash; Investigates weapon firing noises and player footstep traces.</li>
+              <li><code>State::CombatChase</code> &ndash; Closes distance while maintaining line-of-sight.</li>
+              <li><code>State::SuppressFire</code> &ndash; Fires bursts from behind pillar cover.</li>
+            </ul>
+          </li>
+        </ul>
+      </section>
+
+      <!-- ================================================================
+           SECTION 5: COLLISION MATH (SLAB RAY-AABB)
+           ================================================================ -->
+      <section id="sec-collision" class="wiki-section-container">
+        <h2><span class="mw-headline">5. Spatial Physics &amp; Branchless Ray-AABB Intersection</span></h2>
+        <p>
+          The collision engine implemented in <code>include/LabCombat.h</code> uses the branchless <em>Kay-Kajiya Slab Algorithm</em> for testing hitscan bullet rays and camera picking against Axis-Aligned Bounding Boxes (AABB).
+        </p>
+        <p>
+          By computing the reciprocal ray direction vector <code>invDir = 1.0f / rayDir</code> once, axis intersection intervals are computed using vector min/max operations without branching:
+        </p>
+        <pre><code class="code-pre">t0 = (boxMin - rayOrigin) * invDir;
+t1 = (boxMax - rayOrigin) * invDir;
+tNear = max(min(t0.x, t1.x), min(t0.y, t1.y), min(t0.z, t1.z));
+tFar  = min(max(t0.x, t1.x), max(t0.y, t1.y), max(t0.z, t1.z));</code></pre>
+        <p>
+          If <code>tNear &lt;= tFar</code> and <code>tFar &gt;= 0.0f</code>, an intersection occurs at distance <code>tOut = tNear</code>. The surface normal is extracted directly based on which axis slab was penetrated, providing immediate contact data for ricochet sparks and bullet hole decals.
+        </p>
+      </section>
+
+      <!-- ================================================================
+           SECTION 6: C++ SOURCE INSPECTOR
+           ================================================================ -->
+      <section id="sec-source-code" class="wiki-section-container">
+        <a id="source-code" style="position:relative; top:-60px; display:block; visibility:hidden;"></a>
+        <h2><span class="mw-headline">6. Interactive C++ Source Code Inspector</span></h2>
+        <p>
+          Inspect core implementation headers and algorithms directly from the Lab codebase:
+        </p>
+
+        <!-- Source Code Tabs -->
+        <div style="display:flex; gap:6px; margin-bottom:8px; border-bottom: 1px solid var(--wiki-border); padding-bottom: 6px;">
+          <button class="source-tab-btn active" data-tab="tab-combat" style="background:var(--wiki-bg-card); border:1px solid var(--wiki-border); color:var(--wiki-text-primary); padding:6px 14px; border-radius:4px; cursor:pointer; font-family:var(--font-mono); font-size:0.8rem;">include/LabCombat.h</button>
+          <button class="source-tab-btn" data-tab="tab-renderer" style="background:var(--wiki-bg-card); border:1px solid var(--wiki-border); color:var(--wiki-text-primary); padding:6px 14px; border-radius:4px; cursor:pointer; font-family:var(--font-mono); font-size:0.8rem;">include/LabRenderer.h</button>
+        </div>
+
+        <!-- Panel 1: LabCombat.h -->
+        <div id="tab-combat" class="source-code-panel">
+          <div class="code-container">
+            <div class="code-toolbar">
+              <span class="code-title">include/LabCombat.h &ndash; Branchless Ray-AABB Slab Algorithm</span>
+              <button class="btn-wiki-copy" data-target="code-combat-snippet">Copy</button>
+            </div>
+            <pre><code id="code-combat-snippet" class="code-pre">#pragma once
+#include "LabMath.h"
+
+namespace Lab {
+    class Raycast {
+    public:
+        // Branchless Ray-AABB intersection algorithm with normal extraction
+        static bool rayIntersectAABB(const Vec3&amp; rayOrigin, const Vec3&amp; rayDir,
+                                     const Vec3&amp; boxMin, const Vec3&amp; boxMax,
+                                     float&amp; tOut, Vec3* outNormal = nullptr) {
+            Vec3 invDir{ 1.0f / (rayDir.x != 0.0f ? rayDir.x : 1e-8f),
+                         1.0f / (rayDir.y != 0.0f ? rayDir.y : 1e-8f),
+                         1.0f / (rayDir.z != 0.0f ? rayDir.z : 1e-8f) };
+
+            Vec3 t0 = (boxMin - rayOrigin) * invDir;
+            Vec3 t1 = (boxMax - rayOrigin) * invDir;
+
+            Vec3 tmin = minVec3(t0, t1);
+            Vec3 tmax = maxVec3(t0, t1);
+
+            float tNear = std::max({ tmin.x, tmin.y, tmin.z });
+            float tFar  = std::min({ tmax.x, tmax.y, tmax.z });
+
+            if (tNear &gt; tFar || tFar &lt; 0.0f) return false;
+
+            tOut = (tNear &gt;= 0.0f) ? tNear : tFar;
+            return true;
+        }
+    };
+}</code></pre>
+          </div>
+        </div>
+
+        <!-- Panel 2: LabRenderer.h -->
+        <div id="tab-renderer" class="source-code-panel" style="display:none;">
+          <div class="code-container">
+            <div class="code-toolbar">
+              <span class="code-title">include/LabRenderer.h &ndash; OpenGL 4.5+ DSA Declarations</span>
+              <button class="btn-wiki-copy" data-target="code-renderer-snippet">Copy</button>
+            </div>
+            <pre><code id="code-renderer-snippet" class="code-pre">#pragma once
+#include &lt;vector&gt;
+#include &lt;string&gt;
+#include "LabMath.h"
+#include "LabCamera.h"
+
+namespace Lab {
+
+    struct Vertex {
+        Vec3 position;
+        Vec3 normal;
+        Vec2 texCoords;
+        Vec3 color;
+
+        Vertex(Vec3 p, Vec3 n, Vec2 t, Vec3 c = { 1, 1, 1 })
+            : position(p), normal(n), texCoords(t), color(c) {}
+    };
+
+    class Renderer {
+    public:
+        static void init();
+        static void shutdown();
+        static void beginFrame(const Camera&amp; camera);
+        static void endFrame();
+        
+        static void beginViewModel();
+        static void endViewModel(const Camera&amp; camera);
+
+        // Directional and ambient lighting
+        static void setSunLight(const Vec3&amp; direction, const Vec3&amp; color, const Vec3&amp; ambient);
+
+        // 3D Geometry Rendering via Direct State Access (DSA)
+        static void drawCube(const Vec3&amp; position, const Vec3&amp; rotation, const Vec3&amp; scale,
+                             const Vec3&amp; color, const Texture* texture = nullptr,
+                             bool enableLighting = true, const Vec2&amp; uvTiling = { 0.25f, 0.25f },
+                             int uvMode = 1);
+        static void drawMesh(const Mesh&amp; mesh, const Vec3&amp; position, const Vec3&amp; rotation,
+                             const Vec3&amp; scale, const Vec3&amp; color = { 1, 1, 1 },
+                             const Texture* texture = nullptr, bool enableLighting = true);
+    };
+}</code></pre>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Wiki Category Tags -->
+      <div class="catlinks" role="navigation" aria-label="Wiki categories">
+        <span class="catlinks-label">Categories:</span>
+        <ul class="catlinks-list">
+          <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="architecture.html">Modern C++20</a></li>
+          <li><a href="architecture.html">Mathematics</a></li>
+          <li><a href="architecture.html">Collision</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+          <li><a href="frozen-life.html">Frozen-Life Official</a></li>
+        </ul>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ====================================================================
+       3. FOOTER
+       ==================================================================== -->
+  <footer class="vdc-footer" role="contentinfo">
+    <div class="footer-info">
+      <div>Official Technical Documentation &bull; Lab Engine, LabHammer &amp; Frozen-Life.</div>
+      <div>Engineered according to modern C++20 and OpenGL 4.5+ Direct State Access specifications.</div>
+      <div class="footer-note">
+        Created by a software engineer with 15 years of industry experience in C++ systems programming and real-time graphics.
+      </div>
+    </div>
+    <div>
+      <a href="#content" style="color: var(--wiki-accent);">Back to top &uarr;</a>
+    </div>
+  </footer>
+
+  <!-- ====================================================================
+       4. LIGHTBOX MODAL
+       ==================================================================== -->
+  <div id="vdc-lightbox" class="lightbox-modal" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="lightbox-content">
+      <button id="lightbox-close" class="lightbox-close-btn" aria-label="Close preview">&times;</button>
+      <button id="lightbox-prev" class="lightbox-nav lightbox-prev" aria-label="Previous">&#10094;</button>
+      <button id="lightbox-next" class="lightbox-nav lightbox-next" aria-label="Next">&#10095;</button>
+
+      <div class="lightbox-img-wrapper">
+        <img id="lightbox-img" src="" alt="" class="lightbox-img">
+      </div>
+
+      <div class="lightbox-info">
+        <h4 id="lightbox-title" style="color:#fff; margin:0;"></h4>
+        <span style="font-size:0.8rem; color:var(--wiki-text-muted);">Lab Engine Media Asset</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main JavaScript File -->
+  <script src="js/app.js"></script>
+</body>
+</html>

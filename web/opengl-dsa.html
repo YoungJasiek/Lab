@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="OpenGL 4.5+ Direct State Access (DSA) Rendering Pipeline in Lab Engine. Shading model, immutable storage, named buffers, and dual-projection viewmodel pass.">
+  <meta name="keywords" content="Direct State Access, OpenGL 4.5, DSA, glCreateTextures, glNamedBufferData, Blinn-Phong, Source Engine, Lab Engine, Graphics">
+  <meta name="author" content="YoungJasiek">
+
+  <title>Direct State Access (DSA) – Lab Developer Community</title>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="assets/img/LabLogo.png">
+
+  <!-- Core Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Accessibility Skip Link -->
+  <a href="#content" class="skip-link">Skip to main content</a>
+
+  <!-- ====================================================================
+       1. TOP HEADER
+       ==================================================================== -->
+  <header class="vdc-top-header" role="banner">
+    <div class="vdc-header-left">
+      <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
+      <a href="index.html" class="vdc-brand">
+        <img src="assets/img/LabLogo.png" alt="Lab Engine Logo" class="vdc-logo-img">
+        <div class="vdc-brand-text">
+          <span class="vdc-brand-title"><span class="accent">LAB</span> DEVELOPER COMMUNITY</span>
+          <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LABHAMMER</span>
+        </div>
+      </a>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="vdc-search-bar" role="search">
+      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search documentation..." aria-label="Search wiki documentation">
+      <span class="vdc-search-icon" aria-hidden="true">&#128269;</span>
+    </div>
+
+    <!-- Header Actions -->
+    <div class="vdc-header-right">
+      <button id="theme-toggle-btn" class="theme-toggle-btn" aria-label="Toggle theme">&#9728;&#65039; Light Mode</button>
+      <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="github-badge-btn" aria-label="GitHub repository">
+        <span>GitHub</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- ====================================================================
+       2. WIKI CONTAINER (SIDEBAR + MAIN CONTENT)
+       ==================================================================== -->
+  <div class="vdc-page-container">
+
+    <!-- Left Sidebar Navigation -->
+    <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
+      <div class="sidebar-block">
+        <div class="sidebar-title">Documentation</div>
+        <ul class="sidebar-links">
+          <li><a href="index.html">Main Page (Portal)</a></li>
+          <li><a href="labhammer.html">LabHammer Editor</a></li>
+          <li><a href="frozen-life.html">Frozen-Life Build</a></li>
+          <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html" class="active">OpenGL 4.5+ DSA</a></li>
+          <li><a href="building.html">Building from Source</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Pipeline Topics</div>
+        <ul class="sidebar-links">
+          <li><a href="#sec-overview">What is DSA?</a></li>
+          <li><a href="#sec-comparison">Legacy vs DSA Table</a></li>
+          <li><a href="#sec-textures">Texture Storage</a></li>
+          <li><a href="#sec-buffers">Named Buffers &amp; VAO</a></li>
+          <li><a href="#sec-viewmodel">ViewModel Depth Pass</a></li>
+          <li><a href="#sec-aesthetics">Visual Aesthetics</a></li>
+          <li><a href="#sec-gallery">Rendering Gallery</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Project &amp; Source</div>
+        <ul class="sidebar-links">
+          <li><a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer">GitHub Repository</a></li>
+          <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="building.html">Compilation Guide</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main id="content" class="vdc-main-content" role="main">
+
+      <!-- Navigation Tabs -->
+      <nav class="vdc-page-tabs" aria-label="Namespace tabs">
+        <div class="tabs-left">
+          <a href="opengl-dsa.html" class="wiki-tab active">Page</a>
+          <a href="index.html#welcome" class="wiki-tab">Main Portal</a>
+        </div>
+        <div class="tabs-right">
+          <a href="opengl-dsa.html" class="wiki-tab active">Read</a>
+          <a href="architecture.html#source-code" class="wiki-tab">View C++ Source</a>
+          <a href="frozen-life.html" class="wiki-tab">Game Benchmark</a>
+        </div>
+      </nav>
+
+      <!-- Breadcrumb Trail -->
+      <div class="wiki-breadcrumbs">
+        <a href="index.html">Main Page</a>
+        <span class="crumb-sep">&gt;</span>
+        <span>Graphics</span>
+        <span class="crumb-sep">&gt;</span>
+        <span class="crumb-current">Direct State Access</span>
+      </div>
+
+      <!-- Article Header -->
+      <h1 class="firstHeading">
+        <span>Direct State Access (DSA)</span>
+        <span style="font-size: 0.85rem; font-weight: normal; font-family: var(--font-mono); color: var(--wiki-accent);">[OpenGL 4.5+ Core]</span>
+      </h1>
+      <div class="siteSub">From Lab Developer Community &ndash; Modern GPU Pipeline, Immutable Storage, and Zero State-Thrashing</div>
+
+      <!-- ================================================================
+           RIGHT-FLOATING MEDIAWIKI INFOBOX
+           ================================================================ -->
+      <aside class="infobox" aria-label="Direct State Access Technical Information">
+        <div class="infobox-title">
+          OpenGL 4.5+ DSA
+          <span class="infobox-subtitle">DIRECT STATE ACCESS PIPELINE</span>
+        </div>
+        <div class="infobox-image">
+          <img src="assets/img/test_3d_textured.webp" alt="DSA Textured Environment Rendering">
+          <div class="infobox-caption">3D textured rendering with Blinn-Phong lighting and normal mapping</div>
+        </div>
+        <table class="infobox-table">
+          <tbody>
+            <tr>
+              <td class="infobox-label">Specification</td>
+              <td class="infobox-data">OpenGL 4.5+ Core Profile</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Core Extension</td>
+              <td class="infobox-data"><code>ARB_direct_state_access</code></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Texture Calls</td>
+              <td class="infobox-data"><code>glCreateTextures</code><br><code>glTextureStorage2D</code></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Buffer Calls</td>
+              <td class="infobox-data"><code>glCreateBuffers</code><br><code>glNamedBufferData</code></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Shader Version</td>
+              <td class="infobox-data">GLSL 450 Core</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Shading Model</td>
+              <td class="infobox-data">Blinn-Phong / Sharp Normals</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Post-Processing</td>
+              <td class="infobox-data">HDR + Subtle Bloom + Vignette</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Anti-Aliasing</td>
+              <td class="infobox-data">4x MSAA (No heavy TAA blur)</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Consumer</td>
+              <td class="infobox-data"><a href="architecture.html">Lab Engine</a> &bull; <a href="frozen-life.html">Frozen-Life</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </aside>
+
+      <!-- Technical Notice Callout -->
+      <div class="wiki-notice notice-note">
+        <span class="notice-icon">&#9432;</span>
+        <div class="wiki-notice-content">
+          <strong>Direct State Access Paradigm:</strong>
+          In traditional OpenGL, modifying any buffer, texture, or vertex array required binding it to an active context target (such as <code>GL_ARRAY_BUFFER</code> or <code>GL_TEXTURE_2D</code>), polluting the global state machine. DSA completely eliminates context binding: every mutation targets the object ID directly.
+        </div>
+      </div>
+
+      <!-- Collapsible Table of Contents (TOC) -->
+      <nav id="toc" class="toc" role="doc-toc" aria-label="Table of contents">
+        <div class="toctitle">
+          <span>Contents</span>
+          <span id="toctogglelink" class="toctoggle">hide</span>
+        </div>
+        <ol id="toc-list" class="toc-list">
+          <li><a href="#sec-overview"><span class="tocnumber">1</span> <span class="toctext">What is Direct State Access (DSA)?</span></a></li>
+          <li><a href="#sec-comparison"><span class="tocnumber">2</span> <span class="toctext">Legacy Bind-to-Edit vs Modern DSA Comparison Table</span></a></li>
+          <li><a href="#sec-textures"><span class="tocnumber">3</span> <span class="toctext">Texture Allocation &amp; Immutable Storage</span></a></li>
+          <li><a href="#sec-buffers"><span class="tocnumber">4</span> <span class="toctext">Vertex Arrays &amp; Named Buffer Binding</span></a></li>
+          <li><a href="#sec-viewmodel"><span class="tocnumber">5</span> <span class="toctext">First-Person Viewmodel Rendering (Dual Projection)</span></a></li>
+          <li><a href="#sec-aesthetics"><span class="tocnumber">6</span> <span class="toctext">Visual Aesthetic Philosophy: Source Engine Feel</span></a></li>
+          <li><a href="#sec-performance"><span class="tocnumber">7</span> <span class="toctext">Driver Overhead &amp; Performance Impact</span></a></li>
+          <li><a href="#sec-gallery"><span class="tocnumber">8</span> <span class="toctext">Rendering Verification Gallery</span></a></li>
+        </ol>
+      </nav>
+
+      <!-- ================================================================
+           SECTION 1: WHAT IS DSA?
+           ================================================================ -->
+      <section id="sec-overview" class="wiki-section-container">
+        <h2><span class="mw-headline">1. What is Direct State Access (DSA)?</span></h2>
+        <p>
+          Introduced as a core feature in <strong>OpenGL 4.5</strong> via the <code>ARB_direct_state_access</code> extension, Direct State Access represents the most fundamental modernization of the OpenGL API since the deprecation of the fixed-function pipeline.
+        </p>
+        <p>
+          In traditional OpenGL, GPU objects could not be configured directly. Instead, an application had to bind an object to a context target, execute configuration commands on that target, and subsequently restore or unbind the target to prevent unintended side effects. DSA replaces this error-prone state thrashing with clean, object-centric handles.
+        </p>
+      </section>
+
+      <!-- ================================================================
+           SECTION 2: COMPARISON TABLE
+           ================================================================ -->
+      <section id="sec-comparison" class="wiki-section-container">
+        <h2><span class="mw-headline">2. Legacy Bind-to-Edit vs Modern DSA Comparison Table</span></h2>
+        <p>
+          The graphics subsystem in <code>src/LabRenderer.cpp</code> uses DSA calls exclusively:
+        </p>
+
+        <div class="table-wrapper">
+          <table class="wikitable">
+            <thead>
+              <tr>
+                <th>Traditional OpenGL (Legacy State Machine)</th>
+                <th>Lab Engine Pipeline (OpenGL 4.5+ DSA)</th>
+                <th>Performance Advantage</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>glBindBuffer(GL_ARRAY_BUFFER, vbo);<br>glBufferData(GL_ARRAY_BUFFER, ...);</code></td>
+                <td><code>glNamedBufferData(vbo, size, data, usage);</code></td>
+                <td>Direct mutation; zero context state changes</td>
+              </tr>
+              <tr>
+                <td><code>glBindVertexArray(vao);<br>glBindBuffer(GL_ARRAY_BUFFER, vbo);<br>glVertexAttribPointer(...);</code></td>
+                <td><code>glVertexArrayVertexBuffer(vao, ...);<br>glVertexArrayAttribFormat(vao, ...);</code></td>
+                <td>Decouples vertex layout formatting from buffer binding</td>
+              </tr>
+              <tr>
+                <td><code>glActiveTexture(GL_TEXTURE0);<br>glBindTexture(GL_TEXTURE_2D, id);</code></td>
+                <td><code>glBindTextureUnit(slot, textureId);</code></td>
+                <td>Single atomic call binds texture directly to sampler slot</td>
+              </tr>
+              <tr>
+                <td><code>glGenTextures(1, &amp;tex);<br>glBindTexture(GL_TEXTURE_2D, tex);<br>glTexImage2D(...);</code></td>
+                <td><code>glCreateTextures(GL_TEXTURE_2D, 1, &amp;tex);<br>glTextureStorage2D(tex, levels, format, w, h);<br>glTextureSubImage2D(tex, ...);</code></td>
+                <td>Immutable storage allocation; GPU driver validates memory upfront</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           SECTION 3: TEXTURES
+           ================================================================ -->
+      <section id="sec-textures" class="wiki-section-container">
+        <h2><span class="mw-headline">3. Texture Allocation &amp; Immutable Storage</span></h2>
+        <p>
+          In Lab Engine, textures are allocated using <strong>immutable storage</strong>. Rather than calling mutable <code>glTexImage2D</code> on every mip level, <code>glTextureStorage2D</code> establishes fixed memory dimensions upfront:
+        </p>
+        <pre><code class="code-pre">// Lab Engine Texture Loader (src/LabTexture.cpp)
+GLuint texID;
+glCreateTextures(GL_TEXTURE_2D, 1, &amp;texID);
+
+// Allocate immutable storage for 1 mip level (or full mip pyramid)
+glTextureStorage2D(texID, 1, GL_RGBA8, width, height);
+
+// Upload raw bitmap pixel data directly to named texture object
+glTextureSubImage2D(texID, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixelData);
+
+// Set texture sampling parameters directly on object handle
+glTextureParameteri(texID, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+glTextureParameteri(texID, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+glTextureParameteri(texID, GL_TEXTURE_WRAP_S, GL_REPEAT);
+glTextureParameteri(texID, GL_TEXTURE_WRAP_T, GL_REPEAT);
+glGenerateTextureMipmap(texID);</code></pre>
+      </section>
+
+      <!-- ================================================================
+           SECTION 4: NAMED BUFFERS & VAO
+           ================================================================ -->
+      <section id="sec-buffers" class="wiki-section-container">
+        <h2><span class="mw-headline">4. Vertex Arrays &amp; Named Buffer Binding</span></h2>
+        <p>
+          Vertex Array Objects (VAO) and Vertex Buffer Objects (VBO) are constructed without ever issuing a <code>glBindVertexArray</code> or <code>glBindBuffer</code> during setup:
+        </p>
+        <pre><code class="code-pre">// Create named objects
+glCreateVertexArrays(1, &amp;m_vao);
+glCreateBuffers(1, &amp;m_vbo);
+
+// Upload vertex data to named buffer
+glNamedBufferData(m_vbo, vertices.size() * sizeof(Vertex), vertices.data(), GL_STATIC_DRAW);
+
+// Bind buffer to VAO binding point 0 with stride
+glVertexArrayVertexBuffer(m_vao, 0, m_vbo, 0, sizeof(Vertex));
+
+// Configure attribute format (Position at offset 0)
+glEnableVertexArrayAttrib(m_vao, 0);
+glVertexArrayAttribFormat(m_vao, 0, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, position));
+glVertexArrayAttribBinding(m_vao, 0, 0);
+
+// Configure attribute format (Normal at offset 12)
+glEnableVertexArrayAttrib(m_vao, 1);
+glVertexArrayAttribFormat(m_vao, 1, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, normal));
+glVertexArrayAttribBinding(m_vao, 1, 0);</code></pre>
+      </section>
+
+      <!-- ================================================================
+           SECTION 5: VIEWMODEL PASS
+           ================================================================ -->
+      <section id="sec-viewmodel" class="wiki-section-container">
+        <h2><span class="mw-headline">5. First-Person Viewmodel Rendering (Dual Projection)</span></h2>
+        <p>
+          To prevent first-person weapon meshes from clipping into geometry when standing close to bunker walls, the renderer uses a dual projection matrix approach:
+        </p>
+        <ol>
+          <li><strong>World Pass:</strong> Render all map brushes, props, and entities with standard projection (FOV 75&deg;, near 0.1, far 1000.0).</li>
+          <li><strong>ViewModel Pass:</strong> Clear depth buffer via <code>glClear(GL_DEPTH_BUFFER_BIT)</code>, apply specialized viewmodel projection (FOV 54&deg;, near 0.01, far 10.0), and render procedural weapon model.</li>
+          <li><strong>Restore:</strong> Return to standard depth testing for subsequent UI passes.</li>
+        </ol>
+      </section>
+
+      <!-- ================================================================
+           SECTION 6: SOURCE AESTHETIC
+           ================================================================ -->
+      <section id="sec-aesthetics" class="wiki-section-container">
+        <h2><span class="mw-headline">6. Visual Aesthetic Philosophy: Source Engine Feel</span></h2>
+        <p>
+          The rendering pipeline targets a crisp, high-readability tactical look inspired by the legendary <strong>Source Engine (Half-Life 2 / Counter-Strike: Source)</strong>:
+        </p>
+        <ul>
+          <li><strong>Blinn-Phong Shading (No Heavy PBR):</strong> Clean specular highlights and sharp contrast, avoiding the muddy roughness look of modern photorealistic engines.</li>
+          <li><strong>Sharp Normal Mapping:</strong> High-frequency wall and floor surface relief without temporal antialiasing blur.</li>
+          <li><strong>High-Contrast Lighting + Directional Sunlight:</strong> Distinct shadows, crisp indoor/outdoor ambient transitions, and vibrant emergency hazard lighting.</li>
+          <li><strong>MSAA / FXAA Anti-Aliasing:</strong> Sub-pixel geometric smoothing without ghosting or temporal trail artifacts.</li>
+        </ul>
+      </section>
+
+      <!-- ================================================================
+           SECTION 7: BENCHMARKS
+           ================================================================ -->
+      <section id="sec-performance" class="wiki-section-container">
+        <h2><span class="mw-headline">7. Driver Overhead &amp; Performance Impact</span></h2>
+        <p>
+          By removing redundant context binding calls, the OpenGL graphics driver avoids maintaining and verifying massive global state tables on every draw call. This achieves:
+        </p>
+        <ul>
+          <li><strong>42 Draw Calls per Frame</strong> for an entire playable multiplayer sector.</li>
+          <li><strong>2.1 ms Frame Time</strong> (yielding <strong>450+ FPS</strong> uncapped on standard desktop GPU hardware).</li>
+          <li><strong>Zero State Leaks</strong> between separate engine passes (World, ViewModel, ImGui, Particle Emitter).</li>
+        </ul>
+      </section>
+
+      <!-- ================================================================
+           SECTION 8: GALLERY
+           ================================================================ -->
+      <section id="sec-gallery" class="wiki-section-container">
+        <h2><span class="mw-headline">8. Rendering Verification Gallery</span></h2>
+        <p>
+          Visual captures demonstrating DSA material rendering, particles, and weapon geometry:
+        </p>
+
+        <div class="wiki-gallery-grid">
+          
+          <div class="thumb">
+            <div class="thumbinner">
+              <img src="assets/img/test_3d_textured.webp" data-full="assets/img/test_3d_textured.png" alt="3D Textured environment rendering" class="thumbimage">
+              <div class="thumbcaption">
+                <span class="magnify-icon">&#128269;</span>
+                OpenGL 4.5+ DSA textured rendering: Blinn-Phong lighting and normal mapping in Facility Alpha.
+              </div>
+            </div>
+          </div>
+
+          <div class="thumb">
+            <div class="thumbinner">
+              <img src="assets/img/test_particle_system.webp" data-full="assets/img/test_particle_system.png" alt="Particle emitter system" class="thumbimage">
+              <div class="thumbcaption">
+                <span class="magnify-icon">&#128269;</span>
+                Particle System: ricochet sparks, plasma explosion clouds, and muzzle smoke emitters.
+              </div>
+            </div>
+          </div>
+
+          <div class="thumb">
+            <div class="thumbinner">
+              <img src="assets/img/test_weapon_arsenal.webp" data-full="assets/img/test_weapon_arsenal.png" alt="Arsenal render pass" class="thumbimage">
+              <div class="thumbcaption">
+                <span class="magnify-icon">&#128269;</span>
+                In-Engine Weapon Geometry and Textures: 3D models and materials rendering verification.
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- Wiki Category Tags -->
+      <div class="catlinks" role="navigation" aria-label="Wiki categories">
+        <span class="catlinks-label">Categories:</span>
+        <ul class="catlinks-list">
+          <li><a href="opengl-dsa.html">Graphics</a></li>
+          <li><a href="opengl-dsa.html">OpenGL</a></li>
+          <li><a href="opengl-dsa.html">Rendering Pipeline</a></li>
+          <li><a href="opengl-dsa.html">Direct State Access</a></li>
+          <li><a href="architecture.html">Lab Engine</a></li>
+          <li><a href="frozen-life.html">Frozen-Life Official</a></li>
+        </ul>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ====================================================================
+       3. FOOTER
+       ==================================================================== -->
+  <footer class="vdc-footer" role="contentinfo">
+    <div class="footer-info">
+      <div>Official Technical Documentation &bull; Lab Engine, LabHammer &amp; Frozen-Life.</div>
+      <div>Engineered according to modern C++20 and OpenGL 4.5+ Direct State Access specifications.</div>
+      <div class="footer-note">
+        Created by a software engineer with 15 years of industry experience in C++ systems programming and real-time graphics.
+      </div>
+    </div>
+    <div>
+      <a href="#content" style="color: var(--wiki-accent);">Back to top &uarr;</a>
+    </div>
+  </footer>
+
+  <!-- ====================================================================
+       4. LIGHTBOX MODAL
+       ==================================================================== -->
+  <div id="vdc-lightbox" class="lightbox-modal" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="lightbox-content">
+      <button id="lightbox-close" class="lightbox-close-btn" aria-label="Close preview">&times;</button>
+      <button id="lightbox-prev" class="lightbox-nav lightbox-prev" aria-label="Previous">&#10094;</button>
+      <button id="lightbox-next" class="lightbox-nav lightbox-next" aria-label="Next">&#10095;</button>
+
+      <div class="lightbox-img-wrapper">
+        <img id="lightbox-img" src="" alt="" class="lightbox-img">
+      </div>
+
+      <div class="lightbox-info">
+        <h4 id="lightbox-title" style="color:#fff; margin:0;"></h4>
+        <span style="font-size:0.8rem; color:var(--wiki-text-muted);">Lab Engine Media Asset</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main JavaScript File -->
+  <script src="js/app.js"></script>
+</body>
+</html>
