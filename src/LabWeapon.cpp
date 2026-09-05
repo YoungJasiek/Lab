@@ -616,7 +616,15 @@ namespace Lab {
 
         if (stlMesh) {
             // User provided custom STL model
-            Renderer::drawMesh(*stlMesh, gunBasePos, gunRot, { 0.015f, 0.015f, 0.015f }, { 1, 1, 1 }, texture);
+            Vec3 stlPos = gunBasePos;
+            Vec3 stlRot = gunRot;
+            Vec3 stlScale = { 0.015f, 0.015f, 0.015f };
+            if (_currentWeapon == WeaponID::Pipe) {
+                // Diagonally angled melee ready stance
+                stlPos = gunBasePos + Vec3(0.04f, 0.02f, 0.05f);
+                stlRot = gunRot + Vec3(8.0f, -12.0f, 18.0f);
+            }
+            Renderer::drawMesh(*stlMesh, stlPos, stlRot, stlScale, { 1, 1, 1 }, texture);
             if (muzzleFlash > 0.0f) {
                 Renderer::drawCube(gunBasePos + Vec3(0.0f, 0.05f, -0.45f), gunRot, { 0.18f, 0.18f, 0.18f }, { 1.0f, 0.85f, 0.2f }, nullptr, false);
             }

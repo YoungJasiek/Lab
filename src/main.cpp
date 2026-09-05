@@ -57,10 +57,7 @@ public:
             "assets/models/plasma.stl", "assets/models/railgun.stl", "assets/models/rpg.stl"
         };
         for (const auto& wModel : weaponModels) {
-            if (std::filesystem::exists(wModel) && !_meshes.contains(wModel)) {
-                Mesh* m = Mesh::loadSTL(wModel);
-                if (m) _meshes[wModel] = std::unique_ptr<Mesh>(m);
-            }
+            getMesh(wModel);
         }
 
         // Initialize Weapon System & Particles
@@ -99,6 +96,19 @@ public:
         if (tex && tex->getId() != 0) {
             Texture* ptr = tex.get();
             _textures[path] = std::move(tex);
+            return ptr;
+        }
+        return nullptr;
+    }
+
+    Mesh* getMesh(const std::string& path) {
+        if (path.empty()) return nullptr;
+        auto it = _meshes.find(path);
+        if (it != _meshes.end()) return it->second.get();
+        Mesh* m = Mesh::loadSTL(path);
+        if (m) {
+            Mesh* ptr = m;
+            _meshes[path] = std::unique_ptr<Mesh>(m);
             return ptr;
         }
         return nullptr;
@@ -1128,7 +1138,7 @@ public:
     void drawWeapon() {
         const auto& def = _weaponSystem.getActiveDef();
         Texture* tex = getTexture(def.textureFile);
-        Mesh* stlMesh = _meshes.contains(def.modelFile) ? _meshes[def.modelFile].get() : nullptr;
+        Mesh* stlMesh = getMesh(def.modelFile);
         _weaponSystem.renderViewModel(_camera, _weaponAnimator, tex, stlMesh, _muzzleFlashTime);
     }
 

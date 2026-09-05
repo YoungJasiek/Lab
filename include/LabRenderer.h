@@ -55,6 +55,7 @@ namespace Lab {
 
         static Mesh* loadSTL(const std::string& path);
         void draw() const;
+        int getIndexCount() const { return _indexCount; }
 
     private:
         unsigned int _vao, _vbo, _ebo;

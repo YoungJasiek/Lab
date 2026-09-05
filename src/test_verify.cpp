@@ -1298,24 +1298,29 @@ int main() {
         weaponCam.setPosition(Lab::Vec3(0.0f, 1.7f, 0.0f));
         Lab::Renderer::beginFrame(weaponCam);
 
-        // Load weapon textures if present
-        std::unique_ptr<Lab::Texture> wTex;
-        if (std::filesystem::exists("assets/textures/weapon_shotgun.bmp")) {
-            wTex = std::make_unique<Lab::Texture>("assets/textures/weapon_shotgun.bmp");
+        // Load weapon textures and custom user STL model
+        std::unique_ptr<Lab::Texture> pipeTex;
+        if (std::filesystem::exists("assets/textures/weapon_pipe.bmp")) {
+            pipeTex = std::make_unique<Lab::Texture>("assets/textures/weapon_pipe.bmp");
+        }
+        std::unique_ptr<Lab::Mesh> pipeStl(Lab::Mesh::loadSTL("assets/models/pipe.stl"));
+        if (pipeStl) {
+            std::cout << "[Test] User STL weapon model loaded successfully: assets/models/pipe.stl (triangles: " 
+                      << pipeStl->getIndexCount() / 3 << ")\n";
         }
 
-        // Switch to Shotgun and render viewmodel
-        ws.switchWeapon(Lab::WeaponID::Shotgun);
+        // Switch to Pipe and render viewmodel with user's STL model
+        ws.switchWeapon(Lab::WeaponID::Pipe);
         Lab::WeaponAnimator anim;
-        ws.renderViewModel(weaponCam, anim, wTex.get(), nullptr, 0.0f);
+        ws.renderViewModel(weaponCam, anim, pipeTex.get(), pipeStl.get(), 0.0f);
 
         // Render HUD with Weapon selection bar
         Lab::LabHUD weaponHud;
-        weaponHud.weaponName = "STRZELBA";
-        weaponHud.isMeleeWeapon = false;
-        weaponHud.activeWeaponSlot = 3;
-        weaponHud.ammoClip = 8;
-        weaponHud.ammoReserve = 32;
+        weaponHud.weaponName = "PIPE";
+        weaponHud.isMeleeWeapon = true;
+        weaponHud.activeWeaponSlot = 1;
+        weaponHud.ammoClip = 0;
+        weaponHud.ammoReserve = 0;
         weaponHud.weaponSelectorTimer = 3.0f;
         for (int i = 0; i < 9; ++i) {
             weaponHud.slotWeaponNames.push_back(defs[i].shortName);
