@@ -46,6 +46,7 @@ set(ENGINE_SOURCES
     src/LabWeapon.cpp
     src/LabParticles.cpp
     src/LabAudio.cpp
+    src/LabArms.cpp
     src/glad/src/gl.c
 )
 
@@ -65,6 +66,7 @@ set(ENGINE_HEADERS
     include/LabWeapon.h
     include/LabParticles.h
     include/LabAudio.h
+    include/LabArms.h
     include/Lab.h
 )
 

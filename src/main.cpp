@@ -550,7 +550,7 @@ public:
                 }
                 _weaponSystem.setFireCooldown(def.fireRate);
                 _muzzleFlashTime = def.isMelee ? 0.0f : 0.08f;
-                _weaponAnimator.onFire();
+                _weaponAnimator.onFire(def.isMelee);
                 _weaponAnimator.recoilSpring.addImpulse(Vec3(0.0f, def.recoilPitch, def.recoilKick));
 
                 switch (def.id) {
@@ -897,13 +897,25 @@ public:
         if (Input::isKeyPressed('R') || Input::isKeyPressed('r')) {
             if (!_hammerEditor.active && !_chat.isOpen && !_isPlayerDead) {
                 auto& curWep = _weaponSystem.getActiveWeapon();
-                if (curWep.canReload()) {
+                if (curWep.canReload() && !_weaponAnimator.isReloading()) {
                     curWep.reload();
                     syncHudWeapon();
-                    _weaponAnimator.recoilSpring.addImpulse(Vec3(0.0f, -0.05f, 0.05f));
+                    _weaponAnimator.onReload(1.8f);
                     AudioEngine::playSound(SoundID::Reload);
                 }
             }
+        }
+
+        // Weapon Inspect (F key when not in Hammer Editor)
+        if (Input::isKeyPressed('F') || Input::isKeyPressed('f')) {
+            if (!_hammerEditor.active && !_chat.isOpen && !_isPlayerDead && !_fPressedLast) {
+                if (!_weaponAnimator.isReloading() && !_weaponAnimator.isInspecting()) {
+                    _weaponAnimator.onInspect(2.4f);
+                }
+                _fPressedLast = true;
+            }
+        } else {
+            _fPressedLast = false;
         }
 
         // Procedural Weapon Sway and Bob update
@@ -1694,6 +1706,7 @@ private:
     bool _rPressedLast = false;
     bool _kPressedLast = false;
     bool _backspacePressedLast = false;
+    bool _fPressedLast = false;
 
     // Debug mode
     bool _debugMode = false;

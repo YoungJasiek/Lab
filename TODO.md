@@ -76,20 +76,21 @@ Wszystkie systemy tworzone sa w standardzie **C++20**, **OpenGL 4.5+ Core Profil
 ### 6. Zestaw Testow Automatycznych (TestVerify.exe)
 - [x] 23 zautomatyzowane zestawy testow integracyjnych i jednostkowych weryfikujace poprawnosc matematyki, renderera, walki, kolizji, edytora oraz kompletnego silnika dzwieku 3D (z generowaniem i weryfikacja naglowkow 20 plikow WAV).
 
+### 7. Rece Gracza FPP & Zaawansowane Stany Animacji Broni (Sprint 2 - 100% DONE)
+- [x] Wprowadzenie widocznych rak gracza w widoku FPP (rekawice bojowe / kombinezon taktyczny Frozen-Life) trzymajacych chwyt broni.
+- [x] System gniazda dloni (Socket Bone Attachment) – plynne wiazanie modeli STL z ruchem dloni (chwyt pistoletowy, karabinowy, oburacz do rury).
+- [x] Pelna sekwencja animacji przeladowania (Reload): opuszczenie broni, wyjecie magazynka ze zlotymi nabojami, wlozenie nowego magazynka, odciagniecie zamka i powrot na linie celowania.
+- [x] Animacja inspekcji broni (Inspect) na klawisz F (obrot broni w dloniach, prezentacja odbiornika, rekawic i cyber-karwasza).
+- [x] Dynamiczny luk zamachu rura (Heavy Melee Slash) z efektem smugi ruchu (Kinetic Motion Trail).
+- [x] Cyber-karwasz z dioda telemetryczna LED (cyan) i kompozytowymi wkladkami ochronnymi.
+
 ---
 
 ## II. NAJBLIZSZE SPRINTY (SHORT-TERM / IN PROGRESS)
 
-### Sprint 2: Rece Gracza FPP & Zaawansowane Stany Animacji Broni
-- [ ] Wprowadzenie widocznych rak gracza w widoku FPP (rekawice bojowe / kombinezon taktyczny Frozen-Life) trzymajacych chwyt broni.
-- [ ] System gniazda dloni (Socket Bone Attachment) – plynne wiazanie modeli STL z ruchem dloni.
-- [ ] Pelna sekwencja animacji przeladowania (Reload): opuszczenie broni, wyjecie magazynka, wlozenie nowego, odciagniecie zamka i powrot na linie celowania.
-- [ ] Animacja inspekcji broni (Inspect) na klawisz F (obrot broni w dloniach, ogladanie modelu z boku).
-- [ ] Dynamiczny luk zamachu rura (Heavy Melee Slash) z efektem smugi ruchu (Motion Trail).
-
-### Sprint 3: Oswietlenie w Czasie Rzeczywistym & Cienie (Shadow Mapping)
-- [ ] Latarka gracza w stylu Half-Life 2 (Spotlight ze stozkiem swiatla i dynamicznym rzucaniem cieni).
-- [ ] Dynamiczne mapy cieni (Shadow Mapping / CSM) dla glownego oswietlenia kierunkowego (slonce / swiatlo bazowe).
+### Sprint 3: Oswietlenie w Czasie Rzeczywistym & Cienie (Shadow Mapping & Flashlight)
+- [ ] Latarka gracza w stylu Half-Life 2 (Spotlight ze stozkiem swiatla na klawisz F/L z dynamicznym rzucaniem cieni).
+- [ ] Dynamiczne mapy cieni (Shadow Mapping FBO / CSM) dla glownego oswietlenia kierunkowego i latarki.
 - [ ] Modul statycznego wypalania oswietlenia (Baking Lightmaps) w geometrii Hammera dla klimatycznych cieni w korytarzach.
 
 ---

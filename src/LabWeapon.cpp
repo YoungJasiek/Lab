@@ -2,6 +2,7 @@
 #include "LabRenderer.h"
 #include "LabMap.h"
 #include "LabAI.h"
+#include "LabArms.h"
 #include <cmath>
 #include <iostream>
 
@@ -600,8 +601,8 @@ namespace Lab {
                                        Texture* texture, Mesh* stlMesh, float muzzleFlash) {
         Renderer::beginViewModel();
 
-        // Base idle viewmodel position (lower right screen corner)
-        Vec3 defaultPos = { 0.36f, -0.34f, -0.56f };
+        // Base idle viewmodel position (lower right screen quadrant, classic FPS framing)
+        Vec3 defaultPos = { 0.26f, -0.22f, -0.46f };
         Vec3 defaultRot = { 0.0f, -3.5f, 0.0f };
 
         // Lower weapon when switching
@@ -614,6 +615,11 @@ namespace Lab {
         Vec3 gunBasePos = animator.calculatePositionOffset(defaultPos);
         Vec3 gunRot = animator.calculateRotationOffset(defaultRot);
 
+        // 1. Render First-Person Tactical Arms & Hands (kinematically bound to gunBasePos & gunRot)
+        static ViewModelArms s_viewmodelArms;
+        s_viewmodelArms.render(gunBasePos, gunRot, _currentWeapon, animator, nullptr);
+
+        // 2. Render Weapon Model (Custom STL or Procedural)
         if (stlMesh) {
             // User provided custom STL model
             Vec3 stlPos = gunBasePos;

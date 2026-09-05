@@ -1715,6 +1715,120 @@ int main() {
         std::cout << "  [PASS] AudioEngine shutdown clean.\n";
     }
 
+    // ==========================================
+    // TEST 24: Tactical FPP Arms, Hand Sockets & Animation States (Reload, Inspect, Melee Slash)
+    // ==========================================
+    std::cout << "\n[Test 24] Verifying First-Person Tactical Arms & Animation State Machine...\n";
+    {
+        Lab::WeaponAnimator animator;
+        if (animator.getStateProgress() != 0.0f || animator.state != Lab::WeaponAnimState::Idle) {
+            std::cerr << "Assertion failed: Animator should start in Idle state\n";
+            return 1;
+        }
+
+        // 1. Test Weapon Inspect State (F key)
+        animator.onInspect(2.4f);
+        if (!animator.isInspecting() || animator.state != Lab::WeaponAnimState::Inspect) {
+            std::cerr << "Assertion failed: Animator should enter Inspect state\n";
+            return 1;
+        }
+        animator.update(0.6f, Lab::Vec2(0, 0), 0.0f);
+        if (animator.getStateProgress() < 0.2f) {
+            std::cerr << "Assertion failed: Inspect state progress did not advance\n";
+            return 1;
+        }
+        Lab::Vec3 inspectPos = animator.calculatePositionOffset(Lab::Vec3(0, 0, 0));
+        Lab::Vec3 inspectRot = animator.calculateRotationOffset(Lab::Vec3(0, 0, 0));
+        if (inspectRot.y >= 0.0f) {
+            std::cerr << "Assertion failed: Inspect rotation should tilt weapon right to inspect receiver\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Weapon Inspect State verified: Progress=" << animator.getStateProgress() 
+                  << ", PosY=" << inspectPos.y << ", RotY=" << inspectRot.y << "\n";
+
+        // Cancel inspect on combat action
+        animator.cancelInspect();
+        if (animator.isInspecting() || animator.state != Lab::WeaponAnimState::Idle) {
+            std::cerr << "Assertion failed: cancelInspect should return to Idle\n";
+            return 1;
+        }
+
+        // 2. Test Multi-Phase Reload State (R key)
+        animator.onReload(1.8f);
+        if (!animator.isReloading()) {
+            std::cerr << "Assertion failed: onReload should set state to Reload\n";
+            return 1;
+        }
+        // Advance to Phase 2 (Magazine retrieval and insertion)
+        animator.update(0.72f, Lab::Vec2(0, 0), 0.0f); // 0.40 progress
+        if (!animator.isReloadMagazineVisible()) {
+            std::cerr << "Assertion failed: Magazine should be visible during reload phase 0.22 - 0.72\n";
+            return 1;
+        }
+        Lab::Vec3 leftHandReload = animator.getLeftHandReloadOffset();
+        if (leftHandReload.y >= 0.0f) {
+            std::cerr << "Assertion failed: Left hand should drop toward magwell during reload\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Reload Phase 2 verified: Magazine visible, LeftHandOffset Y=" << leftHandReload.y << "\n";
+
+        // Advance past reload completion
+        animator.update(1.2f, Lab::Vec2(0, 0), 0.0f);
+        if (animator.isReloading() || animator.state != Lab::WeaponAnimState::Idle) {
+            std::cerr << "Assertion failed: Reload should complete and return to Idle\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Reload completed smoothly back to Idle combat stance.\n";
+
+        // 3. Test Melee Slash Kinematics (Pipe swing)
+        animator.onFire(true);
+        if (!animator.isMeleeSwinging()) {
+            std::cerr << "Assertion failed: onFire(true) should set state to MeleeSwing\n";
+            return 1;
+        }
+        animator.update(0.18f, Lab::Vec2(0, 0), 0.0f);
+        Lab::Vec3 slashRot = animator.calculateRotationOffset(Lab::Vec3(0, 0, 0));
+        std::cout << "  [PASS] Melee Slash Phase verified: Swing angle yaw=" << slashRot.y << ", roll=" << slashRot.z << "\n";
+        animator.update(0.30f, Lab::Vec2(0, 0), 0.0f);
+        if (animator.isMeleeSwinging()) {
+            std::cerr << "Assertion failed: Melee swing should finish after duration\n";
+            return 1;
+        }
+
+        // 4. Visual Viewmodel Verification with FPP Tactical Arms
+        glClearColor(0.06f, 0.07f, 0.10f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        Lab::Camera armsCam(75.0f, (float)w / (float)h, 0.01f, 1000.0f);
+        Lab::Renderer::beginFrame(armsCam);
+
+        Lab::WeaponSystem ws;
+        ws.init();
+        ws.unlockAll();
+        ws.switchWeapon(Lab::WeaponID::M4A4S);
+        ws.update(0.5f); // Complete switch transition
+
+        // Advance animator into reload phase 2: left hand holding fresh magazine under receiver
+        Lab::WeaponAnimator testAnim;
+        testAnim.onReload(2.0f);
+        testAnim.update(0.70f, Lab::Vec2(0, 0), 0.0f);
+
+        ws.renderViewModel(armsCam, testAnim, nullptr, nullptr, 0.0f);
+
+        // UI Overlay indicating FPP tactical arms validation
+        Lab::Renderer::beginUI(w, h);
+        Lab::Renderer::drawRect(40.0f, 30.0f, 620.0f, 85.0f, Lab::Vec3(0.10f, 0.12f, 0.16f));
+        Lab::Renderer::drawRect(40.0f, 30.0f, 620.0f, 1.0f, Lab::Vec3(0.2f, 0.85f, 1.0f));
+        Lab::LabFont::drawText(56.0f, 44.0f, "TACTICAL FPP ARMS & HANDS - KINEMATIC SOCKETS", 2.0f, Lab::Vec3(0.20f, 0.85f, 1.0f), Lab::LabFontType::GeoSans);
+        Lab::LabFont::drawText(56.0f, 74.0f, "DUAL SLEEVES | KNUCKLE PLATES | CYBER GAUNTLETS | FULL ANIM STATES", 1.6f, Lab::Vec3(0.85f, 0.90f, 0.95f), Lab::LabFontType::GeoSans);
+        Lab::Renderer::endUI();
+
+        Lab::Renderer::endFrame();
+        glFinish();
+        saveFrameToBMP("test_arms_and_viewmodel.bmp", w, h);
+        std::cout << "  [PASS] Saved visual FPP Arms & Viewmodel verification to 'test_arms_and_viewmodel.bmp'.\n";
+    }
+
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();

@@ -17,10 +17,16 @@ namespace Lab {
         float damping = 18.0f;
 
         void update(float dt) {
-            Vec3 force = (target - position) * stiffness;
-            force = force - (velocity * damping);
-            velocity = velocity + (force * dt);
-            position = position + (velocity * dt);
+            float remaining = std::clamp(dt, 0.0f, 2.0f);
+            constexpr float maxStep = 0.008f;
+            while (remaining > 0.0f) {
+                float step = std::min(remaining, maxStep);
+                Vec3 force = (target - position) * stiffness;
+                force = force - (velocity * damping);
+                velocity = velocity + (force * step);
+                position = position + (velocity * step);
+                remaining -= step;
+            }
         }
 
         void addImpulse(const Vec3& impulse) {
@@ -28,7 +34,16 @@ namespace Lab {
         }
     };
 
-    // Procedural FPS Viewmodel Controller (Half-Life 2 style weapon sway, bobbing, recoil)
+    enum class WeaponAnimState {
+        Idle,
+        Fire,
+        Reload,
+        Inspect,
+        MeleeSwing
+    };
+
+    // Procedural FPS Viewmodel Controller (Half-Life 2 style weapon sway, bobbing, recoil,
+    // state-driven multi-phase reload, cinematic inspect, and melee swing kinematics)
     class WeaponAnimator {
     public:
         SpringDamper recoilSpring;
@@ -36,54 +51,31 @@ namespace Lab {
         float bobTimer = 0.0f;
         float currentSpeed = 0.0f;
 
-        WeaponAnimator() {
-            recoilSpring.stiffness = 220.0f;
-            recoilSpring.damping = 22.0f;
+        WeaponAnimState state = WeaponAnimState::Idle;
+        float stateTimer = 0.0f;
+        float stateDuration = 0.0f;
 
-            swaySpring.stiffness = 140.0f;
-            swaySpring.damping = 16.0f;
-        }
+        WeaponAnimator();
 
-        void onFire() {
-            // Strong kick backwards and upwards
-            recoilSpring.addImpulse(Vec3(0.015f, 0.04f, 0.16f));
-        }
+        void onFire(bool isMelee = false);
+        void onReload(float duration = 1.8f);
+        void onInspect(float duration = 2.4f);
+        void cancelInspect();
 
-        void update(float dt, const Vec2& mouseDelta, float moveSpeed) {
-            currentSpeed = moveSpeed;
-            if (moveSpeed > 0.1f) {
-                bobTimer += dt * (moveSpeed > 6.0f ? 11.0f : 7.5f);
-            }
+        bool isReloading() const { return state == WeaponAnimState::Reload; }
+        bool isInspecting() const { return state == WeaponAnimState::Inspect; }
+        bool isMeleeSwinging() const { return state == WeaponAnimState::MeleeSwing; }
+        float getStateProgress() const { return stateDuration > 0.0f ? std::clamp(stateTimer / stateDuration, 0.0f, 1.0f) : 0.0f; }
 
-            // Mouse sway target
-            float targetSwayX = std::clamp(mouseDelta.x * -0.0018f, -0.08f, 0.08f);
-            float targetSwayY = std::clamp(mouseDelta.y * 0.0018f, -0.08f, 0.08f);
-            swaySpring.target = Vec3(targetSwayX, targetSwayY, 0.0f);
+        void update(float dt, const Vec2& mouseDelta, float moveSpeed);
 
-            swaySpring.update(dt);
-            recoilSpring.update(dt);
-        }
+        Vec3 calculatePositionOffset(const Vec3& defaultOffset) const;
+        Vec3 calculateRotationOffset(const Vec3& defaultRot) const;
 
-        Vec3 calculatePositionOffset(const Vec3& defaultOffset) const {
-            float bobX = 0.0f;
-            float bobY = 0.0f;
-            if (currentSpeed > 0.1f) {
-                bobX = std::cos(bobTimer * 0.5f) * 0.025f;
-                bobY = std::abs(std::sin(bobTimer)) * 0.022f;
-            }
-
-            return defaultOffset 
-                + swaySpring.position 
-                + Vec3(bobX, -bobY, 0.0f) 
-                + recoilSpring.position;
-        }
-
-        Vec3 calculateRotationOffset(const Vec3& defaultRot) const {
-            // Recoil pitch kick + roll sway
-            float kickPitch = recoilSpring.position.y * 80.0f;
-            float swayRoll = swaySpring.position.x * 35.0f;
-            return defaultRot + Vec3(kickPitch, 0.0f, swayRoll);
-        }
+        // Kinematic offset for support (left) hand during reload cycle
+        Vec3 getLeftHandReloadOffset() const;
+        Vec3 getLeftHandReloadRotation() const;
+        bool isReloadMagazineVisible() const;
     };
 
     // glTF 2.0 / Blender Animation Keyframe structures
