@@ -27,6 +27,7 @@ namespace Lab {
         static bool mouseButtons[8];
         static Vec2 mousePos;
         static Vec2 mouseDelta;
+        static float scrollDelta;
 
         static bool isKeyPressed(int key) {
             if (key >= 'a' && key <= 'z') key = key - 'a' + 'A';
@@ -61,6 +62,7 @@ namespace Lab {
         static void _keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
         static void _mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
         static void _cursorPosCallback(GLFWwindow* window, double xpos, double ypos);
+        static void _scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
         static void _framebufferSizeCallback(GLFWwindow* window, int width, int height);
 
         std::string _title;

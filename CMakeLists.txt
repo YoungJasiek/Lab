@@ -43,6 +43,7 @@ set(ENGINE_SOURCES
     src/LabCollision.cpp
     src/LabChat.cpp
     src/LabPickups.cpp
+    src/LabWeapon.cpp
     src/glad/src/gl.c
 )
 
@@ -59,6 +60,7 @@ set(ENGINE_HEADERS
     include/LabCollision.h
     include/LabChat.h
     include/LabPickups.h
+    include/LabWeapon.h
     include/Lab.h
 )
 

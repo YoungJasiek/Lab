@@ -21,6 +21,13 @@ namespace Lab {
         int ammoReserve = 144;
         int frags = 0;
         std::string gameModeName = "FFA";
+        std::string weaponName = "PISTOLET";
+        bool isMeleeWeapon = false;
+        int activeWeaponSlot = 2; // 1 to 9
+        float weaponSelectorTimer = 0.0f;
+        std::vector<std::string> slotWeaponNames;
+        std::vector<bool> slotUnlocked;
+
         float hitmarkerTimer = 0.0f;
         bool hitmarkerHeadshot = false;
         float damageFlashTimer = 0.0f;
@@ -45,6 +52,7 @@ namespace Lab {
             if (hitmarkerTimer > 0.0f) hitmarkerTimer -= dt;
             if (damageFlashTimer > 0.0f) damageFlashTimer -= dt;
             if (combatMessageTimer > 0.0f) combatMessageTimer -= dt;
+            if (weaponSelectorTimer > 0.0f) weaponSelectorTimer -= dt;
         }
 
         // Colors strictly matched to user reference:
@@ -174,17 +182,57 @@ namespace Lab {
             Vec3 hpColor = (health < 30.0f) ? Vec3(1.0f, 0.2f, 0.2f) : textYellow;
             LabFont::drawText(hpX + hpCardW - 88.0f, cardY + 16.0f, hpStr, 4.4f, hpColor, LabFontType::GeoSans);
 
-            // ==================== 3. AMMO CARD (BOTTOM RIGHT) ====================
-            float ammoW = 180.0f;
+            // ==================== 3. AMMO & WEAPON CARD (BOTTOM RIGHT) ====================
+            float ammoW = 210.0f;
             float ammoX = (float)screenW - ammoW - 40.0f;
             drawCard(ammoX, cardY, ammoW, cardH, tileBg, tileBorder);
 
             drawAmmoIcon(ammoX + 16.0f, cardY + 18.0f, textYellow);
-            LabFont::drawText(ammoX + 34.0f, cardY + 26.0f, "AMMO", 2.0f, textYellow, LabFontType::GeoSans);
+            LabFont::drawText(ammoX + 34.0f, cardY + 14.0f, weaponName, 1.8f, textYellow, LabFontType::GeoSans);
 
-            std::string clipStr = std::to_string(ammoClip);
-            LabFont::drawText(ammoX + 85.0f, cardY + 16.0f, clipStr, 4.4f, textYellow, LabFontType::GeoSans);
-            LabFont::drawText(ammoX + 140.0f, cardY + 30.0f, "/" + std::to_string(ammoReserve), 1.7f, textYellow * 0.75f, LabFontType::GeoSans);
+            if (isMeleeWeapon) {
+                LabFont::drawText(ammoX + 34.0f, cardY + 36.0f, "MELEE WEAPON", 1.4f, textYellow * 0.7f, LabFontType::GeoSans);
+                LabFont::drawText(ammoX + 135.0f, cardY + 18.0f, "INF", 3.8f, textYellow, LabFontType::GeoSans);
+            } else {
+                std::string clipStr = std::to_string(ammoClip);
+                LabFont::drawText(ammoX + 105.0f, cardY + 16.0f, clipStr, 4.0f, textYellow, LabFontType::GeoSans);
+                LabFont::drawText(ammoX + 155.0f, cardY + 30.0f, "/" + std::to_string(ammoReserve), 1.6f, textYellow * 0.75f, LabFontType::GeoSans);
+            }
+
+            // ==================== 3B. WEAPON SELECTION STRIP (SLOTS 1..9) ====================
+            if (weaponSelectorTimer > 0.0f && !slotWeaponNames.empty()) {
+                float totalW = std::min((float)screenW - 80.0f, (float)slotWeaponNames.size() * 115.0f);
+                float startStripX = ((float)screenW - totalW) * 0.5f;
+                float stripY = 52.0f;
+                float slotW = totalW / (float)slotWeaponNames.size();
+                float slotH = 46.0f;
+
+                float alpha = std::clamp(weaponSelectorTimer, 0.0f, 1.0f);
+                Vec3 bgBox = Vec3(0.08f, 0.10f, 0.14f) * alpha;
+
+                for (size_t s = 0; s < slotWeaponNames.size(); ++s) {
+                    float sx = startStripX + s * slotW;
+                    bool isActive = ((int)s + 1 == activeWeaponSlot);
+                    bool isUnl = (s < slotUnlocked.size()) ? slotUnlocked[s] : false;
+
+                    Vec3 sBg = isActive ? Vec3(0.20f, 0.42f, 0.65f) : (isUnl ? bgBox : Vec3(0.04f, 0.05f, 0.07f));
+                    Vec3 sBorder = isActive ? textYellow : (isUnl ? Vec3(0.35f, 0.45f, 0.55f) : Vec3(0.18f, 0.20f, 0.22f));
+
+                    Renderer::drawRect(sx, stripY, slotW - 4.0f, slotH, sBg);
+                    Renderer::drawRect(sx, stripY, slotW - 4.0f, 1.0f, sBorder);
+                    Renderer::drawRect(sx, stripY + slotH - 1.0f, slotW - 4.0f, 1.0f, sBorder);
+                    Renderer::drawRect(sx, stripY, 1.0f, slotH, sBorder);
+                    Renderer::drawRect(sx + slotW - 5.0f, stripY, 1.0f, slotH, sBorder);
+
+                    std::string numTag = "[" + std::to_string(s + 1) + "]";
+                    Vec3 numColor = isActive ? textYellow : (isUnl ? Vec3(0.85f, 0.85f, 0.85f) : Vec3(0.4f, 0.4f, 0.4f));
+                    LabFont::drawText(sx + 6.0f, stripY + 6.0f, numTag, 1.4f, numColor, LabFontType::GeoSans);
+
+                    std::string wTitle = isUnl ? slotWeaponNames[s] : "LOCKED";
+                    Vec3 titleColor = isActive ? Vec3(1, 1, 1) : (isUnl ? Vec3(0.8f, 0.9f, 1.0f) : Vec3(0.35f, 0.38f, 0.42f));
+                    LabFont::drawText(sx + 6.0f, stripY + 24.0f, wTitle, 1.4f, titleColor, LabFontType::GeoSans);
+                }
+            }
 
             // ==================== 4. DYNAMIC CROSSHAIR & HITMARKER ====================
             float cx = (float)screenW * 0.5f;

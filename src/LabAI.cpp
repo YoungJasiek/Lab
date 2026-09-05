@@ -456,6 +456,10 @@ namespace Lab {
                                     if ((rand() % 100) < 50) {
                                         pickupMgr->spawnPickup(PickupType::Medkit, bots[targetBotIdx].position + Vec3(0.3f, 0.35f, -0.3f), 50);
                                     }
+                                    if ((rand() % 100) < 40) {
+                                        int rWep = 2 + (rand() % 7);
+                                        pickupMgr->spawnPickup(PickupType::WeaponDrop, bots[targetBotIdx].position + Vec3(-0.35f, 0.35f, 0.2f), 30, rWep);
+                                    }
                                 }
                             }
                         }

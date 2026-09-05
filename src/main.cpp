@@ -41,16 +41,53 @@ public:
         std::vector<std::string> coreTextures = {
             "concrete_wall.bmp", "floor_tiles.bmp", "cryo_ice.bmp",
             "hazard_stripes.bmp", "metal_hull.bmp", "snow_frost.bmp",
-            "floor_lab.bmp", "wall_concrete.bmp", "brick_wall.bmp"
+            "floor_lab.bmp", "wall_concrete.bmp", "brick_wall.bmp",
+            "weapon_pipe.bmp", "weapon_pistol.bmp", "weapon_shotgun.bmp",
+            "weapon_m4a4s.bmp", "weapon_sg553.bmp", "weapon_minigun.bmp",
+            "weapon_plasma.bmp", "weapon_railgun.bmp", "weapon_rpg.bmp"
         };
         for (const auto& texName : coreTextures) {
             getTexture(texName);
         }
 
+        // Check and preload user STL models for weapons if available
+        std::vector<std::string> weaponModels = {
+            "assets/models/pipe.stl", "assets/models/pistol.stl", "assets/models/shotgun.stl",
+            "assets/models/m4a4s.stl", "assets/models/sg553.stl", "assets/models/minigun.stl",
+            "assets/models/plasma.stl", "assets/models/railgun.stl", "assets/models/rpg.stl"
+        };
+        for (const auto& wModel : weaponModels) {
+            if (std::filesystem::exists(wModel) && !_meshes.contains(wModel)) {
+                Mesh* m = Mesh::loadSTL(wModel);
+                if (m) _meshes[wModel] = std::unique_ptr<Mesh>(m);
+            }
+        }
+
+        // Initialize Weapon System
+        _weaponSystem.init();
+        syncHudWeapon();
+
         // Start in Main Menu
         _inMenu = true;
         _menuScreen = MenuScreen::Main;
         glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    }
+
+    void syncHudWeapon() {
+        const auto& w = _weaponSystem.getActiveWeapon();
+        _hud.weaponName = w.def.name;
+        _hud.isMeleeWeapon = w.def.isMelee;
+        _hud.activeWeaponSlot = w.def.slot;
+        _hud.ammoClip = w.currentClip;
+        _hud.ammoReserve = w.currentReserve;
+        _hud.weaponSelectorTimer = _weaponSystem.getHudSelectorTimer();
+        _hud.slotWeaponNames.clear();
+        _hud.slotUnlocked.clear();
+        for (int i = 0; i < (int)WeaponID::Count; ++i) {
+            const auto& wep = _weaponSystem.getWeapon((WeaponID)i);
+            _hud.slotWeaponNames.push_back(wep.def.shortName);
+            _hud.slotUnlocked.push_back(wep.unlocked);
+        }
     }
 
     Texture* getTexture(const std::string& path) {
@@ -155,8 +192,8 @@ public:
         _hud.frags = 0;
         _hud.health = _hud.maxHealth;
         _hud.suitArmor = 50.0f;
-        _hud.ammoClip = 18;
-        _hud.ammoReserve = 144;
+        _weaponSystem.reset();
+        syncHudWeapon();
         _tracers.clear();
         _pickups.clear();
         _chat.history.clear();
@@ -311,8 +348,8 @@ public:
                 _playerRespawnTimer = 0.0f;
                 _hud.health = _hud.maxHealth;
                 _hud.suitArmor = 50.0f;
-                _hud.ammoClip = 18;
-                _hud.ammoReserve = 144;
+                _weaponSystem.reset();
+                syncHudWeapon();
                 if (_currentMap) {
                     std::vector<Vec3> enemies;
                     for (const auto& b : _aiManager.bots) {
@@ -373,101 +410,295 @@ public:
             return;
         }
 
-        // ==================== PLAYER COMBAT: TAG-BASED RAYCAST SHOOTING ====================
-        if (Input::isMouseButtonPressed(0) && _muzzleFlashTime <= 0.0f && !_hammerEditor.active && !_chat.isOpen && !_isPlayerDead) {
-            if (_hud.ammoClip > 0) {
-                _hud.ammoClip--;
-                _muzzleFlashTime = 0.08f;
-                _weaponAnimator.onFire();
-
-                // Hitscan Raycast from camera center
-                Vec3 rayOrigin = _camera.getPosition();
-                Vec3 rayDir = _camera.getFront();
-                RaycastHit hit;
-
-                // 1. Test AI Combat Bots
-                _aiManager.testRaycast(rayOrigin, rayDir, hit);
-
-                // 2. Test Solid Map Geometry (Brushes & Doors)
-                if (_currentMap) {
-                    Vec3 norm;
-                    for (size_t i = 0; i < _currentMap->brushes.size(); ++i) {
-                        const auto& b = _currentMap->brushes[i];
-                        Vec3 half = b.size * 0.5f;
-                        float t = 0.0f;
-                        if (Raycast::rayIntersectAABB(rayOrigin, rayDir, b.position - half, b.position + half, t, &norm)) {
-                            if (t < hit.distance) {
-                                hit.hit = true;
-                                hit.distance = t;
-                                hit.point = rayOrigin + rayDir * t;
-                                hit.normal = norm;
-                                hit.tag = EntityTag::World;
-                                hit.entityIndex = (int)i;
-                                hit.isHeadshot = false;
-                            }
-                        }
-                    }
-
-                    for (size_t i = 0; i < _currentMap->doors.size(); ++i) {
-                        const auto& d = _currentMap->doors[i];
-                        Vec3 animPos = d.position + d.openOffset * d.currentProgress;
-                        Vec3 half = d.size * 0.5f;
-                        float t = 0.0f;
-                        if (Raycast::rayIntersectAABB(rayOrigin, rayDir, animPos - half, animPos + half, t, &norm)) {
-                            if (t < hit.distance) {
-                                hit.hit = true;
-                                hit.distance = t;
-                                hit.point = rayOrigin + rayDir * t;
-                                hit.normal = norm;
-                                hit.tag = EntityTag::Door;
-                                hit.entityIndex = (int)i;
-                                hit.isHeadshot = false;
-                            }
-                        }
-                    }
+        // ==================== WEAPON SWITCHING (SCROLL, 1..9, Q) ====================
+        if (!_inMenu && !_chat.isOpen && !_isPlayerDead) {
+            // Mouse Scroll Wheel Switch
+            if (Input::scrollDelta != 0.0f) {
+                if (Input::scrollDelta < 0.0f) {
+                    _weaponSystem.nextWeapon();
+                } else if (Input::scrollDelta > 0.0f) {
+                    _weaponSystem.prevWeapon();
                 }
+                syncHudWeapon();
+            }
 
-                // 3. Bullet Tracer from Gun Muzzle
-                BulletTracer tr;
-                tr.start = rayOrigin + _camera.getRight() * 0.22f - _camera.getUp() * 0.18f + _camera.getFront() * 0.45f;
-                tr.end = hit.hit ? hit.point : (rayOrigin + rayDir * 200.0f);
-                tr.color = Vec3(1.0f, 0.95f, 0.55f);
-                tr.lifetime = 0.0f;
-                tr.maxLifetime = 0.08f;
-                tr.thickness = 0.035f;
-                _tracers.push_back(tr);
+            // Quick Switch (Q Key)
+            bool qPressed = Input::isKeyPressed(81); // GLFW_KEY_Q = 81
+            if (qPressed) {
+                if (!_qPressedLast && !_hammerEditor.active) {
+                    _weaponSystem.quickSwitch();
+                    syncHudWeapon();
+                    _qPressedLast = true;
+                }
+            } else {
+                _qPressedLast = false;
+            }
 
-                // 4. Hit Processing on Bots
-                if (hit.hit && hit.tag == EntityTag::Bot) {
-                    for (auto& bot : _aiManager.bots) {
-                        if (bot.id == hit.entityIndex && bot.isAlive()) {
-                            float dmg = hit.isHeadshot ? 100.0f : 34.0f;
-                            bool killed = bot.takeDamage(dmg, hit.isHeadshot);
-                            _hud.triggerHitmarker(hit.isHeadshot);
-
-                            if (killed) {
-                                _playerKills++;
-                                _hud.frags = _playerKills;
-                                if (hit.isHeadshot) {
-                                    _hud.showCombatMessage("HEADSHOT! ELIMINATED " + bot.name + " [" + std::to_string(_playerKills) + " FRAGS]", 2.5f);
-                                    _chat.addMessage("[SERVER]", "Player eliminated " + bot.name + " [HEADSHOT]", Vec3(1.0f, 0.25f, 0.25f));
-                                } else {
-                                    _hud.showCombatMessage("ELIMINATED " + bot.name + " [" + std::to_string(_playerKills) + " FRAGS]", 2.0f);
-                                    _chat.addMessage("[SERVER]", "Player eliminated " + bot.name, Vec3(0.3f, 0.9f, 0.4f));
-                                }
-                                // Drop ammo and medkit pickups
-                                _pickups.spawnPickup(PickupType::Ammo, bot.position + Vec3(0.0f, 0.35f, 0.0f), 36);
-                                if ((rand() % 100) < 65) {
-                                    _pickups.spawnPickup(PickupType::Medkit, bot.position + Vec3(0.4f, 0.35f, -0.3f), 50);
-                                }
-                                _chat.addMessage(bot.name, "Critical damage! Unit offline...", Vec3(0.9f, 0.45f, 0.45f));
-                            }
-                            break;
+            // Slot Keys 1..9 (GLFW_KEY_1 = 49 to GLFW_KEY_9 = 57)
+            for (int k = 0; k < 9; ++k) {
+                int key = 49 + k;
+                if (Input::isKeyPressed(key)) {
+                    if (!_numPressedLast[k] && !_hammerEditor.active) {
+                        if (_weaponSystem.equipSlot(k + 1)) {
+                            syncHudWeapon();
                         }
+                        _numPressedLast[k] = true;
                     }
+                } else {
+                    _numPressedLast[k] = false;
                 }
             }
         }
+
+        _weaponSystem.update(time.delta);
+
+        // ==================== PLAYER COMBAT: 9 DISTINCT WEAPONS & FIRING MODES ====================
+        bool isFireHeld = Input::isMouseButtonPressed(0);
+        auto& activeWep = _weaponSystem.getActiveWeapon();
+        const auto& def = activeWep.def;
+
+        if (def.id == WeaponID::Minigun && isFireHeld && !_hammerEditor.active && !_chat.isOpen && !_isPlayerDead) {
+            _weaponSystem.addMinigunSpin(time.delta * 720.0f);
+        }
+
+        bool triggerFire = false;
+        if (def.isAutomatic) {
+            triggerFire = isFireHeld && (_weaponSystem.getFireCooldown() <= 0.0f);
+        } else {
+            triggerFire = isFireHeld && (!_fireLmbLast) && (_weaponSystem.getFireCooldown() <= 0.0f);
+        }
+        _fireLmbLast = isFireHeld;
+
+        if (triggerFire && !_hammerEditor.active && !_chat.isOpen && !_isPlayerDead) {
+            if (def.isMelee || activeWep.currentClip > 0) {
+                if (!def.isMelee) {
+                    activeWep.currentClip--;
+                }
+                _weaponSystem.setFireCooldown(def.fireRate);
+                _muzzleFlashTime = def.isMelee ? 0.0f : 0.08f;
+                _weaponAnimator.onFire();
+                _weaponAnimator.recoilSpring.addImpulse(Vec3(0.0f, def.recoilPitch, def.recoilKick));
+
+                Vec3 rayOrigin = _camera.getPosition();
+                Vec3 forward = _camera.getFront();
+                Vec3 right = _camera.getRight();
+                Vec3 up = _camera.getUp();
+
+                if (def.isProjectile) {
+                    // Projectile weapon: Plasma Gun & RPG
+                    Vec3 projSpawn = rayOrigin + right * 0.22f - up * 0.18f + forward * 0.45f;
+                    _weaponSystem.spawnProjectile(projSpawn, forward);
+                } else if (def.isMelee) {
+                    // Melee sweep: Rura (2.6m sweep)
+                    RaycastHit hit;
+                    hit.distance = def.range;
+                    _aiManager.testRaycast(rayOrigin, forward, hit);
+                    if (hit.hit && hit.distance <= def.range && hit.tag == EntityTag::Bot) {
+                        for (auto& bot : _aiManager.bots) {
+                            if (bot.id == hit.entityIndex && bot.isAlive()) {
+                                float dmg = hit.isHeadshot ? (def.damage * def.headshotMultiplier) : def.damage;
+                                bool killed = bot.takeDamage(dmg, hit.isHeadshot);
+                                _hud.triggerHitmarker(hit.isHeadshot);
+
+                                if (killed) {
+                                    _playerKills++;
+                                    _hud.frags = _playerKills;
+                                    std::string killMsg = (hit.isHeadshot ? "HEADSHOT SMASH! ELIMINATED " : "ELIMINATED ") +
+                                                          bot.name + " WITH " + def.name + " [" + std::to_string(_playerKills) + " FRAGS]";
+                                    _hud.showCombatMessage(killMsg, 2.5f);
+                                    _chat.addMessage("[SERVER]", killMsg, Vec3(1.0f, 0.4f, 0.2f));
+
+                                    _pickups.spawnPickup(PickupType::Ammo, bot.position + Vec3(0.0f, 0.35f, 0.0f), 36);
+                                    if ((rand() % 100) < 65) {
+                                        _pickups.spawnPickup(PickupType::Medkit, bot.position + Vec3(0.4f, 0.35f, -0.3f), 50);
+                                    }
+                                    WeaponID dropWep = (WeaponID)(2 + (rand() % 7));
+                                    _pickups.spawnPickup(PickupType::WeaponDrop, bot.position + Vec3(-0.35f, 0.35f, 0.2f), 30, (int)dropWep);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    // Hitscan weapons (Pistol, Shotgun, M4A4-S, SG553, Minigun, Railgun)
+                    for (int p = 0; p < def.bulletsPerShot; ++p) {
+                        Vec3 spreadDir = forward;
+                        if (def.spread > 0.0f) {
+                            float rx = ((float)(rand() % 2000) / 1000.0f - 1.0f) * def.spread;
+                            float ry = ((float)(rand() % 2000) / 1000.0f - 1.0f) * def.spread;
+                            spreadDir = (forward + right * rx + up * ry).normalized();
+                        }
+
+                        RaycastHit hit;
+                        hit.distance = def.range;
+
+                        // 1. Test AI Combat Bots
+                        _aiManager.testRaycast(rayOrigin, spreadDir, hit);
+
+                        // 2. Test Solid Map Geometry (Brushes & Doors)
+                        if (_currentMap) {
+                            Vec3 norm;
+                            for (size_t i = 0; i < _currentMap->brushes.size(); ++i) {
+                                const auto& b = _currentMap->brushes[i];
+                                Vec3 half = b.size * 0.5f;
+                                float t = 0.0f;
+                                if (Raycast::rayIntersectAABB(rayOrigin, spreadDir, b.position - half, b.position + half, t, &norm)) {
+                                    if (t < hit.distance) {
+                                        hit.hit = true;
+                                        hit.distance = t;
+                                        hit.point = rayOrigin + spreadDir * t;
+                                        hit.normal = norm;
+                                        hit.tag = EntityTag::World;
+                                        hit.entityIndex = (int)i;
+                                        hit.isHeadshot = false;
+                                    }
+                                }
+                            }
+
+                            for (size_t i = 0; i < _currentMap->doors.size(); ++i) {
+                                const auto& d = _currentMap->doors[i];
+                                Vec3 animPos = d.position + d.openOffset * d.currentProgress;
+                                Vec3 half = d.size * 0.5f;
+                                float t = 0.0f;
+                                if (Raycast::rayIntersectAABB(rayOrigin, spreadDir, animPos - half, animPos + half, t, &norm)) {
+                                    if (t < hit.distance) {
+                                        hit.hit = true;
+                                        hit.distance = t;
+                                        hit.point = rayOrigin + spreadDir * t;
+                                        hit.normal = norm;
+                                        hit.tag = EntityTag::Door;
+                                        hit.entityIndex = (int)i;
+                                        hit.isHeadshot = false;
+                                    }
+                                }
+                            }
+                        }
+
+                        // 3. Bullet Tracer from Gun Muzzle
+                        BulletTracer tr;
+                        tr.start = rayOrigin + right * 0.22f - up * 0.18f + forward * 0.45f;
+                        tr.end = hit.hit ? hit.point : (rayOrigin + spreadDir * def.range);
+                        tr.color = def.tracerColor;
+                        tr.lifetime = 0.0f;
+                        tr.maxLifetime = def.tracerLifetime;
+                        tr.thickness = def.tracerThickness;
+                        _tracers.push_back(tr);
+
+                        // 4. Hit Processing on Bots
+                        if (hit.hit && hit.tag == EntityTag::Bot) {
+                            for (auto& bot : _aiManager.bots) {
+                                if (bot.id == hit.entityIndex && bot.isAlive()) {
+                                    float dmg = hit.isHeadshot ? (def.damage * def.headshotMultiplier) : def.damage;
+                                    bool killed = bot.takeDamage(dmg, hit.isHeadshot);
+                                    _hud.triggerHitmarker(hit.isHeadshot);
+
+                                    if (killed) {
+                                        _playerKills++;
+                                        _hud.frags = _playerKills;
+                                        std::string killMsg = (hit.isHeadshot ? "HEADSHOT! ELIMINATED " : "ELIMINATED ") +
+                                                              bot.name + " WITH " + def.name + " [" + std::to_string(_playerKills) + " FRAGS]";
+                                        _hud.showCombatMessage(killMsg, 2.5f);
+                                        _chat.addMessage("[SERVER]", killMsg, hit.isHeadshot ? Vec3(1.0f, 0.25f, 0.25f) : Vec3(0.3f, 0.9f, 0.4f));
+
+                                        _pickups.spawnPickup(PickupType::Ammo, bot.position + Vec3(0.0f, 0.35f, 0.0f), 36);
+                                        if ((rand() % 100) < 65) {
+                                            _pickups.spawnPickup(PickupType::Medkit, bot.position + Vec3(0.4f, 0.35f, -0.3f), 50);
+                                        }
+                                        WeaponID dropWep = (WeaponID)(2 + (rand() % 7));
+                                        _pickups.spawnPickup(PickupType::WeaponDrop, bot.position + Vec3(-0.35f, 0.35f, 0.2f), 30, (int)dropWep);
+                                        _chat.addMessage(bot.name, "Critical damage! Unit offline...", Vec3(0.9f, 0.45f, 0.45f));
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                syncHudWeapon();
+            }
+        }
+
+        // ==================== PROJECTILE SIMULATION & AOE EXPLOSIONS ====================
+        for (auto& proj : _weaponSystem.getProjectiles()) {
+            if (!proj.active) continue;
+
+            bool hitAnything = false;
+            Vec3 hitPos = proj.position;
+
+            // Collision with Bots
+            for (auto& bot : _aiManager.bots) {
+                if (!bot.isAlive()) continue;
+                if ((proj.position - (bot.position + Vec3(0.0f, 1.0f, 0.0f))).lengthSq() < 1.0f) {
+                    hitAnything = true;
+                    hitPos = proj.position;
+                    break;
+                }
+            }
+
+            // Collision with Map brushes
+            if (!hitAnything && _currentMap) {
+                for (const auto& b : _currentMap->brushes) {
+                    Vec3 half = b.size * 0.5f;
+                    if (proj.position.x >= b.position.x - half.x && proj.position.x <= b.position.x + half.x &&
+                        proj.position.y >= b.position.y - half.y && proj.position.y <= b.position.y + half.y &&
+                        proj.position.z >= b.position.z - half.z && proj.position.z <= b.position.z + half.z) {
+                        hitAnything = true;
+                        hitPos = proj.position;
+                        break;
+                    }
+                }
+            }
+
+            // Ground impact
+            if (!hitAnything && proj.position.y <= 0.15f) {
+                hitAnything = true;
+                hitPos = proj.position;
+            }
+
+            if (hitAnything) {
+                proj.active = false;
+                float radiusSq = proj.splashRadius * proj.splashRadius;
+
+                for (auto& bot : _aiManager.bots) {
+                    if (!bot.isAlive()) continue;
+                    float dSq = (bot.position - hitPos).lengthSq();
+                    if (dSq <= radiusSq) {
+                        float dist = std::sqrt(dSq);
+                        float factor = 1.0f - (dist / proj.splashRadius);
+                        float dmg = proj.damage + proj.splashDamage * factor;
+                        bool killed = bot.takeDamage(dmg, false);
+                        _hud.triggerHitmarker(false);
+
+                        if (killed) {
+                            _playerKills++;
+                            _hud.frags = _playerKills;
+                            std::string wName = (proj.weaponId == WeaponID::RPG) ? "RPG" : "PLASMA GUN";
+                            std::string killMsg = "SPLASH KILL! " + bot.name + " WITH " + wName + " [" + std::to_string(_playerKills) + " FRAGS]";
+                            _hud.showCombatMessage(killMsg, 2.5f);
+                            _chat.addMessage("[SERVER]", killMsg, Vec3(1.0f, 0.45f, 0.15f));
+
+                            _pickups.spawnPickup(PickupType::Ammo, bot.position + Vec3(0.0f, 0.35f, 0.0f), 36);
+                            if ((rand() % 100) < 65) {
+                                _pickups.spawnPickup(PickupType::Medkit, bot.position + Vec3(0.4f, 0.35f, -0.3f), 50);
+                            }
+                            WeaponID dropWep = (WeaponID)(2 + (rand() % 7));
+                            _pickups.spawnPickup(PickupType::WeaponDrop, bot.position + Vec3(-0.35f, 0.35f, 0.2f), 30, (int)dropWep);
+                        }
+                    }
+                }
+
+                // Visual explosion shockwave
+                BulletTracer tr;
+                tr.start = hitPos - Vec3(0.0f, 0.2f, 0.0f);
+                tr.end = hitPos + Vec3(0.0f, 0.9f, 0.0f);
+                tr.color = proj.color;
+                tr.lifetime = 0.0f;
+                tr.maxLifetime = 0.35f;
+                tr.thickness = 0.30f;
+                _tracers.push_back(tr);
+            }
+        }
+
         if (_muzzleFlashTime > 0.0f) {
             _muzzleFlashTime -= time.delta;
         }
@@ -503,12 +734,22 @@ public:
         // Update Pickups and Proximity Collection
         int ammoAdded = 0;
         float healthAdded = 0.0f;
+        int weaponUnlocked = -1;
         std::string pickupNotice;
-        _pickups.update(time.delta, _camera.getPosition(), ammoAdded, healthAdded, pickupNotice);
+        _pickups.update(time.delta, _camera.getPosition(), ammoAdded, healthAdded, weaponUnlocked, pickupNotice);
+        if (weaponUnlocked >= 0 && weaponUnlocked < 9) {
+            _weaponSystem.unlockWeapon((WeaponID)weaponUnlocked, true);
+            syncHudWeapon();
+            _hud.showCombatMessage(pickupNotice, 2.5f);
+            _chat.addMessage("[ARSENAL]", pickupNotice, Vec3(0.3f, 0.85f, 1.0f));
+        }
         if (ammoAdded > 0) {
-            _hud.ammoReserve = std::min(144, _hud.ammoReserve + ammoAdded);
-            _hud.showCombatMessage(pickupNotice, 2.0f);
-            _chat.addMessage("[ITEM]", pickupNotice, Vec3(0.95f, 0.82f, 0.15f));
+            _weaponSystem.getActiveWeapon().addAmmo(ammoAdded);
+            syncHudWeapon();
+            if (weaponUnlocked < 0) {
+                _hud.showCombatMessage(pickupNotice, 2.0f);
+                _chat.addMessage("[ITEM]", pickupNotice, Vec3(0.95f, 0.82f, 0.15f));
+            }
         }
         if (healthAdded > 0.0f) {
             _hud.health = std::min(_hud.maxHealth, _hud.health + healthAdded);
@@ -525,12 +766,13 @@ public:
 
         // Weapon Reload (R key when not in Hammer Editor)
         if (Input::isKeyPressed('R') || Input::isKeyPressed('r')) {
-            if (!_hammerEditor.active && _hud.ammoClip < 18 && _hud.ammoReserve > 0) {
-                int needed = 18 - _hud.ammoClip;
-                int transfer = std::min(needed, _hud.ammoReserve);
-                _hud.ammoClip += transfer;
-                _hud.ammoReserve -= transfer;
-                _weaponAnimator.recoilSpring.addImpulse(Vec3(0.0f, -0.05f, 0.05f));
+            if (!_hammerEditor.active && !_chat.isOpen && !_isPlayerDead) {
+                auto& curWep = _weaponSystem.getActiveWeapon();
+                if (curWep.canReload()) {
+                    curWep.reload();
+                    syncHudWeapon();
+                    _weaponAnimator.recoilSpring.addImpulse(Vec3(0.0f, -0.05f, 0.05f));
+                }
             }
         }
 
@@ -606,7 +848,10 @@ public:
         if (Input::isKeyPressed(292)) { // GLFW_KEY_F3
             if (!_f3PressedLast) {
                 _debugMode = !_debugMode;
-                LabLog::info("Debug mode: " + std::string(_debugMode ? "ON" : "OFF"));
+                _weaponSystem.unlockAll();
+                syncHudWeapon();
+                LabLog::info("Debug mode: " + std::string(_debugMode ? "ON" : "OFF") + " (All weapons unlocked)");
+                _chat.addMessage("[SYSTEM]", "Debug mode ON: All 9 weapons unlocked!", Vec3(0.3f, 0.95f, 0.5f));
                 _f3PressedLast = true;
             }
         } else {
@@ -840,27 +1085,10 @@ public:
     }
 
     void drawWeapon() {
-        Renderer::beginViewModel();
-
-        Vec3 gunDefaultPos = { 0.38f, -0.36f, -0.6f };
-        Vec3 gunDefaultRot = { 0.0f, -4.0f, 0.0f };
-
-        Vec3 gunBasePos = _weaponAnimator.calculatePositionOffset(gunDefaultPos);
-        Vec3 gunRot = _weaponAnimator.calculateRotationOffset(gunDefaultRot);
-
-        // Gun barrel / receiver
-        Renderer::drawCube(gunBasePos, gunRot, { 0.09f, 0.14f, 0.52f }, { 0.16f, 0.18f, 0.22f });
-        // Gun top rail (Source HL2 style cyan strip)
-        Renderer::drawCube(gunBasePos + Vec3(0.0f, 0.075f, -0.05f), gunRot, { 0.04f, 0.03f, 0.38f }, { 0.2f, 0.7f, 0.9f });
-        // Gun handle / grip
-        Renderer::drawCube(gunBasePos + Vec3(0.0f, -0.11f, 0.12f), gunRot + Vec3(12.0f, 0.0f, 0.0f), { 0.07f, 0.22f, 0.1f }, { 0.1f, 0.1f, 0.12f });
-
-        // Dynamic Muzzle Flash
-        if (_muzzleFlashTime > 0.0f) {
-            Renderer::drawCube(gunBasePos + Vec3(0.0f, 0.02f, -0.32f), gunRot, { 0.18f, 0.18f, 0.18f }, { 1.0f, 0.85f, 0.2f }, nullptr, false);
-        }
-
-        Renderer::endViewModel(_camera);
+        const auto& def = _weaponSystem.getActiveDef();
+        Texture* tex = getTexture(def.textureFile);
+        Mesh* stlMesh = _meshes.contains(def.modelFile) ? _meshes[def.modelFile].get() : nullptr;
+        _weaponSystem.renderViewModel(_camera, _weaponAnimator, tex, stlMesh, _muzzleFlashTime);
     }
 
     void drawMenu() {
@@ -1246,6 +1474,13 @@ public:
             Renderer::drawCube(mid, Vec3(pitch, yaw, 0.0f), Vec3(tr.thickness, tr.thickness, len), tr.color, nullptr, false);
         }
 
+        // Render Active Projectiles (RPG Rockets & Plasma Orbs)
+        for (const auto& proj : _weaponSystem.getProjectiles()) {
+            if (!proj.active) continue;
+            float pSize = (proj.weaponId == WeaponID::RPG) ? 0.22f : 0.16f;
+            Renderer::drawCube(proj.position, Vec3(0, 0, 0), Vec3(pSize, pSize, pSize * 2.0f), proj.color, nullptr, false);
+        }
+
         // Lab Hammer Editor 3D Ghost/Grid Overlay
         _hammerEditor.draw3DOverlay();
 
@@ -1297,6 +1532,12 @@ private:
     bool _yPressedLast = false;
     bool _tPressedLast = false;
     bool _enterPressedLast = false;
+
+    // Weapon System & Switching State
+    WeaponSystem _weaponSystem;
+    bool _numPressedLast[9] = { false };
+    bool _qPressedLast = false;
+    bool _fireLmbLast = false;
 
     // Animation & Combat state
     WeaponAnimator _weaponAnimator;

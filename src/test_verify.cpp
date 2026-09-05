@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <fstream>
 #include <cmath>
+#include <filesystem>
 
 static void saveFrameToBMP(const char* filename, int width, int height) {
     std::vector<unsigned char> pixels(width * height * 4);
@@ -858,8 +859,9 @@ int main() {
 
     int ammoGot = 0;
     float hpGot = 0.0f;
+    int wepGot = -1;
     std::string pickMsg;
-    pickups.update(0.1f, Lab::Vec3(0.0f, 1.7f, 0.0f), ammoGot, hpGot, pickMsg);
+    pickups.update(0.1f, Lab::Vec3(0.0f, 1.7f, 0.0f), ammoGot, hpGot, wepGot, pickMsg);
 
     if (ammoGot != 36 || hpGot != 50.0f || !pickups.items.empty()) {
         std::cerr << "ERROR: Pickup collection failed! Ammo = " << ammoGot << " HP = " << hpGot << "\n";
@@ -1183,6 +1185,148 @@ int main() {
         glFinish();
         saveFrameToBMP("test_hammer_spawns.bmp", w, h);
         std::cout << "[Test] Saved Hammer Spawns visual test to 'test_hammer_spawns.bmp'.\n";
+    }
+
+    // 19. Verify Weapon Arsenal, Weapon Switching & Projectile Physics
+    {
+        std::cout << "\n[Test 19] Verifying Weapon Arsenal, Stats, Switching & Projectile Physics...\n";
+        Lab::WeaponSystem ws;
+        ws.init();
+
+        // Check starting equipment: Pipe (Melee) & Pistol (Handgun) unlocked, others locked
+        if (!ws.isUnlocked(Lab::WeaponID::Pipe)) {
+            std::cerr << "ERROR: Pipe should be unlocked at start!\n";
+            return 1;
+        }
+        if (!ws.isUnlocked(Lab::WeaponID::Pistol)) {
+            std::cerr << "ERROR: Pistol should be unlocked at start!\n";
+            return 1;
+        }
+        if (ws.isUnlocked(Lab::WeaponID::Minigun)) {
+            std::cerr << "ERROR: Minigun should be locked at start!\n";
+            return 1;
+        }
+
+        // Test slot equipping (Slot 1 = Pipe, Slot 2 = Pistol)
+        if (!ws.equipSlot(1)) {
+            std::cerr << "ERROR: Failed to equip slot 1 (Pipe)!\n";
+            return 1;
+        }
+        if (ws.getActiveId() != Lab::WeaponID::Pipe) {
+            std::cerr << "ERROR: Active weapon is not Pipe!\n";
+            return 1;
+        }
+        if (!ws.getActiveDef().isMelee) {
+            std::cerr << "ERROR: Pipe is not marked as Melee!\n";
+            return 1;
+        }
+
+        // Test quick switch Q
+        ws.equipSlot(2); // Pistol
+        if (ws.getActiveId() != Lab::WeaponID::Pistol) {
+            std::cerr << "ERROR: Active weapon is not Pistol!\n";
+            return 1;
+        }
+        ws.quickSwitch(); // Should switch back to Pipe
+        if (ws.getActiveId() != Lab::WeaponID::Pipe) {
+            std::cerr << "ERROR: Quick switch failed to switch back to Pipe!\n";
+            return 1;
+        }
+
+        // Test next/prev weapon cycling
+        ws.nextWeapon();
+        if (ws.getActiveId() != Lab::WeaponID::Pistol) {
+            std::cerr << "ERROR: nextWeapon didn't cycle to Pistol!\n";
+            return 1;
+        }
+        ws.nextWeapon(); // Should cycle back to Pipe (since only Pipe & Pistol unlocked)
+        if (ws.getActiveId() != Lab::WeaponID::Pipe) {
+            std::cerr << "ERROR: nextWeapon didn't wrap around to Pipe!\n";
+            return 1;
+        }
+
+        // Unlock all weapons
+        ws.unlockAll();
+        for (int i = 0; i < 9; ++i) {
+            if (!ws.isUnlocked((Lab::WeaponID)i)) {
+                std::cerr << "ERROR: Weapon " << i << " not unlocked after unlockAll()!\n";
+                return 1;
+            }
+        }
+
+        // Test each weapon definition stats
+        auto defs = Lab::WeaponSystem::createWeaponDefinitions();
+        // Shotgun pellets check
+        if (defs[(int)Lab::WeaponID::Shotgun].bulletsPerShot != 8) {
+            std::cerr << "ERROR: Shotgun does not have 8 pellets!\n";
+            return 1;
+        }
+        // Minigun fire rate check (1333 RPM => ~0.045s)
+        if (defs[(int)Lab::WeaponID::Minigun].fireRate > 0.05f) {
+            std::cerr << "ERROR: Minigun fireRate should be <= 0.05s!\n";
+            return 1;
+        }
+        // Railgun damage check (fatal kinetic beam)
+        if (defs[(int)Lab::WeaponID::Railgun].damage < 150.0f) {
+            std::cerr << "ERROR: Railgun should deal >= 150 damage!\n";
+            return 1;
+        }
+        // RPG projectile splash check (5.0m AoE)
+        if (defs[(int)Lab::WeaponID::RPG].splashRadius < 4.0f) {
+            std::cerr << "ERROR: RPG splash radius should be >= 4.0m!\n";
+            return 1;
+        }
+
+        // Test Projectile Simulation
+        ws.switchWeapon(Lab::WeaponID::RPG);
+        ws.spawnProjectile(Lab::Vec3(0, 1.5f, 0), Lab::Vec3(0, 0, 1));
+        if (ws.getProjectiles().empty()) {
+            std::cerr << "ERROR: Spawning RPG projectile failed!\n";
+            return 1;
+        }
+        ws.update(0.1f);
+        if (ws.getProjectiles()[0].position.z <= 0.0f) {
+            std::cerr << "ERROR: Projectile did not travel along forward vector!\n";
+            return 1;
+        }
+
+        // Visual test: Render weapon viewmodel (Shotgun) and HUD selection bar
+        glClearColor(0.08f, 0.10f, 0.14f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        Lab::Camera weaponCam(75.0f, 16.0f / 9.0f, 0.01f, 1000.0f);
+        weaponCam.setPosition(Lab::Vec3(0.0f, 1.7f, 0.0f));
+        Lab::Renderer::beginFrame(weaponCam);
+
+        // Load weapon textures if present
+        std::unique_ptr<Lab::Texture> wTex;
+        if (std::filesystem::exists("assets/textures/weapon_shotgun.bmp")) {
+            wTex = std::make_unique<Lab::Texture>("assets/textures/weapon_shotgun.bmp");
+        }
+
+        // Switch to Shotgun and render viewmodel
+        ws.switchWeapon(Lab::WeaponID::Shotgun);
+        Lab::WeaponAnimator anim;
+        ws.renderViewModel(weaponCam, anim, wTex.get(), nullptr, 0.0f);
+
+        // Render HUD with Weapon selection bar
+        Lab::LabHUD weaponHud;
+        weaponHud.weaponName = "STRZELBA";
+        weaponHud.isMeleeWeapon = false;
+        weaponHud.activeWeaponSlot = 3;
+        weaponHud.ammoClip = 8;
+        weaponHud.ammoReserve = 32;
+        weaponHud.weaponSelectorTimer = 3.0f;
+        for (int i = 0; i < 9; ++i) {
+            weaponHud.slotWeaponNames.push_back(defs[i].shortName);
+            weaponHud.slotUnlocked.push_back(true);
+        }
+        weaponHud.render(w, h);
+
+        Lab::Renderer::endFrame();
+        glFinish();
+        saveFrameToBMP("test_weapon_arsenal.bmp", w, h);
+        std::cout << "[Test] Saved Weapon Arsenal visual verification to 'test_weapon_arsenal.bmp'.\n";
     }
 
     Lab::Renderer::shutdown();

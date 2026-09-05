@@ -35,6 +35,7 @@ namespace Lab {
     bool Input::mouseButtons[8] = { false };
     Vec2 Input::mousePos = { 0, 0 };
     Vec2 Input::mouseDelta = { 0, 0 };
+    float Input::scrollDelta = 0.0f;
 
     Engine::Engine(const std::string& title, int width, int height)
         : _title(title), _width(width), _height(height), _running(false), _lastFrameTime(0.0), _physicsAccumulator(0.0f), _firstMouse(true), _lastMousePos({0,0}) {
@@ -79,6 +80,7 @@ namespace Lab {
         glfwSetKeyCallback(_window, _keyCallback);
         glfwSetMouseButtonCallback(_window, _mouseButtonCallback);
         glfwSetCursorPosCallback(_window, _cursorPosCallback);
+        glfwSetScrollCallback(_window, _scrollCallback);
         glfwSetFramebufferSizeCallback(_window, _framebufferSizeCallback);
 
         // Capture mouse
@@ -119,6 +121,7 @@ namespace Lab {
             
             // Reset delta before poll events
             Input::mouseDelta = { 0, 0 };
+            Input::scrollDelta = 0.0f;
             glfwPollEvents();
         }
 
@@ -168,6 +171,11 @@ namespace Lab {
             Input::mousePos.x = (float)xpos;
             Input::mousePos.y = (float)ypos;
         }
+    }
+
+    void Engine::_scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
+        (void)window; (void)xoffset;
+        Input::scrollDelta += (float)yoffset;
     }
 
     void Engine::_framebufferSizeCallback(GLFWwindow* window, int width, int height) {
