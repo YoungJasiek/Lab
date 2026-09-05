@@ -405,6 +405,50 @@ namespace Lab {
                     break;
             }
         }
+
+        // Entity / Prebuilt Item Icon (Player Spawns, Ammo, Medkit, Barricades, Weapons)
+        inline void drawEntityIcon(int entityType, float x, float y, const Vec3& color, const Vec3& bg) {
+            Renderer::drawRect(x, y, 26.0f, 26.0f, bg);
+            Renderer::drawRect(x, y, 26.0f, 1.0f, Vec3(0.7f, 0.7f, 0.7f));
+            Renderer::drawRect(x, y + 25.0f, 26.0f, 1.0f, Vec3(0.5f, 0.5f, 0.5f));
+
+            switch (entityType) {
+                case 0: // Player Spawn (FFA / Alpha / Beta)
+                case 1:
+                case 2:
+                    drawHammerIcon(5, x + 1.0f, y + 1.0f, color, bg);
+                    break;
+                case 3: // Ammo Crate (Olive/Gold container with brass bullet lines)
+                    Renderer::drawRect(x + 4.0f, y + 6.0f, 18.0f, 14.0f, color);
+                    Renderer::drawRect(x + 7.0f, y + 8.0f, 3.0f, 9.0f, Vec3(1.0f, 0.85f, 0.2f));
+                    Renderer::drawRect(x + 12.0f, y + 8.0f, 3.0f, 9.0f, Vec3(1.0f, 0.85f, 0.2f));
+                    Renderer::drawRect(x + 17.0f, y + 8.0f, 3.0f, 9.0f, Vec3(1.0f, 0.85f, 0.2f));
+                    break;
+                case 4: // Medkit (Clean White Case with Red Cross)
+                    Renderer::drawRect(x + 4.0f, y + 5.0f, 18.0f, 16.0f, Vec3(0.95f, 0.95f, 0.95f));
+                    Renderer::drawRect(x + 11.0f, y + 8.0f, 4.0f, 10.0f, Vec3(0.9f, 0.15f, 0.15f));
+                    Renderer::drawRect(x + 8.0f, y + 11.0f, 10.0f, 4.0f, Vec3(0.9f, 0.15f, 0.15f));
+                    break;
+                case 5: // Tactical Barricade
+                    Renderer::drawRect(x + 5.0f, y + 8.0f, 16.0f, 11.0f, color);
+                    Renderer::drawRect(x + 7.0f, y + 10.0f, 12.0f, 2.0f, Vec3(0.9f, 0.75f, 0.1f));
+                    Renderer::drawRect(x + 7.0f, y + 14.0f, 12.0f, 2.0f, Vec3(0.9f, 0.75f, 0.1f));
+                    break;
+                case 6: // Concrete Pillar
+                    Renderer::drawRect(x + 9.0f, y + 4.0f, 8.0f, 18.0f, color);
+                    Renderer::drawRect(x + 7.0f, y + 4.0f, 12.0f, 3.0f, Vec3(0.35f, 0.38f, 0.42f));
+                    Renderer::drawRect(x + 7.0f, y + 19.0f, 12.0f, 3.0f, Vec3(0.35f, 0.38f, 0.42f));
+                    break;
+                case 7: // Security Door
+                    drawHammerIcon(4, x + 1.0f, y + 1.0f, color, bg);
+                    break;
+                default: // Weapon Spawn Silhouette (Gun barrel + grip + magazine)
+                    Renderer::drawRect(x + 5.0f, y + 10.0f, 16.0f, 4.0f, color);
+                    Renderer::drawRect(x + 7.0f, y + 14.0f, 4.0f, 7.0f, color);
+                    Renderer::drawRect(x + 13.0f, y + 14.0f, 3.0f, 5.0f, Vec3(0.2f, 0.2f, 0.2f));
+                    break;
+            }
+        }
     }
 
 }

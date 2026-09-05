@@ -1894,8 +1894,12 @@ public:
                 Renderer::drawRect(l.rightX + 10.0f, cy, l.rightW - 20.0f, 1.0f, winBorder);
                 Renderer::drawRect(l.rightX + 10.0f, cy, 6.0f, cardH, activeItems[i].color);
 
-                LabFont::drawText(l.rightX + 22.0f, cy + 4.0f, activeItems[i].title, 1.5f, textDark, LabFontType::System);
-                LabFont::drawText(l.rightX + 22.0f, cy + (isCat0 ? 22.0f : 19.0f), activeItems[i].desc, 1.3f, textDim, LabFontType::System);
+                // Dedicated entity / weapon icon for each prebuilt item
+                int iconType = isCat0 ? i : 8; // 8 = Weapon Silhouette
+                Lab::HammerIcons::drawEntityIcon(iconType, l.rightX + 20.0f, cy + (cardH - 26.0f) * 0.5f, activeItems[i].color, Vec3(0.93f, 0.94f, 0.96f));
+
+                LabFont::drawText(l.rightX + 52.0f, cy + 4.0f, activeItems[i].title, 1.5f, textDark, LabFontType::System);
+                LabFont::drawText(l.rightX + 52.0f, cy + (isCat0 ? 22.0f : 19.0f), activeItems[i].desc, 1.3f, textDim, LabFontType::System);
             }
         }
 

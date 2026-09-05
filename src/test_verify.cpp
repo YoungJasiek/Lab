@@ -1108,23 +1108,43 @@ int main() {
         // Ground floor
         Lab::Renderer::drawCube(Lab::Vec3(0.0f, -0.1f, 0.0f), Lab::Vec3(16.0f, 0.1f, 16.0f), Lab::Vec3(0.16f, 0.18f, 0.22f));
 
+        // Helper to render authentic Valve Hammer 3D holographic player spawn entity
+        auto draw3DPlayerSpawn = [](const Lab::Vec3& pos, const Lab::Vec3& teamCol, float yaw) {
+            // Landing pad with wireframe rim
+            Lab::Renderer::drawCube(pos + Lab::Vec3(0.0f, -0.05f, 0.0f), Lab::Vec3(1.2f, 0.1f, 1.2f), teamCol * 0.7f, nullptr, false);
+            Lab::Renderer::drawWireCube(pos + Lab::Vec3(0.0f, -0.05f, 0.0f), Lab::Vec3(1.22f, 0.11f, 1.22f), teamCol);
+
+            // Bounding wireframe box for player collision volume (0.8m x 1.85m x 0.8m)
+            Lab::Renderer::drawWireCube(pos + Lab::Vec3(0.0f, 0.92f, 0.0f), Lab::Vec3(0.8f, 1.85f, 0.8f), teamCol);
+
+            // Mannequin Legs
+            Lab::Renderer::drawCube(pos + Lab::Vec3(-0.16f, 0.45f, 0.0f), Lab::Vec3(0.18f, 0.8f, 0.2f), teamCol * 0.8f, nullptr, false);
+            Lab::Renderer::drawCube(pos + Lab::Vec3(0.16f, 0.45f, 0.0f), Lab::Vec3(0.18f, 0.8f, 0.2f), teamCol * 0.8f, nullptr, false);
+
+            // Mannequin Torso
+            Lab::Renderer::drawCube(pos + Lab::Vec3(0.0f, 1.15f, 0.0f), Lab::Vec3(0.55f, 0.62f, 0.32f), teamCol * 0.9f, nullptr, false);
+
+            // Mannequin Head & Visor
+            Lab::Renderer::drawCube(pos + Lab::Vec3(0.0f, 1.62f, 0.0f), Lab::Vec3(0.32f, 0.32f, 0.32f), teamCol, nullptr, false);
+            Lab::Renderer::drawCube(pos + Lab::Vec3(0.0f, 1.62f, 0.17f), Lab::Vec3(0.24f, 0.08f, 0.04f), Lab::Vec3(1.0f, 1.0f, 1.0f), nullptr, false);
+
+            // Facing Direction Arrow on Pad
+            float rad = yaw * 3.14159265f / 180.0f;
+            Lab::Vec3 fwd(std::sin(rad), 0.0f, std::cos(rad));
+            Lab::Renderer::drawCube(pos + fwd * 0.7f + Lab::Vec3(0.0f, 0.02f, 0.0f), Lab::Vec3(0.18f, 0.04f, 0.45f), teamCol, nullptr, false);
+        };
+
         // Render FFA Spawn Pad (Green)
         Lab::Vec3 ffaPos(-3.5f, 0.0f, 0.0f);
-        Lab::Renderer::drawCube(ffaPos + Lab::Vec3(0.0f, -0.05f, 0.0f), Lab::Vec3(1.2f, 0.1f, 1.2f), Lab::Vec3(0.2f, 0.9f, 0.4f) * 0.7f, nullptr, false);
-        Lab::Renderer::drawWireCube(ffaPos + Lab::Vec3(0.0f, -0.05f, 0.0f), Lab::Vec3(1.22f, 0.11f, 1.22f), Lab::Vec3(0.2f, 0.9f, 0.4f));
-        Lab::Renderer::drawCube(ffaPos + Lab::Vec3(0.0f, 0.9f, 0.0f), Lab::Vec3(0.6f, 1.7f, 0.6f), Lab::Vec3(0.2f, 0.9f, 0.4f), nullptr, true);
+        draw3DPlayerSpawn(ffaPos, Lab::Vec3(0.2f, 0.9f, 0.4f), 0.0f);
 
         // Render Team Alpha Spawn Pad (Blue)
         Lab::Vec3 alphaPos(0.0f, 0.0f, 0.0f);
-        Lab::Renderer::drawCube(alphaPos + Lab::Vec3(0.0f, -0.05f, 0.0f), Lab::Vec3(1.2f, 0.1f, 1.2f), Lab::Vec3(0.2f, 0.6f, 1.0f) * 0.7f, nullptr, false);
-        Lab::Renderer::drawWireCube(alphaPos + Lab::Vec3(0.0f, -0.05f, 0.0f), Lab::Vec3(1.22f, 0.11f, 1.22f), Lab::Vec3(0.2f, 0.6f, 1.0f));
-        Lab::Renderer::drawCube(alphaPos + Lab::Vec3(0.0f, 0.9f, 0.0f), Lab::Vec3(0.6f, 1.7f, 0.6f), Lab::Vec3(0.2f, 0.6f, 1.0f), nullptr, true);
+        draw3DPlayerSpawn(alphaPos, Lab::Vec3(0.2f, 0.6f, 1.0f), 0.0f);
 
         // Render Team Beta Spawn Pad (Red)
         Lab::Vec3 betaPos(3.5f, 0.0f, 0.0f);
-        Lab::Renderer::drawCube(betaPos + Lab::Vec3(0.0f, -0.05f, 0.0f), Lab::Vec3(1.2f, 0.1f, 1.2f), Lab::Vec3(1.0f, 0.25f, 0.25f) * 0.7f, nullptr, false);
-        Lab::Renderer::drawWireCube(betaPos + Lab::Vec3(0.0f, -0.05f, 0.0f), Lab::Vec3(1.22f, 0.11f, 1.22f), Lab::Vec3(1.0f, 0.25f, 0.25f));
-        Lab::Renderer::drawCube(betaPos + Lab::Vec3(0.0f, 0.9f, 0.0f), Lab::Vec3(0.6f, 1.7f, 0.6f), Lab::Vec3(1.0f, 0.25f, 0.25f), nullptr, true);
+        draw3DPlayerSpawn(betaPos, Lab::Vec3(1.0f, 0.25f, 0.25f), 0.0f);
 
         // Render UI: Hammer Editor Prebuilts Tab
         Lab::Renderer::beginUI(w, h);
@@ -1134,12 +1154,26 @@ int main() {
         Lab::Renderer::drawRect(0, 0, (float)w, 24.0f, winBg);
         Lab::LabFont::drawText(14.0f, 5.0f, "File  Edit  View  Tools  Help", 1.8f, textDark, Lab::LabFontType::System);
         Lab::LabFont::drawText((float)w - 380.0f, 5.0f, "Lab Hammer 2026 - Spawns & Prebuilts", 1.8f, Lab::Vec3(0.15f, 0.45f, 0.75f), Lab::LabFontType::GeoSans);
+        
+        // Toolbar (18 buttons with icons)
         Lab::Renderer::drawRect(0, 24.0f, (float)w, 34.0f, winBg);
+        Lab::Renderer::drawRect(0, 57.0f, (float)w, 1.0f, winBorder);
+        for (int i = 0; i < 18; ++i) {
+            float bx = 8.0f + i * 28.0f;
+            Lab::HammerIcons::drawToolbarIcon(i, bx, 29.0f, (i == 17) ? Lab::Vec3(1, 1, 1) : Lab::Vec3(0.25f, 0.3f, 0.35f), (i == 17) ? Lab::Vec3(0.15f, 0.65f, 0.35f) : Lab::Vec3(0.88f, 0.88f, 0.90f));
+        }
 
-        // Left Tools Bar with Spawn Tool highlighted (Tool 5)
+        // Left Tools Bar with Spawn Tool highlighted (Tool 5 with icon)
         Lab::Renderer::drawRect(0, 58.0f, 42.0f, (float)h - 80.0f, winBg);
         for (int i = 0; i < 8; ++i) {
-            Lab::Renderer::drawRect(6.0f, 68.0f + i * 36.0f, 30.0f, 30.0f, (i == 5) ? Lab::Vec3(0.2f, 0.75f, 0.4f) : Lab::Vec3(0.88f, 0.88f, 0.90f));
+            float ty = 68.0f + i * 36.0f;
+            bool isSel = (i == 5);
+            Lab::Vec3 bgCol = isSel ? Lab::Vec3(0.2f, 0.75f, 0.4f) : Lab::Vec3(0.88f, 0.88f, 0.90f);
+            Lab::Vec3 iconCol = isSel ? Lab::Vec3(1, 1, 1) : Lab::Vec3(0.25f, 0.28f, 0.32f);
+
+            Lab::Renderer::drawRect(6.0f, ty, 30.0f, 30.0f, bgCol);
+            Lab::Renderer::drawRect(6.0f, ty, 30.0f, 1.0f, isSel ? Lab::Vec3(0.2f, 0.75f, 0.95f) : winBorder);
+            Lab::HammerIcons::drawHammerIcon(i, 9.0f, ty + 3.0f, iconCol, bgCol);
         }
 
         // Right Sidebar Panel
@@ -1184,8 +1218,11 @@ int main() {
             Lab::Renderer::drawRect(hl.rightX + 10.0f, cy, hl.rightW - 20.0f, 1.0f, winBorder);
             Lab::Renderer::drawRect(hl.rightX + 10.0f, cy, 6.0f, cardH, pItems[i].col);
 
-            Lab::LabFont::drawText(hl.rightX + 22.0f, cy + 6.0f, pItems[i].title, 1.6f, textDark, Lab::LabFontType::System);
-            Lab::LabFont::drawText(hl.rightX + 22.0f, cy + 24.0f, pItems[i].desc, 1.3f, Lab::Vec3(0.45f, 0.45f, 0.50f), Lab::LabFontType::System);
+            // Dedicated entity icon next to each card
+            Lab::HammerIcons::drawEntityIcon(i, hl.rightX + 20.0f, cy + 10.0f, pItems[i].col, Lab::Vec3(0.93f, 0.94f, 0.96f));
+
+            Lab::LabFont::drawText(hl.rightX + 54.0f, cy + 6.0f, pItems[i].title, 1.6f, textDark, Lab::LabFontType::System);
+            Lab::LabFont::drawText(hl.rightX + 54.0f, cy + 24.0f, pItems[i].desc, 1.3f, Lab::Vec3(0.45f, 0.45f, 0.50f), Lab::LabFontType::System);
         }
 
         Lab::Renderer::endUI();
