@@ -5,6 +5,8 @@
 #include "LabMap.h"
 #include "LabCombat.h"
 #include "LabSession.h"
+#include "LabSkeletal.h"
+#include "LabRenderer.h"
 
 namespace Lab {
 
@@ -51,9 +53,13 @@ namespace Lab {
         float strafeTimer = 0.0f;
         int strafeDirection = 1; // -1 = Left, +1 = Right
 
+        // glTF 2.0 Skeletal Animation Controller
+        Animator animator;
+
         CombatBot() = default;
         CombatBot(int botId, const std::string& botName, const Vec3& spawnPos, const Vec3& pEnd, int botTeam = -1);
 
+        void initAnimation(std::shared_ptr<Skeleton> skel, const std::vector<AnimationClip>& clips);
         bool isAlive() const { return health > 0.0f && state != AIState::Dead; }
 
         // Bounding boxes for headshot and torso hitscan
@@ -64,7 +70,8 @@ namespace Lab {
 
         void update(float dt, const Vec3& playerPos, const LabMap& map, std::vector<BulletTracer>& outTracers, float& outDamageToPlayer);
         bool takeDamage(float damage, bool isHeadshot);
-        void render() const;
+        void render(const SkinnedMesh* mesh = nullptr, const Mesh* weaponMesh = nullptr) const;
+        void renderShadow(const SkinnedMesh* mesh = nullptr, const Mesh* weaponMesh = nullptr) const;
     };
 
     class PickupManager;
@@ -73,7 +80,12 @@ namespace Lab {
     class AIManager {
     public:
         std::vector<CombatBot> bots;
+        std::shared_ptr<Skeleton> skeleton;
+        std::vector<AnimationClip> animations;
+        std::unique_ptr<SkinnedMesh> skinnedMesh;
+        std::unique_ptr<Mesh> weaponMesh;
 
+        void initAssets();
         void clear() { bots.clear(); }
         void spawnBotsForMap(const LabMap* map, int count, GameMode mode);
         void spawnBotsForMap(const std::string& mapName, int count, GameMode mode);
@@ -85,6 +97,7 @@ namespace Lab {
             update(dt, playerPos, true, -1, map, outTracers, outDamageToPlayer, nullptr, nullptr);
         }
         bool testRaycast(const Vec3& rayOrigin, const Vec3& rayDir, RaycastHit& outHit, int excludeBotId = -1);
+        void renderShadowPass() const;
         void render() const;
     };
 

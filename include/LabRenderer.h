@@ -16,6 +16,8 @@ namespace Lab {
             : position(p), normal(n), texCoords(t), color(c) {}
     };
 
+    class SkinnedMesh;
+
     class Shader {
     public:
         Shader(const char* vertexSource, const char* fragmentSource);
@@ -23,6 +25,7 @@ namespace Lab {
 
         void use() const;
         void setMat4(const std::string& name, const Mat4& mat) const;
+        void setMat4Array(const std::string& name, const Mat4* mats, int count) const;
         void setVec3(const std::string& name, const Vec3& vec) const;
         void setVec2(const std::string& name, const Vec2& vec) const;
         void setInt(const std::string& name, int value) const;
@@ -99,6 +102,8 @@ namespace Lab {
         static void drawShadowCube(const Vec3& position, const Vec3& rotation, const Vec3& scale);
         static void drawShadowCube(const Vec3& position, const Vec3& size);
         static void drawShadowMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale);
+        static void drawShadowMesh(const Mesh& mesh, const Mat4& modelTransform);
+        static void drawShadowSkinnedMesh(const SkinnedMesh& mesh, const Mat4& modelTransform, const std::vector<Mat4>& boneMatrices);
 
         // 3D Rendering
         static void drawCube(const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color, const Texture* texture = nullptr, bool enableLighting = true, const Vec2& uvTiling = { 0.25f, 0.25f }, int uvMode = 1);
@@ -107,6 +112,8 @@ namespace Lab {
         static void drawWireCube(const Vec3& position, const Vec3& size, const Vec3& color);
         static void drawBoundingBox(const Vec3& min, const Vec3& max, const Vec3& color);
         static void drawMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true);
+        static void drawMesh(const Mesh& mesh, const Mat4& modelTransform, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true);
+        static void drawSkinnedMesh(const SkinnedMesh& mesh, const Mat4& modelTransform, const std::vector<Mat4>& boneMatrices, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true);
         static void drawBaseplate(float size, const Texture* texture = nullptr);
         static std::string resolveModelTexture(const std::string& modelPath, const std::string& fallbackTexture = "");
 

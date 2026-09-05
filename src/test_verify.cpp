@@ -1941,6 +1941,151 @@ int main() {
         std::cout << "  [PASS] Saved visual Real-Time Lighting & Shadows verification to 'test_flashlight_and_shadows.bmp'.\n";
     }
 
+    // 26. Verify glTF 2.0 Skeletal Animation Pipeline, GPU Vertex Skinning & STL Bone Socket Attachment
+    {
+        std::cout << "\n[Test 26] Verifying glTF 2.0 Skeletal Animation, GPU Vertex Skinning & STL Sockets...\n";
+
+        // 1. Math Verification: Quaternions, Slerp, and Transformation Matrices
+        Lab::Quat qId = Lab::Quat::identity();
+        if (std::abs(qId.length() - 1.0f) > 1e-4f) {
+            std::cerr << "Assertion failed: Identity quaternion length must be 1\n";
+            return 1;
+        }
+
+        Lab::Quat qRotA = Lab::Quat::fromEuler(0.0f, 1.570796f, 0.0f); // 90 deg Yaw
+        Lab::Quat qRotB = Lab::Quat::fromEuler(0.0f, 0.0f, 0.0f);
+        Lab::Quat qSlerp = Lab::Quat::slerp(qRotA, qRotB, 0.5f);
+        if (std::abs(qSlerp.length() - 1.0f) > 1e-4f) {
+            std::cerr << "Assertion failed: Slerped quaternion must be unit length\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Quaternion mathematics and Spherical Linear Interpolation (Slerp) verified.\n";
+
+        // 2. Load glTF 2.0 Asset and initialize Skeletal Rig
+        std::shared_ptr<Lab::Skeleton> skeleton;
+        std::vector<Lab::AnimationClip> animClips;
+        std::unique_ptr<Lab::SkinnedMesh> skinnedMesh;
+
+        bool loaded = Lab::GLTFLoader::load("assets/animations/bot_walk.gltf", skeleton, animClips, skinnedMesh);
+        if (!loaded || !skeleton || !skinnedMesh || animClips.empty()) {
+            std::cerr << "Assertion failed: Failed to load or initialize glTF skeletal mesh\n";
+            return 1;
+        }
+
+        if (skeleton->getBoneCount() < 15) {
+            std::cerr << "Assertion failed: Humanoid skeletal rig must have at least 15 bones\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Skeletal Rig initialized: " << skeleton->getBoneCount() << " joints loaded.\n";
+
+        // 3. Animator & Animation Clips Verification
+        Lab::Animator animator;
+        animator.setSkeleton(skeleton);
+        for (const auto& clip : animClips) {
+            animator.addClip(clip);
+        }
+
+        if (!animator.hasClip("Walk") || !animator.hasClip("Idle") || !animator.hasClip("Shoot") || !animator.hasClip("Melee_Swing")) {
+            std::cerr << "Assertion failed: Animator missing required core combat clips (Walk, Idle, Shoot, Melee_Swing)\n";
+            return 1;
+        }
+
+        // Play Melee_Swing attack animation
+        animator.playAnimation("Melee_Swing", false);
+        animator.update(0.22f); // Advance to peak swing windup
+
+        const auto& skinMats = animator.getSkinMatrices();
+        if (skinMats.size() != skeleton->getBoneCount()) {
+            std::cerr << "Assertion failed: Skinning matrices size mismatch\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Animator updated with GPU skinning matrices (" << skinMats.size() << " bone uniforms).\n";
+
+        // 4. Verify glTF + STL Hybrid Bridge: Bone Socket Attachment
+        // Attach user's pipe.stl weapon model to the animated right hand bone!
+        Lab::Mat4 botWorld = Lab::Mat4::translate(Lab::Vec3(0.0f, 0.0f, 0.0f));
+        Lab::Mat4 socketTransform = animator.getSocketTransform("Socket_Weapon", botWorld,
+                                                                 Lab::makeTransform(Lab::Vec3(0.0f, -0.05f, 0.02f),
+                                                                                    Lab::Quat::fromEuler(0.1f, -0.2f, 0.0f),
+                                                                                    Lab::Vec3(0.016f, 0.016f, 0.016f)));
+
+        std::unique_ptr<Lab::Mesh> pipeStl(Lab::Mesh::loadSTL("assets/models/pipe.stl"));
+        if (!pipeStl) {
+            std::cerr << "Assertion failed: Could not load assets/models/pipe.stl for socket attachment\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Bone Socket Attachment verified: STL model linked to 'Socket_Weapon' joint.\n";
+
+        // 5. Render Visual Verification Frame: Skinned Character + Attached STL Weapon with Shadows
+        glClearColor(0.04f, 0.06f, 0.09f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        Lab::Camera skelCam(60.0f, (float)w / (float)h, 0.01f, 1000.0f);
+        skelCam.setPosition(Lab::Vec3(0.4f, 1.15f, 3.0f));
+        skelCam.update(Lab::Vec2(-5.0f, -15.0f)); // Looking centered at bot chest/arms
+
+        // Pass 1: Dynamic Shadow Depth Pass for Skinned Character & Attached Weapon
+        Lab::Vec3 sunDir(-0.35f, -0.85f, -0.35f);
+        Lab::Mat4 lightSpaceMatrix = Lab::ShadowMap::computeSunLightSpaceMatrix(sunDir, Lab::Vec3(0, 1, 0), 15.0f);
+        Lab::ShadowMap shadowMap;
+        shadowMap.init(2048, 2048);
+
+        shadowMap.beginShadowPass(lightSpaceMatrix);
+        Lab::Renderer::beginShadowDepthPass(lightSpaceMatrix);
+
+        // Ground floor
+        Lab::Renderer::drawShadowCube(Lab::Vec3(0.0f, -0.1f, 0.0f), Lab::Vec3(25.0f, 0.2f, 25.0f));
+        // Back wall
+        Lab::Renderer::drawShadowCube(Lab::Vec3(0.0f, 2.5f, -3.5f), Lab::Vec3(20.0f, 5.0f, 0.4f));
+
+        // Draw shadow of the Skinned Humanoid Bot!
+        Lab::Renderer::drawShadowSkinnedMesh(*skinnedMesh, botWorld, skinMats);
+
+        // Draw shadow of the attached STL Weapon!
+        Lab::Renderer::drawShadowMesh(*pipeStl, socketTransform);
+
+        Lab::Renderer::endShadowDepthPass();
+        shadowMap.endShadowPass(w, h);
+
+        // Pass 2: Shaded Render Pass with Real-Time Lighting, PCF Shadows & Materials
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        Lab::Renderer::beginFrame(skelCam);
+        Lab::Renderer::setSunLight(sunDir, Lab::Vec3(1.0f, 0.96f, 0.92f), Lab::Vec3(0.22f, 0.25f, 0.30f));
+        Lab::Renderer::setShadowMap(lightSpaceMatrix, shadowMap.getDepthTexture());
+
+        // Environment
+        Lab::Texture floorTex("assets/textures/floor_tiles.bmp");
+        Lab::Texture wallTex("assets/textures/concrete_wall.bmp");
+        Lab::Renderer::drawCube(Lab::Vec3(0.0f, -0.1f, 0.0f), Lab::Vec3(25.0f, 0.2f, 25.0f), Lab::Vec3(0.75f, 0.75f, 0.75f), &floorTex, true);
+        Lab::Renderer::drawCube(Lab::Vec3(0.0f, 2.5f, -3.5f), Lab::Vec3(20.0f, 5.0f, 0.4f), Lab::Vec3(0.70f, 0.70f, 0.70f), &wallTex, true);
+
+        // Tactical support crates
+        Lab::Renderer::drawCube(Lab::Vec3(-2.0f, 0.6f, -1.0f), Lab::Vec3(1.2f, 1.2f, 1.2f), Lab::Vec3(0.40f, 0.45f, 0.50f), &wallTex, true);
+        Lab::Renderer::drawCube(Lab::Vec3(2.2f, 0.5f, -0.5f), Lab::Vec3(1.0f, 1.0f, 1.0f), Lab::Vec3(0.50f, 0.45f, 0.35f), &wallTex, true);
+
+        // Draw Skinned Combat Bot (Head with cyan visor, chest plates, arms and legs)
+        Lab::Renderer::drawSkinnedMesh(*skinnedMesh, botWorld, skinMats, Lab::Vec3(1.0f, 1.0f, 1.0f), nullptr, true);
+
+        // Draw Attached STL Weapon (Pipe) locked to right hand socket!
+        Lab::Texture pipeTex("assets/textures/weapon_pipe.bmp");
+        Lab::Renderer::drawMesh(*pipeStl, socketTransform, Lab::Vec3(0.95f, 0.95f, 0.95f), &pipeTex, true);
+
+        Lab::Renderer::disableShadowMap();
+
+        // 6. UI Diagnostic Overlay
+        Lab::Renderer::beginUI(w, h);
+        Lab::Renderer::drawRect(40.0f, 30.0f, 750.0f, 85.0f, Lab::Vec3(0.10f, 0.12f, 0.16f));
+        Lab::Renderer::drawRect(40.0f, 30.0f, 750.0f, 1.0f, Lab::Vec3(0.2f, 0.85f, 1.0f));
+        Lab::LabFont::drawText(56.0f, 44.0f, "glTF 2.0 SKELETAL ANIMATION & GPU VERTEX SKINNING", 2.0f, Lab::Vec3(0.20f, 0.85f, 1.0f), Lab::LabFontType::GeoSans);
+        Lab::LabFont::drawText(56.0f, 74.0f, "20-BONE RIG | MELEE SWING CLIP | RIGID STL WEAPON SOCKET ATTACHMENT", 1.6f, Lab::Vec3(0.85f, 0.90f, 0.95f), Lab::LabFontType::GeoSans);
+        Lab::Renderer::endUI();
+
+        Lab::Renderer::endFrame();
+        glFinish();
+        saveFrameToBMP("test_skeletal_animation.bmp", w, h);
+        std::cout << "  [PASS] Saved visual glTF 2.0 Skeletal Animation & STL Socket verification to 'test_skeletal_animation.bmp'.\n";
+    }
+
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();

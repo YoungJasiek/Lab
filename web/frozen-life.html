@@ -306,6 +306,7 @@
           <li><strong>Kinematic Weapon Animation State Machine:</strong> Multi-phase reload choreography (mag drop, pouch retrieval, mag slap, charging handle bolt rack), V-key tactical weapon inspection, spring-damper recoil kicks, walk/run bobbing, and melee kinetic motion trails.</li>
           <li><strong>Half-Life 2 Tactical Flashlight &amp; Dynamic Lighting:</strong> High-intensity spotlight with inner/outer beam falloff, chest harness convergence, and synthesized mechanical toggle audio.</li>
           <li><strong>Dynamic Shadow Mapping (2048x2048 FBO + 3x3 PCF):</strong> Real-time depth buffer pass via OpenGL 4.5 Direct State Access (DSA) with slope-scaled normal bias and Percentage-Closer Filtering for soft, penumbral shadows.</li>
+          <li><strong>glTF 2.0 Skeletal Animation &amp; GPU Vertex Skinning:</strong> 20-joint skeletal hierarchy, quaternion spherical linear interpolation (SLERP), cross-fade animation blending (Idle, Walk, Shoot, Melee), and Bone Socket Attachment linking rigid STL weapons directly to animated characters with dynamic shadow casting.</li>
         </ul>
       </section>
 
@@ -561,6 +562,16 @@
               <div class="thumbcaption">
                 <span class="magnify-icon">&#128269;</span>
                 Real-Time Dynamic Lighting: Half-Life 2 tactical spotlight cone and 2048x2048 shadow mapping with 3x3 PCF soft penumbra.
+              </div>
+            </div>
+          </div>
+
+          <div class="thumb">
+            <div class="thumbinner">
+              <img src="assets/img/test_skeletal_animation.png" data-full="assets/img/test_skeletal_animation.png" alt="glTF 2.0 Skeletal Animation &amp; GPU Vertex Skinning" class="thumbimage">
+              <div class="thumbcaption">
+                <span class="magnify-icon">&#128269;</span>
+                glTF 2.0 Skeletal Rig &amp; GPU Skinning: 20 joints, quaternion SLERP, Bone Socket weapon attachment (pipe.stl) and dynamic soft shadows.
               </div>
             </div>
           </div>

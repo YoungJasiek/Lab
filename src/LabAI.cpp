@@ -157,6 +157,32 @@ namespace Lab {
                 rotation.y = std::atan2(dir.x, dir.z) * 180.0f / 3.14159265f;
             }
         }
+
+        // Update glTF 2.0 Skeletal Animator
+        if (animator.getSkeleton()) {
+            if (state == AIState::Attack) {
+                if (muzzleFlashTimer > 0.0f) {
+                    animator.playAnimation("Shoot", false);
+                } else {
+                    animator.playAnimation("Idle", true);
+                }
+            } else if (state == AIState::Chase || state == AIState::Patrol) {
+                animator.playAnimation("Walk", true);
+            } else {
+                animator.playAnimation("Idle", true);
+            }
+            animator.update(dt);
+        }
+    }
+
+    void CombatBot::initAnimation(std::shared_ptr<Skeleton> skel, const std::vector<AnimationClip>& clips) {
+        if (skel) {
+            animator.setSkeleton(skel);
+            for (const auto& clip : clips) {
+                animator.addClip(clip);
+            }
+            animator.playAnimation("Idle", true);
+        }
     }
 
     bool CombatBot::takeDamage(float damage, bool isHeadshot) {
@@ -180,7 +206,7 @@ namespace Lab {
         return false;
     }
 
-    void CombatBot::render() const {
+    void CombatBot::render(const SkinnedMesh* mesh, const Mesh* weaponMesh) const {
         if (state == AIState::Dead) {
             // Render defeated bot on floor
             Renderer::drawCube(position + Vec3(0.0f, 0.15f, 0.0f), Vec3(80.0f, rotation.y, 0.0f),
@@ -188,7 +214,6 @@ namespace Lab {
             return;
         }
 
-        float legSwing = std::sin(walkCycle) * 0.28f;
         float bodyBob = std::abs(std::sin(walkCycle * 2.0f)) * 0.04f;
         Vec3 bPos = position + Vec3(0.0f, bodyBob, 0.0f);
 
@@ -210,22 +235,36 @@ namespace Lab {
             visorCol = Vec3(1.0f, 0.65f, 0.1f); // Alert Amber
         }
 
-        // 1. Torso
-        Renderer::drawCube(bPos + Vec3(0.0f, 1.15f, 0.0f), rotation, Vec3(0.52f, 0.72f, 0.36f), armorCol);
-        // 2. Chest Armor plate
-        Renderer::drawCube(bPos + Vec3(0.0f, 1.22f, 0.05f), rotation, Vec3(0.44f, 0.46f, 0.30f), Vec3(0.14f, 0.16f, 0.18f));
-        // 3. Head & Visor
-        Renderer::drawCube(bPos + Vec3(0.0f, 1.68f, 0.0f), rotation, Vec3(0.32f, 0.28f, 0.32f), Vec3(0.12f, 0.14f, 0.17f));
-        Renderer::drawCube(bPos + Vec3(0.0f, 1.68f, 0.17f), rotation, Vec3(0.24f, 0.08f, 0.04f), visorCol, nullptr, false);
-        // 4. Animated Legs
-        Renderer::drawCube(bPos + Vec3(-0.16f, 0.45f, legSwing), rotation, Vec3(0.13f, 0.8f, 0.15f), Vec3(0.15f, 0.15f, 0.17f));
-        Renderer::drawCube(bPos + Vec3(0.16f, 0.45f, -legSwing), rotation, Vec3(0.13f, 0.8f, 0.15f), Vec3(0.15f, 0.15f, 0.17f));
+        if (mesh && animator.getSkeleton()) {
+            Mat4 botModel = Mat4::translate(bPos) * Mat4::rotate(rotation.y * 3.14159265f / 180.0f, Vec3(0, 1, 0));
+            Renderer::drawSkinnedMesh(*mesh, botModel, animator.getSkinMatrices(), armorCol, nullptr, true);
 
-        // 5. Combat Assault Rifle
-        Vec3 gunPos = bPos + Vec3(0.24f, 1.15f, 0.25f);
-        Renderer::drawCube(gunPos, rotation, Vec3(0.08f, 0.12f, 0.55f), Vec3(0.09f, 0.09f, 0.11f));
+            if (weaponMesh) {
+                Mat4 weaponSocket = animator.getSocketTransform("Socket_Weapon", botModel,
+                    makeTransform(Vec3(0.0f, -0.05f, 0.02f), Quat::fromEuler(0.1f, -0.2f, 0.0f), Vec3(0.016f, 0.016f, 0.016f)));
+                Renderer::drawMesh(*weaponMesh, weaponSocket, Vec3(0.85f, 0.85f, 0.88f), nullptr, true);
+            }
+        } else {
+            float legSwing = std::sin(walkCycle) * 0.28f;
+            // 1. Torso
+            Renderer::drawCube(bPos + Vec3(0.0f, 1.15f, 0.0f), rotation, Vec3(0.52f, 0.72f, 0.36f), armorCol);
+            // 2. Chest Armor plate
+            Renderer::drawCube(bPos + Vec3(0.0f, 1.22f, 0.05f), rotation, Vec3(0.44f, 0.46f, 0.30f), Vec3(0.14f, 0.16f, 0.18f));
+            // 3. Head & Visor
+            Renderer::drawCube(bPos + Vec3(0.0f, 1.68f, 0.0f), rotation, Vec3(0.32f, 0.28f, 0.32f), Vec3(0.12f, 0.14f, 0.17f));
+            Renderer::drawCube(bPos + Vec3(0.0f, 1.68f, 0.17f), rotation, Vec3(0.24f, 0.08f, 0.04f), visorCol, nullptr, false);
+            // 4. Animated Legs
+            Renderer::drawCube(bPos + Vec3(-0.16f, 0.45f, legSwing), rotation, Vec3(0.13f, 0.8f, 0.15f), Vec3(0.15f, 0.15f, 0.17f));
+            Renderer::drawCube(bPos + Vec3(0.16f, 0.45f, -legSwing), rotation, Vec3(0.13f, 0.8f, 0.15f), Vec3(0.15f, 0.15f, 0.17f));
+
+            // 5. Combat Assault Rifle
+            Vec3 gunPos = bPos + Vec3(0.24f, 1.15f, 0.25f);
+            Renderer::drawCube(gunPos, rotation, Vec3(0.08f, 0.12f, 0.55f), Vec3(0.09f, 0.09f, 0.11f));
+        }
+
         if (muzzleFlashTimer > 0.0f) {
-            Renderer::drawCube(gunPos + Vec3(0.0f, 0.0f, 0.32f), rotation, Vec3(0.16f, 0.16f, 0.16f), Vec3(1.0f, 0.9f, 0.2f), nullptr, false);
+            Vec3 mPos = bPos + Vec3(0.24f, 1.15f, 0.57f);
+            Renderer::drawCube(mPos, rotation, Vec3(0.16f, 0.16f, 0.16f), Vec3(1.0f, 0.9f, 0.2f), nullptr, false);
         }
 
         // 6. Overhead Health Bar
@@ -235,9 +274,35 @@ namespace Lab {
         Renderer::drawCube(bPos + Vec3(0.0f, 2.05f, 0.01f), Vec3(0.0f, rotation.y, 0.0f), Vec3(0.68f * hpRatio, 0.05f, 0.03f), hpColor, nullptr, false);
     }
 
+    void CombatBot::renderShadow(const SkinnedMesh* mesh, const Mesh* weaponMesh) const {
+        if (!isAlive()) return;
+        float bodyBob = std::abs(std::sin(walkCycle * 2.0f)) * 0.04f;
+        Vec3 bPos = position + Vec3(0.0f, bodyBob, 0.0f);
+        Mat4 botModel = Mat4::translate(bPos) * Mat4::rotate(rotation.y * 3.14159265f / 180.0f, Vec3(0, 1, 0));
+
+        if (mesh && animator.getSkeleton()) {
+            Renderer::drawShadowSkinnedMesh(*mesh, botModel, animator.getSkinMatrices());
+            if (weaponMesh) {
+                Mat4 weaponSocket = animator.getSocketTransform("Socket_Weapon", botModel,
+                    makeTransform(Vec3(0.0f, -0.05f, 0.02f), Quat::fromEuler(0.1f, -0.2f, 0.0f), Vec3(0.016f, 0.016f, 0.016f)));
+                Renderer::drawShadowMesh(*weaponMesh, weaponSocket);
+            }
+        } else {
+            Renderer::drawShadowCube(bPos + Vec3(0.0f, 1.0f, 0.0f), Vec3(0.6f, 1.8f, 0.6f));
+        }
+    }
+
+    void AIManager::initAssets() {
+        if (!skinnedMesh) {
+            GLTFLoader::load("assets/animations/bot_walk.gltf", skeleton, animations, skinnedMesh);
+            weaponMesh = std::unique_ptr<Mesh>(Mesh::loadSTL("assets/models/pipe.stl"));
+        }
+    }
+
     void AIManager::spawnBotsForMap(const LabMap* map, int count, GameMode mode) {
         clear();
         if (count <= 0) return;
+        initAssets();
 
         for (int i = 0; i < count; ++i) {
             int botTeam = (mode == GameMode::TDM) ? (i % 2) : -1;
@@ -269,6 +334,9 @@ namespace Lab {
 
             bots.emplace_back(i, bName, botSpawnPos, patrolEnd, botTeam);
             bots.back().rotation.y = sp.yaw;
+            if (skeleton) {
+                bots.back().initAnimation(skeleton, animations);
+            }
         }
     }
 
@@ -540,9 +608,19 @@ namespace Lab {
         return hitAny;
     }
 
+    void AIManager::renderShadowPass() const {
+        for (const auto& bot : bots) {
+            if (bot.isAlive()) {
+                bot.renderShadow(skinnedMesh.get(), weaponMesh.get());
+            }
+        }
+    }
+
     void AIManager::render() const {
         for (const auto& bot : bots) {
-            bot.render();
+            if (bot.isAlive()) {
+                bot.render(skinnedMesh.get(), weaponMesh.get());
+            }
         }
     }
 

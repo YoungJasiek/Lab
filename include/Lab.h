@@ -18,3 +18,4 @@
 #include "LabAudio.h"
 #include "LabArms.h"
 #include "LabLight.h"
+#include "LabSkeletal.h"

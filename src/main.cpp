@@ -1602,6 +1602,9 @@ public:
                 Renderer::drawShadowCube(animatedPos, d.size);
             }
 
+            // Render Combat AI bots into shadow map
+            _aiManager.renderShadowPass();
+
             Renderer::endShadowDepthPass();
             _shadowMap.endShadowPass(getWidth(), getHeight());
         }

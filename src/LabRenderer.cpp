@@ -1,4 +1,5 @@
 #include "LabRenderer.h"
+#include "LabSkeletal.h"
 #include <glad/gl.h>
 #include <fstream>
 #include <iostream>
@@ -16,6 +17,8 @@ namespace Lab {
         layout (location = 1) in vec3 aNormal;
         layout (location = 2) in vec2 aTexCoords;
         layout (location = 3) in vec3 aColor;
+        layout (location = 4) in uvec4 aBoneIDs;
+        layout (location = 5) in vec4 aBoneWeights;
 
         out vec3 FragPos;
         out vec4 FragPosLightSpace;
@@ -31,16 +34,32 @@ namespace Lab {
         uniform vec2 uvTiling;
         uniform int uvMode;
 
+        // Skeletal Animation / GPU Vertex Skinning
+        uniform int uUseSkinning;
+        uniform mat4 uBoneMatrices[64];
+
         void main() {
-            FragPos = vec3(model * vec4(aPos, 1.0));
+            vec4 localPos = vec4(aPos, 1.0);
+            vec3 localNorm = aNormal;
+
+            if (uUseSkinning == 1) {
+                mat4 skinMatrix = uBoneMatrices[aBoneIDs.x] * aBoneWeights.x +
+                                  uBoneMatrices[aBoneIDs.y] * aBoneWeights.y +
+                                  uBoneMatrices[aBoneIDs.z] * aBoneWeights.z +
+                                  uBoneMatrices[aBoneIDs.w] * aBoneWeights.w;
+                localPos = skinMatrix * vec4(aPos, 1.0);
+                localNorm = mat3(skinMatrix) * aNormal;
+            }
+
+            FragPos = vec3(model * localPos);
             FragPosLightSpace = lightSpaceMatrix * vec4(FragPos, 1.0);
 
             // Inverse transpose for accurate non-uniform scaling normals
             mat3 normalMatrix = transpose(inverse(mat3(model)));
-            Normal = normalize(normalMatrix * aNormal);
+            Normal = normalize(normalMatrix * localNorm);
             
             if (uvMode == 1) {
-                vec3 absN = abs(aNormal);
+                vec3 absN = abs(localNorm);
                 if (absN.y > 0.5) {
                     TexCoords = vec2(aPos.x * brushSize.x, aPos.z * brushSize.z) * uvTiling;
                 } else if (absN.z > 0.5) {
@@ -173,10 +192,24 @@ namespace Lab {
     const char* shadowDepthVertexShaderSrc = R"(
         #version 450 core
         layout (location = 0) in vec3 aPos;
+        layout (location = 4) in uvec4 aBoneIDs;
+        layout (location = 5) in vec4 aBoneWeights;
+
         uniform mat4 model;
         uniform mat4 lightSpaceMatrix;
+        uniform int uUseSkinning;
+        uniform mat4 uBoneMatrices[64];
+
         void main() {
-            gl_Position = lightSpaceMatrix * model * vec4(aPos, 1.0);
+            vec4 localPos = vec4(aPos, 1.0);
+            if (uUseSkinning == 1) {
+                mat4 skinMatrix = uBoneMatrices[aBoneIDs.x] * aBoneWeights.x +
+                                  uBoneMatrices[aBoneIDs.y] * aBoneWeights.y +
+                                  uBoneMatrices[aBoneIDs.z] * aBoneWeights.z +
+                                  uBoneMatrices[aBoneIDs.w] * aBoneWeights.w;
+                localPos = skinMatrix * vec4(aPos, 1.0);
+            }
+            gl_Position = lightSpaceMatrix * model * localPos;
         }
     )";
 
@@ -250,6 +283,12 @@ namespace Lab {
 
     void Shader::setMat4(const std::string& name, const Mat4& mat) const {
         glUniformMatrix4fv(glGetUniformLocation(_id, name.c_str()), 1, GL_FALSE, mat.m);
+    }
+
+    void Shader::setMat4Array(const std::string& name, const Mat4* mats, int count) const {
+        if (count > 0 && mats) {
+            glUniformMatrix4fv(glGetUniformLocation(_id, name.c_str()), count, GL_FALSE, mats[0].m);
+        }
     }
 
     void Shader::setVec3(const std::string& name, const Vec3& vec) const {
@@ -914,6 +953,7 @@ namespace Lab {
     void Renderer::drawShadowCube(const Vec3& position, const Vec3& rotation, const Vec3& scale) {
         _shadowDepthShader->use();
         _shadowDepthShader->setMat4("model", getTransform(position, rotation, scale));
+        _shadowDepthShader->setInt("uUseSkinning", 0);
         _cubeMesh->draw();
     }
 
@@ -924,7 +964,27 @@ namespace Lab {
     void Renderer::drawShadowMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale) {
         _shadowDepthShader->use();
         _shadowDepthShader->setMat4("model", getTransform(position, rotation, scale));
+        _shadowDepthShader->setInt("uUseSkinning", 0);
         mesh.draw();
+    }
+
+    void Renderer::drawShadowMesh(const Mesh& mesh, const Mat4& modelTransform) {
+        _shadowDepthShader->use();
+        _shadowDepthShader->setMat4("model", modelTransform);
+        _shadowDepthShader->setInt("uUseSkinning", 0);
+        mesh.draw();
+    }
+
+    void Renderer::drawShadowSkinnedMesh(const SkinnedMesh& mesh, const Mat4& modelTransform, const std::vector<Mat4>& boneMatrices) {
+        _shadowDepthShader->use();
+        _shadowDepthShader->setMat4("model", modelTransform);
+        _shadowDepthShader->setInt("uUseSkinning", 1);
+        if (!boneMatrices.empty()) {
+            int count = std::min(static_cast<int>(boneMatrices.size()), 64);
+            _shadowDepthShader->setMat4Array("uBoneMatrices", boneMatrices.data(), count);
+        }
+        mesh.draw();
+        _shadowDepthShader->setInt("uUseSkinning", 0);
     }
 
     void Renderer::beginFrame(const Camera& camera) {
@@ -973,6 +1033,7 @@ namespace Lab {
         _defaultShader->setVec3("brushSize", scale);
         _defaultShader->setVec2("uvTiling", uvTiling);
         _defaultShader->setInt("uvMode", uvMode);
+        _defaultShader->setInt("uUseSkinning", 0);
         _defaultShader->setVec3("objectColor", color);
         _defaultShader->setInt("enableLighting", enableLighting ? 1 : 0);
         applyLightingAndShadowUniforms(_defaultShader);
@@ -1000,6 +1061,7 @@ namespace Lab {
         _defaultShader->setVec3("brushSize", size);
         _defaultShader->setVec2("uvTiling", {1.0f, 1.0f});
         _defaultShader->setInt("uvMode", 0);
+        _defaultShader->setInt("uUseSkinning", 0);
         _defaultShader->setVec3("objectColor", color);
         _defaultShader->setInt("enableLighting", 0);
         _defaultShader->setInt("useTexture", 0);
@@ -1017,13 +1079,18 @@ namespace Lab {
     }
 
     void Renderer::drawMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color, const Texture* texture, bool enableLighting) {
+        drawMesh(mesh, getTransform(position, rotation, scale), color, texture, enableLighting);
+    }
+
+    void Renderer::drawMesh(const Mesh& mesh, const Mat4& modelTransform, const Vec3& color, const Texture* texture, bool enableLighting) {
         _defaultShader->use();
         _defaultShader->setMat4("projection", _projMatrix);
         _defaultShader->setMat4("view", _viewMatrix);
-        _defaultShader->setMat4("model", getTransform(position, rotation, scale));
-        _defaultShader->setVec3("brushSize", scale);
+        _defaultShader->setMat4("model", modelTransform);
+        _defaultShader->setVec3("brushSize", {1.0f, 1.0f, 1.0f});
         _defaultShader->setVec2("uvTiling", {1.0f, 1.0f});
         _defaultShader->setInt("uvMode", 0);
+        _defaultShader->setInt("uUseSkinning", 0);
         _defaultShader->setVec3("objectColor", color);
         _defaultShader->setInt("enableLighting", enableLighting ? 1 : 0);
         applyLightingAndShadowUniforms(_defaultShader);
@@ -1043,6 +1110,44 @@ namespace Lab {
         if (texture && texture->getId() != 0) {
             texture->unbind();
         }
+    }
+
+    void Renderer::drawSkinnedMesh(const SkinnedMesh& mesh, const Mat4& modelTransform, const std::vector<Mat4>& boneMatrices, const Vec3& color, const Texture* texture, bool enableLighting) {
+        _defaultShader->use();
+        _defaultShader->setMat4("projection", _projMatrix);
+        _defaultShader->setMat4("view", _viewMatrix);
+        _defaultShader->setMat4("model", modelTransform);
+        _defaultShader->setVec3("brushSize", {1.0f, 1.0f, 1.0f});
+        _defaultShader->setVec2("uvTiling", {1.0f, 1.0f});
+        _defaultShader->setInt("uvMode", 0);
+        _defaultShader->setInt("uUseSkinning", 1);
+
+        if (!boneMatrices.empty()) {
+            int count = std::min(static_cast<int>(boneMatrices.size()), 64);
+            _defaultShader->setMat4Array("uBoneMatrices", boneMatrices.data(), count);
+        }
+
+        _defaultShader->setVec3("objectColor", color);
+        _defaultShader->setInt("enableLighting", enableLighting ? 1 : 0);
+        applyLightingAndShadowUniforms(_defaultShader);
+
+        if (texture && texture->getId() != 0) {
+            _defaultShader->setInt("useTexture", 1);
+            _defaultShader->setInt("texture1", 0);
+            texture->bind(0);
+        } else {
+            _defaultShader->setInt("useTexture", 0);
+        }
+        
+        glDisable(GL_CULL_FACE);
+        mesh.draw();
+        glEnable(GL_CULL_FACE);
+
+        if (texture && texture->getId() != 0) {
+            texture->unbind();
+        }
+
+        _defaultShader->setInt("uUseSkinning", 0);
     }
 
     void Renderer::drawBaseplate(float size, const Texture* texture) {

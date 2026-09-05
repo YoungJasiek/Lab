@@ -94,35 +94,26 @@ Wszystkie systemy tworzone sa w standardzie **C++20**, **OpenGL 4.5+ Core Profil
 - [x] Sterowanie: klawisz `F` do wlaczenia/wylaczenia latarki z dynamicznym cieniem, klawisz `V` do inspekcji broni FPP.
 - [x] Zautomatyzowany i wizualny test 25 w `TestVerify.exe` weryfikujacy 2048x2048 FBO, stozek latarki i cienkowanie (`test_flashlight_and_shadows.bmp`).
 
+### 9. Silnik Animacji Szkieletowej glTF 2.0 & GPU Vertex Skinning (Sprint 4 - 100% DONE)
+- [x] Pelna biblioteka matematyki kwaternionow `Quat` w `LabMath.h`: slerp, fromEuler, fromAxisAngle, toMat4 oraz transformacje z odwrotnoscia macierzy `Mat4::inverse()`.
+- [x] Format glTF 2.0 (`LabSkeletal.h`, `LabSkeletal.cpp`): loader plikow glTF oraz wbudowany generator rigow z 20 koscmi (Root, Pelvis, Spine, Torso, Neck, Head, Clavicle_L/R, Arm_L/R, Forearm_L/R, Hand_L/R, Socket_Weapon, Thigh_L/R, Shin_L/R, Foot_L/R) oraz 6 klipami animacji (`Idle`, `Walk`, `Run`, `Shoot`, `Melee_Swing`, `Inspect`).
+- [x] GPU Vertex Skinning: atrybuty `location=4` (`aBoneIDs`) i `location=5` (`aBoneWeights`), tablica macierzy `uBoneMatrices[64]` w shaderach glownym i cieni, Direct State Access (DSA).
+- [x] Architektura hybrydowa glTF + STL: system gniazda kosci (`Bone Socket Attachment`) dynamicznie wiazacy sztywne modele broni STL (`pipe.stl`, `weapon_pistol` itp.) bezposrednio z dlonia kosci szkieletu (`Socket_Weapon`).
+- [x] Integracja z botami bojowymi `CombatBot` i `AIManager` (plynne odtwarzanie animacji chodu/stania, podpiecie broni, cieniowanie dynamiczne).
+- [x] Zautomatyzowany i wizualny test 26 w `TestVerify.exe` weryfikujacy kwaterniony, slerp, ladowanie 20 kosci, animator, socket broni i renderowanie cieni (`test_skeletal_animation.bmp`).
+
 ---
 
 ## II. NAJBLIZSZE SPRINTY (SHORT-TERM / IN PROGRESS)
 
-### Sprint 4: Silnik Animacji Szkieletowej glTF 2.0 & GPU Vertex Skinning (IN PROGRESS)
-- [ ] Loader glTF 2.0 / GLB z odczytem hierarchii wezlow (Nodes), kosci (Joints/Bones), odwrotnych macierzy wiazania (Inverse Bind Matrices) i kanalow animacji (Translation, Rotation Quaternions, Scale).
-- [ ] Interpolacja klatek kluczowych (Keyframe Sampling & Slerp kwaternionow) z plynna obsluga cykli animacji (Idle, Walk, Run, Shoot).
-- [ ] GPU Vertex Skinning w shaderach GLSL (atrybuty `aBoneIDs`, `aBoneWeights`, tablica `uBoneMatrices[64]`).
-- [ ] Architektura hybrydowa glTF + STL: system gniazda kosci (Bone Socket Attachment) mocujacy sztywne modele broni STL do dloni animowanego szkieletu glTF.
-- [ ] Wizualny test weryfikacyjny szkieletu i GPU skinningu w `TestVerify.exe`.
-
----
-
-## III. SREDNIOTERMINOWE KROKI (MID-TERM)
-
-### 1. Import Modeli Szkieletowych glTF 2.0 (Blender Pipeline)
-- [ ] Integracja loadera glTF 2.0 / GLB (np. cgltf) dla siatek ze szkieletem.
-- [ ] Vertex Skinning na GPU w shaderze GLSL (layout(location=4) in uvec4 aBoneIDs, in vec4 aBoneWeights, tablica uBoneMatrices).
-- [ ] Architektura hybrydowa: animowane postacie i rece z glTF + wymienne statyczne modele broni ze sztywnego formatu STL w gniazdach kosci.
-- [ ] Maszyna stanow animacji postaci (Animation Blending: Idle -> Walk -> Run -> Jump -> Shoot -> Death).
-
-### 2. Rozszerzenie Narzedzi Geometrii w Hammer Editorze
-- [ ] **Clip Tool (Shift+X):** narzedzie przecinania bryl plaszczyzna na dwie niezalezne czesci.
-- [ ] **Carve Tool (CSG Subtraction):** wycinanie otworow na drzwi i okna w scianach.
-- [ ] **Vertex Manipulation Tool:** bezposrednia edycja wierzcholkow pedzli (tworzenie ramp, schodow i skosnych sufitow).
-
-### 3. Fizyka Cial Sztywnych & Destrukcja
-- [ ] Ciala sztywne (Rigid Body Physics) dla rekwizytow (skrzynki, beczki wybuchajace podlegajace pedowi i grawitacji).
-- [ ] Odrzut cial botow po zgonie od eksplozji RPG (kinetyczna reakcja zamiast statycznego lezenia).
+### Sprint 5: Fizyka Cial Sztywnych (Rigid Body Props), Beczki Wybuchowe & Destrukcja Srodowiska (IN PROGRESS)
+- [ ] Silnik cial sztywnych `LabPhysics`: integracja zintegrowanego modelu fizyki newtonowskiej (masa, srodek ciezkosci, bezwladnosc rotacyjna, wektory predkosci liniowej i katowej, tlumienie aerodynamiczne i tarcie powierzchniowe).
+- [ ] Detekcja kolizji OBB/AABB cial sztywnych z geometria swiata i podlogami (odpowiedz sprezysta z restytucja i tarciem).
+- [ ] Destrukcyjne skrzynki drewniane (`Prop_Crate`): wytrzymalosc (HP), rozpad pod wplywem obrazen na 6-8 dynamicznych drzazg/odlamkow z losowymi pedami i rotacja.
+- [ ] Czerwone beczki wybuchowe (`Prop_ExplosiveBarrel`): wybuch pod wplywem trafienia kula lub ogniem, fala uderzeniowa (Radial Impulse Blast) odpychajaca gracza, boty i inne skrzynki w sasiedztwie (reakcja lancuchowa).
+- [ ] Ragdoll / Kinetyczny odrzut cial botow: impuls fizyczny po zgonie od eksplozji RPG lub strzelby (fizyczny lot ciala w tyl zamiast statycznej animacji).
+- [ ] Integracja z edytorem Hammer (`LabHammer`): umieszczanie bytow cial sztywnych na mapach i zapis w `.labmap`.
+- [ ] Zautomatyzowany test fizyki i destrukcji w `TestVerify.exe`.
 
 ---
 
