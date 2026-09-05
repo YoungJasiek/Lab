@@ -14,3 +14,4 @@
 #include "LabChat.h"
 #include "LabPickups.h"
 #include "LabWeapon.h"
+#include "LabParticles.h"

@@ -63,8 +63,9 @@ public:
             }
         }
 
-        // Initialize Weapon System
+        // Initialize Weapon System & Particles
         _weaponSystem.init();
+        _particleSystem.init();
         syncHudWeapon();
 
         // Start in Main Menu
@@ -194,6 +195,7 @@ public:
         _hud.suitArmor = 50.0f;
         _weaponSystem.reset();
         syncHudWeapon();
+        _particleSystem.clear();
         _tracers.clear();
         _pickups.clear();
         _chat.history.clear();
@@ -452,6 +454,19 @@ public:
 
         _weaponSystem.update(time.delta);
 
+        // ==================== 3D PARTICLE SYSTEM UPDATE & AMBIENT WEATHER ====================
+        if (_currentMap) {
+            _particleSystem.update(time.delta, _currentMap.get());
+        } else {
+            _particleSystem.update(time.delta, nullptr);
+        }
+
+        // Ambient drifting weather (Snow/Frost for Cryo maps, subtle industrial dust for others)
+        if (!_inMenu && !_hammerEditor.active && !_isPlayerDead) {
+            bool isCryo = (_currentMap && _currentMap->metadata.name.find("Cryo") != std::string::npos);
+            _particleSystem.spawnAmbientWeather(_camera.getPosition(), 2, isCryo);
+        }
+
         // ==================== PLAYER COMBAT: 9 DISTINCT WEAPONS & FIRING MODES ====================
         bool isFireHeld = Input::isMouseButtonPressed(0);
         auto& activeWep = _weaponSystem.getActiveWeapon();
@@ -483,11 +498,14 @@ public:
                 Vec3 forward = _camera.getFront();
                 Vec3 right = _camera.getRight();
                 Vec3 up = _camera.getUp();
+                Vec3 muzzlePos = rayOrigin + right * 0.22f - up * 0.18f + forward * 0.45f;
+
+                // Spawn realistic weapon muzzle smoke & ignition sparks
+                _particleSystem.spawnMuzzleEffect(muzzlePos, forward, def.id);
 
                 if (def.isProjectile) {
                     // Projectile weapon: Plasma Gun & RPG
-                    Vec3 projSpawn = rayOrigin + right * 0.22f - up * 0.18f + forward * 0.45f;
-                    _weaponSystem.spawnProjectile(projSpawn, forward);
+                    _weaponSystem.spawnProjectile(muzzlePos, forward);
                 } else if (def.isMelee) {
                     // Melee sweep: Rura (2.6m sweep)
                     RaycastHit hit;
@@ -499,6 +517,9 @@ public:
                                 float dmg = hit.isHeadshot ? (def.damage * def.headshotMultiplier) : def.damage;
                                 bool killed = bot.takeDamage(dmg, hit.isHeadshot);
                                 _hud.triggerHitmarker(hit.isHeadshot);
+
+                                // Melee blood impact
+                                _particleSystem.spawnBlood(hit.point, -forward, hit.isHeadshot);
 
                                 if (killed) {
                                     _playerKills++;
@@ -584,32 +605,48 @@ public:
                         tr.thickness = def.tracerThickness;
                         _tracers.push_back(tr);
 
-                        // 4. Hit Processing on Bots
-                        if (hit.hit && hit.tag == EntityTag::Bot) {
-                            for (auto& bot : _aiManager.bots) {
-                                if (bot.id == hit.entityIndex && bot.isAlive()) {
-                                    float dmg = hit.isHeadshot ? (def.damage * def.headshotMultiplier) : def.damage;
-                                    bool killed = bot.takeDamage(dmg, hit.isHeadshot);
-                                    _hud.triggerHitmarker(hit.isHeadshot);
+                        // Railgun ionized spark trail
+                        if (def.id == WeaponID::Railgun) {
+                            _particleSystem.spawnBeamSparks(tr.start, tr.end, def.tracerColor, 18);
+                        }
 
-                                    if (killed) {
-                                        _playerKills++;
-                                        _hud.frags = _playerKills;
-                                        std::string killMsg = (hit.isHeadshot ? "HEADSHOT! ELIMINATED " : "ELIMINATED ") +
-                                                              bot.name + " WITH " + def.name + " [" + std::to_string(_playerKills) + " FRAGS]";
-                                        _hud.showCombatMessage(killMsg, 2.5f);
-                                        _chat.addMessage("[SERVER]", killMsg, hit.isHeadshot ? Vec3(1.0f, 0.25f, 0.25f) : Vec3(0.3f, 0.9f, 0.4f));
+                        // 4. Hit Processing & Particle Effects
+                        if (hit.hit) {
+                            if (hit.tag == EntityTag::Bot) {
+                                // Crimson blood splatter spray & mist
+                                _particleSystem.spawnBlood(hit.point, -spreadDir, hit.isHeadshot);
 
-                                        _pickups.spawnPickup(PickupType::Ammo, bot.position + Vec3(0.0f, 0.35f, 0.0f), 36);
-                                        if ((rand() % 100) < 65) {
-                                            _pickups.spawnPickup(PickupType::Medkit, bot.position + Vec3(0.4f, 0.35f, -0.3f), 50);
+                                for (auto& bot : _aiManager.bots) {
+                                    if (bot.id == hit.entityIndex && bot.isAlive()) {
+                                        float dmg = hit.isHeadshot ? (def.damage * def.headshotMultiplier) : def.damage;
+                                        bool killed = bot.takeDamage(dmg, hit.isHeadshot);
+                                        _hud.triggerHitmarker(hit.isHeadshot);
+
+                                        if (killed) {
+                                            _playerKills++;
+                                            _hud.frags = _playerKills;
+                                            std::string killMsg = (hit.isHeadshot ? "HEADSHOT! ELIMINATED " : "ELIMINATED ") +
+                                                                  bot.name + " WITH " + def.name + " [" + std::to_string(_playerKills) + " FRAGS]";
+                                            _hud.showCombatMessage(killMsg, 2.5f);
+                                            _chat.addMessage("[SERVER]", killMsg, hit.isHeadshot ? Vec3(1.0f, 0.25f, 0.25f) : Vec3(0.3f, 0.9f, 0.4f));
+
+                                            _pickups.spawnPickup(PickupType::Ammo, bot.position + Vec3(0.0f, 0.35f, 0.0f), 36);
+                                            if ((rand() % 100) < 65) {
+                                                _pickups.spawnPickup(PickupType::Medkit, bot.position + Vec3(0.4f, 0.35f, -0.3f), 50);
+                                            }
+                                            WeaponID dropWep = (WeaponID)(2 + (rand() % 7));
+                                            _pickups.spawnPickup(PickupType::WeaponDrop, bot.position + Vec3(-0.35f, 0.35f, 0.2f), 30, (int)dropWep);
+                                            _chat.addMessage(bot.name, "Critical damage! Unit offline...", Vec3(0.9f, 0.45f, 0.45f));
                                         }
-                                        WeaponID dropWep = (WeaponID)(2 + (rand() % 7));
-                                        _pickups.spawnPickup(PickupType::WeaponDrop, bot.position + Vec3(-0.35f, 0.35f, 0.2f), 30, (int)dropWep);
-                                        _chat.addMessage(bot.name, "Critical damage! Unit offline...", Vec3(0.9f, 0.45f, 0.45f));
+                                        break;
                                     }
-                                    break;
                                 }
+                            } else if (hit.tag == EntityTag::World) {
+                                // Concrete dust puff + spark spray + debris
+                                _particleSystem.spawnImpact(hit.point, hit.normal, SurfaceType::Concrete);
+                            } else if (hit.tag == EntityTag::Door) {
+                                // Metal ricochet spark spray + metallic shrapnel
+                                _particleSystem.spawnImpact(hit.point, hit.normal, SurfaceType::Metal);
                             }
                         }
                     }
@@ -621,6 +658,9 @@ public:
         // ==================== PROJECTILE SIMULATION & AOE EXPLOSIONS ====================
         for (auto& proj : _weaponSystem.getProjectiles()) {
             if (!proj.active) continue;
+
+            // Spawn projectile flight trail (RPG smoke/flame, Plasma cyan energy)
+            _particleSystem.spawnProjectileTrail(proj.position, proj.weaponId);
 
             bool hitAnything = false;
             Vec3 hitPos = proj.position;
@@ -657,6 +697,7 @@ public:
 
             if (hitAnything) {
                 proj.active = false;
+                _particleSystem.spawnExplosion(hitPos, proj.splashRadius, proj.color);
                 float radiusSq = proj.splashRadius * proj.splashRadius;
 
                 for (auto& bot : _aiManager.bots) {
@@ -1481,6 +1522,9 @@ public:
             Renderer::drawCube(proj.position, Vec3(0, 0, 0), Vec3(pSize, pSize, pSize * 2.0f), proj.color, nullptr, false);
         }
 
+        // Render 3D Particle System (Sparks, blood, smoke, fire, frost)
+        _particleSystem.render(_camera);
+
         // Lab Hammer Editor 3D Ghost/Grid Overlay
         _hammerEditor.draw3DOverlay();
 
@@ -1495,11 +1539,13 @@ public:
     }
 
     void onShutdown() override {
+        _particleSystem.shutdown();
         Renderer::shutdown();
     }
 
 private:
     Camera _camera;
+    ParticleSystem _particleSystem;
     std::unique_ptr<LabMap> _currentMap;
     std::unordered_map<std::string, std::unique_ptr<Texture>> _textures;
     std::unordered_map<std::string, std::unique_ptr<Mesh>> _meshes;

@@ -44,6 +44,7 @@ set(ENGINE_SOURCES
     src/LabChat.cpp
     src/LabPickups.cpp
     src/LabWeapon.cpp
+    src/LabParticles.cpp
     src/glad/src/gl.c
 )
 
@@ -61,6 +62,7 @@ set(ENGINE_HEADERS
     include/LabChat.h
     include/LabPickups.h
     include/LabWeapon.h
+    include/LabParticles.h
     include/Lab.h
 )
 
