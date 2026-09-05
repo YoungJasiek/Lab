@@ -3,7 +3,6 @@
 *.bmp
 *.af
 *.kra
-.gitignore
 logos/
 fonts/
 skills/
