@@ -116,6 +116,24 @@ namespace Lab {
                        >> d.color.x >> d.color.y >> d.color.z
                        >> d.openSpeed >> d.triggerRadius;
                     map->doors.push_back(d);
+                } else if (token == "weapon_spawner") {
+                    MapWeaponSpawner ws;
+                    std::string wepToken;
+                    ss >> wepToken >> ws.position.x >> ws.position.y >> ws.position.z >> ws.yaw >> ws.respawnTime;
+                    if (wepToken == "pipe" || wepToken == "0") ws.weaponId = 0;
+                    else if (wepToken == "pistol" || wepToken == "1") ws.weaponId = 1;
+                    else if (wepToken == "shotgun" || wepToken == "2") ws.weaponId = 2;
+                    else if (wepToken == "m4a4s" || wepToken == "3") ws.weaponId = 3;
+                    else if (wepToken == "sg553" || wepToken == "4") ws.weaponId = 4;
+                    else if (wepToken == "minigun" || wepToken == "5") ws.weaponId = 5;
+                    else if (wepToken == "plasma" || wepToken == "6") ws.weaponId = 6;
+                    else if (wepToken == "railgun" || wepToken == "7") ws.weaponId = 7;
+                    else if (wepToken == "rpg" || wepToken == "8") ws.weaponId = 8;
+                    else {
+                        try { ws.weaponId = std::stoi(wepToken); } catch (...) { ws.weaponId = 2; }
+                    }
+                    if (ws.respawnTime <= 0.0f) ws.respawnTime = 60.0f;
+                    map->weaponSpawners.push_back(ws);
                 }
             }
         }
@@ -134,6 +152,7 @@ namespace Lab {
 
         LabLog::info("Loaded .LABMAP: " + map->metadata.name + " (" +
                      std::to_string(map->spawnPoints.size()) + " spawns, " +
+                     std::to_string(map->weaponSpawners.size()) + " weapon spawners, " +
                      std::to_string(map->brushes.size()) + " brushes, " +
                      std::to_string(map->props.size()) + " props, " +
                      std::to_string(map->doors.size()) + " doors)");
@@ -232,6 +251,12 @@ namespace Lab {
             file << "    spawn_point " << sp.entityClass << " "
                  << sp.position.x << " " << sp.position.y << " " << sp.position.z << " "
                  << sp.yaw << " " << typeStr << "\n";
+        }
+
+        for (const auto& ws : weaponSpawners) {
+            file << "    weapon_spawner " << ws.weaponId << " "
+                 << ws.position.x << " " << ws.position.y << " " << ws.position.z << " "
+                 << ws.yaw << " " << ws.respawnTime << "\n";
         }
 
         for (const auto& b : brushes) {

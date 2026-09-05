@@ -557,10 +557,19 @@ namespace Lab {
                 normal = Vec3::cross(p1 - p0, p2 - p0).normalized();
             }
 
+            Vec3 vColor(1.0f, 1.0f, 1.0f);
+            if (attr & 0x8000) {
+                // Magics / VisCAM color STL format (16-bit RGB)
+                float r = (float)(attr & 0x001F) / 31.0f;
+                float g = (float)((attr >> 5) & 0x001F) / 31.0f;
+                float b = (float)((attr >> 10) & 0x001F) / 31.0f;
+                vColor = Vec3(r, g, b);
+            }
+
             for (int j = 0; j < 3; j++) {
                 Vec3 pos(v[j][0], v[j][1], v[j][2]);
                 float uvScale = 0.1f;
-                vertices.push_back(Vertex(pos, normal, Vec2(pos.x * uvScale, pos.z * uvScale), Vec3(1.0f, 1.0f, 1.0f)));
+                vertices.push_back(Vertex(pos, normal, Vec2(pos.x * uvScale, pos.z * uvScale), vColor));
                 indices.push_back(i * 3 + j);
             }
         }
@@ -877,6 +886,33 @@ namespace Lab {
         glBindVertexArray(_uiVao);
         glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
         glBindVertexArray(0);
+    }
+
+    std::string Renderer::resolveModelTexture(const std::string& modelPath, const std::string& fallbackTexture) {
+        if (modelPath.empty()) return fallbackTexture;
+        std::filesystem::path p(modelPath);
+        std::string stem = p.stem().string();
+        std::string parentDir = p.parent_path().string();
+
+        std::vector<std::string> candidates;
+        if (!parentDir.empty()) {
+            candidates.push_back(parentDir + "/" + stem + ".bmp");
+            candidates.push_back(parentDir + "/" + stem + ".tga");
+        }
+        candidates.push_back("assets/models/" + stem + ".bmp");
+        candidates.push_back("assets/models/" + stem + ".tga");
+        candidates.push_back("assets/textures/" + stem + ".bmp");
+        candidates.push_back("assets/textures/" + stem + ".tga");
+        candidates.push_back("../assets/models/" + stem + ".bmp");
+        candidates.push_back("../assets/textures/" + stem + ".bmp");
+
+        for (const auto& c : candidates) {
+            std::string resolved = resolveAssetPath(c);
+            if (std::filesystem::exists(resolved)) {
+                return resolved;
+            }
+        }
+        return fallbackTexture;
     }
 
 }

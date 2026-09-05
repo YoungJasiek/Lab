@@ -171,6 +171,19 @@ public:
                 }
             }
 
+            // Initialize World Weapon Spawners (Persistent 60s cooldown pads)
+            _pickups.weaponPads.clear();
+            for (const auto& ws : _currentMap->weaponSpawners) {
+                _pickups.addWeaponPad(ws.weaponId, ws.position, ws.respawnTime, ws.yaw);
+            }
+            if (_pickups.weaponPads.empty()) {
+                // Default tactical arena weapon spawners
+                _pickups.addWeaponPad(0, Vec3(3.5f, 0.0f, -6.0f), 60.0f, 0.0f);   // Pipe
+                _pickups.addWeaponPad(2, Vec3(-3.5f, 0.0f, -6.0f), 60.0f, 0.0f);  // Shotgun
+                _pickups.addWeaponPad(3, Vec3(6.5f, 0.0f, -14.0f), 60.0f, 0.0f);  // M4A4-S
+                _pickups.addWeaponPad(8, Vec3(-6.5f, 0.0f, -14.0f), 60.0f, 0.0f); // RPG
+            }
+
             // Ensure map is registered in list and selected
             bool found = false;
             for (int i = 0; i < (int)_availableMaps.size(); ++i) {
@@ -787,12 +800,18 @@ public:
         float healthAdded = 0.0f;
         int weaponUnlocked = -1;
         std::string pickupNotice;
-        _pickups.update(time.delta, _camera.getPosition(), ammoAdded, healthAdded, weaponUnlocked, pickupNotice);
+        bool weaponRespawned = false;
+        _pickups.update(time.delta, _camera.getPosition(), ammoAdded, healthAdded, weaponUnlocked, pickupNotice, weaponRespawned);
         if (weaponUnlocked >= 0 && weaponUnlocked < 9) {
             _weaponSystem.unlockWeapon((WeaponID)weaponUnlocked, true);
+            _weaponSystem.switchWeapon((WeaponID)weaponUnlocked);
             syncHudWeapon();
             _hud.showCombatMessage(pickupNotice, 2.5f);
             _chat.addMessage("[ARSENAL]", pickupNotice, Vec3(0.3f, 0.85f, 1.0f));
+            _particleSystem.spawnBeamSparks(_camera.getPosition(), _camera.getPosition() + Vec3(0, 1.2f, 0), Vec3(0.2f, 0.85f, 1.0f), 16);
+        }
+        if (weaponRespawned) {
+            _chat.addMessage("[ARSENAL]", "A weapon has respawned on the arena pad!", Vec3(0.3f, 0.7f, 0.9f));
         }
         if (ammoAdded > 0) {
             _weaponSystem.getActiveWeapon().addAmmo(ammoAdded);
@@ -1137,7 +1156,8 @@ public:
 
     void drawWeapon() {
         const auto& def = _weaponSystem.getActiveDef();
-        Texture* tex = getTexture(def.textureFile);
+        std::string resolvedTex = Renderer::resolveModelTexture(def.modelFile, def.textureFile);
+        Texture* tex = getTexture(resolvedTex);
         Mesh* stlMesh = getMesh(def.modelFile);
         _weaponSystem.renderViewModel(_camera, _weaponAnimator, tex, stlMesh, _muzzleFlashTime);
     }
@@ -1511,8 +1531,16 @@ public:
         // Render Combat AI Bots
         _aiManager.render();
 
-        // Render 3D World Pickups (Ammo crates & Medkits)
-        _pickups.render();
+        // Render 3D World Pickups (Ammo crates, Medkits, and 1-min Weapon Spawn Pads)
+        std::vector<Mesh*> wepMeshes(9, nullptr);
+        std::vector<Texture*> wepTextures(9, nullptr);
+        for (int i = 0; i < 9; ++i) {
+            const auto& wDef = _weaponSystem.getWeapon((WeaponID)i).def;
+            wepMeshes[i] = getMesh(wDef.modelFile);
+            std::string wTexName = Renderer::resolveModelTexture(wDef.modelFile, wDef.textureFile);
+            wepTextures[i] = getTexture(wTexName);
+        }
+        _pickups.render(wepMeshes, wepTextures);
 
         // Render 3D Bullet Tracers (Source / Half-Life 2 style luminous beams)
         for (const auto& tr : _tracers) {

@@ -1424,6 +1424,150 @@ int main() {
         std::cout << "[Test] Saved Particle System visual verification to 'test_particle_system.bmp'.\n";
     }
 
+    // ==========================================
+    // TEST 21: Weapon Spawners & Map Format Serialization & 60s Respawn
+    // ==========================================
+    std::cout << "[Test 21] Running Weapon Spawners, Serialization & 60s Respawn Verification...\n";
+    {
+        // 1. Test Map serialization and deserialization of weapon spawners
+        Lab::LabMap mapTest;
+        Lab::MapWeaponSpawner ws1;
+        ws1.weaponId = 0; // Pipe
+        ws1.position = Lab::Vec3(10.0f, 0.0f, -5.0f);
+        ws1.yaw = 45.0f;
+        ws1.respawnTime = 60.0f;
+        mapTest.weaponSpawners.push_back(ws1);
+
+        Lab::MapWeaponSpawner ws2;
+        ws2.weaponId = 5; // Minigun
+        ws2.position = Lab::Vec3(-8.0f, 1.0f, 12.0f);
+        ws2.yaw = 180.0f;
+        ws2.respawnTime = 60.0f;
+        mapTest.weaponSpawners.push_back(ws2);
+
+        std::string testMapPath = "temp_spawner_test.labmap";
+        if (mapTest.saveToFile(testMapPath)) {
+            auto loadedMap = Lab::LabMap::loadFromFile(testMapPath);
+            if (loadedMap) {
+                if (loadedMap->weaponSpawners.size() != 2) {
+                    std::cerr << "Assertion failed: loadedMap->weaponSpawners.size() == 2, got " << loadedMap->weaponSpawners.size() << "\n";
+                    return 1;
+                }
+                if (loadedMap->weaponSpawners[0].weaponId != 0 || loadedMap->weaponSpawners[1].weaponId != 5) {
+                    std::cerr << "Assertion failed: weapon IDs match\n";
+                    return 1;
+                }
+                if (std::abs(loadedMap->weaponSpawners[0].respawnTime - 60.0f) > 0.01f) {
+                    std::cerr << "Assertion failed: respawn timer is 60.0s\n";
+                    return 1;
+                }
+                std::cout << "  [PASS] Map Weapon Spawner serialization/deserialization validated.\n";
+            }
+            std::filesystem::remove(testMapPath);
+        }
+
+        // 2. Test PickupManager persistent weapon pads and 60-second respawn logic
+        Lab::PickupManager pm;
+        pm.addWeaponPad(2, Lab::Vec3(0.0f, 0.0f, 0.0f), 60.0f); // Shotgun spawner at origin
+        if (pm.weaponPads.size() != 1 || !pm.weaponPads[0].isAvailable()) {
+            std::cerr << "Assertion failed: weapon pad initially available\n";
+            return 1;
+        }
+
+        // Player is far away: no pickup
+        int ammoAdded = 0;
+        float hpAdded = 0.0f;
+        int unlockedWep = -1;
+        std::string notice = "";
+        bool respawned = false;
+        pm.update(0.1f, Lab::Vec3(100.0f, 0.0f, 100.0f), ammoAdded, hpAdded, unlockedWep, notice, respawned);
+        if (unlockedWep != -1 || !pm.weaponPads[0].isAvailable()) {
+            std::cerr << "Assertion failed: distant player does not trigger pickup\n";
+            return 1;
+        }
+
+        // Player walks onto pad: triggers weapon pickup!
+        pm.update(0.1f, Lab::Vec3(0.5f, 0.0f, 0.5f), ammoAdded, hpAdded, unlockedWep, notice, respawned);
+        if (unlockedWep != 2 || pm.weaponPads[0].isAvailable()) {
+            std::cerr << "Assertion failed: player picks up weapon ID 2 and pad goes into cooldown, got " << unlockedWep << "\n";
+            return 1;
+        }
+        if (std::abs(pm.weaponPads[0].respawnTimer - 60.0f) > 0.2f) {
+            std::cerr << "Assertion failed: pad cooldown timer set to 60s, got " << pm.weaponPads[0].respawnTimer << "\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Weapon pickup unlocks weapon ID " << unlockedWep << " and activates 60s cooldown timer.\n";
+
+        // Simulate 30 seconds: pad must remain on cooldown
+        for (int step = 0; step < 300; ++step) {
+            pm.update(0.1f, Lab::Vec3(100.0f, 0.0f, 100.0f), ammoAdded, hpAdded, unlockedWep, notice, respawned);
+        }
+        if (pm.weaponPads[0].isAvailable()) {
+            std::cerr << "Assertion failed: pad should still be on cooldown at 30s\n";
+            return 1;
+        }
+
+        // Simulate remaining 30.2 seconds: pad must respawn and trigger respawn flash flag!
+        respawned = false;
+        for (int step = 0; step < 305; ++step) {
+            bool padResp = false;
+            pm.update(0.1f, Lab::Vec3(100.0f, 0.0f, 100.0f), ammoAdded, hpAdded, unlockedWep, notice, padResp);
+            if (padResp) respawned = true;
+        }
+        if (!pm.weaponPads[0].isAvailable() || !respawned) {
+            std::cerr << "Assertion failed: pad respawned after 60s cooldown, available=" << pm.weaponPads[0].isAvailable() << ", respawned=" << respawned << "\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Pad automatically respawned after exactly 60 seconds with respawn trigger flag.\n";
+    }
+
+    // ==========================================
+    // TEST 22: STL Model Texture Auto-Resolution & Visual Spawner Render
+    // ==========================================
+    std::cout << "[Test 22] Running Model Texture Resolution & Visual Verification...\n";
+    {
+        std::string resolvedPipe = Lab::Renderer::resolveModelTexture("assets/models/pipe.stl", "weapon_pipe.bmp");
+        std::cout << "  Model 'assets/models/pipe.stl' resolved texture: " << resolvedPipe << "\n";
+
+        // Visual render of weapon spawners
+        glClearColor(0.08f, 0.09f, 0.12f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        Lab::Camera spawnerCam(75.0f, (float)w / (float)h, 0.1f, 100.0f);
+        spawnerCam.setPosition(Lab::Vec3(0.0f, 2.0f, 5.0f));
+        Lab::Renderer::beginFrame(spawnerCam);
+
+        // Floor
+        Lab::Renderer::drawCube(Lab::Vec3(0.0f, -0.05f, 0.0f), Lab::Vec3(20.0f, 0.1f, 20.0f), Lab::Vec3(0.16f, 0.18f, 0.22f));
+
+        // Spawn 3 weapon pads: Pipe, Shotgun, Minigun
+        Lab::PickupManager visualPms;
+        visualPms.addWeaponPad(0, Lab::Vec3(-2.8f, 0.0f, 0.0f), 60.0f); // Pipe
+        visualPms.addWeaponPad(2, Lab::Vec3(0.0f, 0.0f, 0.0f), 60.0f);  // Shotgun
+        visualPms.addWeaponPad(5, Lab::Vec3(2.8f, 0.0f, 0.0f), 60.0f);  // Minigun
+
+        // Load mesh for pipe if present
+        std::unique_ptr<Lab::Mesh> pipeMesh(Lab::Mesh::loadSTL("assets/models/pipe.stl"));
+        std::vector<Lab::Mesh*> wepMeshes(9, nullptr);
+        if (pipeMesh) wepMeshes[0] = pipeMesh.get();
+        std::vector<Lab::Texture*> wepTextures(9, nullptr);
+
+        visualPms.render(wepMeshes, wepTextures);
+
+        // HUD overlay
+        Lab::Renderer::beginUI(w, h);
+        Lab::Renderer::drawRect(40.0f, 30.0f, 580.0f, 85.0f, Lab::Vec3(0.10f, 0.12f, 0.16f));
+        Lab::Renderer::drawRect(40.0f, 30.0f, 580.0f, 1.0f, Lab::Vec3(0.2f, 0.7f, 1.0f));
+        Lab::LabFont::drawText(56.0f, 44.0f, "WEAPON SPAWNER PADS - 60s RESPAWN", 2.0f, Lab::Vec3(0.98f, 0.78f, 0.08f), Lab::LabFontType::GeoSans);
+        Lab::LabFont::drawText(56.0f, 74.0f, "GROUND PEDESTAL | 3D WEAPON MODEL | AUTO COOLDOWN", 1.6f, Lab::Vec3(0.85f, 0.90f, 0.95f), Lab::LabFontType::GeoSans);
+        Lab::Renderer::endUI();
+
+        Lab::Renderer::endFrame();
+        glFinish();
+        saveFrameToBMP("test_weapon_spawners.bmp", w, h);
+        std::cout << "[Test] Saved Weapon Spawners visual verification to 'test_weapon_spawners.bmp'.\n";
+    }
+
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();

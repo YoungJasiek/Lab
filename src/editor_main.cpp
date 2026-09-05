@@ -25,7 +25,8 @@ enum class SelectionType {
     Brush,
     Prop,
     Door,
-    Spawn
+    Spawn,
+    WeaponSpawner
 };
 
 class LabHammerStandalone : public Engine {
@@ -553,6 +554,19 @@ public:
             }
         }
 
+        // Test Weapon Spawners
+        for (size_t i = 0; i < _map->weaponSpawners.size(); ++i) {
+            const auto& ws = _map->weaponSpawners[i];
+            float t = 0;
+            if (rayIntersectAABB(rayOrigin, rayDir, ws.position - Vec3(0.7f, 0.0f, 0.7f), ws.position + Vec3(0.7f, 0.8f, 0.7f), t)) {
+                if (t < closestT) {
+                    closestT = t;
+                    hitType = SelectionType::WeaponSpawner;
+                    hitIndex = (int)i;
+                }
+            }
+        }
+
         // Tool 3: Texture pipette & application
         if (_activeTool == 3) {
             if (hitType == SelectionType::Brush) {
@@ -582,6 +596,8 @@ public:
                 logMessage("Selected Door #" + std::to_string(hitIndex) + " (" + _map->doors[hitIndex].name + ")");
             } else if (_selectionType == SelectionType::Spawn) {
                 logMessage("Selected " + _map->spawnPoints[hitIndex].getDisplayName() + " #" + std::to_string(hitIndex));
+            } else if (_selectionType == SelectionType::WeaponSpawner) {
+                logMessage("Selected Weapon Spawner [" + _map->weaponSpawners[hitIndex].getWeaponName() + "] #" + std::to_string(hitIndex));
             } else {
                 logMessage("Deselected all");
             }
@@ -599,6 +615,8 @@ public:
         } else if (_selectionType == SelectionType::Spawn && _selectedIndex >= 0 && _selectedIndex < (int)_map->spawnPoints.size()) {
             _map->spawnPoints[_selectedIndex].position += Vec3(dx, dy, dz);
             _map->spawn.position = _map->spawnPoints[0].position;
+        } else if (_selectionType == SelectionType::WeaponSpawner && _selectedIndex >= 0 && _selectedIndex < (int)_map->weaponSpawners.size()) {
+            _map->weaponSpawners[_selectedIndex].position += Vec3(dx, dy, dz);
         }
     }
 
@@ -651,6 +669,13 @@ public:
             _map->spawnPoints.push_back(sp);
             _selectedIndex = (int)_map->spawnPoints.size() - 1;
             logMessage("Duplicated " + sp.getDisplayName() + " to #" + std::to_string(_selectedIndex));
+        } else if (_selectionType == SelectionType::WeaponSpawner && _selectedIndex >= 0 && _selectedIndex < (int)_map->weaponSpawners.size()) {
+            MapWeaponSpawner ws = _map->weaponSpawners[_selectedIndex];
+            ws.position.x += _gridSnap;
+            ws.position.z += _gridSnap;
+            _map->weaponSpawners.push_back(ws);
+            _selectedIndex = (int)_map->weaponSpawners.size() - 1;
+            logMessage("Duplicated Weapon Spawner [" + ws.getWeaponName() + "] to #" + std::to_string(_selectedIndex));
         }
     }
 
@@ -680,6 +705,11 @@ public:
             } else {
                 logMessage("Cannot delete the last remaining spawn point!");
             }
+        } else if (_selectionType == SelectionType::WeaponSpawner && _selectedIndex >= 0 && _selectedIndex < (int)_map->weaponSpawners.size()) {
+            _map->weaponSpawners.erase(_map->weaponSpawners.begin() + _selectedIndex);
+            logMessage("Deleted Weapon Spawner #" + std::to_string(_selectedIndex));
+            _selectionType = SelectionType::None;
+            _selectedIndex = -1;
         }
     }
 
@@ -693,6 +723,8 @@ public:
             targetPos = _map->doors[_selectedIndex].position;
         } else if (_selectionType == SelectionType::Spawn && _selectedIndex >= 0 && _selectedIndex < (int)_map->spawnPoints.size()) {
             targetPos = _map->spawnPoints[_selectedIndex].position;
+        } else if (_selectionType == SelectionType::WeaponSpawner && _selectedIndex >= 0 && _selectedIndex < (int)_map->weaponSpawners.size()) {
+            targetPos = _map->weaponSpawners[_selectedIndex].position;
         }
         _camera.setPosition(targetPos - _camera.getFront() * 10.0f);
         logMessage("Focused Camera on selection at (" + std::to_string((int)targetPos.x) + ", " + std::to_string((int)targetPos.y) + ", " + std::to_string((int)targetPos.z) + ")");
@@ -810,6 +842,114 @@ public:
                 _selectionType = SelectionType::Door;
                 _selectedIndex = (int)_map->doors.size() - 1;
                 logMessage("Placed Prebuilt: Brama Bezpieczenstwa (Drzwi)");
+                break;
+            }
+            case 8: { // Spawner: Pipe
+                MapWeaponSpawner ws;
+                ws.weaponId = 0;
+                ws.position = _cursorPos;
+                ws.yaw = 0.0f;
+                ws.respawnTime = 60.0f;
+                _map->weaponSpawners.push_back(ws);
+                _selectionType = SelectionType::WeaponSpawner;
+                _selectedIndex = (int)_map->weaponSpawners.size() - 1;
+                logMessage("Placed Weapon Spawner: Pipe (60s Respawn)");
+                break;
+            }
+            case 9: { // Spawner: Pistol
+                MapWeaponSpawner ws;
+                ws.weaponId = 1;
+                ws.position = _cursorPos;
+                ws.yaw = 0.0f;
+                ws.respawnTime = 60.0f;
+                _map->weaponSpawners.push_back(ws);
+                _selectionType = SelectionType::WeaponSpawner;
+                _selectedIndex = (int)_map->weaponSpawners.size() - 1;
+                logMessage("Placed Weapon Spawner: Pistol (60s Respawn)");
+                break;
+            }
+            case 10: { // Spawner: Shotgun
+                MapWeaponSpawner ws;
+                ws.weaponId = 2;
+                ws.position = _cursorPos;
+                ws.yaw = 0.0f;
+                ws.respawnTime = 60.0f;
+                _map->weaponSpawners.push_back(ws);
+                _selectionType = SelectionType::WeaponSpawner;
+                _selectedIndex = (int)_map->weaponSpawners.size() - 1;
+                logMessage("Placed Weapon Spawner: Shotgun (60s Respawn)");
+                break;
+            }
+            case 11: { // Spawner: M4A4-S
+                MapWeaponSpawner ws;
+                ws.weaponId = 3;
+                ws.position = _cursorPos;
+                ws.yaw = 0.0f;
+                ws.respawnTime = 60.0f;
+                _map->weaponSpawners.push_back(ws);
+                _selectionType = SelectionType::WeaponSpawner;
+                _selectedIndex = (int)_map->weaponSpawners.size() - 1;
+                logMessage("Placed Weapon Spawner: M4A4-S (60s Respawn)");
+                break;
+            }
+            case 12: { // Spawner: SG553
+                MapWeaponSpawner ws;
+                ws.weaponId = 4;
+                ws.position = _cursorPos;
+                ws.yaw = 0.0f;
+                ws.respawnTime = 60.0f;
+                _map->weaponSpawners.push_back(ws);
+                _selectionType = SelectionType::WeaponSpawner;
+                _selectedIndex = (int)_map->weaponSpawners.size() - 1;
+                logMessage("Placed Weapon Spawner: SG553 (60s Respawn)");
+                break;
+            }
+            case 13: { // Spawner: Minigun
+                MapWeaponSpawner ws;
+                ws.weaponId = 5;
+                ws.position = _cursorPos;
+                ws.yaw = 0.0f;
+                ws.respawnTime = 60.0f;
+                _map->weaponSpawners.push_back(ws);
+                _selectionType = SelectionType::WeaponSpawner;
+                _selectedIndex = (int)_map->weaponSpawners.size() - 1;
+                logMessage("Placed Weapon Spawner: Minigun (60s Respawn)");
+                break;
+            }
+            case 14: { // Spawner: Plasma Gun
+                MapWeaponSpawner ws;
+                ws.weaponId = 6;
+                ws.position = _cursorPos;
+                ws.yaw = 0.0f;
+                ws.respawnTime = 60.0f;
+                _map->weaponSpawners.push_back(ws);
+                _selectionType = SelectionType::WeaponSpawner;
+                _selectedIndex = (int)_map->weaponSpawners.size() - 1;
+                logMessage("Placed Weapon Spawner: Plasma Gun (60s Respawn)");
+                break;
+            }
+            case 15: { // Spawner: Railgun
+                MapWeaponSpawner ws;
+                ws.weaponId = 7;
+                ws.position = _cursorPos;
+                ws.yaw = 0.0f;
+                ws.respawnTime = 60.0f;
+                _map->weaponSpawners.push_back(ws);
+                _selectionType = SelectionType::WeaponSpawner;
+                _selectedIndex = (int)_map->weaponSpawners.size() - 1;
+                logMessage("Placed Weapon Spawner: Railgun (60s Respawn)");
+                break;
+            }
+            case 16: { // Spawner: RPG
+                MapWeaponSpawner ws;
+                ws.weaponId = 8;
+                ws.position = _cursorPos;
+                ws.yaw = 0.0f;
+                ws.respawnTime = 60.0f;
+                _map->weaponSpawners.push_back(ws);
+                _selectionType = SelectionType::WeaponSpawner;
+                _selectedIndex = (int)_map->weaponSpawners.size() - 1;
+                logMessage("Placed Weapon Spawner: RPG (60s Respawn)");
                 break;
             }
         }
@@ -1108,13 +1248,31 @@ public:
 
             // PREBUILTS TAB INTERACTIONS
             if (_sidebarTab == SidebarTab::Prebuilts) {
-                float startY = l.rightY + 58.0f;
-                float cardH = 46.0f;
-                float cardSpacing = 52.0f;
-                for (int i = 0; i < 8; ++i) {
+                float catY = l.rightY + 36.0f;
+                float catW = (l.rightW - 24.0f) * 0.5f;
+                if (my >= catY && my <= catY + 24.0f) {
+                    if (mx >= l.rightX + 10.0f && mx <= l.rightX + 10.0f + catW) {
+                        _prebuiltCategory = 0;
+                        logMessage("Prebuilts: Kategoria [Encje & Baza]");
+                        return;
+                    }
+                    if (mx >= l.rightX + 14.0f + catW && mx <= l.rightX + l.rightW - 10.0f) {
+                        _prebuiltCategory = 1;
+                        logMessage("Prebuilts: Kategoria [Bronie / Spawners]");
+                        return;
+                    }
+                }
+
+                float startY = catY + 30.0f;
+                float cardH = (_prebuiltCategory == 0) ? 44.0f : 36.0f;
+                float cardSpacing = cardH + 5.0f;
+                int count = (_prebuiltCategory == 0) ? 8 : 9;
+
+                for (int i = 0; i < count; ++i) {
                     float cy = startY + i * cardSpacing;
                     if (mx >= l.rightX + 10.0f && mx <= l.rightX + l.rightW - 10.0f && my >= cy && my <= cy + cardH) {
-                        placePrebuilt(i);
+                        int prebuiltId = (_prebuiltCategory == 0) ? i : (8 + i);
+                        placePrebuilt(prebuiltId);
                         return;
                     }
                 }
@@ -1124,7 +1282,8 @@ public:
             // OUTLINER TAB INTERACTIONS
             if (_sidebarTab == SidebarTab::Hierarchy) {
                 int totalSpawns = (int)_map->spawnPoints.size();
-                int totalEntities = (int)(totalSpawns + _map->brushes.size() + _map->props.size() + _map->doors.size());
+                int totalWepSpawns = (int)_map->weaponSpawners.size();
+                int totalEntities = (int)(totalSpawns + totalWepSpawns + _map->brushes.size() + _map->props.size() + _map->doors.size());
                 int maxItems = (int)(l.outListH / l.outItemSpacing);
 
                 // Click on entity items
@@ -1136,8 +1295,12 @@ public:
                             _selectionType = SelectionType::Spawn;
                             _selectedIndex = itemIdx;
                             logMessage("Outliner: Selected " + _map->spawnPoints[itemIdx].getDisplayName() + " #" + std::to_string(itemIdx));
+                        } else if (itemIdx < totalSpawns + totalWepSpawns) {
+                            _selectionType = SelectionType::WeaponSpawner;
+                            _selectedIndex = itemIdx - totalSpawns;
+                            logMessage("Outliner: Selected Weapon Spawner [" + _map->weaponSpawners[_selectedIndex].getWeaponName() + "] #" + std::to_string(_selectedIndex));
                         } else {
-                            int bOffset = totalSpawns;
+                            int bOffset = totalSpawns + totalWepSpawns;
                             int pOffset = bOffset + (int)_map->brushes.size();
                             int dOffset = pOffset + (int)_map->props.size();
 
@@ -1191,6 +1354,57 @@ public:
 
             // PROPERTIES TAB INTERACTIONS
             if (_sidebarTab == SidebarTab::Properties) {
+                // Weapon Spawner Properties Interactions
+                if (_selectionType == SelectionType::WeaponSpawner && _selectedIndex >= 0 && _selectedIndex < (int)_map->weaponSpawners.size()) {
+                    auto& ws = _map->weaponSpawners[_selectedIndex];
+                    float propY = l.rightY + 38.0f;
+                    float wepBtnY = propY + 114.0f;
+                    if (my >= wepBtnY && my <= wepBtnY + 26.0f) {
+                        if (mx >= l.rightX + 10.0f && mx <= l.rightX + 140.0f) {
+                            ws.weaponId = (ws.weaponId - 1 + 9) % 9;
+                            logMessage("Changed Spawner to: " + ws.getWeaponName());
+                            return;
+                        }
+                        if (mx >= l.rightX + 150.0f && mx <= l.rightX + 280.0f) {
+                            ws.weaponId = (ws.weaponId + 1) % 9;
+                            logMessage("Changed Spawner to: " + ws.getWeaponName());
+                            return;
+                        }
+                    }
+
+                    float respBtnY = wepBtnY + 54.0f;
+                    if (my >= respBtnY && my <= respBtnY + 24.0f) {
+                        if (mx >= l.rightX + 10.0f && mx <= l.rightX + 80.0f) {
+                            ws.respawnTime = std::max(10.0f, ws.respawnTime - 15.0f);
+                            logMessage("Respawn Time: " + std::to_string((int)ws.respawnTime) + "s");
+                            return;
+                        }
+                        if (mx >= l.rightX + 90.0f && mx <= l.rightX + 190.0f) {
+                            ws.respawnTime = 60.0f;
+                            logMessage("Respawn Time: 60s (1 min)");
+                            return;
+                        }
+                        if (mx >= l.rightX + 200.0f && mx <= l.rightX + 270.0f) {
+                            ws.respawnTime = std::min(300.0f, ws.respawnTime + 15.0f);
+                            logMessage("Respawn Time: " + std::to_string((int)ws.respawnTime) + "s");
+                            return;
+                        }
+                    }
+
+                    // Deselect
+                    if (mx >= l.deselX && mx <= l.deselX + l.deselW && my >= l.deselY && my <= l.deselY + l.deselH) {
+                        _selectionType = SelectionType::None;
+                        _selectedIndex = -1;
+                        logMessage("Deselected all");
+                        return;
+                    }
+                    // Delete
+                    if (mx >= l.delX && mx <= l.delX + l.delW && my >= l.delY && my <= l.delY + l.delH) {
+                        deleteSelection();
+                        return;
+                    }
+                }
+
                 // Spawn Point Properties Interactions
                 if (_selectionType == SelectionType::Spawn && _selectedIndex >= 0 && _selectedIndex < (int)_map->spawnPoints.size()) {
                     float propY = l.rightY + 38.0f;
@@ -1395,6 +1609,45 @@ public:
                 Vec3 arrowPos = sp.position + fwd * 0.85f + Vec3(0.0f, -0.2f, 0.0f);
                 Renderer::drawCube(arrowPos, Vec3(0.18f, 0.18f, 0.42f), teamCol, nullptr, false);
             }
+
+            // Render All Weapon Spawners with Pedestal & 3D Weapon Model
+            for (size_t i = 0; i < _map->weaponSpawners.size(); ++i) {
+                const auto& ws = _map->weaponSpawners[i];
+                // Base ground pedestal
+                Renderer::drawCube(ws.position + Vec3(0.0f, 0.04f, 0.0f), Vec3(0.0f, ws.yaw, 0.0f),
+                                   Vec3(1.35f, 0.08f, 1.35f), Vec3(0.18f, 0.20f, 0.24f), nullptr, false);
+                Renderer::drawCube(ws.position + Vec3(0.0f, 0.082f, 0.0f), Vec3(0.0f, ws.yaw, 0.0f),
+                                   Vec3(1.15f, 0.01f, 1.15f), Vec3(0.2f, 0.75f, 0.95f), nullptr, false);
+
+                // Render 3D Weapon Model (Using STL mesh if loaded, or procedural)
+                float weaponY = ws.position.y + 0.38f;
+                const char* stlNames[9] = {
+                    "assets/models/pipe.stl", "assets/models/pistol.stl", "assets/models/shotgun.stl",
+                    "assets/models/m4a4s.stl", "assets/models/sg553.stl", "assets/models/minigun.stl",
+                    "assets/models/plasma.stl", "assets/models/railgun.stl", "assets/models/rpg.stl"
+                };
+                const char* texFallbacks[9] = {
+                    "weapon_pipe.bmp", "weapon_pistol.bmp", "weapon_shotgun.bmp",
+                    "weapon_m4a4s.bmp", "weapon_sg553.bmp", "weapon_minigun.bmp",
+                    "weapon_plasma.bmp", "weapon_railgun.bmp", "weapon_rpg.bmp"
+                };
+                std::string stlFile = (ws.weaponId >= 0 && ws.weaponId < 9) ? stlNames[ws.weaponId] : "";
+                if (!stlFile.empty() && !_meshes.contains(stlFile)) {
+                    Mesh* m = Mesh::loadSTL(stlFile);
+                    if (m) _meshes[stlFile] = std::unique_ptr<Mesh>(m);
+                }
+                std::string texFallback = (ws.weaponId >= 0 && ws.weaponId < 9) ? texFallbacks[ws.weaponId] : "";
+                std::string texName = Renderer::resolveModelTexture(stlFile, texFallback);
+                Texture* wTex = texName.empty() ? nullptr : getTexture(texName);
+
+                if (!stlFile.empty() && _meshes.contains(stlFile)) {
+                    Renderer::drawMesh(*_meshes[stlFile], Vec3(ws.position.x, weaponY, ws.position.z),
+                                       Vec3(0.0f, ws.yaw, 0.0f), Vec3(0.018f, 0.018f, 0.018f), Vec3(1, 1, 1), wTex);
+                } else {
+                    Renderer::drawCube(Vec3(ws.position.x, weaponY, ws.position.z), Vec3(0.0f, ws.yaw, 0.0f),
+                                       Vec3(0.12f, 0.14f, 0.82f), Vec3(0.35f, 0.65f, 0.95f), wTex, false);
+                }
+            }
         }
 
         _cullingStats = "Frustum Culling: Brushes " + std::to_string(renderedBrushes) + "/" + std::to_string(totalBrushes) +
@@ -1423,6 +1676,10 @@ public:
                 Vec3 half(0.6f, 0.9f, 0.6f);
                 Renderer::drawBoundingBox(sp.position - half, sp.position + half, hammerOrange);
                 drawGizmo(sp.position);
+            } else if (_selectionType == SelectionType::WeaponSpawner && _selectedIndex >= 0 && _selectedIndex < (int)_map->weaponSpawners.size()) {
+                const auto& ws = _map->weaponSpawners[_selectedIndex];
+                Renderer::drawBoundingBox(ws.position - Vec3(0.7f, 0.0f, 0.7f), ws.position + Vec3(0.7f, 0.8f, 0.7f), hammerOrange);
+                drawGizmo(ws.position);
             }
         }
 
@@ -1692,7 +1949,19 @@ public:
 
         // ==================== TAB CONTENT: PREBUILTS & ENTITIES ====================
         if (_sidebarTab == SidebarTab::Prebuilts) {
-            LabFont::drawText(l.rightX + 12.0f, l.rightY + 38.0f, "Prebuilts & Map Entities (Click to Place):", 1.6f, textDark, LabFontType::System);
+            float catY = l.rightY + 36.0f;
+            float catW = (l.rightW - 24.0f) * 0.5f;
+
+            bool isCat0 = (_prebuiltCategory == 0);
+            bool isCat1 = (_prebuiltCategory == 1);
+
+            Renderer::drawRect(l.rightX + 10.0f, catY, catW, 24.0f, isCat0 ? Vec3(1, 1, 1) : Vec3(0.85f, 0.85f, 0.88f));
+            Renderer::drawRect(l.rightX + 10.0f, catY, catW, 1.0f, isCat0 ? orangeGlow : winBorder);
+            LabFont::drawText(l.rightX + 16.0f, catY + 4.0f, "Encje / Baza", 1.5f, isCat0 ? textDark : textDim, LabFontType::System);
+
+            Renderer::drawRect(l.rightX + 14.0f + catW, catY, catW, 24.0f, isCat1 ? Vec3(1, 1, 1) : Vec3(0.85f, 0.85f, 0.88f));
+            Renderer::drawRect(l.rightX + 14.0f + catW, catY, catW, 1.0f, isCat1 ? orangeGlow : winBorder);
+            LabFont::drawText(l.rightX + 20.0f + catW, catY + 4.0f, "Bronie (Spawny)", 1.5f, isCat1 ? textDark : textDim, LabFontType::System);
 
             struct PrebuiltDesc {
                 std::string title;
@@ -1700,7 +1969,7 @@ public:
                 Vec3 color;
             };
 
-            PrebuiltDesc items[] = {
+            PrebuiltDesc cat0Items[] = {
                 { "Spawn: FFA / DM", "Neutralny spawn dla kazdego gracza", Vec3(0.18f, 0.65f, 0.35f) },
                 { "Spawn: Team Alpha", "Baza Druzyny 1 (Niebiescy / Blue HQ)", Vec3(0.18f, 0.45f, 0.85f) },
                 { "Spawn: Team Beta", "Baza Druzyny 2 (Czerwoni / Red HQ)", Vec3(0.85f, 0.25f, 0.25f) },
@@ -1711,18 +1980,32 @@ public:
                 { "Brama Bezpieczenstwa", "Przesuwne pancerne drzwi z czujnikiem", Vec3(0.25f, 0.35f, 0.45f) }
             };
 
-            float startY = l.rightY + 58.0f;
-            float cardH = 46.0f;
-            float cardSpacing = 52.0f;
+            PrebuiltDesc cat1Items[] = {
+                { "Spawn: Pipe", "Bron biala rura (Melee)", Vec3(0.55f, 0.55f, 0.60f) },
+                { "Spawn: Pistol", "Pistolet taktyczny (Respawn: 60s)", Vec3(0.35f, 0.60f, 0.75f) },
+                { "Spawn: Shotgun", "Strzelba bojowa pompka (Respawn: 60s)", Vec3(0.75f, 0.45f, 0.25f) },
+                { "Spawn: M4A4-S", "Karabin szturmowy z tlumikiem (60s)", Vec3(0.25f, 0.60f, 0.40f) },
+                { "Spawn: SG553", "Karabin szturmowy z celownikiem (60s)", Vec3(0.40f, 0.50f, 0.65f) },
+                { "Spawn: Minigun", "Ciezki rotacyjny karabin (Respawn: 60s)", Vec3(0.85f, 0.55f, 0.15f) },
+                { "Spawn: Plasma Gun", "Wyrzutnia pociskow plazmowych (60s)", Vec3(0.20f, 0.75f, 0.85f) },
+                { "Spawn: Railgun", "Karabin elektromagnetyczny (Respawn: 60s)", Vec3(0.75f, 0.30f, 0.85f) },
+                { "Spawn: RPG", "Wyrzutnia rakiet eksplodujacych (60s)", Vec3(0.85f, 0.25f, 0.25f) }
+            };
 
-            for (int i = 0; i < 8; ++i) {
+            float startY = catY + 30.0f;
+            float cardH = isCat0 ? 44.0f : 36.0f;
+            float cardSpacing = cardH + 5.0f;
+            int count = isCat0 ? 8 : 9;
+            const PrebuiltDesc* activeItems = isCat0 ? cat0Items : cat1Items;
+
+            for (int i = 0; i < count; ++i) {
                 float cy = startY + i * cardSpacing;
                 Renderer::drawRect(l.rightX + 10.0f, cy, l.rightW - 20.0f, cardH, Vec3(1, 1, 1));
                 Renderer::drawRect(l.rightX + 10.0f, cy, l.rightW - 20.0f, 1.0f, winBorder);
-                Renderer::drawRect(l.rightX + 10.0f, cy, 6.0f, cardH, items[i].color);
+                Renderer::drawRect(l.rightX + 10.0f, cy, 6.0f, cardH, activeItems[i].color);
 
-                LabFont::drawText(l.rightX + 22.0f, cy + 6.0f, items[i].title, 1.6f, textDark, LabFontType::System);
-                LabFont::drawText(l.rightX + 22.0f, cy + 24.0f, items[i].desc, 1.3f, textDim, LabFontType::System);
+                LabFont::drawText(l.rightX + 22.0f, cy + 4.0f, activeItems[i].title, 1.5f, textDark, LabFontType::System);
+                LabFont::drawText(l.rightX + 22.0f, cy + (isCat0 ? 22.0f : 19.0f), activeItems[i].desc, 1.3f, textDim, LabFontType::System);
             }
         }
 
@@ -1734,7 +2017,8 @@ public:
             Renderer::drawRect(l.outListX, l.outListY, l.outListW, 1.0f, winBorder);
 
             int totalSpawns = (int)_map->spawnPoints.size();
-            int totalEntities = (int)(totalSpawns + _map->brushes.size() + _map->props.size() + _map->doors.size());
+            int totalWepSpawns = (int)_map->weaponSpawners.size();
+            int totalEntities = (int)(totalSpawns + totalWepSpawns + _map->brushes.size() + _map->props.size() + _map->doors.size());
             int maxItems = (int)(l.outListH / l.outItemSpacing);
 
             for (int i = 0; i < maxItems; ++i) {
@@ -1750,8 +2034,14 @@ public:
                     const auto& sp = _map->spawnPoints[itemIdx];
                     itemText = "[" + sp.getDisplayName() + " #" + std::to_string(itemIdx) + "] (" +
                                std::to_string((int)sp.position.x) + "," + std::to_string((int)sp.position.z) + ")";
+                } else if (itemIdx < totalSpawns + totalWepSpawns) {
+                    int wsIdx = itemIdx - totalSpawns;
+                    isSelected = (_selectionType == SelectionType::WeaponSpawner && _selectedIndex == wsIdx);
+                    const auto& ws = _map->weaponSpawners[wsIdx];
+                    itemText = "[WEP: " + ws.getWeaponName() + " #" + std::to_string(wsIdx) + "] (" +
+                               std::to_string((int)ws.position.x) + "," + std::to_string((int)ws.position.z) + ")";
                 } else {
-                    int bOffset = totalSpawns;
+                    int bOffset = totalSpawns + totalWepSpawns;
                     int pOffset = bOffset + (int)_map->brushes.size();
                     int dOffset = pOffset + (int)_map->props.size();
 
@@ -1809,8 +2099,57 @@ public:
         if (_sidebarTab == SidebarTab::Properties) {
             float propY = l.rightY + 38.0f;
 
-            // Dedicated Spawn Properties when a spawn is selected
-            if (_selectionType == SelectionType::Spawn && _selectedIndex >= 0 && _selectedIndex < (int)_map->spawnPoints.size()) {
+            // Dedicated Weapon Spawner Properties when a weapon spawner is selected
+            if (_selectionType == SelectionType::WeaponSpawner && _selectedIndex >= 0 && _selectedIndex < (int)_map->weaponSpawners.size()) {
+                auto& ws = _map->weaponSpawners[_selectedIndex];
+                std::string selHeader = "Selection: Weapon Spawner #" + std::to_string(_selectedIndex);
+                LabFont::drawText(l.rightX + 12.0f, propY, selHeader, 1.7f, orangeGlow, LabFontType::System);
+
+                std::string wepStr = "Weapon: " + ws.getWeaponName() + " (ID: " + std::to_string(ws.weaponId) + ")";
+                LabFont::drawText(l.rightX + 12.0f, propY + 24.0f, wepStr, 1.5f, Vec3(0.15f, 0.55f, 0.35f), LabFontType::System);
+
+                std::string posStr = "Pos: (" + std::to_string((int)ws.position.x) + ", " + std::to_string((int)ws.position.y) + ", " + std::to_string((int)ws.position.z) + ")";
+                LabFont::drawText(l.rightX + 12.0f, propY + 46.0f, posStr, 1.5f, textDark, LabFontType::System);
+
+                std::string respStr = "Respawn Timer: " + std::to_string((int)ws.respawnTime) + "s (Default: 60s)";
+                LabFont::drawText(l.rightX + 12.0f, propY + 68.0f, respStr, 1.5f, textDark, LabFontType::System);
+
+                // Weapon Selector Buttons [< Prev Weapon] [Next Weapon >]
+                LabFont::drawText(l.rightX + 12.0f, propY + 96.0f, "Cycle Spawned Weapon:", 1.6f, textDark, LabFontType::System);
+                float wepBtnY = propY + 114.0f;
+                Renderer::drawRect(l.rightX + 10.0f, wepBtnY, 130.0f, 26.0f, Vec3(0.85f, 0.88f, 0.92f));
+                Renderer::drawRect(l.rightX + 10.0f, wepBtnY, 130.0f, 1.0f, winBorder);
+                LabFont::drawText(l.rightX + 18.0f, wepBtnY + 5.0f, "< Prev Weapon", 1.5f, textDark, LabFontType::System);
+
+                Renderer::drawRect(l.rightX + 150.0f, wepBtnY, 130.0f, 26.0f, Vec3(0.85f, 0.88f, 0.92f));
+                Renderer::drawRect(l.rightX + 150.0f, wepBtnY, 130.0f, 1.0f, winBorder);
+                LabFont::drawText(l.rightX + 158.0f, wepBtnY + 5.0f, "Next Weapon >", 1.5f, textDark, LabFontType::System);
+
+                // Respawn Time Buttons [-15s] [60s (1 min)] [+15s]
+                LabFont::drawText(l.rightX + 12.0f, wepBtnY + 36.0f, "Set Respawn Delay Cooldown:", 1.6f, textDark, LabFontType::System);
+                float respBtnY = wepBtnY + 54.0f;
+                Renderer::drawRect(l.rightX + 10.0f, respBtnY, 70.0f, 24.0f, Vec3(0.88f, 0.88f, 0.90f));
+                Renderer::drawRect(l.rightX + 10.0f, respBtnY, 70.0f, 1.0f, winBorder);
+                LabFont::drawText(l.rightX + 22.0f, respBtnY + 4.0f, "-15s", 1.5f, textDark, LabFontType::System);
+
+                bool isDefault60 = (std::abs(ws.respawnTime - 60.0f) < 0.1f);
+                Renderer::drawRect(l.rightX + 90.0f, respBtnY, 100.0f, 24.0f, isDefault60 ? Vec3(0.78f, 0.92f, 0.82f) : Vec3(0.88f, 0.88f, 0.90f));
+                Renderer::drawRect(l.rightX + 90.0f, respBtnY, 100.0f, 1.0f, isDefault60 ? Vec3(0.2f, 0.6f, 0.3f) : winBorder);
+                LabFont::drawText(l.rightX + 100.0f, respBtnY + 4.0f, "60s (1 min)", 1.5f, isDefault60 ? Vec3(0.1f, 0.45f, 0.2f) : textDark, LabFontType::System);
+
+                Renderer::drawRect(l.rightX + 200.0f, respBtnY, 70.0f, 24.0f, Vec3(0.88f, 0.88f, 0.90f));
+                Renderer::drawRect(l.rightX + 200.0f, respBtnY, 70.0f, 1.0f, winBorder);
+                LabFont::drawText(l.rightX + 212.0f, respBtnY + 4.0f, "+15s", 1.5f, textDark, LabFontType::System);
+
+                // Deselect & Delete buttons
+                Renderer::drawRect(l.deselX, l.deselY, l.deselW, l.deselH, Vec3(0.88f, 0.88f, 0.90f));
+                Renderer::drawRect(l.deselX, l.deselY, l.deselW, 1.0f, winBorder);
+                LabFont::drawText(l.deselX + 85.0f, l.deselY + 7.0f, "Deselect All", 1.6f, textDark, LabFontType::System);
+
+                Renderer::drawRect(l.delX, l.delY, l.delW, l.delH, Vec3(0.88f, 0.88f, 0.90f));
+                Renderer::drawRect(l.delX, l.delY, l.delW, 1.0f, winBorder);
+                LabFont::drawText(l.delX + 70.0f, l.delY + 7.0f, "Delete Weapon Spawner", 1.6f, Vec3(0.7f, 0.1f, 0.1f), LabFontType::System);
+            } else if (_selectionType == SelectionType::Spawn && _selectedIndex >= 0 && _selectedIndex < (int)_map->spawnPoints.size()) {
                 auto& sp = _map->spawnPoints[_selectedIndex];
                 std::string selHeader = "Selection: " + sp.getDisplayName() + " #" + std::to_string(_selectedIndex);
                 LabFont::drawText(l.rightX + 12.0f, propY, selHeader, 1.7f, orangeGlow, LabFontType::System);
@@ -2211,6 +2550,7 @@ private:
     // Sidebar State
     SidebarTab _sidebarTab = SidebarTab::Properties;
     int _outlinerScroll = 0;
+    int _prebuiltCategory = 0; // 0 = Entities / Spawns, 1 = Weapon Spawners
 
     int _activeTool = 1; // 0=Select, 1=Brush, 2=Prop, 3=Texture, 4=Door, 5=Spawn, 6=Resize, 7=Sun
     SpawnType _spawnToolType = SpawnType::FFA;

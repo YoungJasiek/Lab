@@ -96,6 +96,7 @@ namespace Lab {
         static void drawBoundingBox(const Vec3& min, const Vec3& max, const Vec3& color);
         static void drawMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true);
         static void drawBaseplate(float size, const Texture* texture = nullptr);
+        static std::string resolveModelTexture(const std::string& modelPath, const std::string& fallbackTexture = "");
 
         // 2D/UI Rendering
         static void beginUI(int windowWidth, int windowHeight);

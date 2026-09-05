@@ -18,6 +18,17 @@ ENTITIES
     spawn_point info_player_team2 12.0 1.8 -6.0 -135.0 team_beta
     spawn_point info_player_team2 10.0 1.8 -10.0 180.0 team_beta
 
+    // Persistent Weapon Spawn Pads (60s Respawn Timer)
+    weapon_spawner 0 -5.0 0.0 0.0 0.0 60.0
+    weapon_spawner 1  5.0 0.0 0.0 0.0 60.0
+    weapon_spawner 2  0.0 0.0 -8.0 0.0 60.0
+    weapon_spawner 3 -8.0 0.0 -12.0 45.0 60.0
+    weapon_spawner 4  8.0 0.0 -12.0 -45.0 60.0
+    weapon_spawner 5  0.0 0.0 8.0 180.0 60.0
+    weapon_spawner 6 -10.0 0.0 2.0 90.0 60.0
+    weapon_spawner 7  10.0 0.0 2.0 -90.0 60.0
+    weapon_spawner 8  0.0 0.0 -16.0 0.0 60.0
+
     // Floor Baseplate
     brush cube 0.0 -0.5 0.0 160.0 1.0 160.0 1.0 1.0 1.0 floor_tiles.bmp
 

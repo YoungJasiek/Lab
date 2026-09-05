@@ -76,6 +76,19 @@ namespace Lab {
         }
     };
 
+    struct MapWeaponSpawner {
+        int weaponId = 2; // 0..8 (maps to WeaponID)
+        Vec3 position = { 0.0f, 0.0f, 0.0f };
+        float yaw = 0.0f;
+        float respawnTime = 60.0f; // Default 60s (1 min)
+
+        std::string getWeaponName() const {
+            const char* names[9] = { "Pipe", "Pistol", "Shotgun", "M4A4-S", "SG553", "Minigun", "Plasma Gun", "Railgun", "RPG" };
+            if (weaponId >= 0 && weaponId < 9) return names[weaponId];
+            return "Weapon";
+        }
+    };
+
     class LabMap {
     public:
         MapMetadata metadata;
@@ -84,6 +97,7 @@ namespace Lab {
         std::vector<MapProp> props;
         std::vector<MapDoor> doors;
         std::vector<MapSpawnPoint> spawnPoints;
+        std::vector<MapWeaponSpawner> weaponSpawners;
 
         std::vector<MapSpawnPoint> getSpawnsForTeam(GameMode mode, int team) const;
         MapSpawnPoint selectBestSpawn(GameMode mode, int team, const std::vector<Vec3>& enemyPositions = {}) const;
