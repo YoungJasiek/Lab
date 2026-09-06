@@ -28,23 +28,43 @@ The project encompasses three tightly integrated components:
 ## 🌟 Key Highlights & Engine Architecture
 
 ### ⚡ Modern C++20 Standards
-* **Strict RAII & Lifetime Management:** Zero manual `new` / `delete` across gameplay and rendering code; resource management via smart pointers (`std::unique_ptr`, `std::shared_ptr`) and RAII wrappers for all OpenGL objects.
+* **Strict RAII & Lifetime Management:** Zero manual `new` / `delete` across gameplay and rendering code; resource management via smart pointers (`std::unique_ptr`, `std::shared_ptr`) and RAII wrappers for all OpenGL and Lua objects.
 * **Cache-Friendly Design:** Contiguous component arrays and value semantics for transforms, brush geometry, and particle emitters.
 * **Deterministic Fixed-Timestep Loop:** Physics and game logic update at a fixed frequency (accumulator model), cleanly decoupled from uncapped rendering framerates (144+ FPS).
 
-### 🎨 OpenGL 4.5+ Direct State Access (DSA)
+### 📜 Lua 5.4 Scripting & Game Mechanics Subsystem (`LabScript`)
+* **Clean Architectural Decoupling:** Core engine infrastructure (OpenGL 4.5 DSA, physics, windowing, collision) is pure native C++20, while game-specific rules and balance reside in `assets/scripts/game_mechanics.lua`.
+* **Zero External DLL Dependencies:** Official Lua 5.4.6 runtime compiled statically into the engine via single translation unit (`external/lua/onelua.c`).
+* **Externalized Balancing:** Dynamic tables for Player Rules (HP, armor absorption ratio, respawn timers, barrel damage multiplier), Biometric Retinal Scanner credentials, and complete 9-weapon arsenal balancing.
+* **Pure Lua Damage & Lethality Evaluation:** `CalculateDamage()` evaluates armor reduction and death threshold flags in real-time.
+
+### 🎨 OpenGL 4.5+ Direct State Access (DSA) & Real-Time Lighting
 * **Decoupled State Pipeline:** No global state binding spaghetti (`glBindTexture`, `glBindBuffer` eliminated where DSA is applicable).
 * **Immutable Storage:** Textures and vertex buffers allocated via `glCreateTextures`, `glTextureStorage2D`, `glCreateBuffers`, and `glNamedBufferStorage`.
-* **Source-Engine Visual Aesthetics:** Crisp Blinn-Phong lighting, sharp normal mapping, contrast-rich lightmaps, procedural bullet decals, muzzle flashes, and zero TAA blur.
+* **Dynamic Shadow Mapping (2048x2048 FBO):** Real-time depth pass with 3x3 Percentage-Closer Filtering (PCF) and slope-scaled normal bias.
+* **Half-Life 2 Tactical Flashlight:** High-intensity spotlight with inner/outer beam falloff and synthesized mechanical toggle audio.
 
-### 🎯 Ballistics & Collision Subsystem
+### 👁️ Biometric Retinal Scanner & Airlock Security (`LabInteractive`)
+* **Environmental Interaction:** In-world 3D scanner consoles with procedural animated eye calibration textures, iris rendering, and sweeping laser beams.
+* **Seamless First-Person Experience:** Approaching and pressing `[E]` triggers a 1.25s biometric eye scan with animated 2D HUD status card (`Dr. Vance` credentials, match percentage).
+* **Physical Door Locking:** Linked blast doors remain physically locked shut until authenticated retinal verification.
+
+### 🔊 3D Spatial Audio & Procedural Synthesizer (`LabAudio`)
+* **Integrated miniaudio v0.11.25:** Zero-dependency audio engine with 3D inverse-square spatial attenuation, stereo panning, and listener Doppler.
+* **26 Procedural 16-bit PCM Sounds:** Built-in procedural WAV synthesizer covering all weapons, impacts, footsteps (concrete, metal, ice), items, and UI chimes.
+
+### 💥 Newtonian Physics & Destructible Props (`LabPhysics`)
+* **Rigid Body Dynamics:** Full moments of inertia tensor, semi-implicit Euler integration, restitution, and friction.
+* **Destructible Props & Explosives:** Wooden crates shatter into dynamic tumbling debris planks; red fuel barrels emit shockwaves, trigger chain explosions, and fling bots.
+
+### 🎯 Ballistics, Decals & CSG Geometry
 * **Branchless Slab Ray-AABB Math:** Ultra-fast hitscan bullet registration based on the Kay-Kajiya bounding-box intersection algorithm.
-* **Brush Movement & Swept Collisions:** Smooth wall-sliding, step clambering, and gravity impulses.
+* **Dynamic Projective Decals (`LabDecals`):** Persistent impact craters on concrete, metal punctures with silver rims, organic bot blood pools, and charred explosion scorches with depth bias.
+* **CSG Convex Polyhedron Slicing (`LabCSG`):** Real-time Sutherland-Hodgman polygon clipping against arbitrary cutting planes in Hammer.
 
-### 🔫 Arsenal & Combat Mechanics
-* **9 Distinct Weapons:** Tactical Knife/Pipe (Melee), Tactical Pistol, Tactical Shotgun, M4A4-S (Silenced Carbine), SG553 (Scoped Rifle with ADS zoom), Rotary Minigun, Plasma Gun, Gauss Railgun, and RPG.
-* **Weapon Spawners & Pickups:** Interactive world pickups with configurable 60-second respawn timers and dynamic bobbing/rotating animations.
-* **AI Bot State Machine:** Deterministic finite-state machine (FSM) driving bot patrol, line-of-sight tracking, weapon switching, and aggressive engagement.
+### 🦾 Skeletal Animation & Tactical Viewmodels
+* **glTF 2.0 GPU Skinning (`LabSkeletal`):** 20-bone humanoid skeleton with quaternion SLERP keyframe animation and dynamic Bone Socket weapon binding.
+* **Tactical First-Person Arms (`LabArms`):** Articulated cryo-suit gauntlets, cyan telemetry LEDs, multi-phase reload choreography, and tactical inspect (`V`).
 
 ---
 
@@ -109,7 +129,9 @@ cmake --build . --config Release --parallel
 | **Reload** | `R` | Reload current magazine from reserve ammo pool |
 | **Weapon Selection** | `1` – `9` / `Scroll Wheel` | Direct slot select or sequential cycle |
 | **Quick Switch** | `Q` | Instantly switch to previously equipped weapon |
-| **Interact / Open Door** | `E` | Activate bunker pressure airlocks and doors |
+| **Interact / Retinal Scan** | `E` | Initiate biometric eye scan on airlock consoles & doors |
+| **Tactical Flashlight** | `F` | Toggle tactical spotlight with real-time shadow casting |
+| **Weapon Inspect** | `V` | Trigger tactical viewmodel inspection & gauntlet display |
 | **Scoreboard** | `TAB` *(Hold)* | Display match scoreboard (kills, deaths, ping) |
 | **In-Game Chat** | `Y` / `Enter` | Open multiplayer tactical radio text input |
 | **Host / Main Menu** | `ESC` / `F1` | Toggle in-game host menu and level selection |
@@ -172,25 +194,41 @@ Pre-packaged test maps included in the repository:
 Lab/
 ├── CMakeLists.txt              # Root CMake build definition for all targets
 ├── README.md                   # Project overview and documentation
+├── TODO.md                     # Roadmap and sprint tracking document
 ├── .gitignore                  # Git tracking rules
+├── external/                   # Third-party embedded libraries
+│   └── lua/                    # Official Lua 5.4.6 runtime (onelua.c)
 ├── include/                    # Public C++ engine headers
 │   ├── LabCore.h               # Windowing, input polling, and game loop timing
 │   ├── LabRenderer.h           # OpenGL 4.5+ DSA rendering pipeline
+│   ├── LabScript.h             # Lua 5.4 ScriptEngine & game mechanics bridge
+│   ├── LabInteractive.h        # Biometric Retinal Scanner & environmental entities
+│   ├── LabAudio.h              # 3D spatial audio & procedural WAV synthesizer
+│   ├── LabPhysics.h            # Newtonian rigid body dynamics & destructible props
+│   ├── LabCSG.h                # Sutherland-Hodgman convex polyhedron geometry clipping
+│   ├── LabDecals.h             # Projective bullet, blood, and scorch decals
+│   ├── LabSkeletal.h           # glTF 2.0 animation rig & GPU vertex skinning
+│   ├── LabLight.h              # Spotlight flashlight & 2048x2048 shadow mapping
+│   ├── LabArms.h               # Tactical FPP arms kinematics & gauntlets
 │   ├── LabMap.h                # .labmap parser and serializer
 │   ├── LabCombat.h             # Raycasting, damage calculations, and hitboxes
-│   ├── LabWeapon.h             # Weapon definitions, ballistics, and reload logic
+│   ├── LabWeapon.h             # 9-weapon definitions, ballistics, and reload logic
 │   ├── LabPickups.h            # World pickup nodes and 60s respawn timers
 │   ├── LabAI.h                 # AI bot patrol, tracking, and combat FSM
 │   ├── LabCollision.h          # Kay-Kajiya ray-AABB math and swept box collision
-│   ├── LabParticles.h          # Sparks, smoke, tracer, and blood emitters
+│   ├── LabParticles.h          # Sparks, smoke, tracer, blood, and explosion emitters
+│   ├── LabHUD.h                # Tactical combat HUD, health/armor clamping & death screen
 │   ├── LabFont.h               # TrueType font rendering with stb_truetype
 │   └── LabCamera.h             # First-person view camera and viewport projection
 ├── src/                        # C++ source files
 │   ├── main.cpp                # Frozen-Life executable entry point (Lab.exe)
 │   ├── editor_main.cpp         # LabHammer editor entry point (LabHammer.exe)
-│   ├── test_verify.cpp         # Automated test suite (TestVerify.exe)
+│   ├── test_verify.cpp         # Automated test suite (TestVerify.exe - 30 tests)
+│   ├── LabScript.cpp           # ScriptEngine implementation and C++ <-> Lua bridge
+│   ├── LabInteractive.cpp      # Biometric Retinal Scanner & 3D console screens
 │   └── glad/                   # Embedded OpenGL loader sources
 ├── assets/                     # Runtime game assets
+│   ├── scripts/                # Game mechanics scripts (game_mechanics.lua)
 │   ├── maps/                   # Plain-text .labmap level files
 │   ├── textures/               # Bitmap textures (snow_frost, metal_hull, hazard)
 │   └── models/                 # 3D STL meshes (weapons and props)

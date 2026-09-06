@@ -310,7 +310,8 @@
           <li><strong>Rigid Body Dynamics, Destructible Crates &amp; Explosive Fuel Barrels:</strong> Newtonian 3D physics engine (mass, moments of inertia tensor, semi-implicit Euler integration, friction and restitution), destructible wooden crates that shatter into dynamic tumbling debris planks, and red hazard fuel barrels with radial blast shockwaves, cascading chain reactions, and kinetic ragdoll momentum flinging bots upon death.</li>
           <li><strong>CSG Geometry Clipping &amp; Level Editor Props:</strong> Real-time 3D Sutherland-Hodgman convex polyhedron plane slicing, cap triangulation with planar UV mapping, interactive cutting plane guide in Hammer, and complete serialization of CSG polyhedra and physical props into <code>.labmap</code>.</li>
           <li><strong>Dynamic Projective Decal System:</strong> Real-time projective decals with depth bias and polygon offset eliminating z-fighting, rendering concrete impact craters with fracture lines, metal bullet punctures with silver rims, organic bot blood splatters dripping on walls and pooling on floors, and charred explosive scorch marks with radial blast tendrils.</li>
-          <li><strong>Interactive In-World Terminals, Consoles &amp; Use Triggers:</strong> Usable environmental entities (security terminals, numeric keypads, industrial breaker switches) with crosshair raycast picking (2.8m range), player interaction key <code>E</code> (+use), CRT scanline screen textures, clearance authorization logic, procedural audio cues (Terminal Beep, Access Granted chime, Access Denied buzz), and logic I/O triggering of sliding airlock doors.</li>
+          <li><strong>Biometric Retinal Scanner &amp; Airlock Security:</strong> Environmental authentication console featuring in-world procedural 3D eye calibration, iris, and sweeping laser texture. Pressing <code>E</code> activates a 1.25s eye scan sequence with animated 2D HUD biometric card (Dr. Vance credentials, match percentage), unlocking and opening linked pneumatic blast doors upon verified match.</li>
+          <li><strong>Lua 5.4 Game Mechanics Scripting Engine:</strong> Full externalization of gameplay balancing into <code>assets/scripts/game_mechanics.lua</code> (Player HP, armor absorption, barrel damage multipliers, weapon stats, and pure Lua <code>CalculateDamage</code> evaluation), cleanly separated from the native C++20 engine core.</li>
         </ul>
       </section>
 
@@ -618,10 +619,10 @@
 
           <div class="thumb">
             <div class="thumbinner">
-              <img src="assets/img/test_interactive_terminals.webp" data-full="assets/img/test_interactive_terminals.png" alt="Interactive In-World Terminals, Consoles &amp; Use Triggers" class="thumbimage">
+              <img src="assets/img/test_interactive_terminals.webp" data-full="assets/img/test_interactive_terminals.png" alt="Biometric Retinal Scanner &amp; Airlock Door Security" class="thumbimage">
               <div class="thumbcaption">
                 <span class="magnify-icon">&#128269;</span>
-                Interactive Computer Terminal OS (LAB-OS v3.42): Fullscreen retro phosphor CRT terminal GUI, physical door airlock overrides [1], recovered facility incident logs #0451 [2], live synth telemetry radar [3], dot-matrix 3D in-world monitors, and physical door locking mechanics.
+                Biometric Retinal Scanner &amp; Airlock Security: Animated in-world 3D eye calibration monitor, sweeping laser line, 2D HUD biometric scan card (Dr. Vance authorization), procedural audio, and pneumatic door unlocking.
               </div>
             </div>
           </div>

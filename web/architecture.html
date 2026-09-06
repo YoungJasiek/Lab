@@ -84,6 +84,7 @@
           <li><a href="#sec-csg-engine">LabCSG Clip Geometry</a></li>
           <li><a href="#sec-decals-engine">LabDecals Projective</a></li>
           <li><a href="#sec-skeletal-engine">LabSkeletal &amp; Skinning</a></li>
+          <li><a href="#sec-script-engine">LabScript &amp; Lua 5.4</a></li>
           <li><a href="#sec-source-code">C++ Source Inspector</a></li>
         </ul>
       </div>
@@ -351,20 +352,18 @@ tFar  = min(max(t0.x, t1.x), max(t0.y, t1.y), max(t0.z, t1.z));</code></pre>
       </section>
 
       <!-- ================================================================
-           SECTION 8: LABINTERACTIVE TERMINALS
+           SECTION 8: LABINTERACTIVE RETINAL SCANNER
            ================================================================ -->
       <section id="sec-interactive-engine" class="wiki-section-container">
-        <h2><span class="mw-headline">8. LabInteractive: In-World Terminals, LAB-OS &amp; Door Locking</span></h2>
+        <h2><span class="mw-headline">8. LabInteractive: Biometric Retinal Scanner &amp; Door Locking</span></h2>
         <p>
-          The interactive entity system in <code>src/LabInteractive.cpp</code> brings immersive tactical computer terminals and security door mechanics:
+          The interactive entity system in <code>src/LabInteractive.cpp</code> brings immersive tactical environmental interaction and biometric airlock security:
         </p>
         <ul>
-          <li><strong>Computer Terminal OS (LAB-OS v3.42):</strong> Fullscreen interactive retro phosphor CRT terminal GUI (System Shock / Doom 3 / Fallout style) activated with <code>[E]</code>, featuring CRT scanlines, green/cyan phosphor palette, and hotkey navigation.</li>
-          <li><strong>Physical Door Locking Mechanics:</strong> Doors feature physical lock state (<code>MapDoor::isLocked</code>) preventing proximity auto-opening until overridden at the terminal console via option <code>[1]</code>.</li>
-          <li><strong>Incident Archival Logs (#0451):</strong> Facility lore and recovered transmissions documenting cryogenic containment failure, temperature plunge, and defensive synth protocol lockup accessed via option <code>[2]</code>.</li>
-          <li><strong>Synth Radar Telemetry:</strong> Real-time sensor grid telemetry querying active combat synths, squad health percentages, weapon payloads, and perimeter security via option <code>[3]</code>.</li>
-          <li><strong>In-World 3D Dot-Matrix Monitors:</strong> Real-time rasterization of 5x7 ASCII alphanumeric glyphs directly into monitor screen textures with OpenGL UV orientation alignment and animated prompt cursor (<code>&gt; PRESS [E] _</code>).</li>
-          <li><strong>Logic I/O &amp; Procedural Audio:</strong> Immediate dispatch of hydraulic actuator signals to target sliding airlocks, accompanied by procedural 16-bit PCM sound synthesis (<code>TerminalBeep</code>, <code>AccessGranted</code>, <code>AccessDenied</code>).</li>
+          <li><strong>Biometric Retinal Scanner (Dr. Vance):</strong> In-world 3D console with procedural animated eye calibration texture, iris/pupil rendering, and sweeping laser scan line. Pressing <code>[E]</code> triggers a 1.25s eye scan sequence.</li>
+          <li><strong>2D HUD Biometric Scan Card:</strong> Real-time animated biometric scan status widget featuring progress bar, credential readout (<code>Subject: DR. VANCE // Clearance: Level 3</code>), and match percentage telemetry.</li>
+          <li><strong>Physical Door Locking &amp; Actuators:</strong> Doors feature physical locking (<code>MapDoor::isLocked</code>). Upon 100% retinal verification, the scanner triggers <code>SoundID::AccessGranted</code> and pneumatically unlocks and opens the linked blast door (<code>isLocked = false; isOpen = true</code>).</li>
+          <li><strong>Negative HP Clamping:</strong> Integrated player HUD safety clamping with <code>std::max(0, ...)</code> ensuring health/armor displays never show negative values such as -38 HP.</li>
         </ul>
       </section>
 
@@ -415,11 +414,28 @@ tFar  = min(max(t0.x, t1.x), max(t0.y, t1.y), max(t0.z, t1.z));</code></pre>
       </section>
 
       <!-- ================================================================
-           SECTION 12: C++ SOURCE INSPECTOR
+           SECTION 12: LABSCRIPT & LUA 5.4 SCRIPTING
+           ================================================================ -->
+      <section id="sec-script-engine" class="wiki-section-container">
+        <h2><span class="mw-headline">12. LabScript: Embedded Lua 5.4 Game Mechanics Engine</span></h2>
+        <p>
+          The scripting subsystem in <code>include/LabScript.h</code> and <code>src/LabScript.cpp</code> decouples high-level game design from the core C++20 engine:
+        </p>
+        <ul>
+          <li><strong>Clean Architecture Separation:</strong> Engine infrastructure (rendering, collision, OpenGL DSA, windowing) remains native C++20, while gameplay rules and balancing reside in <code>assets/scripts/game_mechanics.lua</code>.</li>
+          <li><strong>Embedded Lua 5.4.6 Runtime:</strong> Built directly with CMake via <code>external/lua/onelua.c</code> with zero external DLL dependencies and complete C++20 RAII lifetime management.</li>
+          <li><strong>Dynamic Gameplay Rules:</strong> Player rules (150 HP, 50 Armor, 70% absorption ratio, 4.0s respawn timer, 0.75x barrel explosion multiplier), retinal scanner credentials (<code>DR. VANCE</code>, Level 3), and pickup economics.</li>
+          <li><strong>Full 9-Weapon Balancing Table:</strong> Weapon damage, fire rate, clip capacity, reserve limits, splash radius, and recoil kick loaded dynamically from Lua at startup and upon respawn.</li>
+          <li><strong>Pure Lua Damage Evaluation:</strong> The <code>CalculateDamage()</code> Lua function calculates armor reduction and lethality (<code>isLethal</code>), feeding into <code>applyDamageToPlayer()</code> for accurate barrel deaths and lethal damage handling.</li>
+        </ul>
+      </section>
+
+      <!-- ================================================================
+           SECTION 13: C++ SOURCE INSPECTOR
            ================================================================ -->
       <section id="sec-source-code" class="wiki-section-container">
         <a id="source-code" style="position:relative; top:-60px; display:block; visibility:hidden;"></a>
-        <h2><span class="mw-headline">12. Interactive C++ Source Code Inspector</span></h2>
+        <h2><span class="mw-headline">13. Interactive C++ Source Code Inspector</span></h2>
         <p>
           Inspect core implementation headers and algorithms directly from the Lab codebase:
         </p>
