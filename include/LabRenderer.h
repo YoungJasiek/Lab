@@ -101,6 +101,7 @@ namespace Lab {
         static void endShadowDepthPass();
         static void drawShadowCube(const Vec3& position, const Vec3& rotation, const Vec3& scale);
         static void drawShadowCube(const Vec3& position, const Vec3& size);
+        static void drawShadowCube(const Mat4& modelTransform);
         static void drawShadowMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale);
         static void drawShadowMesh(const Mesh& mesh, const Mat4& modelTransform);
         static void drawShadowSkinnedMesh(const SkinnedMesh& mesh, const Mat4& modelTransform, const std::vector<Mat4>& boneMatrices);
@@ -109,6 +110,7 @@ namespace Lab {
         static void drawCube(const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color, const Texture* texture = nullptr, bool enableLighting = true, const Vec2& uvTiling = { 0.25f, 0.25f }, int uvMode = 1);
         static void drawCube(const Vec3& position, const Vec3& size, const Vec3& color, const Texture* texture, bool enableLighting = true, const Vec2& uvTiling = { 0.25f, 0.25f }, int uvMode = 1);
         static void drawCube(const Vec3& position, const Vec3& size, const Vec3& color, bool enableLighting = true);
+        static void drawCube(const Mat4& modelTransform, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true, const Vec2& uvTiling = { 1.0f, 1.0f }, int uvMode = 1);
         static void drawWireCube(const Vec3& position, const Vec3& size, const Vec3& color);
         static void drawBoundingBox(const Vec3& min, const Vec3& max, const Vec3& color);
         static void drawMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true);

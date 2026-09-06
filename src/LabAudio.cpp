@@ -54,7 +54,9 @@ namespace Lab {
         { SoundID::PickupMedkit,     "pickup_medkit.wav",     "Pickup Medkit",     0.90f, 1.0f, 1.5f, 25.0f },
         { SoundID::WeaponSpawn,      "weapon_spawn.wav",      "Weapon Respawn Pad",0.85f, 1.0f, 2.0f, 30.0f },
         { SoundID::PlayerHurt,       "player_hurt.wav",       "Player Hurt",       0.85f, 1.0f, 1.5f, 25.0f },
-        { SoundID::FlashlightToggle, "flashlight_toggle.wav", "Flashlight Toggle", 0.90f, 1.0f, 1.0f, 15.0f }
+        { SoundID::FlashlightToggle, "flashlight_toggle.wav", "Flashlight Toggle", 0.90f, 1.0f, 1.0f, 15.0f },
+        { SoundID::CrateBreak,       "crate_break.wav",       "Crate Break",       0.95f, 1.0f, 2.0f, 35.0f },
+        { SoundID::BarrelImpact,     "barrel_impact.wav",     "Barrel Impact",     0.90f, 1.0f, 1.5f, 30.0f }
     }};
 
     struct ActiveSpatialSound {
@@ -122,6 +124,8 @@ namespace Lab {
             case SoundID::WeaponSpawn:      duration = 0.85f; break;
             case SoundID::PlayerHurt:       duration = 0.24f; break;
             case SoundID::FlashlightToggle: duration = 0.08f; break;
+            case SoundID::CrateBreak:       duration = 0.35f; break;
+            case SoundID::BarrelImpact:     duration = 0.28f; break;
             default:                        duration = 0.25f; break;
         }
 
@@ -301,6 +305,24 @@ namespace Lab {
                     float body = std::sin(2.0f * PI * 850.0f * t) * 0.5f;
                     float noise = nextNoise() * 0.3f * std::exp(-t * 120.0f);
                     out = (click + body + noise) * env;
+                    break;
+                }
+                case SoundID::CrateBreak: {
+                    // Splintering wood fracture + resonance
+                    float env = std::exp(-t * 16.0f);
+                    float crack = (t < 0.05f) ? (nextNoise() * 0.9f) : (nextNoise() * 0.45f * std::exp(-t * 30.0f));
+                    float woodThud = std::sin(2.0f * PI * (140.0f * std::exp(-t * 10.0f)) * t) * 0.7f;
+                    float splinters = std::sin(2.0f * PI * 1850.0f * t) * 0.3f * std::exp(-t * 40.0f);
+                    out = (crack + woodThud + splinters) * env;
+                    break;
+                }
+                case SoundID::BarrelImpact: {
+                    // Heavy hollow metallic drum clang & thud
+                    float env = std::exp(-t * 18.0f);
+                    float metalClang = std::sin(2.0f * PI * 340.0f * t) * 0.65f + std::sin(2.0f * PI * 680.0f * t) * 0.35f;
+                    float lowDrum = std::sin(2.0f * PI * 120.0f * t) * 0.6f;
+                    float ping = nextNoise() * 0.25f * std::exp(-t * 45.0f);
+                    out = (metalClang + lowDrum + ping) * env;
                     break;
                 }
                 default:

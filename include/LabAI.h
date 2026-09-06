@@ -56,6 +56,10 @@ namespace Lab {
         // glTF 2.0 Skeletal Animation Controller
         Animator animator;
 
+        // Kinetic momentum & ragdoll knockback
+        Vec3 velocity{ 0.0f, 0.0f, 0.0f };
+        void applyImpulse(const Vec3& impulse) { velocity += impulse; }
+
         CombatBot() = default;
         CombatBot(int botId, const std::string& botName, const Vec3& spawnPos, const Vec3& pEnd, int botTeam = -1);
 
@@ -69,7 +73,7 @@ namespace Lab {
         static bool hasLineOfSight(const Vec3& from, const Vec3& to, const LabMap& map);
 
         void update(float dt, const Vec3& playerPos, const LabMap& map, std::vector<BulletTracer>& outTracers, float& outDamageToPlayer);
-        bool takeDamage(float damage, bool isHeadshot);
+        bool takeDamage(float damage, bool isHeadshot, const Vec3& knockback = Vec3(0.0f, 0.0f, 0.0f));
         void render(const SkinnedMesh* mesh = nullptr, const Mesh* weaponMesh = nullptr) const;
         void renderShadow(const SkinnedMesh* mesh = nullptr, const Mesh* weaponMesh = nullptr) const;
     };

@@ -29,6 +29,8 @@ namespace Lab {
         WeaponSpawn,
         PlayerHurt,
         FlashlightToggle,
+        CrateBreak,
+        BarrelImpact,
         Count
     };
 

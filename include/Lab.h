@@ -19,3 +19,4 @@
 #include "LabArms.h"
 #include "LabLight.h"
 #include "LabSkeletal.h"
+#include "LabPhysics.h"

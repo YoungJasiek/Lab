@@ -185,12 +185,16 @@ namespace Lab {
         }
     }
 
-    bool CombatBot::takeDamage(float damage, bool isHeadshot) {
+    bool CombatBot::takeDamage(float damage, bool isHeadshot, const Vec3& knockback) {
         if (state == AIState::Dead) return false;
 
         float finalDmg = isHeadshot ? (damage * 2.5f) : damage;
         health -= finalDmg;
         hurtTimer = 0.22f;
+
+        if (knockback.lengthSq() > 0.01f) {
+            velocity += knockback;
+        }
 
         if (health <= 0.0f) {
             health = 0.0f;
@@ -198,7 +202,9 @@ namespace Lab {
             deaths++;
             respawnTimer = 4.5f;
             rotation.x = -80.0f; // Collapse back onto ground
-            position.y = 0.25f;
+            if (velocity.lengthSq() < 0.1f) {
+                position.y = 0.25f;
+            }
             return true; // Just died
         }
 
@@ -353,11 +359,23 @@ namespace Lab {
         for (size_t i = 0; i < bots.size(); ++i) {
             auto& bot = bots[i];
             if (!bot.isAlive()) {
+                if (bot.velocity.lengthSq() > 0.01f) {
+                    bot.velocity.y -= 14.5f * dt;
+                    bot.position += bot.velocity * dt;
+                    if (bot.position.y <= 0.25f) {
+                        bot.position.y = 0.25f;
+                        bot.velocity.y = -bot.velocity.y * 0.25f;
+                        bot.velocity.x *= 0.75f;
+                        bot.velocity.z *= 0.75f;
+                    }
+                }
                 bot.deathTimer += dt;
                 bot.respawnTimer -= dt;
                 if (bot.respawnTimer <= 0.0f) {
                     bot.state = AIState::Patrol;
                     bot.health = bot.maxHealth;
+                    bot.velocity = Vec3(0, 0, 0);
+                    bot.rotation.x = 0.0f;
 
                     // Collect active enemy positions for anti-spawncamp selection
                     std::vector<Vec3> enemies;

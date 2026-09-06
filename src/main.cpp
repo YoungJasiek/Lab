@@ -51,9 +51,10 @@ public:
             getTexture(texName);
         }
 
-        // Initialize Weapon System & Particles
+        // Initialize Weapon System, Particles & Physics
         _weaponSystem.init();
         _particleSystem.init();
+        _physicsWorld.init();
 
         // Check ONCE at startup which weapons have custom STL models and textures
         _cachedWeaponMeshes.resize(9, nullptr);
@@ -200,6 +201,29 @@ public:
                 _pickups.addWeaponPad(2, Vec3(-3.5f, 0.0f, -6.0f), 60.0f, 0.0f);  // Shotgun
                 _pickups.addWeaponPad(3, Vec3(6.5f, 0.0f, -14.0f), 60.0f, 0.0f);  // M4A4-S
                 _pickups.addWeaponPad(8, Vec3(-6.5f, 0.0f, -14.0f), 60.0f, 0.0f); // RPG
+            }
+
+            // Initialize Dynamic Rigid Body Physics Props (Crates & Explosive Barrels)
+            _physicsWorld.clear();
+            for (const auto& prop : _currentMap->props) {
+                if (prop.modelPath.find("barrel") != std::string::npos) {
+                    _physicsWorld.spawnExplosiveBarrel(prop.position, Vec3(0.32f, 0.48f, 0.32f) * prop.scale.x);
+                } else if (prop.modelPath.find("crate") != std::string::npos) {
+                    _physicsWorld.spawnCrate(prop.position, Vec3(0.45f, 0.45f, 0.45f) * prop.scale.x);
+                }
+            }
+            if (_physicsWorld.bodies.empty()) {
+                // Default Source Engine tactical arena props: wooden crates & red hazard explosive fuel barrels
+                _physicsWorld.spawnCrate(Vec3(-4.0f, 0.45f, -8.0f));
+                _physicsWorld.spawnCrate(Vec3(-4.0f, 1.35f, -8.0f)); // Stacked wooden crate!
+                _physicsWorld.spawnCrate(Vec3(-3.1f, 0.45f, -8.0f));
+                _physicsWorld.spawnExplosiveBarrel(Vec3(-4.0f, 0.48f, -6.8f)); // Hazardous fuel barrel next to crate stack!
+
+                _physicsWorld.spawnCrate(Vec3(4.5f, 0.45f, -10.0f));
+                _physicsWorld.spawnCrate(Vec3(5.4f, 0.45f, -10.0f));
+                _physicsWorld.spawnExplosiveBarrel(Vec3(4.5f, 0.48f, -8.8f));
+
+                _physicsWorld.spawnExplosiveBarrel(Vec3(0.0f, 0.48f, -16.0f)); // Central corridor explosive barrel!
             }
 
             // Ensure map is registered in list and selected
@@ -586,34 +610,44 @@ public:
                     RaycastHit hit;
                     hit.distance = def.range;
                     _aiManager.testRaycast(rayOrigin, forward, hit);
-                    if (hit.hit && hit.distance <= def.range && hit.tag == EntityTag::Bot) {
-                        AudioEngine::playSound(SoundID::PipeHit);
-                        for (auto& bot : _aiManager.bots) {
-                            if (bot.id == hit.entityIndex && bot.isAlive()) {
-                                float dmg = hit.isHeadshot ? (def.damage * def.headshotMultiplier) : def.damage;
-                                bool killed = bot.takeDamage(dmg, hit.isHeadshot);
-                                _hud.triggerHitmarker(hit.isHeadshot);
+                    _physicsWorld.raycast(rayOrigin, forward, hit);
 
-                                // Melee blood impact
-                                _particleSystem.spawnBlood(hit.point, -forward, hit.isHeadshot);
+                    if (hit.hit && hit.distance <= def.range) {
+                        if (hit.tag == EntityTag::Bot) {
+                            AudioEngine::playSound(SoundID::PipeHit);
+                            for (auto& bot : _aiManager.bots) {
+                                if (bot.id == hit.entityIndex && bot.isAlive()) {
+                                    float dmg = hit.isHeadshot ? (def.damage * def.headshotMultiplier) : def.damage;
+                                    Vec3 knockback = forward * 8.5f + Vec3(0, 3.2f, 0);
+                                    bool killed = bot.takeDamage(dmg, hit.isHeadshot, knockback);
+                                    _hud.triggerHitmarker(hit.isHeadshot);
 
-                                if (killed) {
-                                    _playerKills++;
-                                    _hud.frags = _playerKills;
-                                    std::string killMsg = (hit.isHeadshot ? "HEADSHOT SMASH! ELIMINATED " : "ELIMINATED ") +
-                                                          bot.name + " WITH " + def.name + " [" + std::to_string(_playerKills) + " FRAGS]";
-                                    _hud.showCombatMessage(killMsg, 2.5f);
-                                    _chat.addMessage("[SERVER]", killMsg, Vec3(1.0f, 0.4f, 0.2f));
+                                    // Melee blood impact
+                                    _particleSystem.spawnBlood(hit.point, -forward, hit.isHeadshot);
 
-                                    _pickups.spawnPickup(PickupType::Ammo, bot.position + Vec3(0.0f, 0.35f, 0.0f), 36);
-                                    if ((rand() % 100) < 65) {
-                                        _pickups.spawnPickup(PickupType::Medkit, bot.position + Vec3(0.4f, 0.35f, -0.3f), 50);
+                                    if (killed) {
+                                        _playerKills++;
+                                        _hud.frags = _playerKills;
+                                        std::string killMsg = (hit.isHeadshot ? "HEADSHOT SMASH! ELIMINATED " : "ELIMINATED ") +
+                                                              bot.name + " WITH " + def.name + " [" + std::to_string(_playerKills) + " FRAGS]";
+                                        _hud.showCombatMessage(killMsg, 2.5f);
+                                        _chat.addMessage("[SERVER]", killMsg, Vec3(1.0f, 0.4f, 0.2f));
+
+                                        _pickups.spawnPickup(PickupType::Ammo, bot.position + Vec3(0.0f, 0.35f, 0.0f), 36);
+                                        if ((rand() % 100) < 65) {
+                                            _pickups.spawnPickup(PickupType::Medkit, bot.position + Vec3(0.4f, 0.35f, -0.3f), 50);
+                                        }
+                                        WeaponID dropWep = (WeaponID)(2 + (rand() % 7));
+                                        _pickups.spawnPickup(PickupType::WeaponDrop, bot.position + Vec3(-0.35f, 0.35f, 0.2f), 30, (int)dropWep);
                                     }
-                                    WeaponID dropWep = (WeaponID)(2 + (rand() % 7));
-                                    _pickups.spawnPickup(PickupType::WeaponDrop, bot.position + Vec3(-0.35f, 0.35f, 0.2f), 30, (int)dropWep);
+                                    break;
                                 }
-                                break;
                             }
+                        } else if (hit.tag == EntityTag::RigidProp) {
+                            AudioEngine::playSound(SoundID::PipeHit);
+                            _physicsWorld.takeDamage(hit.entityIndex, def.damage, hit.point, forward);
+                            _particleSystem.spawnImpact(hit.point, hit.normal, SurfaceType::Wood);
+                            _hud.triggerHitmarker(false);
                         }
                     }
                 } else {
@@ -629,8 +663,9 @@ public:
                         RaycastHit hit;
                         hit.distance = def.range;
 
-                        // 1. Test AI Combat Bots
+                        // 1. Test AI Combat Bots & Dynamic Rigid Props
                         _aiManager.testRaycast(rayOrigin, spreadDir, hit);
+                        _physicsWorld.raycast(rayOrigin, spreadDir, hit);
 
                         // 2. Test Solid Map Geometry (Brushes & Doors)
                         if (_currentMap) {
@@ -695,7 +730,8 @@ public:
                                 for (auto& bot : _aiManager.bots) {
                                     if (bot.id == hit.entityIndex && bot.isAlive()) {
                                         float dmg = hit.isHeadshot ? (def.damage * def.headshotMultiplier) : def.damage;
-                                        bool killed = bot.takeDamage(dmg, hit.isHeadshot);
+                                        Vec3 knockback = spreadDir * (def.damage * 0.12f) + Vec3(0.0f, 1.2f, 0.0f);
+                                        bool killed = bot.takeDamage(dmg, hit.isHeadshot, knockback);
                                         _hud.triggerHitmarker(hit.isHeadshot);
 
                                         if (killed) {
@@ -717,6 +753,10 @@ public:
                                         break;
                                     }
                                 }
+                            } else if (hit.tag == EntityTag::RigidProp) {
+                                _physicsWorld.takeDamage(hit.entityIndex, def.damage, hit.point, spreadDir);
+                                _particleSystem.spawnImpact(hit.point, hit.normal, SurfaceType::Wood);
+                                _hud.triggerHitmarker(false);
                             } else if (hit.tag == EntityTag::World) {
                                 // Concrete dust puff + spark spray + debris
                                 _particleSystem.spawnImpact(hit.point, hit.normal, SurfaceType::Concrete);
@@ -778,6 +818,7 @@ public:
                 proj.active = false;
                 _particleSystem.spawnExplosion(hitPos, proj.splashRadius, proj.color);
                 AudioEngine::playSound3D(SoundID::RPGExplosion, hitPos);
+                _physicsWorld.applyExplosionImpulse(hitPos, proj.splashRadius, 420.0f, proj.damage + proj.splashDamage);
                 float radiusSq = proj.splashRadius * proj.splashRadius;
 
                 for (auto& bot : _aiManager.bots) {
@@ -787,7 +828,10 @@ public:
                         float dist = std::sqrt(dSq);
                         float factor = 1.0f - (dist / proj.splashRadius);
                         float dmg = proj.damage + proj.splashDamage * factor;
-                        bool killed = bot.takeDamage(dmg, false);
+                        Vec3 bDir = (bot.position - hitPos).normalized();
+                        if (bDir.lengthSq() < 0.01f) bDir = Vec3(0, 1, 0);
+                        Vec3 knockback = bDir * (13.5f * factor) + Vec3(0.0f, 6.5f * factor, 0.0f);
+                        bool killed = bot.takeDamage(dmg, false, knockback);
                         _hud.triggerHitmarker(false);
 
                         if (killed) {
@@ -822,6 +866,53 @@ public:
 
         if (_muzzleFlashTime > 0.0f) {
             _muzzleFlashTime -= time.delta;
+        }
+
+        // ==================== RIGID BODY PHYSICS & PROP DESTRUCTION ====================
+        if (_currentMap) {
+            auto solidBoxes = LabCollision::getMapSolidBoxes(*_currentMap);
+            _physicsWorld.update(time.delta, solidBoxes);
+
+            // Process barrel detonations & shockwaves
+            for (const auto& exp : _physicsWorld.pendingExplosions) {
+                _particleSystem.spawnExplosion(exp.position, exp.radius, Vec3(1.0f, 0.45f, 0.1f));
+                AudioEngine::playSound3D(SoundID::RPGExplosion, exp.position, 1.0f, 1.0f);
+
+                // Affect player if in blast radius
+                Vec3 playerPos = _camera.getPosition();
+                float playerDist = (playerPos - exp.position).length();
+                if (playerDist < exp.radius) {
+                    float factor = 1.0f - (playerDist / exp.radius);
+                    Vec3 pDir = (playerPos - exp.position).normalized();
+                    if (pDir.lengthSq() < 0.01f) pDir = Vec3(0, 1, 0);
+                    _velocity += pDir * (14.0f * factor) + Vec3(0.0f, 6.0f * factor, 0.0f);
+                    float pDmg = exp.maxDamage * factor * 0.75f;
+                    _hud.health -= pDmg;
+                    _hud.triggerDamageFlash();
+                    AudioEngine::playSound(SoundID::PlayerHurt);
+                }
+
+                // Affect bots
+                for (auto& bot : _aiManager.bots) {
+                    if (!bot.isAlive()) continue;
+                    float bDist = (bot.position - exp.position).length();
+                    if (bDist < exp.radius) {
+                        float factor = 1.0f - (bDist / exp.radius);
+                        Vec3 bDir = (bot.position - exp.position).normalized();
+                        if (bDir.lengthSq() < 0.01f) bDir = Vec3(0, 1, 0);
+                        Vec3 knockback = bDir * (exp.maxImpulse * 0.035f * factor) + Vec3(0.0f, 6.0f * factor, 0.0f);
+                        bool killed = bot.takeDamage(exp.maxDamage * factor, false, knockback);
+                        if (killed) {
+                            _playerKills++;
+                            _hud.frags = _playerKills;
+                            std::string killMsg = "BARREL EXPLOSION! " + bot.name + " [" + std::to_string(_playerKills) + " FRAGS]";
+                            _hud.showCombatMessage(killMsg, 2.5f);
+                            _chat.addMessage("[SERVER]", killMsg, Vec3(1.0f, 0.45f, 0.15f));
+                        }
+                    }
+                }
+            }
+            _physicsWorld.pendingExplosions.clear();
         }
 
         // ==================== COMBAT AI BOTS UPDATE & RETALIATION ====================
@@ -1605,6 +1696,9 @@ public:
             // Render Combat AI bots into shadow map
             _aiManager.renderShadowPass();
 
+            // Render Dynamic Rigid Body Physics Props into shadow map
+            _physicsWorld.renderShadow();
+
             Renderer::endShadowDepthPass();
             _shadowMap.endShadowPass(getWidth(), getHeight());
         }
@@ -1664,6 +1758,9 @@ public:
 
         // Render Combat AI Bots
         _aiManager.render();
+
+        // Render Dynamic Rigid Body Physics Props (Crates, Barrels, Shattered Debris)
+        _physicsWorld.render();
 
         // Render 3D World Pickups (Ammo crates, Medkits, and 1-min Weapon Spawn Pads)
         _pickups.render(_cachedWeaponMeshes, _cachedWeaponTextures);
@@ -1761,6 +1858,7 @@ private:
     // Animation & Combat state
     WeaponAnimator _weaponAnimator;
     AIManager _aiManager;
+    PhysicsWorld _physicsWorld;
     std::vector<BulletTracer> _tracers;
     float _muzzleFlashTime;
     float _footstepTimer = 0.0f;

@@ -14,7 +14,8 @@ namespace Lab {
         Bot,         // AI Combat Bot
         Player,      // Local player
         Medkit,      // Health pickup (Sprint 2)
-        AmmoDrop     // Ammo pickup (Sprint 2)
+        AmmoDrop,    // Ammo pickup (Sprint 2)
+        RigidProp    // Destructible dynamic physics prop (Sprint 5)
     };
 
     struct RaycastHit {

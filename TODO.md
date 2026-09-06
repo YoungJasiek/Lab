@@ -106,14 +106,26 @@ Wszystkie systemy tworzone sa w standardzie **C++20**, **OpenGL 4.5+ Core Profil
 
 ## II. NAJBLIZSZE SPRINTY (SHORT-TERM / IN PROGRESS)
 
-### Sprint 5: Fizyka Cial Sztywnych (Rigid Body Props), Beczki Wybuchowe & Destrukcja Srodowiska (IN PROGRESS)
-- [ ] Silnik cial sztywnych `LabPhysics`: integracja zintegrowanego modelu fizyki newtonowskiej (masa, srodek ciezkosci, bezwladnosc rotacyjna, wektory predkosci liniowej i katowej, tlumienie aerodynamiczne i tarcie powierzchniowe).
-- [ ] Detekcja kolizji OBB/AABB cial sztywnych z geometria swiata i podlogami (odpowiedz sprezysta z restytucja i tarciem).
-- [ ] Destrukcyjne skrzynki drewniane (`Prop_Crate`): wytrzymalosc (HP), rozpad pod wplywem obrazen na 6-8 dynamicznych drzazg/odlamkow z losowymi pedami i rotacja.
-- [ ] Czerwone beczki wybuchowe (`Prop_ExplosiveBarrel`): wybuch pod wplywem trafienia kula lub ogniem, fala uderzeniowa (Radial Impulse Blast) odpychajaca gracza, boty i inne skrzynki w sasiedztwie (reakcja lancuchowa).
-- [ ] Ragdoll / Kinetyczny odrzut cial botow: impuls fizyczny po zgonie od eksplozji RPG lub strzelby (fizyczny lot ciala w tyl zamiast statycznej animacji).
-- [ ] Integracja z edytorem Hammer (`LabHammer`): umieszczanie bytow cial sztywnych na mapach i zapis w `.labmap`.
-- [ ] Zautomatyzowany test fizyki i destrukcji w `TestVerify.exe`.
+### 10. Fizyka Cial Sztywnych (Rigid Body Props), Beczki Wybuchowe & Destrukcja Srodowiska (Sprint 5 - 100% DONE)
+- [x] Silnik cial sztywnych `LabPhysics` (`RigidBody`, `PhysicsWorld`): pelna dynamika newtonowska 3D (masa, lokalny tensor momentu bezwladnosci dla prostopadloscianu, pol-niejawna integracja Eulera, tlumienie predkosci liniowej i katowej, dynamiczne usypianie cial w spoczynku).
+- [x] Detekcja kolizji OBB/AABB cial sztywnych z podlozem i brylami swiata (wielowierzcholkowa detekcja kontaktu, restytucja sprezysta, tarcie statyczne i kinetyczne).
+- [x] Destrukcyjne skrzynki drewniane (`PropType::Crate`): wytrzymalosc 40 HP, autentyczna tekstura desek ze stalowymi okuciami i przekatnymi belkami w stylu Source Engine, rozpad po zniszczeniu na 7 fizycznych drewnianych desek/odlamkow o losowych predkosciach i rotacji.
+- [x] Czerwone beczki wybuchowe (`PropType::ExplosiveBarrel`): detonacja po trafieniu kula, uderzeniu rura lub fali uderzeniowej; radialny impuls uderzeniowy (promien 6.5m, impuls 450 N·s, 130 obrazen), lancuchowe detonacje sasiednich beczek (reakcja lancuchowa); autentyczna tekstura z czarno-zoltymi pasami ostrzegawczymi i pierscieniami stalowymi.
+- [x] Kinetyczny odrzut botow bojowych (`CombatBot`): wektor pedu `velocity`, fizyczny odrzut i lot ciala w powietrzu po smierci od pociskow RPG, strzelby lub eksplozji beczek z odbiciem od podloza.
+- [x] Efekty dzwiekowe 3D: proceduralne odglosy RIFF 16-bit PCM w `LabAudio` (`SoundID::CrateBreak`, `SoundID::BarrelImpact`).
+- [x] Integracja w grze (`main.cpp`): populacja mapy skrzynkami i beczkami, raycast trafien bronia palna i biala z iskrami i odpryskami drewna, wybuchy RPG oddzialujace kinetycznie na rekwizyty i postacie, dwufazowy cienkowany render.
+- [x] Zautomatyzowany i wizualny test 27 w `TestVerify.exe` weryfikujacy matematyke, grawitacje, rozpad skrzynek, kaskadowe detonacje beczek oraz jakosc grafiki (`test_physics_and_destruction.bmp`).
+
+---
+
+## II. NAJBLIZSZE SPRINTY (SHORT-TERM / IN PROGRESS)
+
+### Sprint 6: Narzedzie Przecinania Bryl CSG (Clip Tool) w Edytorze Hammer & Wstawianie Propsow Fizycznych
+- [ ] Narzedzie Clip Tool w `LabHammer` (skrot klawiszowy `X` / ikona skalpela na lewym pasku): definiowanie plaszczyzny ciecia za pomoca 2 punktow w rzucie 2D i 3D.
+- [ ] Operacje binarnego podzialu bryly prostopadlosciennej (Brush Splitting / Plane Slicing): podzial na dwie wypukle bryly lub odciecie jednej strony (Keep Front / Keep Back / Keep Both).
+- [ ] Generowanie geometrii i poprawne mapowanie UV po cieciu bez znieksztalcen tekstury.
+- [ ] Pelna integracja stawiania rekwizytow fizycznych (skrzynek, beczek wybuchowych) bezposrednio w edytorze `LabHammer` w zakladce Prebuilts z podgladem 3D i zapisem w `.labmap`.
+- [ ] Zautomatyzowany i wizualny test 28 w `TestVerify.exe` weryfikujacy operacje Clip Tool i podzial bryl.
 
 ---
 

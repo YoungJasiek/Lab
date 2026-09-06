@@ -244,6 +244,19 @@ namespace Lab {
             return (len > 1e-6f) ? Quat(x / len, y / len, z / len, w / len) : identity();
         }
 
+        Quat conjugate() const { return { -x, -y, -z, w }; }
+        Quat inverse() const {
+            float lenSq = lengthSq();
+            return (lenSq > 1e-6f) ? Quat(-x / lenSq, -y / lenSq, -z / lenSq, w / lenSq) : identity();
+        }
+
+        Vec3 rotateVector(const Vec3& v) const {
+            Vec3 qvec(x, y, z);
+            Vec3 uv = Vec3::cross(qvec, v);
+            Vec3 uuv = Vec3::cross(qvec, uv);
+            return v + ((uv * w) + uuv) * 2.0f;
+        }
+
         Quat operator+(const Quat& q) const { return { x + q.x, y + q.y, z + q.z, w + q.w }; }
         Quat operator-(const Quat& q) const { return { x - q.x, y - q.y, z - q.z, w - q.w }; }
         Quat operator-() const { return { -x, -y, -z, -w }; }

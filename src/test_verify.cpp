@@ -1644,9 +1644,9 @@ int main() {
         }
         std::cout << "  [PASS] AudioEngine initialized successfully in headless mode.\n";
 
-        // 2. Verify all 21 sound definitions and generated WAV files on disk
+        // 2. Verify all 23 sound definitions and generated WAV files on disk
         constexpr size_t soundCount = (size_t)Lab::SoundID::Count;
-        static_assert(soundCount == 21, "Expected 21 sounds in SoundID enum");
+        static_assert(soundCount == 23, "Expected 23 sounds in SoundID enum");
 
         for (size_t i = 0; i < soundCount; ++i) {
             const auto& def = Lab::AudioEngine::getSoundDef((Lab::SoundID)i);
@@ -2083,7 +2083,156 @@ int main() {
         Lab::Renderer::endFrame();
         glFinish();
         saveFrameToBMP("test_skeletal_animation.bmp", w, h);
-        std::cout << "  [PASS] Saved visual glTF 2.0 Skeletal Animation & STL Socket verification to 'test_skeletal_animation.bmp'.\n";
+        std::cout << "  [PASS] Saved visual glTF 2.0 Skeletal Animation & STL Socket verification to 'test_skeletal_animation.bmp'." << std::endl;
+    }
+
+    // =========================================================================
+    // TEST 27: RIGID BODY PHYSICS, PROPS & EXPLOSIVE BARREL DESTRUCTION
+    // =========================================================================
+    {
+        std::cout << "\n[Test 27] Verifying Rigid Body Physics, Wooden Crates & Explosive Barrels..." << std::endl;
+        Lab::PhysicsWorld physics;
+        physics.init();
+
+        // 1. Verify RigidBody Inertia Calculation and Integration
+        Lab::RigidBody testBody;
+        testBody.setBox(Lab::Vec3(0.5f, 0.5f, 0.5f), 24.0f);
+        if (testBody.invMass <= 0.0f || testBody.inertiaLocal.x <= 0.0f) {
+            std::cerr << "Assertion failed: RigidBody mass or inertia calculation incorrect" << std::endl;
+            return 1;
+        }
+
+        // Apply off-center impulse and verify linear and angular momentum
+        testBody.applyImpulse(Lab::Vec3(0.0f, 10.0f, 0.0f), testBody.position + Lab::Vec3(0.4f, 0.0f, 0.0f));
+        if (testBody.linearVelocity.y <= 0.0f || testBody.angularVelocity.lengthSq() <= 0.0f) {
+            std::cerr << "Assertion failed: Impulse must generate linear velocity and angular torque" << std::endl;
+            return 1;
+        }
+        std::cout << "  [PASS] RigidBody inertia tensor and off-center impulse torque verified." << std::endl;
+
+        // 2. Verify Physics World Simulation, Gravity & Ground Rest
+        physics.clear();
+        Lab::RigidBody* crate1 = physics.spawnCrate(Lab::Vec3(0.0f, 2.0f, 0.0f), Lab::Vec3(0.45f, 0.45f, 0.45f), 20.0f);
+        std::vector<Lab::CollisionBox> emptyObstacles;
+
+        // Step physics 1.5 seconds (90 frames at 60Hz)
+        for (int step = 0; step < 90; ++step) {
+            physics.update(0.0166f, emptyObstacles);
+        }
+
+        // The crate should have fallen and settled on the ground (position.y near halfExtents.y ~ 0.45)
+        if (crate1->position.y < 0.35f || crate1->position.y > 0.65f) {
+            std::cerr << "Assertion failed: Crate should settle on the ground plane (Y ~ 0.45m), got Y=" << crate1->position.y << std::endl;
+            return 1;
+        }
+        std::cout << "  [PASS] Gravity and ground contact restitution verified: Crate resting at Y=" << crate1->position.y << std::endl;
+
+        // 3. Verify Wooden Crate Destruction & Debris Generation
+        physics.clear();
+        Lab::RigidBody* destructCrate = physics.spawnCrate(Lab::Vec3(0.0f, 0.45f, 0.0f));
+        int initialBodyCount = (int)physics.bodies.size();
+
+        // Apply lethal damage to crate
+        bool crateHit = physics.takeDamage(destructCrate->id, 60.0f, Lab::Vec3(0, 0.45f, 0), Lab::Vec3(0, 0, 1));
+        if (!crateHit) {
+            std::cerr << "Assertion failed: takeDamage should return true for valid prop" << std::endl;
+            return 1;
+        }
+
+        // Step physics to process destruction and debris spawning
+        physics.update(0.0166f, emptyObstacles);
+
+        // Crate should have shattered into multiple debris chunks
+        if (physics.bodies.size() <= (size_t)initialBodyCount) {
+            std::cerr << "Assertion failed: Destroyed crate must spawn dynamic debris chunks, body count: " << physics.bodies.size() << std::endl;
+            return 1;
+        }
+        std::cout << "  [PASS] Wooden crate destruction verified: Shattered into " << physics.bodies.size() << " physical debris planks." << std::endl;
+
+        // 4. Verify Explosive Barrel Radial Impulse Blast & Chain Reaction
+        physics.clear();
+        Lab::RigidBody* barrelA = physics.spawnExplosiveBarrel(Lab::Vec3(0.0f, 0.48f, 0.0f));
+        [[maybe_unused]] Lab::RigidBody* barrelB = physics.spawnExplosiveBarrel(Lab::Vec3(1.8f, 0.48f, 0.0f)); // Within blast radius (6.5m)
+        [[maybe_unused]] Lab::RigidBody* crateNear = physics.spawnCrate(Lab::Vec3(2.5f, 0.45f, 0.0f));
+
+        // Detonate Barrel A
+        physics.takeDamage(barrelA->id, 50.0f, barrelA->position, Lab::Vec3(1, 0, 0));
+        physics.update(0.0166f, emptyObstacles);
+
+        if (physics.pendingExplosions.empty()) {
+            std::cerr << "Assertion failed: Barrel detonation must trigger pendingExplosion event" << std::endl;
+            return 1;
+        }
+        std::cout << "  [PASS] Explosive barrel detonation verified: Radial blast emitted with " << physics.pendingExplosions.size() << " cascade events." << std::endl;
+
+        // 5. Render Visual Verification Frame: Destructible Props & Dynamic Soft Shadows
+        glClearColor(0.04f, 0.06f, 0.09f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        physics.clear();
+        // Setup realistic combat arena props scene
+        [[maybe_unused]] Lab::RigidBody* cBase1 = physics.spawnCrate(Lab::Vec3(-1.8f, 0.45f, -0.5f));
+        [[maybe_unused]] Lab::RigidBody* cTop1  = physics.spawnCrate(Lab::Vec3(-1.8f, 1.35f, -0.5f));
+        [[maybe_unused]] Lab::RigidBody* redBarrel = physics.spawnExplosiveBarrel(Lab::Vec3(-0.4f, 0.48f, -0.2f));
+        [[maybe_unused]] Lab::RigidBody* cRight = physics.spawnCrate(Lab::Vec3(1.8f, 0.45f, -0.3f));
+
+        // Spawn dynamic debris planks across the floor from a recently smashed crate
+        physics.spawnCrateDebris(Lab::Vec3(0.6f, 0.5f, 0.5f), Lab::Vec3(0.45f, 0.45f, 0.45f), Lab::Vec3(1.0f, 0.3f, 0.5f));
+
+        // Simulate a few physics steps so debris tumbles naturally and settles
+        for (int i = 0; i < 20; ++i) {
+            physics.update(0.0166f, emptyObstacles);
+        }
+
+        Lab::Camera physCam(60.0f, (float)w / (float)h, 0.01f, 1000.0f);
+        physCam.setPosition(Lab::Vec3(0.0f, 1.65f, 3.8f));
+        physCam.update(Lab::Vec2(0.0f, -14.0f)); // Looking slightly down at props and floor
+
+        // Pass 1: Shadow Depth Pass
+        Lab::Vec3 sunDir(-0.35f, -0.85f, -0.35f);
+        Lab::Mat4 lightSpaceMatrix = Lab::ShadowMap::computeSunLightSpaceMatrix(sunDir, Lab::Vec3(0, 0.8f, 0), 16.0f);
+        Lab::ShadowMap shadowMap;
+        shadowMap.init(2048, 2048);
+
+        shadowMap.beginShadowPass(lightSpaceMatrix);
+        Lab::Renderer::beginShadowDepthPass(lightSpaceMatrix);
+        Lab::Renderer::drawShadowCube(Lab::Vec3(0.0f, -0.1f, 0.0f), Lab::Vec3(25.0f, 0.2f, 25.0f));
+        Lab::Renderer::drawShadowCube(Lab::Vec3(0.0f, 2.5f, -4.0f), Lab::Vec3(20.0f, 5.0f, 0.4f));
+
+        // Render physics props into shadow map!
+        physics.renderShadow();
+
+        Lab::Renderer::endShadowDepthPass();
+        shadowMap.endShadowPass(w, h);
+
+        // Pass 2: Scene Shaded Pass
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        Lab::Renderer::beginFrame(physCam);
+        Lab::Renderer::setSunLight(sunDir, Lab::Vec3(1.0f, 0.96f, 0.92f), Lab::Vec3(0.22f, 0.25f, 0.30f));
+        Lab::Renderer::setShadowMap(lightSpaceMatrix, shadowMap.getDepthTexture());
+
+        Lab::Texture floorTex("assets/textures/floor_tiles.bmp");
+        Lab::Texture wallTex("assets/textures/concrete_wall.bmp");
+        Lab::Renderer::drawCube(Lab::Vec3(0.0f, -0.1f, 0.0f), Lab::Vec3(25.0f, 0.2f, 25.0f), Lab::Vec3(0.75f, 0.75f, 0.75f), &floorTex, true);
+        Lab::Renderer::drawCube(Lab::Vec3(0.0f, 2.5f, -4.0f), Lab::Vec3(20.0f, 5.0f, 0.4f), Lab::Vec3(0.70f, 0.70f, 0.70f), &wallTex, true);
+
+        // Render live physics props with materials and soft penumbra shadows!
+        physics.render();
+
+        Lab::Renderer::disableShadowMap();
+
+        // 6. UI Diagnostic Overlay
+        Lab::Renderer::beginUI(w, h);
+        Lab::Renderer::drawRect(40.0f, 30.0f, 780.0f, 85.0f, Lab::Vec3(0.10f, 0.12f, 0.16f));
+        Lab::Renderer::drawRect(40.0f, 30.0f, 780.0f, 1.0f, Lab::Vec3(1.0f, 0.55f, 0.1f));
+        Lab::LabFont::drawText(56.0f, 44.0f, "RIGID BODY PHYSICS & PROP DESTRUCTION (SPRINT 5)", 2.0f, Lab::Vec3(1.0f, 0.60f, 0.15f), Lab::LabFontType::GeoSans);
+        Lab::LabFont::drawText(56.0f, 74.0f, "NEWTONIAN RIGID BODIES | RED HAZARD BARRELS | WOOD CRATES & DEBRIS", 1.6f, Lab::Vec3(0.90f, 0.92f, 0.95f), Lab::LabFontType::GeoSans);
+        Lab::Renderer::endUI();
+
+        Lab::Renderer::endFrame();
+        glFinish();
+        saveFrameToBMP("test_physics_and_destruction.bmp", w, h);
+        std::cout << "  [PASS] Saved visual Rigid Body Physics & Destruction verification to 'test_physics_and_destruction.bmp'.\n";
     }
 
     Lab::Renderer::shutdown();

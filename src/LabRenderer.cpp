@@ -478,6 +478,10 @@ namespace Lab {
             std::transform(lowerPath.begin(), lowerPath.end(), lowerPath.begin(), [](unsigned char c) { return (char)::tolower(c); });
 
             unsigned char baseR = 70, baseG = 75, baseB = 85;
+            bool isCrate = (lowerPath.find("crate") != std::string::npos);
+            bool isBarrel = (lowerPath.find("barrel") != std::string::npos);
+            bool isDebris = (lowerPath.find("debris") != std::string::npos);
+
             if (lowerPath.find("pipe") != std::string::npos) {
                 baseR = 145; baseG = 148; baseB = 152; // Steel / Cast Iron
             } else if (lowerPath.find("pistol") != std::string::npos) {
@@ -496,16 +500,65 @@ namespace Lab {
                 baseR = 140; baseG = 80; baseB = 35;  // Copper magnetic rail
             } else if (lowerPath.find("rpg") != std::string::npos) {
                 baseR = 70; baseG = 80; baseB = 52;   // Olive explosive
+            } else if (isCrate) {
+                baseR = 150; baseG = 105; baseB = 62; // Warm Source pine/cedar
+            } else if (isBarrel) {
+                baseR = 180; baseG = 30; baseB = 25;  // Hazardous explosive red
+            } else if (isDebris) {
+                baseR = 120; baseG = 85; baseB = 50;  // Splintered wood
             }
 
             for (int y = 0; y < _height; ++y) {
                 for (int x = 0; x < _width; ++x) {
                     int idx = (y * _width + x) * 3;
-                    bool border = (x == 0 || x == _width - 1 || y == 0 || y == _height - 1 || (x % 16 == 0) || (y % 16 == 0));
-                    int noise = ((x ^ y) & 7) * 3;
-                    procData[idx + 0] = (unsigned char)std::clamp((int)baseR + (border ? -18 : noise), 0, 255);
-                    procData[idx + 1] = (unsigned char)std::clamp((int)baseG + (border ? -18 : noise), 0, 255);
-                    procData[idx + 2] = (unsigned char)std::clamp((int)baseB + (border ? -18 : noise), 0, 255);
+                    if (isCrate) {
+                        // Authentic Source Engine wooden crate: outer dark iron borders + diagonal cross braces
+                        bool ironBorder = (x < 5 || x > 58 || y < 5 || y > 58);
+                        bool crossBrace = (std::abs(x - y) <= 2 || std::abs((63 - x) - y) <= 2);
+                        bool plankLine = (y % 16 == 0 || x % 16 == 0);
+                        int grain = ((x * 3 + y * 7) & 15);
+                        if (ironBorder) {
+                            procData[idx + 0] = (unsigned char)(48 + ((x ^ y) & 7));
+                            procData[idx + 1] = (unsigned char)(50 + ((x ^ y) & 7));
+                            procData[idx + 2] = (unsigned char)(54 + ((x ^ y) & 7));
+                        } else if (crossBrace) {
+                            procData[idx + 0] = (unsigned char)(115 + grain);
+                            procData[idx + 1] = (unsigned char)(75 + grain);
+                            procData[idx + 2] = (unsigned char)(40 + grain);
+                        } else {
+                            int r = 150 + grain - (plankLine ? 35 : 0);
+                            int g = 105 + grain - (plankLine ? 35 : 0);
+                            int b = 62 + grain - (plankLine ? 25 : 0);
+                            procData[idx + 0] = (unsigned char)std::clamp(r, 0, 255);
+                            procData[idx + 1] = (unsigned char)std::clamp(g, 0, 255);
+                            procData[idx + 2] = (unsigned char)std::clamp(b, 0, 255);
+                        }
+                    } else if (isBarrel) {
+                        // Industrial explosive fuel barrel: crimson red with double yellow/black hazard warning stripes
+                        bool hazardBand = ((y >= 14 && y <= 20) || (y >= 44 && y <= 50));
+                        bool metalRib = (y == 10 || y == 32 || y == 54);
+                        if (hazardBand) {
+                            bool yellow = ((x + y) % 8 < 4);
+                            if (yellow) {
+                                procData[idx + 0] = 235; procData[idx + 1] = 195; procData[idx + 2] = 20;
+                            } else {
+                                procData[idx + 0] = 25; procData[idx + 1] = 25; procData[idx + 2] = 28;
+                            }
+                        } else if (metalRib) {
+                            procData[idx + 0] = 60; procData[idx + 1] = 62; procData[idx + 2] = 68;
+                        } else {
+                            int noise = ((x ^ y) & 7) * 2;
+                            procData[idx + 0] = (unsigned char)std::clamp(180 + noise, 0, 255);
+                            procData[idx + 1] = (unsigned char)std::clamp(32 + noise, 0, 255);
+                            procData[idx + 2] = (unsigned char)std::clamp(26 + noise, 0, 255);
+                        }
+                    } else {
+                        bool border = (x == 0 || x == _width - 1 || y == 0 || y == _height - 1 || (x % 16 == 0) || (y % 16 == 0));
+                        int noise = ((x ^ y) & 7) * 3;
+                        procData[idx + 0] = (unsigned char)std::clamp((int)baseR + (border ? -18 : noise), 0, 255);
+                        procData[idx + 1] = (unsigned char)std::clamp((int)baseG + (border ? -18 : noise), 0, 255);
+                        procData[idx + 2] = (unsigned char)std::clamp((int)baseB + (border ? -18 : noise), 0, 255);
+                    }
                 }
             }
             data = procData;
@@ -961,6 +1014,13 @@ namespace Lab {
         drawShadowCube(position, { 0, 0, 0 }, size);
     }
 
+    void Renderer::drawShadowCube(const Mat4& modelTransform) {
+        _shadowDepthShader->use();
+        _shadowDepthShader->setMat4("model", modelTransform);
+        _shadowDepthShader->setInt("uUseSkinning", 0);
+        _cubeMesh->draw();
+    }
+
     void Renderer::drawShadowMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale) {
         _shadowDepthShader->use();
         _shadowDepthShader->setMat4("model", getTransform(position, rotation, scale));
@@ -1031,6 +1091,34 @@ namespace Lab {
         _defaultShader->setMat4("view", _viewMatrix);
         _defaultShader->setMat4("model", getTransform(position, rotation, scale));
         _defaultShader->setVec3("brushSize", scale);
+        _defaultShader->setVec2("uvTiling", uvTiling);
+        _defaultShader->setInt("uvMode", uvMode);
+        _defaultShader->setInt("uUseSkinning", 0);
+        _defaultShader->setVec3("objectColor", color);
+        _defaultShader->setInt("enableLighting", enableLighting ? 1 : 0);
+        applyLightingAndShadowUniforms(_defaultShader);
+
+        if (texture && texture->getId() != 0) {
+            _defaultShader->setInt("useTexture", 1);
+            _defaultShader->setInt("texture1", 0);
+            texture->bind(0);
+        } else {
+            _defaultShader->setInt("useTexture", 0);
+        }
+
+        _cubeMesh->draw();
+
+        if (texture && texture->getId() != 0) {
+            texture->unbind();
+        }
+    }
+
+    void Renderer::drawCube(const Mat4& modelTransform, const Vec3& color, const Texture* texture, bool enableLighting, const Vec2& uvTiling, int uvMode) {
+        _defaultShader->use();
+        _defaultShader->setMat4("projection", _projMatrix);
+        _defaultShader->setMat4("view", _viewMatrix);
+        _defaultShader->setMat4("model", modelTransform);
+        _defaultShader->setVec3("brushSize", { 1.0f, 1.0f, 1.0f });
         _defaultShader->setVec2("uvTiling", uvTiling);
         _defaultShader->setInt("uvMode", uvMode);
         _defaultShader->setInt("uUseSkinning", 0);

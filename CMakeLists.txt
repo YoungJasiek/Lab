@@ -49,6 +49,7 @@ set(ENGINE_SOURCES
     src/LabArms.cpp
     src/LabLight.cpp
     src/LabSkeletal.cpp
+    src/LabPhysics.cpp
     src/glad/src/gl.c
 )
 
@@ -71,6 +72,7 @@ set(ENGINE_HEADERS
     include/LabArms.h
     include/LabLight.h
     include/LabSkeletal.h
+    include/LabPhysics.h
     include/Lab.h
 )
 
