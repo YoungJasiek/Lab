@@ -55,6 +55,9 @@ namespace Lab {
                 // Respawn bot at patrol start
                 state = AIState::Patrol;
                 health = maxHealth;
+                if (patrolStart.y >= 1.5f) {
+                    patrolStart.y = std::max(0.0f, patrolStart.y - 1.8f);
+                }
                 position = patrolStart;
                 rotation.x = 0.0f;
                 patrolT = 0.0f;
@@ -222,6 +225,9 @@ namespace Lab {
 
         float bodyBob = std::abs(std::sin(walkCycle * 2.0f)) * 0.04f;
         Vec3 bPos = position + Vec3(0.0f, bodyBob, 0.0f);
+        if (bPos.y >= 1.5f && bPos.y <= 1.95f) {
+            bPos.y = std::max(0.0f, bPos.y - 1.8f);
+        }
 
         // Armor plate colors based on damage and team
         Vec3 armorCol = Vec3(0.20f, 0.24f, 0.28f);
@@ -291,6 +297,9 @@ namespace Lab {
         if (!isAlive()) return;
         float bodyBob = std::abs(std::sin(walkCycle * 2.0f)) * 0.04f;
         Vec3 bPos = position + Vec3(0.0f, bodyBob, 0.0f);
+        if (bPos.y >= 1.5f && bPos.y <= 1.95f) {
+            bPos.y = std::max(0.0f, bPos.y - 1.8f);
+        }
 
         if (mesh && animator.getSkeleton()) {
             float botScale = mesh->getBaseScale(1.85f);
@@ -418,13 +427,18 @@ namespace Lab {
                     GameMode botMode = (bot.team == -1) ? GameMode::FFA : GameMode::TDM;
                     MapSpawnPoint sp = map.selectBestSpawn(botMode, bot.team, enemies);
 
-                    bot.position = sp.position;
+                    Vec3 botSpawnPos = sp.position;
+                    if (botSpawnPos.y >= 1.5f) {
+                        botSpawnPos.y = std::max(0.0f, botSpawnPos.y - 1.8f);
+                    }
+
+                    bot.position = botSpawnPos;
                     bot.rotation = Vec3(0.0f, sp.yaw, 0.0f);
-                    bot.patrolStart = sp.position;
+                    bot.patrolStart = botSpawnPos;
                     float rad = sp.yaw * 3.14159265f / 180.0f;
                     Vec3 forward(std::sin(rad), 0.0f, std::cos(rad));
                     if (forward.lengthSq() < 0.01f) forward = Vec3(0, 0, 1);
-                    bot.patrolEnd = sp.position + forward * 8.0f;
+                    bot.patrolEnd = botSpawnPos + forward * 8.0f;
 
                     bot.patrolT = 0.0f;
                     bot.patrolDir = 1;
@@ -514,9 +528,10 @@ namespace Lab {
                     moveVel = -forward * (bot.moveSpeed * 0.75f) + right * (static_cast<float>(bot.strafeDirection) * bot.moveSpeed * 0.6f);
                 }
 
-                // Apply movement with wall sliding collision
+                // Apply movement with wall sliding collision and gravity
                 Vec3 nextPos = bot.position;
                 Vec3 tempVel = moveVel;
+                tempVel.y -= 12.0f * dt;
                 bool grounded = true;
                 LabCollision::moveAndSlide(nextPos, tempVel, grounded, dt, solidBoxes, 0.0f, 0.35f, 1.85f);
                 bot.position = nextPos;
@@ -598,11 +613,19 @@ namespace Lab {
                         bot.patrolT = 0.0f;
                         bot.patrolDir = 1;
                     }
-                    bot.position = bot.patrolStart * (1.0f - bot.patrolT) + bot.patrolEnd * bot.patrolT;
-                    bot.walkCycle += dt * 6.0f;
-
+                    Vec3 targetPos = bot.patrolStart * (1.0f - bot.patrolT) + bot.patrolEnd * bot.patrolT;
                     Vec3 dir = (bot.patrolDir > 0) ? (bot.patrolEnd - bot.patrolStart) : (bot.patrolStart - bot.patrolEnd);
                     bot.rotation.y = std::atan2(dir.x, dir.z) * 180.0f / 3.14159265f;
+
+                    // Clamp to ground level using solid obstacles
+                    Vec3 nextPos = targetPos;
+                    Vec3 pVel = { 0.0f, -12.0f * dt, 0.0f };
+                    bool grounded = true;
+                    LabCollision::moveAndSlide(nextPos, pVel, grounded, dt, solidBoxes, 0.0f, 0.35f, 1.85f);
+                    bot.position.x = targetPos.x;
+                    bot.position.y = nextPos.y;
+                    bot.position.z = targetPos.z;
+                    bot.walkCycle += dt * 6.0f;
                 }
             }
         }
