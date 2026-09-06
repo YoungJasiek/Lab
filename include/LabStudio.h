@@ -12,6 +12,8 @@
 #include "LabFace.h"
 #include "LabWeapon.h"
 
+struct GLFWwindow;
+
 namespace Lab {
 
     // --- Weapon Grip & Socket Configuration ---
@@ -139,6 +141,36 @@ namespace Lab {
         // Camera control
         void resetCamera();
 
+        // Window reference for Win32 file dialogs
+        void setWindow(GLFWwindow* window) { _window = window; }
+        GLFWwindow* getWindow() const { return _window; }
+
+        // Exit Studio request handling
+        bool requestExit() const { return _requestExit; }
+        void clearRequestExit() { _requestExit = false; }
+
+        // Keyboard navigation and shortcuts
+        void handleKeyDown(int key, bool ctrl, bool shift);
+
+        // Undo / Redo & Clipboard
+        void pushUndoState();
+        void undo();
+        void redo();
+        void copyGrip();
+        void pasteGrip();
+
+        // Dropdown Menu State
+        enum class DropdownMenu : int {
+            None = -1,
+            File = 0,
+            Edit = 1,
+            View = 2,
+            Tools = 3,
+            Help = 4
+        };
+        DropdownMenu getActiveDropdown() const { return _activeDropdown; }
+        void setActiveDropdown(DropdownMenu menu) { _activeDropdown = menu; }
+
     private:
         // Studio sub-renderers (Strict Core Profile OpenGL 4.5+)
         void render3DScene(int viewportX, int viewportY, int viewportW, int viewportH);
@@ -157,6 +189,7 @@ namespace Lab {
         void renderHammerRightInspector(float panelX, float panelY, float panelW, float panelH);
         void renderHammerConsole(float conX, float conY, float conW, float conH);
         void renderHammerStatusBar(float w, float h);
+        void renderHammerDropdownMenus(float w, float h);
 
         // Tab inspectors
         void renderTabGripPoser(float x, float y, float w, float h);
@@ -173,6 +206,26 @@ namespace Lab {
 
         Texture* getTexture(const std::string& filename);
         Mesh* getMesh(const std::string& filename);
+
+        // Undo / Redo Snapshot
+        struct StudioSnapshot {
+            std::array<WeaponGripConfig, 9> grips;
+            std::array<WeaponSkinConfig, 9> skins;
+            ReloadTimelineConfig reloadTimeline;
+            CharacterAppearance appearance;
+            FaceMorphWeights faceMorphs;
+        };
+        std::vector<StudioSnapshot> _undoStack;
+        std::vector<StudioSnapshot> _redoStack;
+
+        // Clipboard
+        WeaponGripConfig _clipboardGrip;
+        bool _hasClipboardGrip = false;
+
+        // Active State
+        DropdownMenu _activeDropdown = DropdownMenu::None;
+        GLFWwindow* _window = nullptr;
+        bool _requestExit = false;
 
         // Subsystems and state
         std::array<WeaponGripConfig, 9> _weaponGrips;
@@ -236,6 +289,8 @@ namespace Lab {
         bool _isDraggingViewport = false;
         bool _isDraggingScrubber = false;
         int _activeSliderId = -1;
+        int _screenWidth = 1600;
+        int _screenHeight = 900;
     };
 
 } // namespace Lab

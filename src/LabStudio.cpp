@@ -1,6 +1,7 @@
 #include "LabStudio.h"
 #include "Lab.h"
 #include "LabFont.h"
+#include "LabDialogs.h"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <fstream>
@@ -10,6 +11,7 @@
 #include <cmath>
 #include <algorithm>
 #include <iomanip>
+#include <functional>
 
 namespace Lab {
 
@@ -132,6 +134,176 @@ namespace Lab {
 
         // Face morph defaults
         _faceMorphs = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+    }
+
+    void CharacterStudio::pushUndoState() {
+        StudioSnapshot snap;
+        snap.grips = _weaponGrips;
+        snap.skins = _weaponSkins;
+        snap.reloadTimeline = _reloadTimeline;
+        snap.appearance = _appearance;
+        snap.faceMorphs = _faceMorphs;
+        _undoStack.push_back(snap);
+        if (_undoStack.size() > 30) {
+            _undoStack.erase(_undoStack.begin());
+        }
+        _redoStack.clear();
+    }
+
+    void CharacterStudio::undo() {
+        if (_undoStack.empty()) {
+            log("Undo: Nothing to undo.");
+            return;
+        }
+        StudioSnapshot current;
+        current.grips = _weaponGrips;
+        current.skins = _weaponSkins;
+        current.reloadTimeline = _reloadTimeline;
+        current.appearance = _appearance;
+        current.faceMorphs = _faceMorphs;
+        _redoStack.push_back(current);
+
+        auto snap = _undoStack.back();
+        _undoStack.pop_back();
+        _weaponGrips = snap.grips;
+        _weaponSkins = snap.skins;
+        _reloadTimeline = snap.reloadTimeline;
+        _appearance = snap.appearance;
+        _faceMorphs = snap.faceMorphs;
+        log("Undo: reverted to previous modification.");
+    }
+
+    void CharacterStudio::redo() {
+        if (_redoStack.empty()) {
+            log("Redo: Nothing to redo.");
+            return;
+        }
+        StudioSnapshot current;
+        current.grips = _weaponGrips;
+        current.skins = _weaponSkins;
+        current.reloadTimeline = _reloadTimeline;
+        current.appearance = _appearance;
+        current.faceMorphs = _faceMorphs;
+        _undoStack.push_back(current);
+
+        auto snap = _redoStack.back();
+        _redoStack.pop_back();
+        _weaponGrips = snap.grips;
+        _weaponSkins = snap.skins;
+        _reloadTimeline = snap.reloadTimeline;
+        _appearance = snap.appearance;
+        _faceMorphs = snap.faceMorphs;
+        log("Redo: re-applied modification.");
+    }
+
+    void CharacterStudio::copyGrip() {
+        _clipboardGrip = _weaponGrips[_selectedWeaponIndex];
+        _hasClipboardGrip = true;
+        log("Copied weapon grip sockets to clipboard.");
+    }
+
+    void CharacterStudio::pasteGrip() {
+        if (!_hasClipboardGrip) {
+            log("Clipboard is empty! Copy a grip first (Ctrl+C).");
+            return;
+        }
+        pushUndoState();
+        _weaponGrips[_selectedWeaponIndex] = _clipboardGrip;
+        log("Pasted grip sockets to active weapon.");
+    }
+
+    void CharacterStudio::handleKeyDown(int key, bool ctrl, bool shift) {
+        (void)shift;
+        if (key == 256) { // GLFW_KEY_ESCAPE
+            if (_activeDropdown != DropdownMenu::None) {
+                _activeDropdown = DropdownMenu::None;
+            } else {
+                _requestExit = true;
+            }
+            return;
+        }
+
+        if (ctrl) {
+            if (key == 83 || key == 'S') { // Ctrl+S
+                saveConfig("assets/configs/character_studio.cfg");
+                return;
+            }
+            if (key == 79 || key == 'O') { // Ctrl+O
+                std::string p = LabDialogs::openFileDialog(_window, "Studio Config Files (*.cfg)\0*.cfg\0All Files (*.*)\0*.*\0", "assets\\configs");
+                if (!p.empty()) loadConfig(p);
+                else loadConfig("assets/configs/character_studio.cfg");
+                return;
+            }
+            if (key == 90 || key == 'Z') { // Ctrl+Z
+                undo();
+                return;
+            }
+            if (key == 89 || key == 'Y') { // Ctrl+Y
+                redo();
+                return;
+            }
+            if (key == 67 || key == 'C') { // Ctrl+C
+                copyGrip();
+                return;
+            }
+            if (key == 86 || key == 'V') { // Ctrl+V
+                pasteGrip();
+                return;
+            }
+        } else {
+            if (key == 268) { // GLFW_KEY_HOME
+                resetCamera();
+                return;
+            }
+            if (key == 71 || key == 'G') {
+                _showGrid = !_showGrid;
+                log(_showGrid ? "Ground grid ON" : "Ground grid OFF");
+                return;
+            }
+            if (key == 90 || key == 'Z') {
+                _showGizmos = !_showGizmos;
+                log(_showGizmos ? "Gizmos ON" : "Gizmos OFF");
+                return;
+            }
+            if (key == 82 || key == 'R') {
+                _turntableAutoRotate = !_turntableAutoRotate;
+                return;
+            }
+            if (key == 49 || key == '1') {
+                _activeTab = StudioTab::GripPoser;
+                resetCamera();
+                return;
+            }
+            if (key == 50 || key == '2') {
+                _activeTab = StudioTab::ReloadTimeline;
+                resetCamera();
+                return;
+            }
+            if (key == 51 || key == '3') {
+                _activeTab = StudioTab::WeaponSkins;
+                resetCamera();
+                return;
+            }
+            if (key == 52 || key == '4') {
+                _activeTab = StudioTab::Appearance;
+                resetCamera();
+                return;
+            }
+            if (key == 53 || key == '5') {
+                _activeTab = StudioTab::FaceDialogue;
+                resetCamera();
+                return;
+            }
+            if (key == 32) { // GLFW_KEY_SPACE
+                if (_activeTab == StudioTab::ReloadTimeline) {
+                    _scrubberPlaying = !_scrubberPlaying;
+                } else if (_activeTab == StudioTab::FaceDialogue) {
+                    _dialoguePlaying = !_dialoguePlaying;
+                    if (_dialoguePlaying) _dialogueTimer = 0.0f;
+                }
+                return;
+            }
+        }
     }
 
     void CharacterStudio::init() {
@@ -354,23 +526,35 @@ namespace Lab {
             if (_turntableYaw > 360.0f) _turntableYaw -= 360.0f;
         }
 
-        // Viewport Dragging (LMB or RMB inside 3D viewport)
-        // Viewport bounds: x: 70..w-380, y: 52..h-165
-        float vpX = 70.0f;
-        float vpY = 52.0f;
+        // Viewport Dragging (LMB or RMB inside center 3D viewport only)
+        float leftBarW = 72.0f;
+        float topBarsH = 52.0f;
+        float sbH = 24.0f;
+        float conH = std::clamp(_screenHeight * 0.16f, 100.0f, 160.0f);
+        float bottomBarsH = conH + sbH;
+        float rightPanelW = std::clamp(_screenWidth * 0.28f, 350.0f, 460.0f);
 
-        if (lmbPressed && mouseX >= vpX && mouseY >= vpY && !_isDraggingScrubber && _activeSliderId == -1) {
-            _turntableYaw += dx * 0.4f;
-            _turntablePitch = std::clamp(_turntablePitch + dy * 0.4f, -85.0f, 85.0f);
+        float vpX = leftBarW;
+        float vpY = topBarsH;
+        float vpW = static_cast<float>(_screenWidth) - leftBarW - rightPanelW;
+        float vpH = static_cast<float>(_screenHeight) - topBarsH - bottomBarsH;
+
+        bool inViewport = (mouseX >= vpX && mouseX <= vpX + vpW && mouseY >= vpY && mouseY <= vpY + vpH);
+
+        if (_activeDropdown == DropdownMenu::None && !_isDraggingScrubber && _activeSliderId == -1) {
+            if (lmbPressed && inViewport) {
+                _turntableYaw += dx * 0.4f;
+                _turntablePitch = std::clamp(_turntablePitch + dy * 0.4f, -85.0f, 85.0f);
+            }
+
+            // RMB Orbit / Zoom inside viewport
+            if (rmbPressed && inViewport) {
+                _cameraDist = std::clamp(_cameraDist + dy * 0.01f, 0.4f, 5.0f);
+            }
         }
 
-        // RMB Orbit / Zoom inside viewport
-        if (rmbPressed && mouseX >= vpX && mouseY >= vpY) {
-            _cameraDist = std::clamp(_cameraDist + dy * 0.01f, 0.4f, 5.0f);
-        }
-
-        // Scroll wheel zoom
-        if (std::abs(scrollDelta) > 0.001f) {
+        // Scroll wheel zoom inside viewport
+        if (std::abs(scrollDelta) > 0.001f && inViewport && _activeDropdown == DropdownMenu::None) {
             _cameraDist = std::clamp(_cameraDist - scrollDelta * 0.15f, 0.4f, 5.0f);
         }
 
@@ -433,10 +617,15 @@ namespace Lab {
     }
 
     void CharacterStudio::render(int screenWidth, int screenHeight) {
-        float leftBarW = 70.0f;
-        float rightPanelW = 390.0f;
-        float topBarsH = 54.0f;
-        float bottomBarsH = 160.0f;
+        _screenWidth = screenWidth;
+        _screenHeight = screenHeight;
+
+        float leftBarW = 72.0f;
+        float topBarsH = 52.0f;
+        float sbH = 24.0f;
+        float conH = std::clamp(static_cast<float>(screenHeight) * 0.16f, 100.0f, 160.0f);
+        float bottomBarsH = conH + sbH;
+        float rightPanelW = std::clamp(static_cast<float>(screenWidth) * 0.28f, 350.0f, 460.0f);
 
         int vpX = static_cast<int>(leftBarW);
         int vpBottomY = static_cast<int>(bottomBarsH);
@@ -742,7 +931,11 @@ namespace Lab {
 
     bool CharacterStudio::drawHammerButton(float x, float y, float w, float h, const std::string& label, bool active, bool highlighted) {
         bool hovered = (_mouseX >= x && _mouseX <= x + w && _mouseY >= y && _mouseY <= y + h);
-        bool clicked = (hovered && _lmbClicked);
+        bool clicked = false;
+        if (hovered && _lmbClicked) {
+            clicked = true;
+            _lmbClicked = false; // Consumed to prevent clicking elements behind
+        }
 
         Vec3 bgCol = active ? Vec3(0.85f, 0.48f, 0.10f) :
                      (hovered ? (highlighted ? Vec3(0.32f, 0.55f, 0.35f) : Vec3(0.35f, 0.38f, 0.42f)) :
@@ -789,7 +982,15 @@ namespace Lab {
 
         // Mouse Drag interaction
         bool changed = false;
-        if (_lmbPressed && _mouseX >= trackX && _mouseX <= trackX + trackW && _mouseY >= y && _mouseY <= y + h) {
+        int sliderId = static_cast<int>(y * 1000.0f + x);
+        if (_lmbClicked && _mouseX >= trackX && _mouseX <= trackX + trackW && _mouseY >= y && _mouseY <= y + h) {
+            _activeSliderId = sliderId;
+            pushUndoState();
+            float newNorm = std::clamp((_mouseX - trackX) / trackW, 0.0f, 1.0f);
+            value = minVal + newNorm * (maxVal - minVal);
+            changed = true;
+            _lmbClicked = false;
+        } else if (_lmbPressed && _activeSliderId == sliderId) {
             float newNorm = std::clamp((_mouseX - trackX) / trackW, 0.0f, 1.0f);
             value = minVal + newNorm * (maxVal - minVal);
             changed = true;
@@ -804,26 +1005,246 @@ namespace Lab {
         Renderer::drawRect(0, 0, w, menuH, menuBg);
         drawHammerBevel(0, 0, w, menuH, false);
 
-        struct MenuBtn { std::string name; float x; float w; };
+        struct MenuBtn { std::string name; float x; float w; DropdownMenu menu; };
         MenuBtn items[] = {
-            { "File", 6.0f, 42.0f },
-            { "Edit", 52.0f, 42.0f },
-            { "View", 98.0f, 42.0f },
-            { "Tools", 144.0f, 46.0f },
-            { "Help", 194.0f, 42.0f }
+            { "File", 6.0f, 44.0f, DropdownMenu::File },
+            { "Edit", 52.0f, 44.0f, DropdownMenu::Edit },
+            { "View", 98.0f, 44.0f, DropdownMenu::View },
+            { "Tools", 144.0f, 48.0f, DropdownMenu::Tools },
+            { "Help", 194.0f, 44.0f, DropdownMenu::Help }
         };
 
         for (int i = 0; i < 5; ++i) {
             bool hov = (_mouseX >= items[i].x && _mouseX <= items[i].x + items[i].w && _mouseY >= 2.0f && _mouseY <= 22.0f);
-            if (hov) {
+            bool isActive = (_activeDropdown == items[i].menu);
+
+            // Hover switching between open menus (Valve Hammer / Windows standard behavior)
+            if (hov && _activeDropdown != DropdownMenu::None && _activeDropdown != items[i].menu) {
+                _activeDropdown = items[i].menu;
+                isActive = true;
+            }
+
+            // Click toggles menu
+            if (hov && _lmbClicked) {
+                _activeDropdown = isActive ? DropdownMenu::None : items[i].menu;
+                isActive = (_activeDropdown == items[i].menu);
+                _lmbClicked = false; // Consumed!
+            }
+
+            if (isActive) {
+                Renderer::drawRect(items[i].x, 2.0f, items[i].w, 20.0f, Vec3(0.18f, 0.28f, 0.42f));
+                drawHammerBevel(items[i].x, 2.0f, items[i].w, 20.0f, true);
+            } else if (hov) {
                 Renderer::drawRect(items[i].x, 2.0f, items[i].w, 20.0f, Vec3(0.35f, 0.38f, 0.42f));
                 drawHammerBevel(items[i].x, 2.0f, items[i].w, 20.0f, false);
             }
-            LabFont::drawText(items[i].x + 8.0f, 5.0f, items[i].name, 1.4f, Vec3(0.95f, 0.95f, 0.95f), LabFontType::System);
+
+            Vec3 txtCol = isActive ? Vec3(1.0f, 1.0f, 1.0f) : (hov ? Vec3(1.0f, 0.95f, 0.7f) : Vec3(0.95f, 0.95f, 0.95f));
+            LabFont::drawText(items[i].x + 8.0f, 5.0f, items[i].name, 1.4f, txtCol, LabFontType::System);
         }
 
         // Title Tag
-        LabFont::drawText(w - 380.0f, 5.0f, "Valve Hammer Character & Weapon Studio - [Lab Studio 2026]", 1.4f, Vec3(0.85f, 0.88f, 0.92f), LabFontType::System);
+        LabFont::drawText(std::max(250.0f, w - 420.0f), 5.0f, "Valve Hammer Character & Weapon Studio - [Lab Studio 2026]", 1.4f, Vec3(0.85f, 0.88f, 0.92f), LabFontType::System);
+    }
+
+    void CharacterStudio::renderHammerDropdownMenus(float w, float h) {
+        (void)w;
+        (void)h;
+        if (_activeDropdown == DropdownMenu::None) return;
+
+        struct DropdownItem {
+            std::string text;
+            std::string shortcut;
+            bool isSeparator = false;
+            bool isChecked = false;
+            bool isCheckable = false;
+            std::function<void()> onSelect;
+        };
+
+        std::vector<DropdownItem> items;
+        float menuX = 6.0f;
+        float menuY = 24.0f;
+        float menuW = 230.0f;
+
+        if (_activeDropdown == DropdownMenu::File) {
+            menuX = 6.0f;
+            items.push_back({ "New Preset", "", false, false, false, [this]() {
+                pushUndoState();
+                resetDefaults();
+                log("New preset initialized with default settings.");
+            }});
+            items.push_back({ "Open Config...", "Ctrl+O", false, false, false, [this]() {
+                std::string path = LabDialogs::openFileDialog(_window, "Studio Config Files (*.cfg)\0*.cfg\0All Files (*.*)\0*.*\0", "assets\\configs");
+                if (!path.empty()) {
+                    pushUndoState();
+                    loadConfig(path);
+                }
+            }});
+            items.push_back({ "Save Config", "Ctrl+S", false, false, false, [this]() {
+                saveConfig("assets/configs/character_studio.cfg");
+            }});
+            items.push_back({ "Save Config As...", "", false, false, false, [this]() {
+                std::string path = LabDialogs::saveFileDialog(_window, "Studio Config Files (*.cfg)\0*.cfg\0All Files (*.*)\0*.*\0", "character_studio.cfg", "assets\\configs");
+                if (!path.empty()) {
+                    saveConfig(path);
+                }
+            }});
+            items.push_back({ "", "", true, false, false, nullptr }); // Separator
+            items.push_back({ "Reset Factory Defaults", "", false, false, false, [this]() {
+                pushUndoState();
+                resetDefaults();
+                log("Reset all character and weapon parameters to factory defaults.");
+            }});
+            items.push_back({ "", "", true, false, false, nullptr }); // Separator
+            items.push_back({ "Exit Studio", "Esc", false, false, false, [this]() {
+                _requestExit = true;
+                log("Exiting Studio session...");
+            }});
+        } else if (_activeDropdown == DropdownMenu::Edit) {
+            menuX = 52.0f;
+            items.push_back({ "Undo", "Ctrl+Z", false, false, false, [this]() { undo(); }});
+            items.push_back({ "Redo", "Ctrl+Y", false, false, false, [this]() { redo(); }});
+            items.push_back({ "", "", true, false, false, nullptr }); // Separator
+            items.push_back({ "Copy Grip Sockets", "Ctrl+C", false, false, false, [this]() { copyGrip(); }});
+            items.push_back({ "Paste Grip Sockets", "Ctrl+V", false, false, false, [this]() { pasteGrip(); }});
+            items.push_back({ "Reset Active Grip", "", false, false, false, [this]() {
+                pushUndoState();
+                _weaponGrips[_selectedWeaponIndex] = WeaponGripConfig{};
+                log("Reset active weapon grip sockets.");
+            }});
+        } else if (_activeDropdown == DropdownMenu::View) {
+            menuX = 98.0f;
+            items.push_back({ "Reset Camera Pose", "Home", false, false, false, [this]() { resetCamera(); }});
+            items.push_back({ "Ground Reference Grid", "G", false, _showGrid, true, [this]() {
+                _showGrid = !_showGrid;
+                log(_showGrid ? "Ground grid ON" : "Ground grid OFF");
+            }});
+            items.push_back({ "Socket Tripod Gizmos", "Z", false, _showGizmos, true, [this]() {
+                _showGizmos = !_showGizmos;
+                log(_showGizmos ? "Gizmos ON" : "Gizmos OFF");
+            }});
+            items.push_back({ "Turntable 360 Rotate", "R", false, _turntableAutoRotate, true, [this]() {
+                _turntableAutoRotate = !_turntableAutoRotate;
+            }});
+            items.push_back({ "", "", true, false, false, nullptr }); // Separator
+            items.push_back({ "Weapon Grip Poser", "1", false, _activeTab == StudioTab::GripPoser, true, [this]() {
+                _activeTab = StudioTab::GripPoser; resetCamera();
+            }});
+            items.push_back({ "Reload Timeline", "2", false, _activeTab == StudioTab::ReloadTimeline, true, [this]() {
+                _activeTab = StudioTab::ReloadTimeline; resetCamera();
+            }});
+            items.push_back({ "Weapon Materials", "3", false, _activeTab == StudioTab::WeaponSkins, true, [this]() {
+                _activeTab = StudioTab::WeaponSkins; resetCamera();
+            }});
+            items.push_back({ "Operative Outfits", "4", false, _activeTab == StudioTab::Appearance, true, [this]() {
+                _activeTab = StudioTab::Appearance; resetCamera();
+            }});
+            items.push_back({ "Facial Lip-Sync", "5", false, _activeTab == StudioTab::FaceDialogue, true, [this]() {
+                _activeTab = StudioTab::FaceDialogue; resetCamera();
+            }});
+        } else if (_activeDropdown == DropdownMenu::Tools) {
+            menuX = 144.0f;
+            items.push_back({ "Audition Reload SFX", "", false, false, false, [this]() {
+                AudioEngine::playSound(SoundID::Reload, 1.0f, 1.0f);
+                log("Auditioned active reload sound FX.");
+            }});
+            items.push_back({ "Test Dialogue Speech", "Space", false, _dialoguePlaying, true, [this]() {
+                _dialoguePlaying = !_dialoguePlaying;
+                if (_dialoguePlaying) {
+                    _dialogueTimer = 0.0f;
+                    log("Playing dialogue test.");
+                }
+            }});
+            items.push_back({ "Toggle Scrubber Play", "", false, _scrubberPlaying, true, [this]() {
+                _scrubberPlaying = !_scrubberPlaying;
+            }});
+            items.push_back({ "", "", true, false, false, nullptr }); // Separator
+            items.push_back({ "Center Weapon Sockets", "", false, false, false, [this]() {
+                pushUndoState();
+                auto& g = _weaponGrips[_selectedWeaponIndex];
+                g.rightSocketPos = Vec3(0, 0, 0);
+                g.leftSocketPos = Vec3(0, 0, 0);
+                log("Centered weapon socket offsets.");
+            }});
+        } else if (_activeDropdown == DropdownMenu::Help) {
+            menuX = 194.0f;
+            items.push_back({ "Studio Shortcuts", "", false, false, false, [this]() {
+                log("--- KEYBOARD SHORTCUTS ---");
+                log("Ctrl+S: Save Config | Ctrl+O: Open Config | Ctrl+Z: Undo | Ctrl+Y: Redo");
+                log("Ctrl+C: Copy Grip   | Ctrl+V: Paste Grip");
+                log("Home: Reset Cam     | G: Grid | Z: Gizmos | R: Rotate | 1-5: Tabs");
+            }});
+            items.push_back({ "About Hammer Studio", "", false, false, false, [this]() {
+                log("Valve Hammer Character & Weapon Studio v2.0 for Frozen-Life.");
+                log("Strict Core Profile OpenGL 4.5 | Responsive DPI Scaling.");
+            }});
+        }
+
+        // Calculate total popup height
+        float totalH = 6.0f;
+        for (const auto& it : items) {
+            totalH += it.isSeparator ? 8.0f : 22.0f;
+        }
+
+        // Handle click outside menu: closes dropdown
+        if (_lmbClicked) {
+            bool inMenu = (_mouseX >= menuX && _mouseX <= menuX + menuW && _mouseY >= menuY && _mouseY <= menuY + totalH);
+            bool inTopBar = (_mouseY >= 0.0f && _mouseY <= 24.0f && _mouseX <= 250.0f);
+            if (!inMenu && !inTopBar) {
+                _activeDropdown = DropdownMenu::None;
+                _lmbClicked = false; // Consumed outside click!
+                return;
+            }
+        }
+
+        // Drop shadow
+        Renderer::drawRect(menuX + 4.0f, menuY + 4.0f, menuW, totalH, Vec3(0.08f, 0.09f, 0.11f));
+
+        // Background & bevel
+        Renderer::drawRect(menuX, menuY, menuW, totalH, Vec3(0.24f, 0.25f, 0.27f));
+        drawHammerBevel(menuX, menuY, menuW, totalH, false);
+
+        // Render each item
+        float curItemY = menuY + 3.0f;
+        for (const auto& it : items) {
+            if (it.isSeparator) {
+                Renderer::drawRect(menuX + 4.0f, curItemY + 3.0f, menuW - 8.0f, 1.0f, Vec3(0.14f, 0.15f, 0.17f));
+                Renderer::drawRect(menuX + 4.0f, curItemY + 4.0f, menuW - 8.0f, 1.0f, Vec3(0.38f, 0.40f, 0.44f));
+                curItemY += 8.0f;
+            } else {
+                float itemH = 22.0f;
+                bool hovered = (_mouseX >= menuX + 2.0f && _mouseX <= menuX + menuW - 2.0f && _mouseY >= curItemY && _mouseY <= curItemY + itemH);
+
+                if (hovered) {
+                    Renderer::drawRect(menuX + 2.0f, curItemY, menuW - 4.0f, itemH, Vec3(0.20f, 0.45f, 0.78f));
+                    drawHammerBevel(menuX + 2.0f, curItemY, menuW - 4.0f, itemH, false);
+                }
+
+                Vec3 txtCol = hovered ? Vec3(1.0f, 1.0f, 1.0f) : Vec3(0.90f, 0.92f, 0.95f);
+                if (it.isCheckable) {
+                    std::string checkStr = it.isChecked ? "[X]" : "[ ]";
+                    Vec3 checkCol = it.isChecked ? (hovered ? Vec3(1, 1, 1) : Vec3(0.4f, 0.95f, 0.4f)) : Vec3(0.6f, 0.6f, 0.6f);
+                    LabFont::drawText(menuX + 8.0f, curItemY + 4.0f, checkStr, 1.3f, checkCol, LabFontType::System);
+                    LabFont::drawText(menuX + 32.0f, curItemY + 4.0f, it.text, 1.4f, txtCol, LabFontType::System);
+                } else {
+                    LabFont::drawText(menuX + 16.0f, curItemY + 4.0f, it.text, 1.4f, txtCol, LabFontType::System);
+                }
+
+                if (!it.shortcut.empty()) {
+                    LabFont::drawText(menuX + menuW - 65.0f, curItemY + 4.0f, it.shortcut, 1.3f, hovered ? Vec3(0.9f, 0.9f, 0.9f) : Vec3(0.65f, 0.68f, 0.72f), LabFontType::System);
+                }
+
+                if (hovered && _lmbClicked) {
+                    if (it.onSelect) {
+                        it.onSelect();
+                    }
+                    _activeDropdown = DropdownMenu::None;
+                    _lmbClicked = false; // Consumed!
+                }
+
+                curItemY += itemH;
+            }
+        }
     }
 
     void CharacterStudio::renderHammerToolbar(float w) {
@@ -872,9 +1293,10 @@ namespace Lab {
     }
 
     void CharacterStudio::renderHammerLeftToolPalette(float h) {
-        float barW = 70.0f;
+        float barW = 72.0f;
         float barY = 52.0f;
-        float barH = h - barY - 160.0f;
+        float conH = std::clamp(h * 0.16f, 100.0f, 160.0f);
+        float barH = h - barY - conH - 24.0f;
 
         Vec3 barBg(0.22f, 0.23f, 0.25f);
         Renderer::drawRect(0, barY, barW, barH, barBg);
@@ -893,7 +1315,7 @@ namespace Lab {
             float btnY = barY + 8.0f + i * 54.0f;
             bool active = (_activeTab == tools[i].tab);
 
-            if (drawHammerButton(6.0f, btnY, 58.0f, 48.0f, tools[i].code, active)) {
+            if (drawHammerButton(6.0f, btnY, 60.0f, 48.0f, tools[i].code, active)) {
                 _activeTab = tools[i].tab;
                 if (_activeTab == StudioTab::FaceDialogue) {
                     _cameraDist = 0.85f;
@@ -961,10 +1383,12 @@ namespace Lab {
             "M4A4-S", "SG553", "MINIGUN",
             "PLASMA", "RAILGUN", "RPG"
         };
+        float colPad = 6.0f;
+        float btnW = (w - 20.0f - 2.0f * colPad) / 3.0f;
         for (int i = 0; i < 9; ++i) {
-            float bx = x + 10.0f + (i % 3) * 122.0f;
+            float bx = x + 10.0f + (i % 3) * (btnW + colPad);
             float by = curY + (i / 3) * 26.0f;
-            if (drawHammerButton(bx, by, 116.0f, 22.0f, shortNames[i], _selectedWeaponIndex == i)) {
+            if (drawHammerButton(bx, by, btnW, 22.0f, shortNames[i], _selectedWeaponIndex == i)) {
                 _selectedWeaponIndex = i;
                 log(std::string("Loaded grip & skin profile for: ") + shortNames[i]);
             }
@@ -1007,11 +1431,13 @@ namespace Lab {
         curY += 88.0f;
 
         // Action Buttons
-        if (drawHammerButton(x + 12.0f, curY, 175.0f, 26.0f, "Reset This Grip")) {
+        float actW = (w - 32.0f) * 0.5f;
+        if (drawHammerButton(x + 12.0f, curY, actW, 26.0f, "Reset This Grip")) {
+            pushUndoState();
             resetDefaults();
             log("Reset weapon grip to default anatomical socket pose.");
         }
-        if (drawHammerButton(x + 195.0f, curY, 175.0f, 26.0f, "Apply In-Game", false, true)) {
+        if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply In-Game", false, true)) {
             saveConfig("assets/configs/character_studio.cfg");
             log("Saved and applied custom weapon sockets to active game!");
         }
@@ -1069,14 +1495,16 @@ namespace Lab {
         curY += 22.0f;
 
         // Playback Buttons
-        if (drawHammerButton(x + 12.0f, curY, 70.0f, 24.0f, _scrubberPlaying ? "PAUSE" : "PLAY")) {
+        float pbPad = 6.0f;
+        float pbW = (w - 24.0f - 2.0f * pbPad) / 3.0f;
+        if (drawHammerButton(x + 12.0f, curY, pbW, 24.0f, _scrubberPlaying ? "PAUSE" : "PLAY")) {
             _scrubberPlaying = !_scrubberPlaying;
         }
-        if (drawHammerButton(x + 88.0f, curY, 65.0f, 24.0f, "STOP")) {
+        if (drawHammerButton(x + 12.0f + 1 * (pbW + pbPad), curY, pbW, 24.0f, "STOP")) {
             _scrubberPlaying = false;
             _scrubberPos = 0.0f;
         }
-        if (drawHammerButton(x + 158.0f, curY, 95.0f, 24.0f, _scrubberLoop ? "LOOP: ON" : "LOOP: OFF", _scrubberLoop)) {
+        if (drawHammerButton(x + 12.0f + 2 * (pbW + pbPad), curY, pbW, 24.0f, _scrubberLoop ? "LOOP: ON" : "LOOP: OFF", _scrubberLoop)) {
             _scrubberLoop = !_scrubberLoop;
         }
         curY += 32.0f;
@@ -1096,15 +1524,17 @@ namespace Lab {
         // Sound Trigger Previews
         LabFont::drawText(x + 12.0f, curY, "SOUND FX TIMELINE CUES:", 1.4f, Vec3(0.85f, 0.90f, 0.95f), LabFontType::System);
         curY += 18.0f;
-        if (drawHammerButton(x + 12.0f, curY, 110.0f, 22.0f, "Mag Out SFX")) {
+        float sfxPad = 6.0f;
+        float sfxW = (w - 24.0f - 2.0f * sfxPad) / 3.0f;
+        if (drawHammerButton(x + 12.0f + 0 * (sfxW + sfxPad), curY, sfxW, 22.0f, "Mag Out SFX")) {
             AudioEngine::playSound(SoundID::Reload, 1.0f, 1.15f);
             log("Auditioned sound: Mag Out SFX");
         }
-        if (drawHammerButton(x + 128.0f, curY, 110.0f, 22.0f, "Mag In SFX")) {
+        if (drawHammerButton(x + 12.0f + 1 * (sfxW + sfxPad), curY, sfxW, 22.0f, "Mag In SFX")) {
             AudioEngine::playSound(SoundID::Reload, 1.0f, 0.95f);
             log("Auditioned sound: Mag In SFX");
         }
-        if (drawHammerButton(x + 244.0f, curY, 110.0f, 22.0f, "Bolt Rack SFX")) {
+        if (drawHammerButton(x + 12.0f + 2 * (sfxW + sfxPad), curY, sfxW, 22.0f, "Bolt Rack SFX")) {
             AudioEngine::playSound(SoundID::Reload, 1.0f, 1.35f);
             log("Auditioned sound: Bolt Rack SFX");
         }
@@ -1166,15 +1596,20 @@ namespace Lab {
         // Armor Class
         LabFont::drawText(x + 12.0f, curY, "Armor Class:", 1.4f, Vec3(0.85f, 0.90f, 0.95f), LabFontType::System);
         curY += 18.0f;
-        if (drawHammerButton(x + 12.0f, curY, 110.0f, 24.0f, "Light Scout", _appearance.armorClass == ArmorClass::LightScout)) {
+        float acPad = 6.0f;
+        float acW = (w - 24.0f - 2.0f * acPad) / 3.0f;
+        if (drawHammerButton(x + 12.0f + 0 * (acW + acPad), curY, acW, 24.0f, "Light Scout", _appearance.armorClass == ArmorClass::LightScout)) {
+            pushUndoState();
             _appearance.armorClass = ArmorClass::LightScout;
             log("Operative Armor set to: Light Scout");
         }
-        if (drawHammerButton(x + 128.0f, curY, 110.0f, 24.0f, "Cryo Marine", _appearance.armorClass == ArmorClass::CryoMarine)) {
+        if (drawHammerButton(x + 12.0f + 1 * (acW + acPad), curY, acW, 24.0f, "Cryo Marine", _appearance.armorClass == ArmorClass::CryoMarine)) {
+            pushUndoState();
             _appearance.armorClass = ArmorClass::CryoMarine;
             log("Operative Armor set to: Heavy Cryo Marine");
         }
-        if (drawHammerButton(x + 244.0f, curY, 110.0f, 24.0f, "Tactical Officer", _appearance.armorClass == ArmorClass::TacticalOfficer)) {
+        if (drawHammerButton(x + 12.0f + 2 * (acW + acPad), curY, acW, 24.0f, "Tactical Officer", _appearance.armorClass == ArmorClass::TacticalOfficer)) {
+            pushUndoState();
             _appearance.armorClass = ArmorClass::TacticalOfficer;
             log("Operative Armor set to: Tactical Officer");
         }
@@ -1183,13 +1618,16 @@ namespace Lab {
         // Helmet Type
         LabFont::drawText(x + 12.0f, curY, "Headgear & Visor:", 1.4f, Vec3(0.85f, 0.90f, 0.95f), LabFontType::System);
         curY += 18.0f;
-        if (drawHammerButton(x + 12.0f, curY, 110.0f, 24.0f, "Combat Visor", _appearance.helmetType == HelmetType::CombatVisor)) {
+        if (drawHammerButton(x + 12.0f + 0 * (acW + acPad), curY, acW, 24.0f, "Combat Visor", _appearance.helmetType == HelmetType::CombatVisor)) {
+            pushUndoState();
             _appearance.helmetType = HelmetType::CombatVisor;
         }
-        if (drawHammerButton(x + 128.0f, curY, 110.0f, 24.0f, "Sealed Helmet", _appearance.helmetType == HelmetType::SealedHelmet)) {
+        if (drawHammerButton(x + 12.0f + 1 * (acW + acPad), curY, acW, 24.0f, "Sealed Helmet", _appearance.helmetType == HelmetType::SealedHelmet)) {
+            pushUndoState();
             _appearance.helmetType = HelmetType::SealedHelmet;
         }
-        if (drawHammerButton(x + 244.0f, curY, 110.0f, 24.0f, "Tactical Beanie", _appearance.helmetType == HelmetType::TacticalBeanie)) {
+        if (drawHammerButton(x + 12.0f + 2 * (acW + acPad), curY, acW, 24.0f, "Tactical Beanie", _appearance.helmetType == HelmetType::TacticalBeanie)) {
+            pushUndoState();
             _appearance.helmetType = HelmetType::TacticalBeanie;
         }
         curY += 34.0f;
@@ -1197,10 +1635,12 @@ namespace Lab {
         // Visor LED Color
         LabFont::drawText(x + 12.0f, curY, "Visor HUD LED Glow:", 1.4f, Vec3(0.85f, 0.90f, 0.95f), LabFontType::System);
         curY += 18.0f;
-        if (drawHammerButton(x + 12.0f, curY, 82.0f, 22.0f, "Cyan")) _appearance.visorGlowColor = Vec3(0.2f, 0.85f, 1.0f);
-        if (drawHammerButton(x + 100.0f, curY, 82.0f, 22.0f, "Amber")) _appearance.visorGlowColor = Vec3(1.0f, 0.75f, 0.1f);
-        if (drawHammerButton(x + 188.0f, curY, 82.0f, 22.0f, "Crimson")) _appearance.visorGlowColor = Vec3(1.0f, 0.2f, 0.2f);
-        if (drawHammerButton(x + 276.0f, curY, 82.0f, 22.0f, "Acid Green")) _appearance.visorGlowColor = Vec3(0.2f, 1.0f, 0.3f);
+        float ledPad = 6.0f;
+        float ledW = (w - 24.0f - 3.0f * ledPad) / 4.0f;
+        if (drawHammerButton(x + 12.0f + 0 * (ledW + ledPad), curY, ledW, 22.0f, "Cyan")) { pushUndoState(); _appearance.visorGlowColor = Vec3(0.2f, 0.85f, 1.0f); }
+        if (drawHammerButton(x + 12.0f + 1 * (ledW + ledPad), curY, ledW, 22.0f, "Amber")) { pushUndoState(); _appearance.visorGlowColor = Vec3(1.0f, 0.75f, 0.1f); }
+        if (drawHammerButton(x + 12.0f + 2 * (ledW + ledPad), curY, ledW, 22.0f, "Crimson")) { pushUndoState(); _appearance.visorGlowColor = Vec3(1.0f, 0.2f, 0.2f); }
+        if (drawHammerButton(x + 12.0f + 3 * (ledW + ledPad), curY, ledW, 22.0f, "Acid Green")) { pushUndoState(); _appearance.visorGlowColor = Vec3(0.2f, 1.0f, 0.3f); }
         curY += 32.0f;
 
         // Fatigues Color
@@ -1257,12 +1697,14 @@ namespace Lab {
         }
         curY += 120.0f;
 
-        if (drawHammerButton(x + 14.0f, curY, 155.0f, 26.0f, _dialoguePlaying ? "SPEAKING..." : "TEST DIALOGUE", _dialoguePlaying, true)) {
+        float actW = (w - 36.0f) * 0.5f;
+        if (drawHammerButton(x + 14.0f, curY, actW, 26.0f, _dialoguePlaying ? "SPEAKING..." : "TEST DIALOGUE", _dialoguePlaying, true)) {
             _dialoguePlaying = true;
             _dialogueTimer = 0.0f;
             log("Started speech playback and phoneme lip-sync track.");
         }
-        if (drawHammerButton(x + 180.0f, curY, 155.0f, 26.0f, "Reset Mimics")) {
+        if (drawHammerButton(x + 14.0f + actW + 8.0f, curY, actW, 26.0f, "Reset Mimics")) {
+            pushUndoState();
             _faceMorphs = { 0, 0, 0, 0, 0, 0 };
             _dialoguePlaying = false;
         }
@@ -1310,36 +1752,50 @@ namespace Lab {
         float w = static_cast<float>(screenWidth);
         float h = static_cast<float>(screenHeight);
 
+        glViewport(0, 0, screenWidth, screenHeight);
         Renderer::beginUI(screenWidth, screenHeight);
 
-        // 1. Top Menu Bar
-        renderHammerTopMenuBar(w);
+        float leftBarW = 72.0f;
+        float menuH = 24.0f;
+        float tbH = 28.0f;
+        float topBarsH = menuH + tbH;
+        float sbH = 24.0f;
+        float conH = std::clamp(h * 0.16f, 100.0f, 160.0f);
+        float bottomBarsH = conH + sbH;
+        float rightPanelW = std::clamp(w * 0.28f, 350.0f, 460.0f);
 
-        // 2. Top Toolbar
-        renderHammerToolbar(w);
+        float vpX = leftBarW;
+        float vpY = topBarsH;
+        float vpW = w - leftBarW - rightPanelW;
+        float vpH = h - topBarsH - bottomBarsH;
 
-        // 3. Left Tool Palette
-        renderHammerLeftToolPalette(h);
-
-        // 4. Center 3D Viewport Frame Border
-        float vpX = 70.0f;
-        float vpY = 52.0f;
-        float vpW = w - 70.0f - 390.0f;
-        float vpH = h - 52.0f - 160.0f;
+        // 1. Center 3D Viewport Frame Border
         drawHammerBevel(vpX, vpY, vpW, vpH, true);
 
         // Viewport Header Label (Valve Hammer iconic text)
         Renderer::drawRect(vpX + 4.0f, vpY + 4.0f, 320.0f, 20.0f, Vec3(0.10f, 0.12f, 0.14f));
         LabFont::drawText(vpX + 8.0f, vpY + 7.0f, "[camera 3D shaded] | Grid: 16 | Turntable 360", 1.4f, Vec3(0.4f, 0.95f, 0.4f), LabFontType::System);
 
-        // 5. Right Inspector Panel
-        renderHammerRightInspector(w - 390.0f, 52.0f, 390.0f, h - 52.0f - 160.0f);
+        // 2. Left Tool Palette
+        renderHammerLeftToolPalette(h);
 
-        // 6. Bottom Console Panel
-        renderHammerConsole(70.0f, h - 160.0f, w - 70.0f, 136.0f);
+        // 3. Right Inspector Panel
+        renderHammerRightInspector(w - rightPanelW, topBarsH, rightPanelW, vpH);
 
-        // 7. Bottom Status Bar
+        // 4. Bottom Console Panel
+        renderHammerConsole(leftBarW, h - bottomBarsH, w - leftBarW, conH);
+
+        // 5. Bottom Status Bar
         renderHammerStatusBar(w, h);
+
+        // 6. Top Toolbar
+        renderHammerToolbar(w);
+
+        // 7. Top Menu Bar
+        renderHammerTopMenuBar(w);
+
+        // 8. Dropdown Menus (drawn on top of all other elements)
+        renderHammerDropdownMenus(w, h);
 
         Renderer::endUI();
     }

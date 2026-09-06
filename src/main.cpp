@@ -106,6 +106,7 @@ public:
 
         // Initialize Valve Hammer Character & Weapon Studio
         _characterStudio.init();
+        _characterStudio.setWindow(getWindow());
 
         // Start in Main Menu
         _inMenu = true;
@@ -492,6 +493,38 @@ public:
 
     void onUpdate(const Time& time) override {
         if (_inMenu) {
+            int winW = 0, winH = 0;
+            glfwGetWindowSize(getWindow(), &winW, &winH);
+            int fbW = 0, fbH = 0;
+            glfwGetFramebufferSize(getWindow(), &fbW, &fbH);
+
+            if (_menuScreen == MenuScreen::CharacterStudio) {
+                float scaleX = (winW > 0 && fbW > 0) ? (static_cast<float>(fbW) / static_cast<float>(winW)) : 1.0f;
+                float scaleY = (winH > 0 && fbH > 0) ? (static_cast<float>(fbH) / static_cast<float>(winH)) : 1.0f;
+                float studioMx = Input::mousePos.x * scaleX;
+                float studioMy = Input::mousePos.y * scaleY;
+                bool rmb = Input::isMouseButtonPressed(1);
+
+                // Keyboard shortcuts for studio
+                bool ctrl = Input::isKeyPressed(GLFW_KEY_LEFT_CONTROL) || Input::isKeyPressed(GLFW_KEY_RIGHT_CONTROL);
+                bool shift = Input::isKeyPressed(GLFW_KEY_LEFT_SHIFT) || Input::isKeyPressed(GLFW_KEY_RIGHT_SHIFT);
+                for (int k = 0; k < 512; ++k) {
+                    if (Input::keys[k] && !_lastMenuKeys[k]) {
+                        _characterStudio.handleKeyDown(k, ctrl, shift);
+                    }
+                    _lastMenuKeys[k] = Input::keys[k];
+                }
+
+                _characterStudio.update(time.delta, studioMx, studioMy, Input::isMouseButtonPressed(0), rmb, Input::scrollDelta);
+                Input::scrollDelta = 0.0f;
+
+                if (_characterStudio.requestExit()) {
+                    _menuScreen = MenuScreen::Main;
+                    _characterStudio.clearRequestExit();
+                }
+                return;
+            }
+
             float scaleX = 1280.0f / (float)std::max(1, getWidth());
             float scaleY = 720.0f / (float)std::max(1, getHeight());
             float mx = Input::mousePos.x * scaleX;
@@ -513,10 +546,6 @@ public:
                 if (Input::isKeyPressed(294)) {
                     _serverBrowser.refresh();
                 }
-            } else if (_menuScreen == MenuScreen::CharacterStudio) {
-                bool rmb = Input::isMouseButtonPressed(1);
-                _characterStudio.update(time.delta, mx, my, Input::isMouseButtonPressed(0), rmb, Input::scrollDelta);
-                Input::scrollDelta = 0.0f;
             }
 
             handleMenuInput(mx, my, lmbJustPressed);
@@ -1348,9 +1377,6 @@ public:
         }
 
         if (_menuScreen == MenuScreen::CharacterStudio) {
-            bool rmb = Input::isMouseButtonPressed(1);
-            _characterStudio.update(0.016f, mx, my, Input::isMouseButtonPressed(0), rmb, Input::scrollDelta);
-            Input::scrollDelta = 0.0f;
             return;
         }
 
@@ -1593,13 +1619,17 @@ public:
     }
 
     void drawMenu() {
-        int w = 1280, h = 720;
+        int fbW = 0, fbH = 0;
+        glfwGetFramebufferSize(getWindow(), &fbW, &fbH);
+        int curW = (fbW > 0) ? fbW : getWidth();
+        int curH = (fbH > 0) ? fbH : getHeight();
 
         if (_menuScreen == MenuScreen::CharacterStudio) {
-            _characterStudio.render(w, h);
+            _characterStudio.render(curW, curH);
             return;
         }
 
+        int w = 1280, h = 720;
         Renderer::beginUI(w, h);
 
         // Dark background overlay (Half-Life 2 style backdrop)
@@ -2156,6 +2186,7 @@ private:
     bool _escPressedLast = false;
     bool _oPressedLast = false;
     bool _menuLmbLast = false;
+    bool _lastMenuKeys[512] = { false };
 
     // Movement state
     Vec3 _velocity;

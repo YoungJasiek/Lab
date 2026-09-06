@@ -3441,7 +3441,53 @@ int main() {
         std::filesystem::remove(testCfg);
         std::cout << "  [PASS] Configuration file serialization (.cfg) integrity validated!\n";
 
-        // 6. Visual Verification 1: Character Studio Stage & Hammer UI
+        // 6. Verify Valve Hammer Dropdown Menus
+        studio.setActiveDropdown(Lab::CharacterStudio::DropdownMenu::File);
+        if (studio.getActiveDropdown() != Lab::CharacterStudio::DropdownMenu::File) {
+            std::cerr << "Assertion failed: Dropdown menu state should be File!\n";
+            return 1;
+        }
+        // Click outside closes dropdown
+        studio.update(0.016f, 500.0f, 300.0f, true, false, 0.0f);
+        studio.render(w, h);
+        if (studio.getActiveDropdown() != Lab::CharacterStudio::DropdownMenu::None) {
+            std::cerr << "Assertion failed: Clicking outside should close the dropdown menu!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Valve Hammer Dropdown Menu modal behavior and dismissal validated!\n";
+
+        // 7. Verify Undo / Redo & Grip Clipboard
+        studio.setSelectedWeapon(3); // M4A4-S
+        float originalX = studio.getWeaponGrip(Lab::WeaponID::M4A4S).rightSocketPos.x;
+        studio.pushUndoState();
+        studio.getWeaponGripMut(Lab::WeaponID::M4A4S).rightSocketPos.x += 0.05f;
+        if (std::abs(studio.getWeaponGrip(Lab::WeaponID::M4A4S).rightSocketPos.x - (originalX + 0.05f)) > 0.001f) {
+            std::cerr << "Assertion failed: Socket modification failed!\n";
+            return 1;
+        }
+        studio.undo();
+        if (std::abs(studio.getWeaponGrip(Lab::WeaponID::M4A4S).rightSocketPos.x - originalX) > 0.001f) {
+            std::cerr << "Assertion failed: Undo failed to revert socket modification!\n";
+            return 1;
+        }
+        studio.redo();
+        if (std::abs(studio.getWeaponGrip(Lab::WeaponID::M4A4S).rightSocketPos.x - (originalX + 0.05f)) > 0.001f) {
+            std::cerr << "Assertion failed: Redo failed to reapply socket modification!\n";
+            return 1;
+        }
+        studio.undo(); // Revert back to original
+
+        // Clipboard test
+        studio.copyGrip();
+        studio.setSelectedWeapon(1); // Pistol
+        studio.pasteGrip();
+        if (std::abs(studio.getWeaponGrip(Lab::WeaponID::Pistol).rightSocketPos.x - originalX) > 0.001f) {
+            std::cerr << "Assertion failed: Grip clipboard copy/paste failed!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Undo / Redo history snapshots and socket clipboard validated!\n";
+
+        // 8. Visual Verification 1: Character Studio Stage & Hammer UI (Full responsive layout)
         glClearColor(0.12f, 0.13f, 0.15f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
