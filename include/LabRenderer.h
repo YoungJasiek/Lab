@@ -44,6 +44,7 @@ namespace Lab {
 
         void bind(unsigned int slot = 0) const;
         void unbind() const;
+        void updateData(const unsigned char* data, int width, int height, int channels);
         unsigned int getId() const { return _id; }
 
     private:

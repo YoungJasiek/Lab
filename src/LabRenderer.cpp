@@ -609,6 +609,22 @@ namespace Lab {
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
+    void Texture::updateData(const unsigned char* data, int width, int height, int channels) {
+        if (!_id) return;
+        glBindTexture(GL_TEXTURE_2D, _id);
+        GLenum dataFormat = (channels == 4) ? GL_RGBA : GL_RGB;
+        if (width == _width && height == _height && channels == _channels) {
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, dataFormat, GL_UNSIGNED_BYTE, data);
+        } else {
+            _width = width;
+            _height = height;
+            _channels = channels;
+            GLenum internalFormat = (channels == 4) ? GL_RGBA8 : GL_RGB8;
+            glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, _width, _height, 0, dataFormat, GL_UNSIGNED_BYTE, data);
+        }
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
     // --- Mesh Implementation ---
     Mesh::Mesh(const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices) {
         _indexCount = (int)indices.size();

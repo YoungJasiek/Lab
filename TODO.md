@@ -138,13 +138,19 @@ Wszystkie systemy tworzone sa w standardzie **C++20**, **OpenGL 4.5+ Core Profil
 
 ---
 
-### 13. System Interaktywnych Terminali Swiatowych & Logika Przelacznikow (Sprint 8 - 100% DONE)
+### 13. System Interaktywnych Terminali Swiatowych (LAB-OS v3.42) & Odryglowywanie Bram (Sprint 8 - 100% DONE)
 - [x] Podsystem encji interaktywnych `LabInteractive` (`InteractiveSystem`, `InteractiveEntity`, `InteractiveType`): terminale bezpieczenstwa, klawiatury numeryczne, przelaczniki szynowe i konsole sluzowe z raycast pickingiem (zasieg 2.8m).
-- [x] Interakcja gracza pod klawiszem `E` (+use) z debouncem, logika autoryzacji dostepu (Locked / Unlocked / Active) oraz sterowaniem logicznym celami I/O (otwieranie bram grodziowych i sluz w `LabMap`).
-- [x] Trojwymiarowe ekrany CRT z proceduralna tekstura linii rastrowych (scanlines), ramka obudowy, iluminacja LED stanu (czerwona, zielona, cyjanowa) oraz wskaznikami slupkowymi telemetrycznymi w przestrzeni 3D.
-- [x] Rozszerzenie silnika dzwiekowego `LabAudio` o 3 nowe syntetyzatory proceduralne WAV (`SoundID::TerminalBeep`, `SoundID::AccessGranted`, `SoundID::AccessDenied`) z pelna weryfikacja RIFF 16-bit PCM w `TestVerify.exe` (lacznie 26 przetestowanych dzwiekow).
-- [x] Autentyczny interfejs HUD w stylu Source Engine: banner u dolu ekranu z ikona klawisza `[E]` i etykieta akcji oraz gorny banner ostrzegawczy / diagnostyczny.
-- [x] Zautomatyzowany i wizualny test 30 w `TestVerify.exe` weryfikujacy rejestracje encji, progi odleglosci raycastu, blokade dostepu, aktywacje i wyzwalanie bram (`test_interactive_terminals.bmp`).
+- [x] Pelny interaktywny system operacyjny terminala **LAB-OS v3.42** (GUI w stylu Doom 3 / System Shock / Fallout) aktywowany klawiszem `[E]`:
+  - Kineskopowy ekran CRT z zielonym/cyjanowym fosforem, liniami rastra i naglowkiem stacji badawczej KORF Cryogenics.
+  - Interaktywne menu klawiaturowe (`1`, `2`, `3`, `0`, `ESC`, `E`, `Backspace`):
+    * `[1] AIRLOCK OVERRIDE`: Przelaczenie stanu rygla (`LOCKED` <-> `UNLOCKED`), dzwiek autoryzacji/odmowy, uruchomienie silnikow hydraulicznych bramy w swiecie 3D.
+    * `[2] SECURITY LOGS`: Baza wiedzy i lore stacji (akta incydentu #0451 o wycieku cieklego azotu i buncie syntetycznych jednostek strazniczych).
+    * `[3] BOT TELEMETRY`: Radar sensorowy stacji z odczytem liczby aktywnych syntetykow, uzbrojenia i stanu zagrozenia.
+    * `[ESC] / [E] EXIT`: Plynne zamkniecie terminala OS i powrot do sterowania postacia.
+- [x] Fizyczne ryglowanie bram w `LabMap` (`MapDoor::isLocked`): brama jest fizycznie zablokowana i nie reaguje na czujnik zblizeniowy, dopoki gracz nie uzyje terminala do autoryzacji i odryglowania.
+- [x] Generowanie dynamicznej tekstury monitora 3D w swiecie gry z czytelnym napisem `LAB-OS // SEC-04`, statusem `LOCKED / UNLOCKED`, informacja o sluzie oraz pulsujacym kursorem `> PRESS [E] _` z korekcja orientacji osi pionowej OpenGL.
+- [x] Rozszerzenie silnika dzwiekowego `LabAudio` o syntetyzatory proceduralne WAV (`SoundID::TerminalBeep`, `SoundID::AccessGranted`, `SoundID::AccessDenied`) z pelna weryfikacja RIFF 16-bit PCM (26 proceduralnych dzwiekow).
+- [x] Zaktualizowany test 30 w `TestVerify.exe` weryfikujacy calosc: rejestracje encji, raycast picking, blokade keypadu, wejscie w tryb LAB-OS po `[E]`, przelaczenie odryglowania bramy opcja `[1]`, nawigacje do logow opcja `[2]`, powrot `[0]`, telemetrie botow `[3]`, rendering ekranu OS (`test_interactive_terminals.bmp`) i wyjscie `[ESC]`. Wszystkie 30 testow przechodza w 100%!
 
 ---
 

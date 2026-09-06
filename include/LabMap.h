@@ -53,6 +53,7 @@ namespace Lab {
         // Runtime animation state
         float currentProgress = 0.0f;
         bool isOpen = false;
+        bool isLocked = false;
     };
 
     struct MapSpawn {

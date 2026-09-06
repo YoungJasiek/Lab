@@ -354,14 +354,17 @@ tFar  = min(max(t0.x, t1.x), max(t0.y, t1.y), max(t0.z, t1.z));</code></pre>
            SECTION 8: LABINTERACTIVE TERMINALS
            ================================================================ -->
       <section id="sec-interactive-engine" class="wiki-section-container">
-        <h2><span class="mw-headline">8. LabInteractive: In-World Terminals &amp; Trigger Logic</span></h2>
+        <h2><span class="mw-headline">8. LabInteractive: In-World Terminals, LAB-OS &amp; Door Locking</span></h2>
         <p>
-          The interactive entity system in <code>src/LabInteractive.cpp</code> brings tactical world interactions:
+          The interactive entity system in <code>src/LabInteractive.cpp</code> brings immersive tactical computer terminals and security door mechanics:
         </p>
         <ul>
-          <li><strong>Raycast Picking (+use):</strong> Continuous 2.8-meter view frustum raycast picking allowing players to operate in-world consoles, keypads, and industrial breaker switches by pressing <code>E</code>.</li>
-          <li><strong>Security Clearance Logic:</strong> State machine managing <code>Locked</code>, <code>Unlocked</code>, and <code>Active</code> states with visual LED indicators (red, green, cyan) and procedural audio feedback (Access Granted chime, Access Denied buzz).</li>
-          <li><strong>3D CRT Screens &amp; Logic I/O:</strong> Procedural raster scanlines, telemetry status bars, and dispatch of activation signals directly to target sliding airlocks and bunker blast doors.</li>
+          <li><strong>Computer Terminal OS (LAB-OS v3.42):</strong> Fullscreen interactive retro phosphor CRT terminal GUI (System Shock / Doom 3 / Fallout style) activated with <code>[E]</code>, featuring CRT scanlines, green/cyan phosphor palette, and hotkey navigation.</li>
+          <li><strong>Physical Door Locking Mechanics:</strong> Doors feature physical lock state (<code>MapDoor::isLocked</code>) preventing proximity auto-opening until overridden at the terminal console via option <code>[1]</code>.</li>
+          <li><strong>Incident Archival Logs (#0451):</strong> Facility lore and recovered transmissions documenting cryogenic containment failure, temperature plunge, and defensive synth protocol lockup accessed via option <code>[2]</code>.</li>
+          <li><strong>Synth Radar Telemetry:</strong> Real-time sensor grid telemetry querying active combat synths, squad health percentages, weapon payloads, and perimeter security via option <code>[3]</code>.</li>
+          <li><strong>In-World 3D Dot-Matrix Monitors:</strong> Real-time rasterization of 5x7 ASCII alphanumeric glyphs directly into monitor screen textures with OpenGL UV orientation alignment and animated prompt cursor (<code>&gt; PRESS [E] _</code>).</li>
+          <li><strong>Logic I/O &amp; Procedural Audio:</strong> Immediate dispatch of hydraulic actuator signals to target sliding airlocks, accompanied by procedural 16-bit PCM sound synthesis (<code>TerminalBeep</code>, <code>AccessGranted</code>, <code>AccessDenied</code>).</li>
         </ul>
       </section>
 

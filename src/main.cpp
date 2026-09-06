@@ -279,13 +279,19 @@ public:
             term.type = InteractiveType::Terminal;
             term.title = "AIRLOCK CONSOLE";
             term.subtitle = "DOOR ACTUATOR 01";
-            term.statusText = "READY - ACCESS GRANTED";
+            term.statusText = "LOCKED - LAB-OS SEC-04";
+            term.isLocked = true;
+            term.isActivated = false;
             term.targetDoorIndex = 0;
             const auto& d0 = _currentMap->doors[0];
             term.position = d0.position + Vec3(-d0.size.x * 0.7f - 0.4f, 0.0f, 0.35f);
             term.normal = Vec3(0, 0, 1);
-            term.themeColor = Vec3(0.2f, 0.85f, 1.0f);
+            term.themeColor = Vec3(1.0f, 0.25f, 0.2f);
             _interactiveSystem.addEntity(term);
+
+            // Door is physically locked shut by default until terminal override!
+            _currentMap->doors[0].isLocked = true;
+            _currentMap->doors[0].isOpen = false;
         }
 
         _chat.addMessage("[SERVER]", "Welcome to Frozen-Life :: " + (_currentMap ? _currentMap->metadata.name : "Sector"), Vec3(0.3f, 0.8f, 1.0f));
@@ -347,6 +353,13 @@ public:
             return;
         }
 
+        // Freeze player movement while operating in-game Computer Terminal OS
+        if (_interactiveSystem.isAnyTerminalOpen()) {
+            _velocity.x = 0.0f;
+            _velocity.z = 0.0f;
+            return;
+        }
+
         if (inputDir.lengthSq() > 0) {
             inputDir = inputDir.normalized();
             _velocity.x = inputDir.x * speed;
@@ -384,9 +397,11 @@ public:
         // Procedural Door animations and distance triggers
         if (_currentMap) {
             for (auto& door : _currentMap->doors) {
-                float distSq = (pos - door.position).lengthSq();
-                float triggerRadiusSq = door.triggerRadius * door.triggerRadius;
-                door.isOpen = (distSq < triggerRadiusSq);
+                if (!door.isLocked) {
+                    float distSq = (pos - door.position).lengthSq();
+                    float triggerRadiusSq = door.triggerRadius * door.triggerRadius;
+                    door.isOpen = (distSq < triggerRadiusSq);
+                }
 
                 if (door.isOpen && door.currentProgress < 1.0f) {
                     door.currentProgress = std::min(1.0f, door.currentProgress + fixedDelta * door.openSpeed);
@@ -482,6 +497,34 @@ public:
         _tPressedLast = tPressed;
         _backspacePressedLast = backspacePressed;
         _chat.update(time.delta);
+
+        // ==================== INTERACTIVE TERMINAL OS INPUT HANDLING ====================
+        if (_interactiveSystem.isAnyTerminalOpen()) {
+            int aliveBots = 0;
+            for (const auto& b : _aiManager.bots) {
+                if (b.isAlive()) aliveBots++;
+            }
+
+            const int termKeys[] = { GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_0, GLFW_KEY_ESCAPE, GLFW_KEY_E, GLFW_KEY_BACKSPACE };
+            for (int k : termKeys) {
+                if (Input::isKeyPressed(k)) {
+                    if (!_termKeysLast[k]) {
+                        _interactiveSystem.handleTerminalKey(k, _currentMap.get(), aliveBots);
+                        _termKeysLast[k] = true;
+                    }
+                } else {
+                    _termKeysLast[k] = false;
+                }
+            }
+
+            // Keep background world simulation running
+            AudioEngine::setListener(_camera.getPosition(), _camera.getFront(), _camera.getUp());
+            AudioEngine::update(time.delta);
+            if (_currentMap) _particleSystem.update(time.delta, _currentMap.get());
+            _decalSystem.update(time.delta);
+
+            return; // Pause combat and camera look while using terminal
+        }
 
         // Gameplay camera orientation update (only when not typing in chat)
         if (!_chat.isOpen) {
@@ -1690,6 +1733,11 @@ public:
             } else {
                 _hud.render(w, h);
                 _interactiveSystem.renderHUD(w, h);
+
+                if (_interactiveSystem.isAnyTerminalOpen()) {
+                    int aliveBots = (int)std::count_if(_aiManager.bots.begin(), _aiManager.bots.end(), [](const auto& b){ return b.isAlive(); });
+                    _interactiveSystem.renderTerminalOS(w, h, _currentMap.get(), aliveBots);
+                }
             }
             _chat.render(w, h);
 
@@ -1978,6 +2026,7 @@ private:
     bool _backspacePressedLast = false;
     bool _fPressedLast = false;
     bool _vPressedLast = false;
+    std::unordered_map<int, bool> _termKeysLast;
 
     // Real-Time Lighting & Shadow Mapping (Sprint 3)
     Flashlight _flashlight;

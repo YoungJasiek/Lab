@@ -2651,7 +2651,8 @@ int main() {
         term.size = Lab::Vec3(1.1f, 0.75f, 0.14f);
         term.normal = Lab::Vec3(0.0f, 0.0f, 1.0f);
         term.themeColor = Lab::Vec3(0.2f, 0.85f, 1.0f);
-        term.isLocked = false;
+        term.isLocked = true;
+        term.isActivated = false;
         term.targetDoorIndex = 0;
         isys.addEntity(term);
 
@@ -2725,28 +2726,58 @@ int main() {
         Lab::MapDoor testDoor;
         testDoor.name = "Sector 4 Heavy Blast Door";
         testDoor.position = Lab::Vec3(0.0f, 1.5f, -3.8f);
+        testDoor.isLocked = true;
         testDoor.isOpen = false;
         testMap.doors.push_back(testDoor);
 
-        // Look at Terminal #1 and press [E]
+        // Terminal #1 is locked initially
+        // Look at Terminal #1 and press [E] -> Opens full interactive LAB-OS!
         isys.update(0.016f, Lab::Vec3(0.0f, 1.6f, -2.0f), Lab::Vec3(0.0f, 0.0f, -1.0f), true, &testMap);
-        if (isys.getHoveredEntity() == nullptr || isys.getHoveredEntity()->id != 1) {
-            std::cerr << "Assertion failed: Hovered entity should be Terminal #1!\n";
+        if (!isys.isAnyTerminalOpen()) {
+            std::cerr << "Assertion failed: Pressing [E] on Terminal #1 should open LAB-OS terminal!\n";
             return 1;
         }
-        if (!isys.getHoveredEntity()->isActivated) {
-            std::cerr << "Assertion failed: Unlocked terminal should activate upon use!\n";
+        std::cout << "  [PASS] Approaching terminal and pressing [E] opened LAB-OS v3.42!\n";
+
+        // Test hotkey '1': Emergency Pneumatic Airlock Override (toggles lock & opens door)
+        if (!isys.handleTerminalKey(1, &testMap, 4)) {
+            std::cerr << "Assertion failed: Terminal key '1' failed to process!\n";
             return 1;
         }
-        if (!testMap.doors[0].isOpen) {
-            std::cerr << "Assertion failed: Linked target door was not triggered by terminal!\n";
+        if (testMap.doors[0].isLocked || !testMap.doors[0].isOpen) {
+            std::cerr << "Assertion failed: Door should be unlocked and open after terminal override!\n";
             return 1;
         }
-        if (isys.getHoveredEntity()->statusText.find("ACCESS GRANTED") == std::string::npos) {
-            std::cerr << "Assertion failed: Terminal status text was not updated to ACCESS GRANTED!\n";
+        std::cout << "  [PASS] Option [1] unlocked door and triggered pneumatic door actuator!\n";
+
+        // Test hotkey '2': Switch to Security Logs
+        isys.handleTerminalKey(2, &testMap, 4);
+        Lab::InteractiveEntity* actTerm = isys.getActiveTerminal();
+        if (!actTerm || actTerm->currentPage != Lab::TerminalPage::SecurityLogs) {
+            std::cerr << "Assertion failed: Failed to navigate to Security Logs page!\n";
             return 1;
         }
-        std::cout << "  [PASS] Terminal activation, state transitions, and door linkage verified!\n";
+        std::cout << "  [PASS] Option [2] opened Facility Incident Archival Logs!\n";
+
+        // Test hotkey '0': Back to Main Menu
+        isys.handleTerminalKey(0, &testMap, 4);
+        if (actTerm->currentPage != Lab::TerminalPage::Main) {
+            std::cerr << "Assertion failed: Failed to return to Terminal Main Menu!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Option [0] returned to Terminal Main Menu!\n";
+
+        // Test hotkey '3': Switch to Bot Telemetry
+        isys.handleTerminalKey(3, &testMap, 4);
+        if (actTerm->currentPage != Lab::TerminalPage::BotTelemetry) {
+            std::cerr << "Assertion failed: Failed to navigate to Bot Telemetry!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Option [3] opened Synth Threat Radar & Telemetry!\n";
+
+        // Return to Main Menu so visual screenshot captures the primary LAB-OS screen
+        isys.handleTerminalKey(0, &testMap, 4);
+        std::cout << "  [PASS] Full LAB-OS interactive state machine verified!\n";
 
         // 5. Visual Rendering Verification:
         glClearColor(0.10f, 0.12f, 0.16f, 1.0f);
@@ -2790,21 +2821,27 @@ int main() {
 
         Lab::Renderer::disableShadowMap();
 
-        // 6. UI Diagnostics & Interaction HUD Overlay
-        Lab::Renderer::beginUI(w, h);
-        Lab::Renderer::drawRect(40.0f, 30.0f, 960.0f, 88.0f, Lab::Vec3(0.10f, 0.12f, 0.16f));
-        Lab::Renderer::drawRect(40.0f, 30.0f, 960.0f, 1.0f, Lab::Vec3(0.2f, 0.85f, 0.4f));
-        Lab::LabFont::drawText(56.0f, 44.0f, "INTERACTIVE IN-WORLD TERMINALS & USABLE ENTITIES (SPRINT 8)", 2.0f, Lab::Vec3(0.25f, 0.95f, 0.45f), Lab::LabFontType::GeoSans);
-        Lab::LabFont::drawText(56.0f, 74.0f, "CRT SCANLINE SCREENS | ACCESS LOGIC | LOGIC I/O DOOR TRIGGERS | USE PROMPTS", 1.6f, Lab::Vec3(0.90f, 0.92f, 0.95f), Lab::LabFontType::GeoSans);
-        
-        // Render in-game interaction prompt
-        isys.renderHUD(w, h);
-        Lab::Renderer::endUI();
+        // 6. UI Diagnostics & Interactive Terminal OS Screen Overlay
+        if (isys.isAnyTerminalOpen()) {
+            isys.renderTerminalOS(w, h, &testMap, 4);
+        } else {
+            Lab::Renderer::beginUI(w, h);
+            isys.renderHUD(w, h);
+            Lab::Renderer::endUI();
+        }
 
         Lab::Renderer::endFrame();
         glFinish();
         saveFrameToBMP("test_interactive_terminals.bmp", w, h);
         std::cout << "  [PASS] Saved visual Interactive Terminals verification to 'test_interactive_terminals.bmp'.\n";
+
+        // 7. Verify closing terminal with ESC
+        isys.handleTerminalKey(256, &testMap, 4); // ESC key
+        if (isys.isAnyTerminalOpen()) {
+            std::cerr << "Assertion failed: Terminal should close upon pressing ESC!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Terminal successfully closed upon pressing ESC!\n";
 
         isys.shutdown();
     }
