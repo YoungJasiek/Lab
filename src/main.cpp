@@ -104,6 +104,9 @@ public:
         NetworkSystem::init();
         _serverBrowser.start();
 
+        // Initialize Valve Hammer Character & Weapon Studio
+        _characterStudio.init();
+
         // Start in Main Menu
         _inMenu = true;
         _menuScreen = MenuScreen::Main;
@@ -510,6 +513,10 @@ public:
                 if (Input::isKeyPressed(294)) {
                     _serverBrowser.refresh();
                 }
+            } else if (_menuScreen == MenuScreen::CharacterStudio) {
+                bool rmb = Input::isMouseButtonPressed(1);
+                _characterStudio.update(time.delta, mx, my, Input::isMouseButtonPressed(0), rmb, Input::scrollDelta);
+                Input::scrollDelta = 0.0f;
             }
 
             handleMenuInput(mx, my, lmbJustPressed);
@@ -1328,7 +1335,7 @@ public:
             if (!_escPressedLast) {
                 if (_menuScreen == MenuScreen::HostGame || _menuScreen == MenuScreen::JoinGame) {
                     _menuScreen = MenuScreen::MultiSelect;
-                } else if (_menuScreen == MenuScreen::MultiSelect || _menuScreen == MenuScreen::Singleplayer) {
+                } else if (_menuScreen == MenuScreen::MultiSelect || _menuScreen == MenuScreen::Singleplayer || _menuScreen == MenuScreen::CharacterStudio) {
                     _menuScreen = MenuScreen::Main;
                 } else if (_menuScreen == MenuScreen::Main && _currentMap) {
                     _inMenu = false;
@@ -1340,26 +1347,38 @@ public:
             _escPressedLast = false;
         }
 
+        if (_menuScreen == MenuScreen::CharacterStudio) {
+            bool rmb = Input::isMouseButtonPressed(1);
+            _characterStudio.update(0.016f, mx, my, Input::isMouseButtonPressed(0), rmb, Input::scrollDelta);
+            Input::scrollDelta = 0.0f;
+            return;
+        }
+
         if (_menuScreen == MenuScreen::Main) {
             if (lmbClick) {
-                // Button 0: Campaign / Singleplayer (x: 120..420, y: 200..248)
-                if (mx >= 120.0f && mx <= 420.0f && my >= 200.0f && my <= 248.0f) {
+                // Button 0: Campaign / Singleplayer (x: 120..420, y: 185..233)
+                if (mx >= 120.0f && mx <= 420.0f && my >= 185.0f && my <= 233.0f) {
                     _menuScreen = MenuScreen::Singleplayer;
                     return;
                 }
-                // Button 1: Multiplayer (x: 120..420, y: 268..316)
-                if (mx >= 120.0f && mx <= 420.0f && my >= 268.0f && my <= 316.0f) {
+                // Button 1: Multiplayer (x: 120..420, y: 245..293)
+                if (mx >= 120.0f && mx <= 420.0f && my >= 245.0f && my <= 293.0f) {
                     _menuScreen = MenuScreen::MultiSelect;
                     return;
                 }
-                // Button 2: Resume Mission (x: 120..420, y: 336..384)
-                if (_currentMap && mx >= 120.0f && mx <= 420.0f && my >= 336.0f && my <= 384.0f) {
+                // Button 2: Character & Weapon Studio (x: 120..420, y: 305..353)
+                if (mx >= 120.0f && mx <= 420.0f && my >= 305.0f && my <= 353.0f) {
+                    _menuScreen = MenuScreen::CharacterStudio;
+                    return;
+                }
+                // Button 3: Resume Mission (x: 120..420, y: 365..413)
+                if (_currentMap && mx >= 120.0f && mx <= 420.0f && my >= 365.0f && my <= 413.0f) {
                     _inMenu = false;
                     glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
                     return;
                 }
-                // Button 3: Quit Game (x: 120..420, y: 404..452)
-                if (mx >= 120.0f && mx <= 420.0f && my >= 404.0f && my <= 452.0f) {
+                // Button 4: Quit Game (x: 120..420, y: 425..473)
+                if (mx >= 120.0f && mx <= 420.0f && my >= 425.0f && my <= 473.0f) {
                     stop();
                     return;
                 }
@@ -1561,11 +1580,26 @@ public:
         int curIdx = (int)_weaponSystem.getActiveId();
         Texture* tex = (curIdx >= 0 && curIdx < (int)_cachedWeaponTextures.size()) ? _cachedWeaponTextures[curIdx] : nullptr;
         Mesh* stlMesh = (curIdx >= 0 && curIdx < (int)_cachedWeaponMeshes.size()) ? _cachedWeaponMeshes[curIdx] : nullptr;
-        _weaponSystem.renderViewModel(_camera, _weaponAnimator, tex, stlMesh, _muzzleFlashTime);
+
+        const auto& grip = _characterStudio.getWeaponGrip((WeaponID)curIdx);
+        const auto& skin = _characterStudio.getWeaponSkin((WeaponID)curIdx);
+        Texture* customSkin = getTexture(skin.textureFile);
+        if (customSkin) tex = customSkin;
+
+        _weaponSystem.renderViewModel(_camera, _weaponAnimator, tex, stlMesh, _muzzleFlashTime,
+                                      &grip.rightSocketPos, &grip.rightSocketRot,
+                                      &grip.leftSocketPos, &grip.leftSocketRot,
+                                      &skin.tintColor);
     }
 
     void drawMenu() {
         int w = 1280, h = 720;
+
+        if (_menuScreen == MenuScreen::CharacterStudio) {
+            _characterStudio.render(w, h);
+            return;
+        }
+
         Renderer::beginUI(w, h);
 
         // Dark background overlay (Half-Life 2 style backdrop)
@@ -1589,10 +1623,11 @@ public:
             };
 
             std::vector<MenuItem> items = {
-                { "CAMPAIGN / MISSIONS", "Explore maps solo without hostile combat bot squads", 200.0f, true },
-                { "MULTIPLAYER (HOST / JOIN)", "Host a custom LAN match with bots, game modes (FFA/DM/TDM) & rules", 268.0f, true },
-                { "RESUME MISSION [ESC]", "Return to current active gameplay session", 336.0f, (_currentMap != nullptr) },
-                { "QUIT GAME", "Exit to desktop", 404.0f, true }
+                { "CAMPAIGN / MISSIONS", "Explore maps solo without hostile combat bot squads", 185.0f, true },
+                { "MULTIPLAYER (HOST / JOIN)", "Host a custom LAN match with bots, game modes (FFA/DM/TDM) & rules", 245.0f, true },
+                { "CHARACTER & WEAPON STUDIO", "Valve Hammer style studio: grip poser, reload timeline, skins & face lip-sync", 305.0f, true },
+                { "RESUME MISSION [ESC]", "Return to current active gameplay session", 365.0f, (_currentMap != nullptr) },
+                { "QUIT GAME", "Exit to desktop", 425.0f, true }
             };
 
             for (const auto& it : items) {
@@ -2114,6 +2149,7 @@ private:
     // Session & Menu state
     GameSessionConfig _sessionConfig;
     MenuScreen _menuScreen = MenuScreen::Main;
+    CharacterStudio _characterStudio;
     bool _inMenu = true;
     std::vector<std::string> _availableMaps;
     int _selectedMapIndex = 0;

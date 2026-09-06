@@ -141,7 +141,12 @@ namespace Lab {
 
         // Viewmodel procedural and STL renderer
         void renderViewModel(const Camera& camera, WeaponAnimator& animator,
-                             Texture* texture, Mesh* stlMesh, float muzzleFlash);
+                             Texture* texture, Mesh* stlMesh, float muzzleFlash,
+                             const Vec3* rightSocketPos = nullptr,
+                             const Vec3* rightSocketRot = nullptr,
+                             const Vec3* leftSocketPos = nullptr,
+                             const Vec3* leftSocketRot = nullptr,
+                             const Vec3* tintColor = nullptr);
 
         // Static factory of all 9 weapon definitions
         static std::array<WeaponDef, 9> createWeaponDefinitions();

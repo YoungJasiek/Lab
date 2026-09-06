@@ -19,10 +19,14 @@ namespace Lab {
         ViewModelArms();
         ~ViewModelArms() = default;
 
-        // Render both arms and hands relative to active weapon transform
+        // Render both arms and hands relative to active weapon transform (with optional custom socket overrides)
         void render(const Vec3& weaponBasePos, const Vec3& weaponRot,
                     WeaponID weaponId, const WeaponAnimator& animator,
-                    Texture* sleeveTexture = nullptr);
+                    Texture* sleeveTexture = nullptr,
+                    const Vec3* rightSocketOffset = nullptr,
+                    const Vec3* rightSocketRot = nullptr,
+                    const Vec3* leftSocketOffset = nullptr,
+                    const Vec3* leftSocketRot = nullptr);
 
         // Render melee motion ribbon during pipe slash
         void renderMeleeTrail(const Vec3& pipeTipPos, const Vec3& pipeBasePos, float alpha);

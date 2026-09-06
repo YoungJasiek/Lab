@@ -285,6 +285,9 @@ namespace Lab {
         MorphTarget jawOpen("Jaw_Open", totalVerts);
         MorphTarget mouthNarrow("Mouth_Narrow", totalVerts);
         MorphTarget mouthSmile("Mouth_Smile", totalVerts);
+        MorphTarget browRaise("Brow_Raise", totalVerts);
+        MorphTarget eyesSquint("Eyes_Squint", totalVerts);
+        MorphTarget mouthFrown("Mouth_Frown", totalVerts);
 
         for (size_t i = 0; i < totalVerts; ++i) {
             const auto& v = baseVertices[i];
@@ -320,11 +323,38 @@ namespace Lab {
                 mouthSmile.positionOffsets[i] = Vec3(sideSign * 0.032f * cornerInfluence, 0.035f * cornerInfluence, 0.010f * cornerInfluence);
                 mouthSmile.normalOffsets[i] = Vec3(sideSign * 0.15f * cornerInfluence, 0.25f * cornerInfluence, 0.0f);
             }
+
+            // Target 4: "Brow_Raise" -> Eyebrow / forehead elevation for surprise or alertness
+            if (yNorm > 0.20f && yNorm < 0.75f && zNorm > 0.45f) {
+                float browInfluence = (1.0f - std::abs(yNorm - 0.45f) / 0.30f) * std::clamp(zNorm, 0.0f, 1.0f);
+                browInfluence = std::clamp(browInfluence, 0.0f, 1.0f);
+                browRaise.positionOffsets[i] = Vec3(0.0f, 0.045f * browInfluence, 0.015f * browInfluence);
+                browRaise.normalOffsets[i] = Vec3(0.0f, 0.2f * browInfluence, 0.1f * browInfluence);
+            }
+
+            // Target 5: "Eyes_Squint" -> Eye corner tightening and eyelid tension
+            if (yNorm > 0.05f && yNorm < 0.40f && zNorm > 0.55f && std::abs(xNorm) > 0.15f) {
+                float eyeInfluence = (1.0f - std::abs(yNorm - 0.22f) / 0.18f) * std::clamp(zNorm, 0.0f, 1.0f);
+                eyeInfluence = std::clamp(eyeInfluence, 0.0f, 1.0f);
+                eyesSquint.positionOffsets[i] = Vec3(-xNorm * 0.02f * eyeInfluence, -0.025f * eyeInfluence, 0.01f * eyeInfluence);
+                eyesSquint.normalOffsets[i] = Vec3(0.0f, -0.2f * eyeInfluence, 0.1f * eyeInfluence);
+            }
+
+            // Target 6: "Mouth_Frown" -> Mouth corners dragged downward for combat stress / grimace
+            if (yNorm >= -0.45f && yNorm <= -0.12f && zNorm > 0.60f && std::abs(xNorm) > 0.10f) {
+                float cornerInfluence = (1.0f - std::abs(yNorm - (-0.28f)) / 0.17f) * std::clamp((std::abs(xNorm) - 0.10f) / 0.40f, 0.0f, 1.0f);
+                cornerInfluence = std::clamp(cornerInfluence, 0.0f, 1.0f);
+                mouthFrown.positionOffsets[i] = Vec3(0.0f, -0.035f * cornerInfluence, 0.0f);
+                mouthFrown.normalOffsets[i] = Vec3(0.0f, -0.25f * cornerInfluence, 0.0f);
+            }
         }
 
         mesh->addMorphTarget(jawOpen);
         mesh->addMorphTarget(mouthNarrow);
         mesh->addMorphTarget(mouthSmile);
+        mesh->addMorphTarget(browRaise);
+        mesh->addMorphTarget(eyesSquint);
+        mesh->addMorphTarget(mouthFrown);
 
         return mesh;
     }

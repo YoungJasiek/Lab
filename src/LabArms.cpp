@@ -188,15 +188,21 @@ namespace Lab {
 
     void ViewModelArms::render(const Vec3& weaponBasePos, const Vec3& weaponRot,
                               WeaponID weaponId, const WeaponAnimator& animator,
-                              Texture* sleeveTexture) {
+                              Texture* sleeveTexture,
+                              const Vec3* rightSocketOffset,
+                              const Vec3* rightSocketRot,
+                              const Vec3* leftSocketOffset,
+                              const Vec3* leftSocketRot) {
         // Shoulder roots (where arms emerge from offscreen bottom corners)
         Vec3 rightElbowStart = { 0.38f, -0.42f, -0.22f };
         Vec3 leftElbowStart  = { -0.38f, -0.42f, -0.22f };
 
         // 1. Right Arm / Trigger Hand Socket:
         // Positioned firmly at the weapon's pistol grip / pipe handle
-        Vec3 rightWristPos = weaponBasePos + Vec3(-0.015f, -0.065f, -0.04f);
-        Vec3 rightWristRot = weaponRot + Vec3(8.0f, 0.0f, -4.0f);
+        Vec3 defaultRightPos = Vec3(-0.015f, -0.065f, -0.04f);
+        Vec3 defaultRightRot = Vec3(8.0f, 0.0f, -4.0f);
+        Vec3 rightWristPos = weaponBasePos + (rightSocketOffset ? *rightSocketOffset : defaultRightPos);
+        Vec3 rightWristRot = weaponRot + (rightSocketRot ? *rightSocketRot : defaultRightRot);
 
         drawForearmSleeve(rightElbowStart, rightWristPos, rightWristRot, false, sleeveTexture);
         drawTacticalGlove(rightWristPos, rightWristRot, false, weaponId, animator);
@@ -228,6 +234,13 @@ namespace Lab {
 
             leftWristPos = weaponBasePos + Vec3(-0.18f, -0.14f + dropY, -0.22f);
             leftWristRot = weaponRot + Vec3(15.0f, 20.0f, -15.0f);
+
+            drawForearmSleeve(leftElbowStart, leftWristPos, leftWristRot, true, sleeveTexture);
+            drawTacticalGlove(leftWristPos, leftWristRot, true, weaponId, animator);
+        } else if (leftSocketOffset) {
+            // User-configured custom socket support hand placement
+            leftWristPos = weaponBasePos + *leftSocketOffset;
+            leftWristRot = weaponRot + (leftSocketRot ? *leftSocketRot : Vec3(20.0f, 10.0f, -18.0f));
 
             drawForearmSleeve(leftElbowStart, leftWristPos, leftWristRot, true, sleeveTexture);
             drawTacticalGlove(leftWristPos, leftWristRot, true, weaponId, animator);

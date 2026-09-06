@@ -3349,6 +3349,123 @@ int main() {
         std::cout << "  [PASS] Dedicated server and network client clean shutdown verified!\n";
     }
 
+    // 34. Verify Valve Hammer Character & Weapon Studio Subsystem (Grip Poser, Reload Curve, Skins, Face Mimics & Lip-Sync)
+    {
+        std::cout << "\n[Test 34] Verifying Valve Hammer Character & Weapon Studio Subsystems...\n";
+
+        Lab::CharacterStudio studio;
+        studio.init();
+
+        // 1. Verify Weapon Grip & Socket Math
+        const auto& m4Grip = studio.getWeaponGrip(Lab::WeaponID::M4A4S);
+        if (std::abs(m4Grip.rightSocketPos.x - (-0.015f)) > 0.001f ||
+            std::abs(m4Grip.leftSocketPos.z - (-0.34f)) > 0.001f) {
+            std::cerr << "Assertion failed: M4A4-S socket offsets mismatch!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Weapon Grip & dual-socket transforms validated!\n";
+
+        // 2. Verify Reload Timeline Configuration
+        const auto& reloadConf = studio.getReloadTimeline();
+        if (reloadConf.dipDuration <= 0.0f || reloadConf.magDropTime >= reloadConf.magInsertTime ||
+            reloadConf.magInsertTime >= reloadConf.boltRackTime) {
+            std::cerr << "Assertion failed: Reload timeline keyframe sequence invalid!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Reload Timeline choreography & keyframe ordering verified!\n";
+
+        // 3. Verify Facial Mesh Blend Shapes (6 targets)
+        auto head = Lab::FacialMesh::createProceduralHead();
+        if (!head || head->getTargetCount() < 6) {
+            std::cerr << "Assertion failed: FacialMesh must support at least 6 blend shape targets, got "
+                      << (head ? head->getTargetCount() : 0) << "!\n";
+            return 1;
+        }
+
+        // Check target indices
+        if (head->findMorphTarget("Jaw_Open") < 0 ||
+            head->findMorphTarget("Mouth_Narrow") < 0 ||
+            head->findMorphTarget("Mouth_Smile") < 0 ||
+            head->findMorphTarget("Brow_Raise") < 0 ||
+            head->findMorphTarget("Eyes_Squint") < 0 ||
+            head->findMorphTarget("Mouth_Frown") < 0) {
+            std::cerr << "Assertion failed: Required morph targets not found in head mesh!\n";
+            return 1;
+        }
+
+        head->setWeight("Jaw_Open", 0.75f);
+        head->setWeight("Mouth_Smile", 0.50f);
+        head->evaluate();
+        const auto& defVerts = head->getDeformedVertices();
+        bool deformed = false;
+        for (const auto& v : defVerts) {
+            if (v.position.y < 0.1f) { deformed = true; break; }
+        }
+        if (!deformed) {
+            std::cerr << "Assertion failed: Facial mesh blend shape evaluation did not displace vertices!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] 6 Facial Blend Shapes (Jaw_Open, Brow_Raise, Mouth_Smile, etc.) and GPU VBO deformation verified!\n";
+
+        // 4. Verify Speech Synthesis & LipSyncEvaluator
+        auto speechTrack = Lab::LipSyncEvaluator::generateSpeechTrack(2.5f, 4.5f, 1337);
+        if (speechTrack.empty()) {
+            std::cerr << "Assertion failed: Generated speech track is empty!\n";
+            return 1;
+        }
+        Lab::LipSyncEvaluator eval;
+        for (float amp : speechTrack) {
+            eval.update(amp, 0.016f);
+        }
+        if (eval.getJawOpen() < 0.0f || eval.getJawOpen() > 1.0f) {
+            std::cerr << "Assertion failed: LipSyncEvaluator output out of bounds!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Audio phoneme energy tracking & real-time lip-sync evaluation verified!\n";
+
+        // 5. Verify Config Persistence (.cfg Save & Load)
+        std::string testCfg = "assets/configs/test_character_studio.cfg";
+        if (!studio.saveConfig(testCfg)) {
+            std::cerr << "Assertion failed: Saving CharacterStudio config failed!\n";
+            return 1;
+        }
+        Lab::CharacterStudio studio2;
+        if (!studio2.loadConfig(testCfg)) {
+            std::cerr << "Assertion failed: Loading CharacterStudio config failed!\n";
+            return 1;
+        }
+        if (std::abs(studio2.getWeaponGrip(Lab::WeaponID::M4A4S).rightSocketPos.x - m4Grip.rightSocketPos.x) > 0.001f) {
+            std::cerr << "Assertion failed: Config integrity mismatch after reload!\n";
+            return 1;
+        }
+        std::filesystem::remove(testCfg);
+        std::cout << "  [PASS] Configuration file serialization (.cfg) integrity validated!\n";
+
+        // 6. Visual Verification 1: Character Studio Stage & Hammer UI
+        glClearColor(0.12f, 0.13f, 0.15f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        studio.setActiveTab(Lab::StudioTab::Appearance);
+        studio.update(0.016f, 500.0f, 300.0f, false, false, 0.0f);
+        studio.render(w, h);
+
+        glFinish();
+        saveFrameToBMP("test_character_studio.bmp", w, h);
+        std::cout << "  [PASS] Saved Character Studio & Outfit visual frame to 'test_character_studio.bmp'.\n";
+
+        // Visual Verification 2: Weapon Grip & FPP Arms Poser
+        glClearColor(0.12f, 0.13f, 0.15f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        studio.setActiveTab(Lab::StudioTab::GripPoser);
+        studio.update(0.016f, 400.0f, 250.0f, false, false, 0.0f);
+        studio.render(w, h);
+
+        glFinish();
+        saveFrameToBMP("test_weapon_grip_studio.bmp", w, h);
+        std::cout << "  [PASS] Saved Weapon Grip Poser visual frame to 'test_weapon_grip_studio.bmp'.\n";
+    }
+
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();

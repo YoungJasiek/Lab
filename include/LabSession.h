@@ -14,7 +14,8 @@ namespace Lab {
         Singleplayer,
         MultiSelect,
         HostGame,
-        JoinGame
+        JoinGame,
+        CharacterStudio
     };
 
     struct GameSessionConfig {

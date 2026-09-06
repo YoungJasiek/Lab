@@ -27,3 +27,4 @@
 #include "LabPostProcess.h"
 #include "LabFace.h"
 #include "LabNetwork.h"
+#include "LabStudio.h"

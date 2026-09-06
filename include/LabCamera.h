@@ -1,5 +1,7 @@
 #pragma once
 #include "LabMath.h"
+#include <algorithm>
+#include <cmath>
 
 namespace Lab {
 
@@ -28,6 +30,23 @@ namespace Lab {
 
         void setPosition(const Vec3& position) {
             _position = position;
+        }
+
+        void setYaw(float yaw) {
+            _yaw = yaw;
+            updateVectors();
+        }
+
+        void setPitch(float pitch) {
+            _pitch = std::clamp(pitch, -89.0f, 89.0f);
+            updateVectors();
+        }
+
+        void lookAt(const Vec3& target) {
+            Vec3 dir = (target - _position).normalized();
+            _pitch = std::asin(std::clamp(dir.y, -1.0f, 1.0f)) * (180.0f / 3.14159265f);
+            _yaw = std::atan2(dir.z, dir.x) * (180.0f / 3.14159265f);
+            updateVectors();
         }
 
         Mat4 getViewMatrix() const {

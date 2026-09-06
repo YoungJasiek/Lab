@@ -609,7 +609,12 @@ namespace Lab {
     }
 
     void WeaponSystem::renderViewModel(const Camera& camera, WeaponAnimator& animator,
-                                       Texture* texture, Mesh* stlMesh, float muzzleFlash) {
+                                       Texture* texture, Mesh* stlMesh, float muzzleFlash,
+                                       const Vec3* rightSocketPos,
+                                       const Vec3* rightSocketRot,
+                                       const Vec3* leftSocketPos,
+                                       const Vec3* leftSocketRot,
+                                       const Vec3* tintColor) {
         Renderer::beginViewModel();
 
         // Base idle viewmodel position (lower right screen quadrant, classic FPS framing)
@@ -626,9 +631,12 @@ namespace Lab {
         Vec3 gunBasePos = animator.calculatePositionOffset(defaultPos);
         Vec3 gunRot = animator.calculateRotationOffset(defaultRot);
 
-        // 1. Render First-Person Tactical Arms & Hands (kinematically bound to gunBasePos & gunRot)
+        // 1. Render First-Person Tactical Arms & Hands (kinematically bound to gunBasePos & gunRot with socket overrides)
         static ViewModelArms s_viewmodelArms;
-        s_viewmodelArms.render(gunBasePos, gunRot, _currentWeapon, animator, nullptr);
+        s_viewmodelArms.render(gunBasePos, gunRot, _currentWeapon, animator, nullptr,
+                              rightSocketPos, rightSocketRot, leftSocketPos, leftSocketRot);
+
+        Vec3 finalTint = tintColor ? *tintColor : Vec3(1.0f, 1.0f, 1.0f);
 
         // 2. Render Weapon Model (Custom STL or Procedural)
         if (stlMesh) {
@@ -641,7 +649,7 @@ namespace Lab {
                 stlPos = gunBasePos + Vec3(0.04f, 0.02f, 0.05f);
                 stlRot = gunRot + Vec3(8.0f, -12.0f, 18.0f);
             }
-            Renderer::drawMesh(*stlMesh, stlPos, stlRot, stlScale, { 1, 1, 1 }, texture);
+            Renderer::drawMesh(*stlMesh, stlPos, stlRot, stlScale, finalTint, texture);
             if (muzzleFlash > 0.0f) {
                 Renderer::drawCube(gunBasePos + Vec3(0.0f, 0.05f, -0.45f), gunRot, { 0.18f, 0.18f, 0.18f }, { 1.0f, 0.85f, 0.2f }, nullptr, false);
             }

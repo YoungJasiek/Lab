@@ -84,6 +84,7 @@ set(ENGINE_SOURCES
     src/LabPostProcess.cpp
     src/LabFace.cpp
     src/LabNetwork.cpp
+    src/LabStudio.cpp
     src/glad/src/gl.c
 )
 
@@ -114,6 +115,7 @@ set(ENGINE_HEADERS
     include/LabPostProcess.h
     include/LabFace.h
     include/LabNetwork.h
+    include/LabStudio.h
     include/Lab.h
 )
 
@@ -145,6 +147,11 @@ add_executable(TestVerify src/test_verify.cpp)
 target_compile_options(TestVerify PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(TestVerify PRIVATE LabEngineLib)
 
+# Standalone Character & Weapon Studio executable (Valve Hammer styled)
+add_executable(LabStudio src/studio_main.cpp)
+target_compile_options(LabStudio PRIVATE ${COMPILER_FLAGS})
+target_link_libraries(LabStudio PRIVATE LabEngineLib)
+
 # Windows system libraries
 if(WIN32)
     target_link_libraries(LabEngineLib PUBLIC gdi32 comdlg32 ws2_32)
@@ -167,5 +174,14 @@ add_custom_command(TARGET LabHammer POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_SOURCE_DIR}/fonts"
         "$<TARGET_FILE_DIR:LabHammer>/fonts"
+)
+
+add_custom_command(TARGET LabStudio POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets"
+        "$<TARGET_FILE_DIR:LabStudio>/assets"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/fonts"
+        "$<TARGET_FILE_DIR:LabStudio>/fonts"
 )
 
