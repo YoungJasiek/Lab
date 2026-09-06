@@ -5,6 +5,7 @@
 #include <memory>
 #include <deque>
 #include "LabMath.h"
+#include "LabCollision.h"
 
 namespace Lab {
 
@@ -213,6 +214,7 @@ namespace Lab {
         float lastPacketTime = 0.0f;
         uint32_t lastProcessedCmd = 0;
         float ping = 0.0f;
+        bool isGrounded = true;
     };
 
     class DedicatedServer {
@@ -250,6 +252,9 @@ namespace Lab {
         float _serverTime = 0.0f;
 
         std::vector<ConnectedClient> _clients;
+        std::vector<CollisionBox> _solidBoxes;
+        Vec3 _spawnPosition{ 0.0f, 1.80f, 0.0f };
+        float _spawnYaw = 0.0f;
 
         void processIncomingPackets();
         void simulateWorld(float dt);
@@ -265,7 +270,7 @@ namespace Lab {
 
         bool connect(const std::string& ip, uint16_t port, const std::string& playerName);
         void disconnect();
-        void update(float dt, const Vec3& localPos, const Vec3& localVel, float yaw, float pitch, uint32_t buttons);
+        void update(float dt, const Vec3& localPos, const Vec3& localVel, float yaw, float pitch, uint32_t buttons, float forwardMove = 0.0f, float sideMove = 0.0f);
 
         bool isConnected() const { return _connected; }
         uint32_t getClientId() const { return _assignedClientId; }

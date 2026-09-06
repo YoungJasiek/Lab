@@ -120,16 +120,22 @@ namespace Lab {
             }
         }
 
-        // Fast AABB vs Frustum Culling: "To czego oko nie widzi tego maszyna renderowac nie musi"
-        bool isInFrustum(const Vec3& min, const Vec3& max) const {
+        void setAspect(float aspect) {
+            _aspect = aspect;
+            updateVectors();
+        }
+
+        // Fast AABB vs Frustum Culling with 0.75m conservative expansion margin
+        // Prevents premature culling / popping / tearing at screen edges ("duplikowanie mapy w krawedziach")
+        bool isInFrustum(const Vec3& min, const Vec3& max, float margin = 0.75f) const {
             for (int i = 0; i < 6; ++i) {
                 Vec3 p(
-                    _planes[i].normal.x > 0 ? max.x : min.x,
-                    _planes[i].normal.y > 0 ? max.y : min.y,
-                    _planes[i].normal.z > 0 ? max.z : min.z
+                    _planes[i].normal.x > 0 ? (max.x + margin) : (min.x - margin),
+                    _planes[i].normal.y > 0 ? (max.y + margin) : (min.y - margin),
+                    _planes[i].normal.z > 0 ? (max.z + margin) : (min.z - margin)
                 );
                 if (Vec3::dot(_planes[i].normal, p) + _planes[i].d < 0.0f) {
-                    return false; // Completely outside view frustum!
+                    return false; // Completely outside expanded view frustum!
                 }
             }
             return true;

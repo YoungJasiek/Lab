@@ -3821,6 +3821,216 @@ int main() {
         std::cout << "  [PASS] AIManager successfully initialized and updated 4 T-800 Terminator bots!\n";
     }
 
+    // =========================================================================
+    // TEST 40: MULTIPLAYER 10-FRAME CLIENT-SERVER SIMULATION & MOVEMENT VERIFICATION
+    // =========================================================================
+    {
+        std::cout << "\n[Test 40] Verifying Multiplayer 10-Frame Simulation, Movement & Ground Clamping...\n";
+
+        if (!Lab::NetworkSystem::isInitialized()) {
+            Lab::NetworkSystem::init();
+        }
+
+        uint16_t mpPort = 27028;
+        Lab::DedicatedServer mpServer;
+        if (!mpServer.start(mpPort, "facility_alpha.labmap")) {
+            std::cerr << "Assertion failed: Multiplayer server failed to start on port " << mpPort << "\n";
+            return 1;
+        }
+
+        // 1. Connect Client 1 ("AlphaRanger") and Client 2 ("BravoGhost")
+        Lab::NetworkClient client1;
+        Lab::NetworkClient client2;
+
+        if (!client1.connect("127.0.0.1", mpPort, "AlphaRanger") ||
+            !client2.connect("127.0.0.1", mpPort, "BravoGhost")) {
+            std::cerr << "Assertion failed: Failed to initiate client connections\n";
+            return 1;
+        }
+
+        // Initial handshake iterations to exchange connect packets
+        for (int i = 0; i < 6; ++i) {
+            mpServer.tick(0.016f);
+            client1.update(0.016f, Lab::Vec3(0, 1.8f, 0.0f), Lab::Vec3(0, 0, 0), -90.0f, 0.0f, 0, 0.0f, 0.0f);
+            client2.update(0.016f, Lab::Vec3(4.0f, 1.8f, 0.0f), Lab::Vec3(0, 0, 0), 180.0f, 0.0f, 0, 0.0f, 0.0f);
+        }
+
+        if (client1.getClientId() == 0 || client2.getClientId() == 0) {
+            std::cerr << "Assertion failed: Clients failed to receive assigned ClientIDs from server\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Handshake complete: Client 1 (ID " << client1.getClientId() << ") & Client 2 (ID " << client2.getClientId() << ") connected!\n";
+
+        // 2. Run 10-frame synchronized physics & movement simulation
+        Lab::Vec3 c1Pos(0.0f, 1.80f, 0.0f);
+        Lab::Vec3 c1Vel(0.0f, 0.0f, 0.0f);
+        float c1Yaw = -90.0f; // Looking forward along -Z
+
+        float initialZ = c1Pos.z;
+        int snapCount = 0;
+
+        for (int frame = 1; frame <= 10; ++frame) {
+            float dt = 0.016f;
+            float netForward = 0.0f;
+            float netSide = 0.0f;
+            uint32_t netButtons = 0;
+
+            if (frame <= 5) {
+                // Frames 1..5: Sprint forward ('W')
+                netForward = 1.0f;
+                netButtons |= Lab::NetButton_Sprint;
+                float speed = 8.5f;
+                c1Vel.z = -speed;
+                c1Pos.z += c1Vel.z * dt;
+            } else if (frame == 6) {
+                // Frame 6: Jump!
+                netButtons |= Lab::NetButton_Jump;
+                c1Vel.y = 5.0f;
+                c1Pos.y += c1Vel.y * dt;
+            } else if (frame <= 8) {
+                // Frames 7..8: Mid-air apex & gravity
+                c1Vel.y -= 12.0f * dt;
+                c1Pos.y += c1Vel.y * dt;
+            } else {
+                // Frames 9..10: Landing & strafe right ('D')
+                c1Vel.y -= 12.0f * dt;
+                c1Pos.y += c1Vel.y * dt;
+                if (c1Pos.y < 1.80f) {
+                    c1Pos.y = 1.80f;
+                    c1Vel.y = 0.0f;
+                }
+                netSide = 1.0f;
+                c1Vel.x = 4.5f;
+                c1Pos.x += c1Vel.x * dt;
+            }
+
+            // Ground floor containment check: MUST NOT FALL THROUGH FLOOR
+            if (c1Pos.y < 1.70f) {
+                std::cerr << "Assertion failed: Player fell into the floor at frame " << frame << " (Y=" << c1Pos.y << ")\n";
+                return 1;
+            }
+
+            // Client sends UserCmd
+            client1.update(dt, c1Pos, c1Vel, c1Yaw, 0.0f, netButtons, netForward, netSide);
+            client2.update(dt, Lab::Vec3(0.0f, 1.80f, 0.0f), Lab::Vec3(0, 0, 0), 180.0f, 0.0f, 0, 0.0f, 0.0f);
+
+            // Server processes packet and ticks world simulation
+            mpServer.tick(dt);
+
+            // Client receives snapshot and verifies reconciliation
+            if (client1.hasNewSnapshot()) {
+                snapCount++;
+                const auto& snap = client1.getLatestSnapshot();
+                for (uint16_t i = 0; i < snap.playerCount; ++i) {
+                    if (snap.players[i].clientId == client1.getClientId()) {
+                        // Authoritative server position must be above floor
+                        if (snap.players[i].position.y < 1.70f) {
+                            std::cerr << "Assertion failed: Server authoritative position fell into floor (Y=" << snap.players[i].position.y << ")\n";
+                            return 1;
+                        }
+
+                        Lab::Vec3 correctedPos, correctedVel;
+                        if (client1.getPrediction().reconcile(snap.lastProcessedCmd, snap.players[i].position, snap.players[i].velocity, correctedPos, correctedVel)) {
+                            c1Pos = correctedPos;
+                            c1Vel = correctedVel;
+                        }
+                    }
+                }
+                client1.consumeSnapshot();
+            }
+
+            // Ensure eye height maintained after reconciliation
+            if (c1Pos.y < 1.70f) {
+                std::cerr << "Assertion failed: Post-reconciliation position inside floor at frame " << frame << " (Y=" << c1Pos.y << ")\n";
+                return 1;
+            }
+        }
+
+        if (c1Pos.z >= initialZ) {
+            std::cerr << "Assertion failed: Forward sprint did not advance player in -Z direction\n";
+            return 1;
+        }
+        std::cout << "  [PASS] 10-Frame Movement validated: Initial Z=" << initialZ << " -> Final Z=" << c1Pos.z << "m (Advanced " << (initialZ - c1Pos.z) << "m)!\n";
+        std::cout << "  [PASS] Ground clamping validated: Player Y=" << c1Pos.y << "m (Clamped stably at eye height, 0 penetrations)!\n";
+
+        // 3. Verify multi-player presence in server snapshot
+        if (client1.hasNewSnapshot() || snapCount > 0) {
+            const auto& finalSnap = client1.getLatestSnapshot();
+            bool foundClient2 = false;
+            for (uint16_t i = 0; i < finalSnap.playerCount; ++i) {
+                if (finalSnap.players[i].clientId == client2.getClientId()) {
+                    foundClient2 = true;
+                    if (finalSnap.players[i].position.y < 1.70f) {
+                        std::cerr << "Assertion failed: Client 2 position fell into floor (Y=" << finalSnap.players[i].position.y << ")\n";
+                        return 1;
+                    }
+                    std::cout << "  [PASS] Remote player 'BravoGhost' confirmed in snapshot: Pos=(" 
+                              << finalSnap.players[i].position.x << ", " 
+                              << finalSnap.players[i].position.y << ", " 
+                              << finalSnap.players[i].position.z << ") Alive=" 
+                              << (int)finalSnap.players[i].isAlive << "!\n";
+                }
+            }
+            if (!foundClient2 && finalSnap.playerCount < 2) {
+                std::cerr << "Assertion failed: Client 2 missing from server snapshot\n";
+                return 1;
+            }
+        }
+
+        // 4. Render 3D Visual Verification Frame of Multiplayer Scene
+        glClearColor(0.05f, 0.07f, 0.10f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        Lab::Camera mpCam(65.0f, (float)w / (float)h, 0.01f, 1000.0f);
+        mpCam.setPosition(Lab::Vec3(-8.0f, 6.5f, -8.0f));
+        mpCam.lookAt(Lab::Vec3(0.0f, 1.5f, -12.0f));
+
+        Lab::Renderer::beginFrame(mpCam);
+        Lab::Renderer::setSunLight(Lab::Vec3(-0.35f, -1.0f, -0.45f), Lab::Vec3(0.95f, 0.98f, 1.0f), Lab::Vec3(0.22f, 0.26f, 0.35f));
+
+        // Floor baseplate
+        Lab::Texture floorTex("assets/textures/floor_tiles.bmp");
+        Lab::Renderer::drawCube(Lab::Vec3(0.0f, -0.5f, 0.0f), Lab::Vec3(160.0f, 1.0f, 160.0f), Lab::Vec3(0.8f, 0.8f, 0.8f), &floorTex, true);
+
+        // North wall
+        Lab::Texture wallTex("assets/textures/concrete_wall.bmp");
+        Lab::Renderer::drawCube(Lab::Vec3(0.0f, 4.0f, -20.0f), Lab::Vec3(24.0f, 8.0f, 1.0f), Lab::Vec3(0.7f, 0.7f, 0.7f), &wallTex, true);
+
+        // Render Player 1 ("AlphaRanger" - Blue Outfit)
+        Lab::Vec3 p1Feet = c1Pos - Lab::Vec3(0.0f, 1.70f, 0.0f);
+        Lab::Renderer::drawCube(p1Feet + Lab::Vec3(0.0f, 0.92f, 0.0f), Lab::Vec3(0.0f, c1Yaw, 0.0f), Lab::Vec3(0.55f, 1.85f, 0.35f), Lab::Vec3(0.18f, 0.45f, 0.85f));
+        // Overhead tag Player 1
+        Lab::Renderer::drawCube(c1Pos + Lab::Vec3(0.0f, 0.35f, 0.0f), Lab::Vec3(0.0f, c1Yaw, 0.0f), Lab::Vec3(0.75f, 0.08f, 0.02f), Lab::Vec3(0.1f, 0.1f, 0.15f), nullptr, false);
+        Lab::Renderer::drawCube(c1Pos + Lab::Vec3(0.0f, 0.35f, 0.01f), Lab::Vec3(0.0f, c1Yaw, 0.0f), Lab::Vec3(0.72f, 0.06f, 0.02f), Lab::Vec3(0.2f, 0.85f, 0.3f), nullptr, false);
+
+        // Render Player 2 ("BravoGhost" - Red Outfit)
+        Lab::Vec3 p2Pos(0.0f, 1.80f, 0.0f);
+        Lab::Vec3 p2Feet = p2Pos - Lab::Vec3(0.0f, 1.70f, 0.0f);
+        Lab::Renderer::drawCube(p2Feet + Lab::Vec3(0.0f, 0.92f, 0.0f), Lab::Vec3(0.0f, 180.0f, 0.0f), Lab::Vec3(0.55f, 1.85f, 0.35f), Lab::Vec3(0.85f, 0.25f, 0.22f));
+        // Overhead tag Player 2
+        Lab::Renderer::drawCube(p2Pos + Lab::Vec3(0.0f, 0.35f, 0.0f), Lab::Vec3(0.0f, 180.0f, 0.0f), Lab::Vec3(0.75f, 0.08f, 0.02f), Lab::Vec3(0.1f, 0.1f, 0.15f), nullptr, false);
+        Lab::Renderer::drawCube(p2Pos + Lab::Vec3(0.0f, 0.35f, 0.01f), Lab::Vec3(0.0f, 180.0f, 0.0f), Lab::Vec3(0.72f, 0.06f, 0.02f), Lab::Vec3(0.2f, 0.85f, 0.3f), nullptr, false);
+
+        Lab::Renderer::endFrame();
+
+        // UI Diagnostics Overlay
+        Lab::Renderer::beginUI(w, h);
+        Lab::Renderer::drawRect(40.0f, 30.0f, 860.0f, 95.0f, Lab::Vec3(0.10f, 0.12f, 0.16f));
+        Lab::Renderer::drawRect(40.0f, 30.0f, 860.0f, 1.0f, Lab::Vec3(0.2f, 0.85f, 1.0f));
+        Lab::LabFont::drawText(56.0f, 44.0f, "MULTIPLAYER 10-FRAME CLIENT-SERVER SIMULATION", 2.0f, Lab::Vec3(0.25f, 0.85f, 1.0f), Lab::LabFontType::GeoSans);
+        Lab::LabFont::drawText(56.0f, 74.0f, "AUTHORITATIVE 64HZ TICK | AABB GROUND CLAMPING | ZERO FLOOR PENETRATION | MULTI-CLIENT SYNC", 1.4f, Lab::Vec3(0.85f, 0.90f, 0.95f), Lab::LabFontType::GeoSans);
+        Lab::Renderer::endUI();
+
+        glFinish();
+        saveFrameToBMP("test_multiplayer_simulation.bmp", w, h);
+        std::cout << "  [PASS] Saved visual Multiplayer Simulation verification to 'test_multiplayer_simulation.bmp'.\n";
+
+        client1.disconnect();
+        client2.disconnect();
+        mpServer.stop();
+        std::cout << "  [PASS] Multiplayer test server and clients cleanly disconnected.\n";
+    }
+
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();

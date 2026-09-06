@@ -290,15 +290,16 @@ namespace Lab {
         // Re-simulate pending unacknowledged commands from authoritative server point
         Vec3 simPos = serverPos;
         Vec3 simVel = serverVel;
+        bool isGrounded = (std::abs(simVel.y) < 0.1f);
 
         for (auto& entry : _history) {
-            float speed = (entry.cmd.buttons & NetButton_Sprint) ? 8.5f : 5.5f;
+            float speed = (entry.cmd.buttons & NetButton_Sprint) ? 8.5f : 4.5f;
             float dt = std::clamp(entry.cmd.deltaTime, 0.001f, 0.050f);
 
-            // Reconstruct forward and right vectors from camera yaw
+            // Reconstruct forward and right vectors matching Camera orientation
             float radYaw = entry.cmd.yaw * 3.14159265f / 180.0f;
-            Vec3 fwd(std::sin(radYaw), 0.0f, -std::cos(radYaw));
-            Vec3 right(std::cos(radYaw), 0.0f, std::sin(radYaw));
+            Vec3 fwd(std::cos(radYaw), 0.0f, std::sin(radYaw));
+            Vec3 right(-std::sin(radYaw), 0.0f, std::cos(radYaw));
 
             Vec3 moveDir = fwd * entry.cmd.forwardMove + right * entry.cmd.sideMove;
             if (moveDir.lengthSq() > 0.001f) {
@@ -310,16 +311,18 @@ namespace Lab {
                 simVel.z *= 0.85f;
             }
 
-            // Jump
-            if ((entry.cmd.buttons & NetButton_Jump) && std::abs(simVel.y) < 0.01f) {
-                simVel.y = 5.2f;
+            // Jump & gravity
+            if ((entry.cmd.buttons & NetButton_Jump) && isGrounded) {
+                simVel.y = 5.0f;
+                isGrounded = false;
             }
-            simVel.y -= 9.81f * dt;
+            simVel.y -= 12.0f * dt;
 
             simPos = simPos + simVel * dt;
-            if (simPos.y < 0.0f) {
-                simPos.y = 0.0f;
+            if (simPos.y < 1.70f) {
+                simPos.y = 1.70f;
                 simVel.y = 0.0f;
+                isGrounded = true;
             }
 
             entry.predictedPosition = simPos;
@@ -355,6 +358,24 @@ namespace Lab {
         _timeAccumulator = 0.0f;
         _clients.clear();
 
+        // Load authoritative map geometry and spawn points
+        std::string resolvedMap = _mapName;
+        auto map = LabMap::loadFromFile(resolvedMap);
+        if (!map && resolvedMap.find('/') == std::string::npos && resolvedMap.find('\\') == std::string::npos) {
+            resolvedMap = "assets/maps/" + _mapName;
+            map = LabMap::loadFromFile(resolvedMap);
+        }
+        if (map) {
+            _solidBoxes = LabCollision::getMapSolidBoxes(*map);
+            _spawnPosition = map->spawn.position;
+            _spawnYaw = map->spawn.yaw;
+            if (_spawnPosition.y < 1.5f) _spawnPosition.y = 1.80f;
+        } else {
+            _solidBoxes.clear();
+            _spawnPosition = Vec3(0.0f, 1.80f, 0.0f);
+            _spawnYaw = 0.0f;
+        }
+
         if (!_socket.open(port)) {
             std::cerr << "[Server] Failed to open UDP socket on port " << port << ".\n";
             return false;
@@ -362,7 +383,7 @@ namespace Lab {
 
         _running = true;
         std::cout << "[Server] Dedicated Authoritative Server started on port " << _port 
-                  << " (Map: " << _mapName << ", Tickrate: 64Hz).\n";
+                  << " (Map: " << _mapName << ", Solid Boxes: " << _solidBoxes.size() << ", Tickrate: 64Hz).\n";
         return true;
     }
 
@@ -370,6 +391,7 @@ namespace Lab {
         if (!_running) return;
         _socket.close();
         _clients.clear();
+        _solidBoxes.clear();
         _running = false;
         std::cout << "[Server] Dedicated Server stopped.\n";
     }
@@ -420,7 +442,9 @@ namespace Lab {
                         if (newClient.name.empty()) newClient.name = "Player_" + std::to_string(newClient.clientId);
                         newClient.lastPacketTime = _serverTime;
                         newClient.state.clientId = newClient.clientId;
-                        newClient.state.position = Vec3(0, 0, 0);
+                        newClient.state.position = _spawnPosition;
+                        newClient.state.yaw = _spawnYaw;
+                        newClient.isGrounded = true;
                         newClient.state.health = 150.0f;
                         newClient.state.armor = 50.0f;
                         newClient.state.isAlive = 1;
@@ -450,13 +474,13 @@ namespace Lab {
                         client->lastPacketTime = _serverTime;
                         client->lastProcessedCmd = cmd->cmdNumber;
 
-                        // Authoritative physical simulation of input command
-                        float speed = (cmd->buttons & NetButton_Sprint) ? 8.5f : 5.5f;
+                        // Authoritative physical simulation of input command matching client movement
+                        float speed = (cmd->buttons & NetButton_Sprint) ? 8.5f : 4.5f;
                         float cmdDt = std::clamp(cmd->deltaTime, 0.001f, 0.050f);
 
                         float radYaw = cmd->yaw * 3.14159265f / 180.0f;
-                        Vec3 fwd(std::sin(radYaw), 0.0f, -std::cos(radYaw));
-                        Vec3 right(std::cos(radYaw), 0.0f, std::sin(radYaw));
+                        Vec3 fwd(std::cos(radYaw), 0.0f, std::sin(radYaw));
+                        Vec3 right(-std::sin(radYaw), 0.0f, std::cos(radYaw));
 
                         Vec3 moveDir = fwd * cmd->forwardMove + right * cmd->sideMove;
                         if (moveDir.lengthSq() > 0.001f) {
@@ -468,15 +492,21 @@ namespace Lab {
                             client->state.velocity.z *= 0.85f;
                         }
 
-                        if ((cmd->buttons & NetButton_Jump) && std::abs(client->state.velocity.y) < 0.01f) {
-                            client->state.velocity.y = 5.2f;
+                        if ((cmd->buttons & NetButton_Jump) && client->isGrounded) {
+                            client->state.velocity.y = 5.0f;
+                            client->isGrounded = false;
                         }
-                        client->state.velocity.y -= 9.81f * cmdDt;
+                        client->state.velocity.y -= 12.0f * cmdDt;
 
-                        client->state.position = client->state.position + client->state.velocity * cmdDt;
-                        if (client->state.position.y < 0.0f) {
-                            client->state.position.y = 0.0f;
-                            client->state.velocity.y = 0.0f;
+                        if (!_solidBoxes.empty()) {
+                            LabCollision::moveAndSlide(client->state.position, client->state.velocity, client->isGrounded, cmdDt, _solidBoxes, 1.70f, 0.35f, 1.85f);
+                        } else {
+                            client->state.position += client->state.velocity * cmdDt;
+                            if (client->state.position.y < 1.70f) {
+                                client->state.position.y = 1.70f;
+                                client->state.velocity.y = 0.0f;
+                                client->isGrounded = true;
+                            }
                         }
 
                         client->state.yaw = cmd->yaw;
@@ -611,7 +641,7 @@ namespace Lab {
         _assignedClientId = 0;
     }
 
-    void NetworkClient::update(float dt, const Vec3& localPos, const Vec3& localVel, float yaw, float pitch, uint32_t buttons) {
+    void NetworkClient::update(float dt, const Vec3& localPos, const Vec3& localVel, float yaw, float pitch, uint32_t buttons, float forwardMove, float sideMove) {
         if (!_connected) return;
 
         processIncomingPackets();
@@ -637,17 +667,20 @@ namespace Lab {
         cmd.buttons = buttons;
         cmd.deltaTime = dt;
 
-        // Compute normalized input direction from current local velocity
-        float radYaw = yaw * 3.14159265f / 180.0f;
-        Vec3 fwd(std::sin(radYaw), 0.0f, -std::cos(radYaw));
-        Vec3 right(std::cos(radYaw), 0.0f, std::sin(radYaw));
+        if (std::abs(forwardMove) > 0.001f || std::abs(sideMove) > 0.001f) {
+            cmd.forwardMove = std::clamp(forwardMove, -1.0f, 1.0f);
+            cmd.sideMove = std::clamp(sideMove, -1.0f, 1.0f);
+        } else {
+            // Reconstruct forward/side move from velocity if raw input was omitted
+            float radYaw = yaw * 3.14159265f / 180.0f;
+            Vec3 fwd(std::cos(radYaw), 0.0f, std::sin(radYaw));
+            Vec3 right(-std::sin(radYaw), 0.0f, std::cos(radYaw));
 
-        float speed = (buttons & NetButton_Sprint) ? 8.5f : 5.5f;
-        if (speed > 0.0f) {
-            cmd.forwardMove = (localVel.x * fwd.x + localVel.z * fwd.z) / speed;
-            cmd.sideMove = (localVel.x * right.x + localVel.z * right.z) / speed;
-            cmd.forwardMove = std::clamp(cmd.forwardMove, -1.0f, 1.0f);
-            cmd.sideMove = std::clamp(cmd.sideMove, -1.0f, 1.0f);
+            float speed = (buttons & NetButton_Sprint) ? 8.5f : 4.5f;
+            if (speed > 0.0f) {
+                cmd.forwardMove = std::clamp((localVel.x * fwd.x + localVel.z * fwd.z) / speed, -1.0f, 1.0f);
+                cmd.sideMove = std::clamp((localVel.x * right.x + localVel.z * right.z) / speed, -1.0f, 1.0f);
+            }
         }
 
         _socket.sendTo(&cmd, sizeof(cmd), _serverAddr);

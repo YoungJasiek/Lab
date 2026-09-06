@@ -410,6 +410,9 @@ public:
             _aiManager.clear();
             _hud.showCombatMessage("MATCH STARTED: BOTS DISABLED (SOLO)", 3.0f);
         }
+
+        _inMenu = false;
+        glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     }
 
     void onFixedUpdate(float fixedDelta) override {
@@ -680,7 +683,16 @@ public:
             if (Input::isKeyPressed(340)) netButtons |= NetButton_Sprint;
             if (_flashlight.enabled) netButtons |= NetButton_Flashlight;
 
-            _netClient.update(time.delta, _camera.getPosition(), _velocity, _camera.getYaw(), _camera.getPitch(), netButtons);
+            float netForward = 0.0f;
+            float netSide = 0.0f;
+            if (!_chat.isOpen && !_isPlayerDead && !_inMenu) {
+                if (Input::isKeyPressed('W') || Input::isKeyPressed('w')) netForward += 1.0f;
+                if (Input::isKeyPressed('S') || Input::isKeyPressed('s')) netForward -= 1.0f;
+                if (Input::isKeyPressed('A') || Input::isKeyPressed('a')) netSide -= 1.0f;
+                if (Input::isKeyPressed('D') || Input::isKeyPressed('d')) netSide += 1.0f;
+            }
+
+            _netClient.update(time.delta, _camera.getPosition(), _velocity, _camera.getYaw(), _camera.getPitch(), netButtons, netForward, netSide);
             if (_netClient.hasNewSnapshot()) {
                 const auto& snap = _netClient.getLatestSnapshot();
                 for (uint16_t i = 0; i < snap.playerCount; ++i) {
@@ -2085,11 +2097,14 @@ public:
             _shadowMap.endShadowPass(getWidth(), getHeight());
         }
 
-        // Ensure post-process pipeline matches current viewport dimensions
+        // Ensure post-process pipeline and camera aspect match current viewport dimensions
         int curW = getWidth();
         int curH = getHeight();
-        if (curW > 0 && curH > 0 && (curW != _postProcess.getWidth() || curH != _postProcess.getHeight())) {
-            _postProcess.resize(curW, curH);
+        if (curW > 0 && curH > 0) {
+            _camera.setAspect((float)curW / (float)curH);
+            if (curW != _postProcess.getWidth() || curH != _postProcess.getHeight()) {
+                _postProcess.resize(curW, curH);
+            }
         }
 
         // ==================== PASS 2: COLOR & LIGHTING SCENE PASS (HDR FBO) ====================
@@ -2153,6 +2168,36 @@ public:
 
         // Render Combat AI Bots
         _aiManager.render();
+
+        // Render other connected multiplayer players from network snapshot
+        if (_netClient.isConnected()) {
+            const auto& snap = _netClient.getLatestSnapshot();
+            for (uint16_t i = 0; i < snap.playerCount; ++i) {
+                const auto& p = snap.players[i];
+                if (p.clientId == _netClient.getClientId() || !p.isAlive) continue;
+
+                // Ground-aligned player model (eye position 1.70m -> feet at ground)
+                Vec3 pFeet = p.position - Vec3(0.0f, 1.70f, 0.0f);
+                if (_aiManager.skinnedMesh && _aiManager.skeleton) {
+                    float pScale = _aiManager.skinnedMesh->getBaseScale(1.85f);
+                    float yOff = -_aiManager.skinnedMesh->getMinBounds().y * pScale;
+                    Mat4 pModel = Mat4::translate(pFeet + Vec3(0.0f, yOff, 0.0f)) *
+                                  Mat4::rotate(p.yaw * 3.14159265f / 180.0f, Vec3(0, 1, 0)) *
+                                  Mat4::scale(Vec3(pScale, pScale, pScale));
+                    Renderer::drawSkinnedMesh(*_aiManager.skinnedMesh, pModel,
+                                              _aiManager.bots.empty() ? std::vector<Mat4>() : _aiManager.bots[0].animator.getSkinMatrices(),
+                                              Vec3(0.35f, 0.65f, 0.95f), nullptr, true);
+                } else {
+                    Renderer::drawCube(pFeet + Vec3(0.0f, 0.92f, 0.0f), Vec3(0.0f, p.yaw, 0.0f), Vec3(0.55f, 1.85f, 0.35f), Vec3(0.2f, 0.5f, 0.85f));
+                }
+
+                // Overhead health bar & name tag
+                Vec3 tagPos = p.position + Vec3(0.0f, 0.35f, 0.0f);
+                Renderer::drawCube(tagPos, Vec3(0.0f, p.yaw, 0.0f), Vec3(0.7f, 0.08f, 0.02f), Vec3(0.1f, 0.1f, 0.15f), nullptr, false);
+                float hpRatio = std::clamp(p.health / 150.0f, 0.0f, 1.0f);
+                Renderer::drawCube(tagPos + Vec3(0.0f, 0.0f, 0.01f), Vec3(0.0f, p.yaw, 0.0f), Vec3(0.68f * hpRatio, 0.06f, 0.02f), Vec3(0.2f, 0.85f, 0.3f), nullptr, false);
+            }
+        }
 
         // Render Dynamic Rigid Body Physics Props (Crates, Barrels, Shattered Debris)
         _physicsWorld.render();
