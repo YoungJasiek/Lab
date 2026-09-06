@@ -1,5 +1,6 @@
 #include "LabRenderer.h"
 #include "LabSkeletal.h"
+#include "LabFace.h"
 #include <glad/gl.h>
 #include <fstream>
 #include <iostream>
@@ -1252,6 +1253,36 @@ namespace Lab {
         }
 
         _defaultShader->setInt("uUseSkinning", 0);
+    }
+
+    void Renderer::drawFacialMesh(const FacialMesh& mesh, const Mat4& modelTransform, const Vec3& color, const Texture* texture, bool enableLighting) {
+        _defaultShader->use();
+        _defaultShader->setMat4("projection", _projMatrix);
+        _defaultShader->setMat4("view", _viewMatrix);
+        _defaultShader->setMat4("model", modelTransform);
+        _defaultShader->setVec3("brushSize", { 1.0f, 1.0f, 1.0f });
+        _defaultShader->setVec2("uvTiling", { 1.0f, 1.0f });
+        _defaultShader->setInt("uvMode", 0);
+        _defaultShader->setInt("uUseSkinning", 0);
+        _defaultShader->setVec3("objectColor", color);
+        _defaultShader->setInt("enableLighting", enableLighting ? 1 : 0);
+        applyLightingAndShadowUniforms(_defaultShader);
+
+        if (texture && texture->getId() != 0) {
+            _defaultShader->setInt("useTexture", 1);
+            _defaultShader->setInt("texture1", 0);
+            texture->bind(0);
+        } else {
+            _defaultShader->setInt("useTexture", 0);
+        }
+
+        glDisable(GL_CULL_FACE);
+        mesh.draw();
+        glEnable(GL_CULL_FACE);
+
+        if (texture && texture->getId() != 0) {
+            texture->unbind();
+        }
     }
 
     void Renderer::drawBaseplate(float size, const Texture* texture) {

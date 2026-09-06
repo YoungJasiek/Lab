@@ -167,29 +167,67 @@ Wszystkie systemy tworzone sa w standardzie **C++20**, **OpenGL 4.5+ Core Profil
 
 ---
 
-## II. NAJBLIZSZE SPRINTY (SHORT-TERM / IN PROGRESS)
-
-### Sprint 9: Zaawansowany Post-Processing, HDR Tonemapping & Szron Wizjera (Cryo HUD Frost)
-- [ ] Bufor post-processingu HDR (FBO `GL_RGBA16F` / `GL_RGB16F`) z dynamicznym tone-mappingiem Reinhard / ACES Filmic.
-- [ ] Efekt szronu i zamarzania krawedzi wizjera gracza (`Cryo Frost Vignette`) narastajacy przy niskim poziomie zdrowia oraz w arktycznych sektorach `cryo_outpost`.
-- [ ] Rozmycie jasnych obszarow (Screen-Space Bloom / HDR Glow) dla pociskow plazmowych, rozblyskow lufy i neonowych spawnerow broni.
-- [ ] Zautomatyzowany i wizualny test 31 w `TestVerify.exe` (`test_postprocess_and_frost.bmp`).
+### 15. Zaawansowany Post-Processing HDR, Bloom, Szron Wizjera & Fizyka Lodu (Sprint 9 - 100% DONE)
+- [x] Rurociag post-processingu HDR (FBO `GL_RGBA16F`, Direct State Access - DSA, format polprecyzji 16-bit float):
+  - Modul `LabPostProcess` (`include/LabPostProcess.h`, `src/LabPostProcess.cpp`).
+  - Renderowanie calej sceny 3D (geometria szczotek, modele STL, boty, pociski, debrisy, czastki) w przestrzeni unclamped HDR.
+- [x] Dwufazowe rozmycie gaussa (Separable Multi-Pass Gaussian Bloom):
+  - Ekstrakcja nasyconych luminancji (`luminance > 0.95`).
+  - Ping-pongowe bufory ramki w polowicznej rozdzielczosci (`W/2`, `H/2`) dla plynnego rozmywania blaskow pociskow plazmowych, rozblyskow lufy i spawnerow.
+- [x] Algorytmy mapowania tonow (Tonemapping):
+  - ACES Filmic tonemapper zachowujacy filmowy kontrast i nasycenie barw.
+  - Alternatywny Reinhard tonemapper oraz precyzyjna korekcja gamma 2.2 (`pow(mapped, 1.0/2.2)`).
+- [x] Cryo HUD Frost Vignette:
+  - Dynamicznie generowany fraktalny szron krawedzi wizjera w shaderze kompozytowym.
+  - Stopien zaszronienia sterowany poziomem zdrowia gracza (`low HP` krytyczna hipotermia) oraz arktycznym biometrem sektorow `cryo_outpost`.
+- [x] Fizyka lodu i inercji:
+  - Detekcja podloza lodowego (`cryo_ice` / `snow_frost`).
+  - Wspolczynnik tarcia lodu `0.985f` (konserwacja 86% pedu po 10 tykach zamiast natychmiastowego zatrzymania `0.85f`) z plynna akceleracja driftu.
+- [x] Dynamiczna zamiec sniezna (`_particleSystem.spawnAmbientWeather` z ukladem 3D, zawirowaniem wiatru i kolizjami).
+- [x] Zautomatyzowany i wizualny test 31 w `TestVerify.exe`:
+  - Weryfikacja FBO `GL_RGBA16F`, kompresji ACES i Reinhard, formul szronu, inercji lodu.
+  - Wygenerowana i zwalidowana klatka referencyjna `test_postprocess_and_frost.bmp` oraz `web/assets/img/test_postprocess_and_frost.png`. Wszystkie 31 testow przechodza w 100%!
 
 ---
 
-## IV. DLUGOTERMINOWE KROKI (LONG-TERM)
+## II. NAJBLIZSZE SPRINTY (SHORT-TERM / IN PROGRESS)
+*Wszystkie zaplanowane sprinty I fazy silnika Lab (Sprint 1 - 9) zostaly w 100% zrealizowane i zweryfikowane automatycznymi testami.*
 
-### 1. Animacje Mimiki Twarzy i Ruch Ust (Lip-Sync)
-- [ ] Wdrozenie Blend Shapes / Morph Targets w shaderach wierzcholkowych dla glowy postaci (Jaw_Open, Mouth_Narrow, Mouth_Smile).
-- [ ] Automatyczny analizator fonemow / amplitudy audio generujacy ruch warg postaci w rytm kwestii dialogowych.
+---
 
-### 2. Dedykowana Siec Multiplayer (Authoritative Client-Server)
-- [ ] Architektura klient-serwer oparta o UDP z kompresja pakietow stanu gry.
-- [ ] Predykcja ruchu po stronie klienta (Client-Side Prediction) i uzgadnianie stanu (Reconciliation).
-- [ ] Kompensacja opoznien (Lag Compensation) dla rejestracji strzalow hitscan.
-- [ ] Tryb serwera dedykowanego bezokienkowego (Headless Server) pod Linux/Windows.
+## IV. DLUGOTERMINOWE KROKI (LONG-TERM - 100% DONE)
 
-### 3. Klimat Swiata Frozen-Life
-- [ ] Efekt szronu i zamarzania wizjera gracza przy krytycznym stanie zdrowia / niskiej temperaturze.
-- [ ] Dynamiczny emiter zamieci snieznej (Blizzard Weather) wplywajacy na widocznosc.
-- [ ] Fizyka poslizgu na powierzchniach lodowych (cryo_ice).
+### 1. Animacje Mimiki Twarzy i Ruch Ust (Lip-Sync & Blend Shapes - 100% DONE)
+- [x] Wdrozenie Blend Shapes / Morph Targets w geometrii wierzcholkow glowy (`Jaw_Open`, `Mouth_Narrow`, `Mouth_Smile`):
+  - Modul `LabFace` (`include/LabFace.h`, `src/LabFace.cpp`).
+  - Struktura `MorphTarget` przechowujaca wektory przemieszczen pozycji i normalnych.
+  - Klasa `FacialMesh` z dynamicznym buforem VBO (OpenGL 4.5+ DSA) i wielowatkowym sumowaniem wag ksztaltow.
+  - Proceduralny generator humanoidalnej glowy z cechami anatomicznymi (zuchwa, wargi, policzki, luk brwiowy, nos).
+- [x] Modul `LipSyncEvaluator`:
+  - Analizator obwiedni amplitudy audio (RMS / Envelope Follower) w czasie rzeczywistym.
+  - Wygładzanie dynamiki mowy (asymetryczny Attack/Decay smoothing: szybkie otwieranie warg, plynne opadanie).
+  - Obliczanie energii RMS bezposrednio z buforow 16-bit PCM (np. strumieni miniaudio).
+  - Proceduralny generator sciezki mowy z pauzami miedzywyrazowymi dla kwestii radiowych NPC ("Dr. Vance").
+- [x] Zautomatyzowany i wizualny test 32 w `TestVerify.exe`:
+  - Weryfikacja 425 wierzcholkow glowy, 3 celow blend shape, matematyki przemieszczenia zuchwy, obwiedni audio RMS.
+  - Wygenerowana i zwalidowana klatka referencyjna `test_facial_lipsync.bmp` oraz `web/assets/img/test_facial_lipsync.png`.
+
+### 2. Dedykowana Siec Multiplayer (Authoritative Client-Server - 100% DONE)
+- [x] Modul sieciowy `LabNetwork` (`include/LabNetwork.h`, `src/LabNetwork.cpp`):
+  - Przenosna abstrakcja gniazd UDP (`UDPSocket`, `SocketAddress`) z obsluga Winsock2 (`ws2_32.lib`) na Windows i POSIX na Linux.
+  - Binarny protokol pakietow (`NET_MAGIC = 0x4C414231` "LAB1", wersja 1):
+    - `NetHeader`, `NetMsgConnectRequest`, `NetMsgConnectResponse`, `NetMsgPingPong`, `NetUserCmd`, `NetServerSnapshot`, `NetChatMessage`.
+- [x] Autorytatywna fizyka i predykcja:
+  - Klasa `ClientPrediction`: bufor pierscieniowy wyslanych polecen `NetUserCmd`, lokalna predykcja z zerowym opoznieniem (0ms lag).
+  - Algorytm uzgadniania stanu (Server Reconciliation): wykrywanie desynchronizacji powyzej progu bledu, automatyczne cofniecie pozycji do autorytatywnego punktu serwera i ponowna symulacja niepotwierdzonych polecen (brak teleportacji i stutteringu).
+  - Klasa `DedicatedServer`: petla serwera o stalym taktowaniu 64 Hz, autorytatywna symulacja ruchu, wykrywanie timeoutow klientow (>6s), rozglaszanie `NetServerSnapshot`.
+  - Klasa `NetworkClient`: handshake polaczenia, probkowanie komend z wejscia uzytkownika, pomiar czasu RTT (ping).
+- [x] Dedykowany serwer bezokienkowy (`LabServer.exe`):
+  - Osobny target CMake (`src/server_main.cpp`) dzialajacy w czystym trybie konsolowym CLI (bez kontekstu GLFW/OpenGL).
+  - Obsluga flag wiersza polecen (`-port <27015>`, `-map <map_name>`), graceful shutdown pod sygnale Ctrl+C / SIGINT, raporty heartbeat co 10 sekund.
+- [x] Integracja z menu gry w `src/main.cpp`:
+  - "START SERVER / LAUNCH MATCH": uruchomienie lokalnego serwera na porcie 27015 i polaczenie klienta.
+  - "CONNECT TO SERVER": natychmiastowe polaczenie klienta pod adres docelowy `127.0.0.1:27015`.
+  - Rejestracja pakietow i uzgadnianie predykcji ruchu gracza bezposrednio w `onUpdate()`.
+- [x] Zautomatyzowany test 33 w `TestVerify.exe`:
+  - Weryfikacja uruchomienia serwera na porcie 27019, handshake klienta, transmisja pakietow UserCmd, odbior snapshotow z autorytatywna pozycja, rozwiazanie 3.5-metrowego desyncu przez modul ClientPrediction, bezpieczne rozlaczenie. Wszystkie 33 testy przechodza w 100%!

@@ -12,11 +12,13 @@ namespace Lab {
         Vec2 texCoords;
         Vec3 color;
 
+        Vertex() : position{0, 0, 0}, normal{0, 1, 0}, texCoords{0, 0}, color{1, 1, 1} {}
         Vertex(Vec3 p, Vec3 n, Vec2 t, Vec3 c = { 1, 1, 1 })
             : position(p), normal(n), texCoords(t), color(c) {}
     };
 
     class SkinnedMesh;
+    class FacialMesh;
 
     class Shader {
     public:
@@ -117,6 +119,7 @@ namespace Lab {
         static void drawMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true);
         static void drawMesh(const Mesh& mesh, const Mat4& modelTransform, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true);
         static void drawSkinnedMesh(const SkinnedMesh& mesh, const Mat4& modelTransform, const std::vector<Mat4>& boneMatrices, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true);
+        static void drawFacialMesh(const FacialMesh& mesh, const Mat4& modelTransform, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true);
         static void drawBaseplate(float size, const Texture* texture = nullptr);
         static std::string resolveModelTexture(const std::string& modelPath, const std::string& fallbackTexture = "");
 

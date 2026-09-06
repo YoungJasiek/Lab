@@ -24,3 +24,6 @@
 #include "LabDecals.h"
 #include "LabInteractive.h"
 #include "LabScript.h"
+#include "LabPostProcess.h"
+#include "LabFace.h"
+#include "LabNetwork.h"

@@ -45,6 +45,8 @@ namespace Lab {
         Vec3 getUp() const { return _up; }
         float getFov() const { return _fov; }
         float getAspect() const { return _aspect; }
+        float getYaw() const { return _yaw; }
+        float getPitch() const { return _pitch; }
 
         struct FrustumPlane {
             Vec3 normal;

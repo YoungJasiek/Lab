@@ -97,6 +97,12 @@ public:
         // Initialize Dynamic Shadow Map (2048x2048 high-resolution depth FBO)
         _shadowMap.init(2048, 2048);
 
+        // Initialize HDR Post-Processing Pipeline (GL_RGBA16F, Bloom, Cryo Frost, ACES Tonemapping)
+        _postProcess.init(getWidth(), getHeight());
+
+        // Initialize Authoritative UDP Network Subsystem
+        NetworkSystem::init();
+
         // Start in Main Menu
         _inMenu = true;
         _menuScreen = MenuScreen::Main;
@@ -400,14 +406,42 @@ public:
             return;
         }
 
+        bool isIceSurface = false;
+        if (_currentMap && _isGrounded) {
+            Vec3 feetPos = _camera.getPosition() - Vec3(0, 0.9f, 0);
+            for (const auto& b : _currentMap->brushes) {
+                if (b.texturePath.find("ice") != std::string::npos || b.texturePath.find("snow") != std::string::npos) {
+                    Vec3 half = b.size * 0.5f + Vec3(0.25f, 0.25f, 0.25f);
+                    if (feetPos.x >= b.position.x - half.x && feetPos.x <= b.position.x + half.x &&
+                        feetPos.y >= b.position.y - half.y && feetPos.y <= b.position.y + half.y &&
+                        feetPos.z >= b.position.z - half.z && feetPos.z <= b.position.z + half.z) {
+                        isIceSurface = true;
+                        break;
+                    }
+                }
+            }
+        }
+
         if (inputDir.lengthSq() > 0) {
             inputDir = inputDir.normalized();
-            _velocity.x = inputDir.x * speed;
-            _velocity.z = inputDir.z * speed;
+            if (isIceSurface) {
+                // Tactical Ice Inertia: smooth acceleration drift
+                _velocity.x += inputDir.x * speed * fixedDelta * 3.5f;
+                _velocity.z += inputDir.z * speed * fixedDelta * 3.5f;
+                float curHorizSpeed = std::sqrt(_velocity.x * _velocity.x + _velocity.z * _velocity.z);
+                if (curHorizSpeed > speed * 1.15f) {
+                    _velocity.x = (_velocity.x / curHorizSpeed) * (speed * 1.15f);
+                    _velocity.z = (_velocity.z / curHorizSpeed) * (speed * 1.15f);
+                }
+            } else {
+                _velocity.x = inputDir.x * speed;
+                _velocity.z = inputDir.z * speed;
+            }
             _bobTime += fixedDelta * (speed * 2.0f);
         } else {
-            _velocity.x *= 0.85f;
-            _velocity.z *= 0.85f;
+            float friction = isIceSurface ? 0.985f : 0.85f;
+            _velocity.x *= friction;
+            _velocity.z *= friction;
         }
 
         // Jump physics (Spacebar = 32)
@@ -539,6 +573,35 @@ public:
         _tPressedLast = tPressed;
         _backspacePressedLast = backspacePressed;
         _chat.update(time.delta);
+
+        // Network simulation tick and client-side prediction update
+        if (_localServer.isRunning()) {
+            _localServer.tick(time.delta);
+        }
+        if (_netClient.isConnected()) {
+            uint32_t netButtons = 0;
+            if (Input::isKeyPressed(32)) netButtons |= NetButton_Jump;
+            if (Input::isMouseButtonPressed(0)) netButtons |= NetButton_Fire;
+            if (Input::isKeyPressed('R') || Input::isKeyPressed('r')) netButtons |= NetButton_Reload;
+            if (Input::isKeyPressed(340)) netButtons |= NetButton_Sprint;
+            if (_flashlight.enabled) netButtons |= NetButton_Flashlight;
+
+            _netClient.update(time.delta, _camera.getPosition(), _velocity, _camera.getYaw(), _camera.getPitch(), netButtons);
+            if (_netClient.hasNewSnapshot()) {
+                const auto& snap = _netClient.getLatestSnapshot();
+                for (uint16_t i = 0; i < snap.playerCount; ++i) {
+                    if (snap.players[i].clientId == _netClient.getClientId()) {
+                        Vec3 correctedPos, correctedVel;
+                        if (_netClient.getPrediction().reconcile(snap.lastProcessedCmd, snap.players[i].position, snap.players[i].velocity, correctedPos, correctedVel)) {
+                            _camera.setPosition(correctedPos);
+                            _velocity = correctedVel;
+                        }
+                        break;
+                    }
+                }
+                _netClient.consumeSnapshot();
+            }
+        }
 
         // Gameplay camera orientation update (only when not typing in chat)
         if (!_chat.isOpen) {
@@ -1379,7 +1442,10 @@ public:
 
                 // Bottom Start Server button (x: 820..1180, y: 570..618)
                 if (mx >= 820.0f && mx <= 1180.0f && my >= 570.0f && my <= 618.0f) {
+                    _localServer.start(27015, _sessionConfig.mapPath);
+                    _netClient.connect("127.0.0.1", 27015, "HostPlayer");
                     startSession(_sessionConfig);
+                    _chat.addMessage("[SERVER]", "Local Authoritative Server started on port 27015", Vec3(0.3f, 0.85f, 1.0f));
                     return;
                 }
             }
@@ -1392,7 +1458,9 @@ public:
                     _sessionConfig.mode = GameMode::FFA;
                     _sessionConfig.enableBots = true;
                     _sessionConfig.botCount = 2;
+                    _netClient.connect("127.0.0.1", 27015, "GuestPlayer");
                     startSession(_sessionConfig);
+                    _chat.addMessage("[CLIENT]", "Connected to Research Complex Server (127.0.0.1:27015)", Vec3(0.2f, 0.9f, 0.3f));
                     return;
                 }
                 // Server Row 1 (x: 120..1160, y: 225..270)
@@ -1401,12 +1469,16 @@ public:
                     _sessionConfig.mode = GameMode::TDM;
                     _sessionConfig.enableBots = true;
                     _sessionConfig.botCount = 4;
+                    _netClient.connect("127.0.0.1", 27015, "GuestPlayer");
                     startSession(_sessionConfig);
+                    _chat.addMessage("[CLIENT]", "Connected to Cryo Outpost Server (127.0.0.1:27015)", Vec3(0.2f, 0.9f, 0.3f));
                     return;
                 }
                 // Direct Connect button (x: 840..1160, y: 560..608)
                 if (mx >= 840.0f && mx <= 1160.0f && my >= 560.0f && my <= 608.0f) {
+                    _netClient.connect("127.0.0.1", 27015, "GuestPlayer");
                     startSession(_sessionConfig);
+                    _chat.addMessage("[CLIENT]", "Direct Connected to 127.0.0.1:27015", Vec3(0.2f, 0.9f, 0.3f));
                     return;
                 }
                 // Back button (x: 100..280, y: 560..608)
@@ -1837,7 +1909,15 @@ public:
             _shadowMap.endShadowPass(getWidth(), getHeight());
         }
 
-        // ==================== PASS 2: COLOR & LIGHTING SCENE PASS ====================
+        // Ensure post-process pipeline matches current viewport dimensions
+        int curW = getWidth();
+        int curH = getHeight();
+        if (curW > 0 && curH > 0 && (curW != _postProcess.getWidth() || curH != _postProcess.getHeight())) {
+            _postProcess.resize(curW, curH);
+        }
+
+        // ==================== PASS 2: COLOR & LIGHTING SCENE PASS (HDR FBO) ====================
+        _postProcess.beginScene();
         Renderer::beginFrame(_camera);
 
         if (_shadowMap.isInitialized()) {
@@ -1941,19 +2021,29 @@ public:
 
         Renderer::disableShadowMap();
         Renderer::disableFlashlight();
-
-        drawUI();
-
         Renderer::endFrame();
+        _postProcess.endScene();
+
+        // ==================== PASS 3: HDR TONEMAPPING, BLOOM & CRYO FROST ====================
+        bool isCryo = (_currentMap && _currentMap->metadata.name.find("Cryo") != std::string::npos);
+        float frost = PostProcessPipeline::calculateFrostVignette(_hud.health, _hud.maxHealth, isCryo);
+        _postProcess.render(1.0f, frost, (float)glfwGetTime(), TonemapperType::ACESFilmic);
+
+        // ==================== PASS 4: 2D HUD, CHAT & SCOREBOARD ====================
+        drawUI();
     }
 
     void onShutdown() override {
+        _netClient.disconnect();
+        _localServer.stop();
+        NetworkSystem::shutdown();
         _shadowMap.shutdown();
         AudioEngine::shutdown();
         _particleSystem.shutdown();
         _decalSystem.shutdown();
         _interactiveSystem.shutdown();
         _scriptEngine.shutdown();
+        _postProcess.shutdown();
         Renderer::shutdown();
     }
 
@@ -1963,6 +2053,9 @@ private:
     DecalSystem _decalSystem;
     InteractiveSystem _interactiveSystem;
     ScriptEngine _scriptEngine;
+    PostProcessPipeline _postProcess;
+    DedicatedServer _localServer;
+    NetworkClient _netClient;
     std::unique_ptr<LabMap> _currentMap;
     std::unordered_map<std::string, std::unique_ptr<Texture>> _textures;
     std::unordered_map<std::string, std::unique_ptr<Mesh>> _meshes;
