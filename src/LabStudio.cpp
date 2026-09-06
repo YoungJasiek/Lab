@@ -55,7 +55,7 @@ namespace Lab {
             Vec3(-0.01f, -0.125f, -0.02f), Vec3(12.0f, -5.0f, 6.0f),
             Vec3(0.0f, -0.04f, 0.08f)
         };
-        _weaponSkins[0] = { "weapon_pipe.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.7f, 0.3f };
+        _weaponSkins[0] = { "pipe.stl", "weapon_pipe.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.7f, 0.3f };
 
         // Weapon 1: Pistol
         _weaponGrips[1] = {
@@ -63,7 +63,7 @@ namespace Lab {
             Vec3(-0.055f, -0.105f, -0.035f), Vec3(14.0f, -12.0f, 15.0f),
             Vec3(0.0f, -0.06f, 0.12f)
         };
-        _weaponSkins[1] = { "weapon_pistol.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.8f, 0.2f };
+        _weaponSkins[1] = { "", "weapon_pistol.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.8f, 0.2f };
 
         // Weapon 2: Shotgun
         _weaponGrips[2] = {
@@ -71,7 +71,7 @@ namespace Lab {
             Vec3(-0.065f, -0.060f, -0.26f), Vec3(22.0f, 12.0f, -22.0f),
             Vec3(0.0f, -0.07f, 0.14f)
         };
-        _weaponSkins[2] = { "weapon_shotgun.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.6f, 0.4f };
+        _weaponSkins[2] = { "", "weapon_shotgun.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.6f, 0.4f };
 
         // Weapon 3: M4A4-S
         _weaponGrips[3] = {
@@ -79,7 +79,7 @@ namespace Lab {
             Vec3(-0.065f, -0.060f, -0.34f), Vec3(22.0f, 12.0f, -22.0f),
             Vec3(0.0f, -0.07f, 0.15f)
         };
-        _weaponSkins[3] = { "weapon_m4a4s.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.6f, 0.4f };
+        _weaponSkins[3] = { "", "weapon_m4a4s.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.6f, 0.4f };
 
         // Weapon 4: SG553
         _weaponGrips[4] = {
@@ -87,7 +87,7 @@ namespace Lab {
             Vec3(-0.065f, -0.060f, -0.34f), Vec3(22.0f, 12.0f, -22.0f),
             Vec3(0.0f, -0.07f, 0.15f)
         };
-        _weaponSkins[4] = { "weapon_sg553.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.5f, 0.5f };
+        _weaponSkins[4] = { "", "weapon_sg553.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.5f, 0.5f };
 
         // Weapon 5: Minigun
         _weaponGrips[5] = {
@@ -95,7 +95,7 @@ namespace Lab {
             Vec3(0.0f, 0.08f, -0.15f), Vec3(-15.0f, 0.0f, 0.0f),
             Vec3(0.0f, -0.05f, 0.10f)
         };
-        _weaponSkins[5] = { "weapon_minigun.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.8f, 0.2f };
+        _weaponSkins[5] = { "", "weapon_minigun.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.8f, 0.2f };
 
         // Weapon 6: Plasma Rifle
         _weaponGrips[6] = {
@@ -103,7 +103,7 @@ namespace Lab {
             Vec3(-0.065f, -0.060f, -0.30f), Vec3(20.0f, 10.0f, -20.0f),
             Vec3(0.0f, -0.07f, 0.15f)
         };
-        _weaponSkins[6] = { "weapon_plasma.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.9f, 0.1f };
+        _weaponSkins[6] = { "", "weapon_plasma.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.9f, 0.1f };
 
         // Weapon 7: Railgun
         _weaponGrips[7] = {
@@ -111,7 +111,7 @@ namespace Lab {
             Vec3(-0.065f, -0.060f, -0.36f), Vec3(20.0f, 10.0f, -20.0f),
             Vec3(0.0f, -0.07f, 0.15f)
         };
-        _weaponSkins[7] = { "weapon_railgun.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.9f, 0.1f };
+        _weaponSkins[7] = { "railgun.stl", "weapon_railgun.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.9f, 0.1f };
 
         // Weapon 8: RPG
         _weaponGrips[8] = {
@@ -119,7 +119,7 @@ namespace Lab {
             Vec3(-0.06f, -0.05f, -0.28f), Vec3(25.0f, 15.0f, -15.0f),
             Vec3(0.0f, -0.08f, 0.16f)
         };
-        _weaponSkins[8] = { "weapon_rpg.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.4f, 0.6f };
+        _weaponSkins[8] = { "", "weapon_rpg.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.4f, 0.6f };
 
         // Reload timeline defaults
         _reloadTimeline = { 0.35f, 0.28f, 0.62f, 0.88f, 0.08f, 18.0f };
@@ -462,14 +462,17 @@ namespace Lab {
     }
 
     Mesh* CharacterStudio::getMesh(const std::string& filename) {
-        if (filename.empty()) return nullptr;
+        if (filename.empty() || filename == "NONE" || filename == "PROCEDURAL") return nullptr;
         auto it = _meshes.find(filename);
         if (it != _meshes.end()) return it->second.get();
 
         std::vector<std::string> searchPaths = {
+            filename,
             "assets/models/" + filename,
             "assets/" + filename,
-            filename
+            "../assets/models/" + filename,
+            "../../assets/models/" + filename,
+            "build/Release/assets/models/" + filename
         };
         for (const auto& path : searchPaths) {
             if (std::filesystem::exists(path)) {
@@ -479,6 +482,11 @@ namespace Lab {
                     return m;
                 }
             }
+        }
+        Mesh* m = Mesh::loadSTL(filename);
+        if (m) {
+            _meshes[filename] = std::unique_ptr<Mesh>(m);
+            return m;
         }
         return nullptr;
     }
@@ -817,22 +825,31 @@ namespace Lab {
         WeaponID wid = static_cast<WeaponID>(_selectedWeaponIndex);
         Texture* skinTex = getTexture(skin.textureFile);
 
-        // Model lookup (STL or procedural)
-        const char* stlNames[9] = {
-            "pipe.stl", "pistol.stl", "shotgun.stl",
-            "m4a4s.stl", "sg553.stl", "minigun.stl",
-            "plasma.stl", "railgun.stl", "rpg.stl"
-        };
-        Mesh* weaponMesh = getMesh(stlNames[_selectedWeaponIndex]);
+        // Model lookup (Custom skin STL override, or default weapon STL)
+        Mesh* weaponMesh = nullptr;
+        if (!skin.modelFile.empty()) {
+            if (skin.modelFile != "NONE" && skin.modelFile != "PROCEDURAL") {
+                weaponMesh = getMesh(skin.modelFile);
+            }
+        } else {
+            const char* stlNames[9] = {
+                "pipe.stl", "pistol.stl", "shotgun.stl",
+                "m4a4s.stl", "sg553.stl", "minigun.stl",
+                "plasma.stl", "railgun.stl", "rpg.stl"
+            };
+            weaponMesh = getMesh(stlNames[_selectedWeaponIndex]);
+        }
 
         // Weapon Base Transform (including user offset, rotation and scale!)
         Vec3 weaponPos = grip.weaponOffset;
         Vec3 weaponRot = grip.weaponRotation;
         Vec3 weaponScale = grip.weaponScale;
 
-        // Render Weapon with active skin, tint and scale
+        // Render Weapon with active skin, tint and scale (normalized to 0.7m base human-hand size)
         if (weaponMesh) {
-            Renderer::drawMesh(*weaponMesh, weaponPos, weaponRot, weaponScale, skin.tintColor, skinTex);
+            float baseScale = weaponMesh->getBaseScale(0.70f);
+            Vec3 renderScale = { baseScale * weaponScale.x, baseScale * weaponScale.y, baseScale * weaponScale.z };
+            Renderer::drawMesh(*weaponMesh, weaponPos, weaponRot, renderScale, skin.tintColor, skinTex);
         } else {
             // High-detail procedural weapon fallback
             Renderer::drawCube(weaponPos, weaponRot, Vec3(0.06f * weaponScale.x, 0.12f * weaponScale.y, 0.65f * weaponScale.z), skin.tintColor, skinTex, true);
@@ -860,12 +877,19 @@ namespace Lab {
         WeaponID wid = static_cast<WeaponID>(_selectedWeaponIndex);
         Texture* skinTex = getTexture(skin.textureFile);
 
-        const char* stlNames[9] = {
-            "pipe.stl", "pistol.stl", "shotgun.stl",
-            "m4a4s.stl", "sg553.stl", "minigun.stl",
-            "plasma.stl", "railgun.stl", "rpg.stl"
-        };
-        Mesh* weaponMesh = getMesh(stlNames[_selectedWeaponIndex]);
+        Mesh* weaponMesh = nullptr;
+        if (!skin.modelFile.empty()) {
+            if (skin.modelFile != "NONE" && skin.modelFile != "PROCEDURAL") {
+                weaponMesh = getMesh(skin.modelFile);
+            }
+        } else {
+            const char* stlNames[9] = {
+                "pipe.stl", "pistol.stl", "shotgun.stl",
+                "m4a4s.stl", "sg553.stl", "minigun.stl",
+                "plasma.stl", "railgun.stl", "rpg.stl"
+            };
+            weaponMesh = getMesh(stlNames[_selectedWeaponIndex]);
+        }
 
         // Evaluate timeline curve at _scrubberPos [0.0 ... 1.0]
         float p = _scrubberPos;
@@ -903,7 +927,9 @@ namespace Lab {
         Vec3 weaponScale = grip.weaponScale;
 
         if (weaponMesh) {
-            Renderer::drawMesh(*weaponMesh, weaponPos, weaponRot, weaponScale, skin.tintColor, skinTex);
+            float baseScale = weaponMesh->getBaseScale(0.70f);
+            Vec3 renderScale = { baseScale * weaponScale.x, baseScale * weaponScale.y, baseScale * weaponScale.z };
+            Renderer::drawMesh(*weaponMesh, weaponPos, weaponRot, renderScale, skin.tintColor, skinTex);
         } else {
             Renderer::drawCube(weaponPos, weaponRot, Vec3(0.06f * weaponScale.x, 0.12f * weaponScale.y, 0.65f * weaponScale.z), skin.tintColor, skinTex, true);
         }
@@ -1609,7 +1635,8 @@ namespace Lab {
             }
             if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply In-Game", false, true)) {
                 saveConfig("assets/configs/character_studio.cfg");
-                log("Saved weapon transforms to active game!");
+                if (_onApplyInGame) _onApplyInGame();
+                log("Saved and applied weapon transforms to active game!");
             }
         } else if (_poserSubMode == PoserSubMode::HandSockets) {
             // Group Box: Right Hand Socket (Trigger)
@@ -1645,6 +1672,7 @@ namespace Lab {
             }
             if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply In-Game", false, true)) {
                 saveConfig("assets/configs/character_studio.cfg");
+                if (_onApplyInGame) _onApplyInGame();
                 log("Saved and applied custom weapon sockets to active game!");
             }
         } else if (_poserSubMode == PoserSubMode::AdsAlignment) {
@@ -1667,6 +1695,7 @@ namespace Lab {
             }
             if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply In-Game", false, true)) {
                 saveConfig("assets/configs/character_studio.cfg");
+                if (_onApplyInGame) _onApplyInGame();
                 log("Saved and applied custom weapon sockets to active game!");
             }
         }
@@ -1772,11 +1801,60 @@ namespace Lab {
     void CharacterStudio::renderTabWeaponSkins(float x, float y, float w, float h) {
         (void)h;
         float curY = y + 26.0f;
+        auto& skin = _weaponSkins[_selectedWeaponIndex];
 
-        LabFont::drawText(x + 10.0f, curY, "SURFACE TEXTURES & CAMO MATERIALS", 1.5f, Vec3(0.95f, 0.85f, 0.3f), LabFontType::System);
+        // 1. 3D Model Selection (.STL)
+        LabFont::drawText(x + 10.0f, curY, "1. WEAPON 3D MODEL (.STL):", 1.5f, Vec3(0.95f, 0.85f, 0.3f), LabFontType::System);
         curY += 20.0f;
 
-        auto& skin = _weaponSkins[_selectedWeaponIndex];
+        std::string currentModel = skin.modelFile.empty() ? "(Default STL)" : skin.modelFile;
+        if (currentModel.size() > 30) {
+            currentModel = "..." + currentModel.substr(currentModel.size() - 27);
+        }
+        LabFont::drawText(x + 14.0f, curY, "Active: " + currentModel, 1.3f, Vec3(0.35f, 0.9f, 1.0f), LabFontType::System);
+        curY += 18.0f;
+
+        float qPad = 4.0f;
+        float qW = (w - 24.0f - 3.0f * qPad) / 4.0f;
+        if (drawHammerButton(x + 12.0f + 0 * (qW + qPad), curY, qW, 22.0f, "Pipe", skin.modelFile == "pipe.stl")) {
+            pushUndoState();
+            skin.modelFile = "pipe.stl";
+            getMesh(skin.modelFile);
+            log("Assigned model: pipe.stl");
+        }
+        if (drawHammerButton(x + 12.0f + 1 * (qW + qPad), curY, qW, 22.0f, "Railgun", skin.modelFile == "railgun.stl")) {
+            pushUndoState();
+            skin.modelFile = "railgun.stl";
+            getMesh(skin.modelFile);
+            log("Assigned model: railgun.stl");
+        }
+        if (drawHammerButton(x + 12.0f + 2 * (qW + qPad), curY, qW, 22.0f, "Model.stl", skin.modelFile == "Model.stl")) {
+            pushUndoState();
+            skin.modelFile = "Model.stl";
+            getMesh(skin.modelFile);
+            log("Assigned user model: Model.stl");
+        }
+        if (drawHammerButton(x + 12.0f + 3 * (qW + qPad), curY, qW, 22.0f, "Procedural", skin.modelFile == "PROCEDURAL")) {
+            pushUndoState();
+            skin.modelFile = "PROCEDURAL";
+            log("Assigned procedural built-in weapon.");
+        }
+        curY += 26.0f;
+
+        if (drawHammerButton(x + 12.0f, curY, w - 24.0f, 22.0f, "Browse Custom STL File...")) {
+            std::string picked = LabDialogs::openFileDialog(_window, "3D STL Model (*.stl)\0*.stl\0All Files (*.*)\0*.*\0", "assets\\models");
+            if (!picked.empty()) {
+                pushUndoState();
+                skin.modelFile = picked;
+                getMesh(picked);
+                log("Selected custom STL weapon model: " + picked);
+            }
+        }
+        curY += 30.0f;
+
+        // 2. Surface textures
+        LabFont::drawText(x + 10.0f, curY, "2. SURFACE TEXTURES & CAMO:", 1.5f, Vec3(0.95f, 0.85f, 0.3f), LabFontType::System);
+        curY += 20.0f;
 
         struct SkinPreset { std::string name; std::string file; };
         SkinPreset skins[] = {
@@ -1788,30 +1866,38 @@ namespace Lab {
         };
 
         for (int i = 0; i < 5; ++i) {
-            float by = curY + i * 26.0f;
+            float by = curY + i * 24.0f;
             bool active = (skin.textureFile == skins[i].file);
-            if (drawHammerButton(x + 12.0f, by, w - 24.0f, 22.0f, skins[i].name + " (" + skins[i].file + ")", active)) {
+            if (drawHammerButton(x + 12.0f, by, w - 24.0f, 20.0f, skins[i].name + " (" + skins[i].file + ")", active)) {
+                pushUndoState();
                 skin.textureFile = skins[i].file;
                 log("Applied material texture: " + skins[i].name);
             }
         }
-        curY += 140.0f;
+        curY += 128.0f;
 
-        // Material Parameters Group
-        Renderer::drawRect(x + 8.0f, curY, w - 16.0f, 140.0f, Vec3(0.18f, 0.19f, 0.21f));
-        drawHammerBevel(x + 8.0f, curY, w - 16.0f, 140.0f, true);
-        LabFont::drawText(x + 14.0f, curY + 6.0f, "MATERIAL PROPERTIES & SHADING:", 1.4f, Vec3(0.4f, 0.85f, 1.0f), LabFontType::System);
+        // 3. Material Parameters Group
+        Renderer::drawRect(x + 8.0f, curY, w - 16.0f, 130.0f, Vec3(0.18f, 0.19f, 0.21f));
+        drawHammerBevel(x + 8.0f, curY, w - 16.0f, 130.0f, true);
+        LabFont::drawText(x + 14.0f, curY + 5.0f, "MATERIAL PROPERTIES & SHADING:", 1.4f, Vec3(0.4f, 0.85f, 1.0f), LabFontType::System);
 
-        drawHammerSlider(x + 14.0f, curY + 26.0f, w - 28.0f, 18.0f, "UV Tiling:", skin.uvScale, 0.25f, 4.0f);
-        drawHammerSlider(x + 14.0f, curY + 46.0f, w - 28.0f, 18.0f, "Tint Red:", skin.tintColor.x, 0.1f, 1.5f);
-        drawHammerSlider(x + 14.0f, curY + 66.0f, w - 28.0f, 18.0f, "Tint Green:", skin.tintColor.y, 0.1f, 1.5f);
-        drawHammerSlider(x + 14.0f, curY + 86.0f, w - 28.0f, 18.0f, "Tint Blue:", skin.tintColor.z, 0.1f, 1.5f);
-        drawHammerSlider(x + 14.0f, curY + 106.0f, w - 28.0f, 18.0f, "Metallic/Rough:", skin.metallic, 0.0f, 1.0f);
-        curY += 150.0f;
+        drawHammerSlider(x + 14.0f, curY + 22.0f, w - 28.0f, 16.0f, "UV Tiling:", skin.uvScale, 0.25f, 4.0f);
+        drawHammerSlider(x + 14.0f, curY + 40.0f, w - 28.0f, 16.0f, "Tint Red:", skin.tintColor.x, 0.1f, 1.5f);
+        drawHammerSlider(x + 14.0f, curY + 58.0f, w - 28.0f, 16.0f, "Tint Green:", skin.tintColor.y, 0.1f, 1.5f);
+        drawHammerSlider(x + 14.0f, curY + 76.0f, w - 28.0f, 16.0f, "Tint Blue:", skin.tintColor.z, 0.1f, 1.5f);
+        drawHammerSlider(x + 14.0f, curY + 94.0f, w - 28.0f, 16.0f, "Metallic/Rough:", skin.metallic, 0.0f, 1.0f);
+        curY += 138.0f;
 
-        if (drawHammerButton(x + 12.0f, curY, w - 24.0f, 26.0f, "Save Weapon Skin Preset", false, true)) {
+        // Bottom Action Buttons
+        float actW = (w - 32.0f) * 0.5f;
+        if (drawHammerButton(x + 12.0f, curY, actW, 26.0f, "Save Preset")) {
             saveConfig("assets/configs/character_studio.cfg");
             log("Saved weapon skin config to assets/configs/character_studio.cfg");
+        }
+        if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply In-Game", false, true)) {
+            saveConfig("assets/configs/character_studio.cfg");
+            if (_onApplyInGame) _onApplyInGame();
+            log("Applied weapon skin & STL model to active gameplay!");
         }
     }
 
@@ -2071,6 +2157,7 @@ namespace Lab {
             out << "AdsOffset=" << _weaponGrips[i].adsOffset.x << "," << _weaponGrips[i].adsOffset.y << "," << _weaponGrips[i].adsOffset.z << "\n\n";
 
             out << "[WeaponSkin_" << i << "]\n";
+            out << "Model=" << _weaponSkins[i].modelFile << "\n";
             out << "Texture=" << _weaponSkins[i].textureFile << "\n";
             out << "UvScale=" << _weaponSkins[i].uvScale << "\n";
             out << "Tint=" << _weaponSkins[i].tintColor.x << "," << _weaponSkins[i].tintColor.y << "," << _weaponSkins[i].tintColor.z << "\n";
@@ -2094,6 +2181,16 @@ namespace Lab {
         out << "FatiguesColor=" << _appearance.fatiguesColor.x << "," << _appearance.fatiguesColor.y << "," << _appearance.fatiguesColor.z << "\n";
 
         out.close();
+
+        // Mirror to counterpart directory to prevent desync between root and build/Release
+        try {
+            if (filepath == "assets/configs/character_studio.cfg" && std::filesystem::exists("build/Release/assets/configs")) {
+                std::filesystem::copy_file(filepath, "build/Release/assets/configs/character_studio.cfg", std::filesystem::copy_options::overwrite_existing);
+            } else if (filepath == "build/Release/assets/configs/character_studio.cfg" && std::filesystem::exists("assets/configs")) {
+                std::filesystem::copy_file(filepath, "assets/configs/character_studio.cfg", std::filesystem::copy_options::overwrite_existing);
+            }
+        } catch (...) { }
+
         log("Studio configuration successfully saved to: " + filepath);
         return true;
     }
@@ -2109,11 +2206,26 @@ namespace Lab {
     }
 
     bool CharacterStudio::loadConfig(const std::string& filepath) {
-        if (!std::filesystem::exists(filepath)) {
+        std::string actualPath = filepath;
+        if (!std::filesystem::exists(actualPath)) {
+            std::vector<std::string> candidates = {
+                "assets/configs/character_studio.cfg",
+                "build/Release/assets/configs/character_studio.cfg",
+                "../assets/configs/character_studio.cfg",
+                "../../assets/configs/character_studio.cfg"
+            };
+            for (const auto& c : candidates) {
+                if (std::filesystem::exists(c)) {
+                    actualPath = c;
+                    break;
+                }
+            }
+        }
+        if (!std::filesystem::exists(actualPath)) {
             return false;
         }
 
-        std::ifstream in(filepath);
+        std::ifstream in(actualPath);
         if (!in.is_open()) return false;
 
         std::string line;
@@ -2144,11 +2256,13 @@ namespace Lab {
                     else if (key == "LeftPos") _weaponGrips[id].leftSocketPos = parseVec3(val, _weaponGrips[id].leftSocketPos);
                     else if (key == "LeftRot") _weaponGrips[id].leftSocketRot = parseVec3(val, _weaponGrips[id].leftSocketRot);
                     else if (key == "AdsOffset") _weaponGrips[id].adsOffset = parseVec3(val, _weaponGrips[id].adsOffset);
+                    else if (key == "Model" || key == "ModelFile") _weaponSkins[id].modelFile = val;
                 }
             } else if (currentSection.rfind("WeaponSkin_", 0) == 0) {
                 int id = std::stoi(currentSection.substr(11));
                 if (id >= 0 && id < 9) {
-                    if (key == "Texture") _weaponSkins[id].textureFile = val;
+                    if (key == "Model" || key == "ModelFile") _weaponSkins[id].modelFile = val;
+                    else if (key == "Texture") _weaponSkins[id].textureFile = val;
                     else if (key == "UvScale") _weaponSkins[id].uvScale = std::stof(val);
                     else if (key == "Tint") _weaponSkins[id].tintColor = parseVec3(val, _weaponSkins[id].tintColor);
                     else if (key == "Metallic") _weaponSkins[id].metallic = std::stof(val);

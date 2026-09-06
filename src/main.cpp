@@ -75,22 +75,6 @@ public:
             }
         }
 
-        // Check ONCE at startup which weapons have custom STL models and textures
-        _cachedWeaponMeshes.resize(9, nullptr);
-        _cachedWeaponTextures.resize(9, nullptr);
-        int customSTLCount = 0;
-        for (int i = 0; i < 9; ++i) {
-            const auto& wDef = _weaponSystem.getWeapon((WeaponID)i).def;
-            _cachedWeaponMeshes[i] = getMesh(wDef.modelFile);
-            std::string resolvedTex = Renderer::resolveModelTexture(wDef.modelFile, wDef.textureFile);
-            _cachedWeaponTextures[i] = getTexture(resolvedTex);
-            if (_cachedWeaponMeshes[i]) customSTLCount++;
-        }
-        std::cout << "[Weapons] Checked 9 weapons at startup: " << customSTLCount << " custom STL, " 
-                  << (9 - customSTLCount) << " built-in procedural.\n";
-
-        syncHudWeapon();
-
         // Initialize 3D Spatial Audio Engine (miniaudio)
         AudioEngine::init(true);
 
@@ -107,11 +91,48 @@ public:
         // Initialize Valve Hammer Character & Weapon Studio
         _characterStudio.init();
         _characterStudio.setWindow(getWindow());
+        _characterStudio.loadConfig("assets/configs/character_studio.cfg");
+        _characterStudio.setOnApplyInGame([this]() {
+            reloadStudioWeapons();
+        });
+
+        reloadStudioWeapons();
+        syncHudWeapon();
 
         // Start in Main Menu
         _inMenu = true;
         _menuScreen = MenuScreen::Main;
         glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    }
+
+    void reloadStudioWeapons() {
+        if (_cachedWeaponMeshes.size() < 9) _cachedWeaponMeshes.resize(9, nullptr);
+        if (_cachedWeaponTextures.size() < 9) _cachedWeaponTextures.resize(9, nullptr);
+
+        int customSTLCount = 0;
+        for (int i = 0; i < 9; ++i) {
+            const auto& wDef = _weaponSystem.getWeapon((WeaponID)i).def;
+            const auto& skin = _characterStudio.getWeaponSkin((WeaponID)i);
+
+            Mesh* mesh = nullptr;
+            if (!skin.modelFile.empty()) {
+                if (skin.modelFile != "NONE" && skin.modelFile != "PROCEDURAL") {
+                    mesh = getMesh(skin.modelFile);
+                }
+            } else {
+                mesh = getMesh(wDef.modelFile);
+            }
+            _cachedWeaponMeshes[i] = mesh;
+
+            std::string texName = !skin.textureFile.empty() ? skin.textureFile : wDef.textureFile;
+            std::string modelRef = !skin.modelFile.empty() ? skin.modelFile : wDef.modelFile;
+            std::string resolvedTex = Renderer::resolveModelTexture(modelRef, texName);
+            _cachedWeaponTextures[i] = getTexture(resolvedTex);
+
+            if (_cachedWeaponMeshes[i]) customSTLCount++;
+        }
+        std::cout << "[Weapons] Synced 9 weapons with Character Studio: " << customSTLCount << " custom STL, " 
+                  << (9 - customSTLCount) << " built-in procedural.\n";
     }
 
     void syncHudWeapon() {
@@ -148,11 +169,29 @@ public:
     }
 
     Mesh* getMesh(const std::string& path) {
-        if (path.empty()) return nullptr;
+        if (path.empty() || path == "NONE" || path == "PROCEDURAL") return nullptr;
         auto it = _meshes.find(path);
         if (it != _meshes.end()) return it->second.get();
         if (_missingMeshes.contains(path)) return nullptr;
 
+        std::vector<std::string> searchPaths = {
+            path,
+            "assets/models/" + path,
+            "assets/" + path,
+            "../assets/models/" + path,
+            "../../assets/models/" + path,
+            "build/Release/assets/models/" + path
+        };
+        for (const auto& p : searchPaths) {
+            if (std::filesystem::exists(p)) {
+                Mesh* m = Mesh::loadSTL(p);
+                if (m) {
+                    Mesh* ptr = m;
+                    _meshes[path] = std::unique_ptr<Mesh>(m);
+                    return ptr;
+                }
+            }
+        }
         Mesh* m = Mesh::loadSTL(path);
         if (m) {
             Mesh* ptr = m;
@@ -1604,13 +1643,27 @@ public:
 
     void drawWeapon() {
         int curIdx = (int)_weaponSystem.getActiveId();
-        Texture* tex = (curIdx >= 0 && curIdx < (int)_cachedWeaponTextures.size()) ? _cachedWeaponTextures[curIdx] : nullptr;
-        Mesh* stlMesh = (curIdx >= 0 && curIdx < (int)_cachedWeaponMeshes.size()) ? _cachedWeaponMeshes[curIdx] : nullptr;
-
         const auto& grip = _characterStudio.getWeaponGrip((WeaponID)curIdx);
         const auto& skin = _characterStudio.getWeaponSkin((WeaponID)curIdx);
-        Texture* customSkin = getTexture(skin.textureFile);
-        if (customSkin) tex = customSkin;
+
+        // Texture resolution
+        Texture* tex = nullptr;
+        if (!skin.textureFile.empty()) {
+            tex = getTexture(skin.textureFile);
+        }
+        if (!tex && curIdx >= 0 && curIdx < (int)_cachedWeaponTextures.size()) {
+            tex = _cachedWeaponTextures[curIdx];
+        }
+
+        // 3D Model resolution (Studio skin override -> cached weapon mesh)
+        Mesh* stlMesh = nullptr;
+        if (!skin.modelFile.empty()) {
+            if (skin.modelFile != "NONE" && skin.modelFile != "PROCEDURAL") {
+                stlMesh = getMesh(skin.modelFile);
+            }
+        } else if (curIdx >= 0 && curIdx < (int)_cachedWeaponMeshes.size()) {
+            stlMesh = _cachedWeaponMeshes[curIdx];
+        }
 
         _weaponSystem.renderViewModel(_camera, _weaponAnimator, tex, stlMesh, _muzzleFlashTime,
                                       &grip.rightSocketPos, &grip.rightSocketRot,

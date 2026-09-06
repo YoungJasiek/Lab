@@ -4,6 +4,7 @@
 #include <array>
 #include <memory>
 #include <unordered_map>
+#include <functional>
 #include "LabMath.h"
 #include "LabRenderer.h"
 #include "LabCamera.h"
@@ -56,6 +57,7 @@ namespace Lab {
 
     // --- Weapon Skin & Material System ---
     struct WeaponSkinConfig {
+        std::string modelFile = ""; // Custom STL model path or filename (e.g. "pipe.stl", "Model.stl")
         std::string textureFile = "weapon_m4a4s.bmp";
         float uvScale = 1.0f;
         Vec3 tintColor{1.0f, 1.0f, 1.0f};
@@ -202,6 +204,8 @@ namespace Lab {
         DropdownMenu getActiveDropdown() const { return _activeDropdown; }
         void setActiveDropdown(DropdownMenu menu) { _activeDropdown = menu; }
 
+        void setOnApplyInGame(std::function<void()> cb) { _onApplyInGame = cb; }
+
     private:
         // Studio sub-renderers (Strict Core Profile OpenGL 4.5+)
         void render3DScene(int viewportX, int viewportY, int viewportW, int viewportH);
@@ -257,6 +261,7 @@ namespace Lab {
         DropdownMenu _activeDropdown = DropdownMenu::None;
         GLFWwindow* _window = nullptr;
         bool _requestExit = false;
+        std::function<void()> _onApplyInGame;
 
         // Subsystems and state
         std::array<WeaponGripConfig, 9> _weaponGrips;

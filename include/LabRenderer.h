@@ -63,9 +63,25 @@ namespace Lab {
         void draw() const;
         int getIndexCount() const { return _indexCount; }
 
+        Vec3 getMinBounds() const { return _minBounds; }
+        Vec3 getMaxBounds() const { return _maxBounds; }
+        Vec3 getBoundsSize() const { return _maxBounds - _minBounds; }
+        float getMaxDimension() const {
+            Vec3 s = getBoundsSize();
+            return std::max({s.x, s.y, s.z});
+        }
+        // Base uniform scale factor so the mesh's longest dimension becomes targetMeters (default 0.70m)
+        float getBaseScale(float targetMeters = 0.70f) const {
+            float maxDim = getMaxDimension();
+            if (maxDim <= 0.0001f) return 1.0f;
+            return targetMeters / maxDim;
+        }
+
     private:
         unsigned int _vao, _vbo, _ebo;
         int _indexCount;
+        Vec3 _minBounds{0.0f, 0.0f, 0.0f};
+        Vec3 _maxBounds{0.0f, 0.0f, 0.0f};
     };
 
     class Skybox {

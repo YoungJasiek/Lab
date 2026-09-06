@@ -651,6 +651,19 @@ namespace Lab {
     Mesh::Mesh(const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices) {
         _indexCount = (int)indices.size();
 
+        if (!vertices.empty()) {
+            _minBounds = vertices[0].position;
+            _maxBounds = vertices[0].position;
+            for (const auto& v : vertices) {
+                _minBounds.x = std::min(_minBounds.x, v.position.x);
+                _minBounds.y = std::min(_minBounds.y, v.position.y);
+                _minBounds.z = std::min(_minBounds.z, v.position.z);
+                _maxBounds.x = std::max(_maxBounds.x, v.position.x);
+                _maxBounds.y = std::max(_maxBounds.y, v.position.y);
+                _maxBounds.z = std::max(_maxBounds.z, v.position.z);
+            }
+        }
+
         glGenVertexArrays(1, &_vao);
         glGenBuffers(1, &_vbo);
         glGenBuffers(1, &_ebo);

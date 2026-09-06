@@ -654,15 +654,11 @@ namespace Lab {
 
         // 2. Render Weapon Model (Custom STL or Procedural)
         if (stlMesh) {
-            // User provided custom STL model
+            // User provided custom STL model with unified base scale normalization (WYSIWYG with Character Studio)
             Vec3 stlPos = finalPos;
             Vec3 stlRot = finalRot;
-            Vec3 stlScale = { 0.015f * userScale.x, 0.015f * userScale.y, 0.015f * userScale.z };
-            if (_currentWeapon == WeaponID::Pipe) {
-                // Diagonally angled melee ready stance
-                stlPos = finalPos + Vec3(0.04f * userScale.x, 0.02f * userScale.y, 0.05f * userScale.z);
-                stlRot = finalRot + Vec3(8.0f, -12.0f, 18.0f);
-            }
+            float baseScale = stlMesh->getBaseScale(0.70f);
+            Vec3 stlScale = { baseScale * userScale.x, baseScale * userScale.y, baseScale * userScale.z };
             Renderer::drawMesh(*stlMesh, stlPos, stlRot, stlScale, finalTint, texture);
             if (muzzleFlash > 0.0f) {
                 Renderer::drawCube(finalPos + Vec3(0.0f, 0.05f * userScale.y, -0.45f * userScale.z), finalRot, { 0.18f * userScale.x, 0.18f * userScale.y, 0.18f * userScale.z }, { 1.0f, 0.85f, 0.2f }, nullptr, false);

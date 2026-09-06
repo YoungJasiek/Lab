@@ -3551,7 +3551,36 @@ int main() {
         studio.setViewportToolMode(Lab::ViewportToolMode::OrbitCamera);
         std::cout << "  [PASS] Weapon translation, rotation, scaling, and viewport tools validated!\n";
 
-        // 9. Visual Verification 1: Character Studio Stage & Hammer UI (Full responsive layout)
+        // 9. Verify Custom STL Model Selection & Base Scale Auto-Normalization
+        {
+            studio.setSelectedWeapon(1); // Pistol
+            studio.getWeaponSkinMut(Lab::WeaponID::Pistol).modelFile = "Model.stl";
+            std::string testStlCfg = "build/test_stl_model.cfg";
+            studio.saveConfig(testStlCfg);
+
+            Lab::CharacterStudio studioStlLoader;
+            studioStlLoader.loadConfig(testStlCfg);
+            if (studioStlLoader.getWeaponSkin(Lab::WeaponID::Pistol).modelFile != "Model.stl") {
+                std::cerr << "Assertion failed: STL Model path serialization to .cfg failed!\n";
+                return 1;
+            }
+            std::filesystem::remove(testStlCfg);
+
+            // Verify Mesh base scale calculation
+            std::unique_ptr<Lab::Mesh> pipeMesh(Lab::Mesh::loadSTL("assets/models/pipe.stl"));
+            if (pipeMesh) {
+                float maxDim = pipeMesh->getMaxDimension();
+                float baseScale = pipeMesh->getBaseScale(0.70f);
+                float resultingSize = maxDim * baseScale;
+                if (std::abs(resultingSize - 0.70f) > 0.01f) {
+                    std::cerr << "Assertion failed: getBaseScale normalization failed! (expected 0.70, got " << resultingSize << ")\n";
+                    return 1;
+                }
+            }
+            std::cout << "  [PASS] Custom STL weapon model assignment, .cfg serialization, and base scale normalization validated!\n";
+        }
+
+        // 10. Visual Verification 1: Character Studio Stage & Hammer UI (Full responsive layout)
         glClearColor(0.12f, 0.13f, 0.15f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -3563,11 +3592,12 @@ int main() {
         saveFrameToBMP("test_character_studio.bmp", w, h);
         std::cout << "  [PASS] Saved Character Studio & Outfit visual frame to 'test_character_studio.bmp'.\n";
 
-        // Visual Verification 2: Weapon Grip & FPP Arms Poser with Weapon Transform Sub-Mode
+        // Visual Verification 2: Weapon Grip & FPP Arms Poser with Pipe STL Model
         glClearColor(0.12f, 0.13f, 0.15f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         studio.setActiveTab(Lab::StudioTab::GripPoser);
+        studio.setSelectedWeapon(0); // Pipe (STL model)
         studio.setPoserSubMode(Lab::PoserSubMode::WeaponTransform);
         studio.update(0.016f, 400.0f, 250.0f, false, false, 0.0f);
         studio.render(w, h);
@@ -3575,6 +3605,24 @@ int main() {
         glFinish();
         saveFrameToBMP("test_weapon_grip_studio.bmp", w, h);
         std::cout << "  [PASS] Saved Weapon Grip Poser visual frame to 'test_weapon_grip_studio.bmp'.\n";
+
+        // Visual Verification 3: Custom Model.stl held in player's hands in FPP viewmodel
+        glClearColor(0.08f, 0.09f, 0.11f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        Lab::Camera customModelCam(70.0f, (float)w / (float)h, 0.01f, 100.0f);
+        Lab::Renderer::beginFrame(customModelCam);
+        Lab::WeaponSystem customWs;
+        customWs.init();
+        customWs.switchWeapon(Lab::WeaponID::Pistol);
+        Lab::WeaponAnimator customAnim;
+        std::unique_ptr<Lab::Mesh> customModelMesh(Lab::Mesh::loadSTL("assets/models/Model.stl"));
+        customWs.renderViewModel(customModelCam, customAnim, nullptr, customModelMesh.get(), 0.0f);
+        Lab::Renderer::endFrame();
+
+        glFinish();
+        saveFrameToBMP("test_custom_model_viewmodel.bmp", w, h);
+        std::cout << "  [PASS] Saved Custom Model.stl FPP viewmodel frame to 'test_custom_model_viewmodel.bmp'.\n";
     }
 
     Lab::Renderer::shutdown();
