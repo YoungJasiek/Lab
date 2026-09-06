@@ -242,12 +242,19 @@ namespace Lab {
         }
 
         if (mesh && animator.getSkeleton()) {
-            Mat4 botModel = Mat4::translate(bPos) * Mat4::rotate(rotation.y * 3.14159265f / 180.0f, Vec3(0, 1, 0));
+            float botScale = mesh->getBaseScale(1.85f);
+            float yOffset = -mesh->getMinBounds().y * botScale;
+            Mat4 botModel = Mat4::translate(bPos + Vec3(0.0f, yOffset, 0.0f)) *
+                            Mat4::rotate(rotation.y * 3.14159265f / 180.0f, Vec3(0, 1, 0)) *
+                            Mat4::scale(Vec3(botScale, botScale, botScale));
             Renderer::drawSkinnedMesh(*mesh, botModel, animator.getSkinMatrices(), armorCol, nullptr, true);
 
             if (weaponMesh) {
+                float invBotScale = (botScale > 0.00001f) ? (1.0f / botScale) : 1.0f;
+                float weaponScale = 0.016f * invBotScale;
+                Vec3 socketPos = Vec3(0.0f, -0.05f, 0.02f) * invBotScale;
                 Mat4 weaponSocket = animator.getSocketTransform("Socket_Weapon", botModel,
-                    makeTransform(Vec3(0.0f, -0.05f, 0.02f), Quat::fromEuler(0.1f, -0.2f, 0.0f), Vec3(0.016f, 0.016f, 0.016f)));
+                    makeTransform(socketPos, Quat::fromEuler(0.1f, -0.2f, 0.0f), Vec3(weaponScale, weaponScale, weaponScale)));
                 Renderer::drawMesh(*weaponMesh, weaponSocket, Vec3(0.85f, 0.85f, 0.88f), nullptr, true);
             }
         } else {
@@ -284,13 +291,20 @@ namespace Lab {
         if (!isAlive()) return;
         float bodyBob = std::abs(std::sin(walkCycle * 2.0f)) * 0.04f;
         Vec3 bPos = position + Vec3(0.0f, bodyBob, 0.0f);
-        Mat4 botModel = Mat4::translate(bPos) * Mat4::rotate(rotation.y * 3.14159265f / 180.0f, Vec3(0, 1, 0));
 
         if (mesh && animator.getSkeleton()) {
+            float botScale = mesh->getBaseScale(1.85f);
+            float yOffset = -mesh->getMinBounds().y * botScale;
+            Mat4 botModel = Mat4::translate(bPos + Vec3(0.0f, yOffset, 0.0f)) *
+                            Mat4::rotate(rotation.y * 3.14159265f / 180.0f, Vec3(0, 1, 0)) *
+                            Mat4::scale(Vec3(botScale, botScale, botScale));
             Renderer::drawShadowSkinnedMesh(*mesh, botModel, animator.getSkinMatrices());
             if (weaponMesh) {
+                float invBotScale = (botScale > 0.00001f) ? (1.0f / botScale) : 1.0f;
+                float weaponScale = 0.016f * invBotScale;
+                Vec3 socketPos = Vec3(0.0f, -0.05f, 0.02f) * invBotScale;
                 Mat4 weaponSocket = animator.getSocketTransform("Socket_Weapon", botModel,
-                    makeTransform(Vec3(0.0f, -0.05f, 0.02f), Quat::fromEuler(0.1f, -0.2f, 0.0f), Vec3(0.016f, 0.016f, 0.016f)));
+                    makeTransform(socketPos, Quat::fromEuler(0.1f, -0.2f, 0.0f), Vec3(weaponScale, weaponScale, weaponScale)));
                 Renderer::drawShadowMesh(*weaponMesh, weaponSocket);
             }
         } else {
@@ -300,7 +314,13 @@ namespace Lab {
 
     void AIManager::initAssets() {
         if (!skinnedMesh) {
-            GLTFLoader::load("assets/animations/bot_walk.gltf", skeleton, animations, skinnedMesh);
+            bool loaded = GLTFLoader::load("assets/models/t-800_run.glb", skeleton, animations, skinnedMesh);
+            if (!loaded || !skinnedMesh) {
+                loaded = GLTFLoader::load("assets/inwork/t-800_run.glb", skeleton, animations, skinnedMesh);
+            }
+            if (!loaded || !skinnedMesh) {
+                GLTFLoader::load("assets/animations/bot_walk.gltf", skeleton, animations, skinnedMesh);
+            }
             weaponMesh = std::unique_ptr<Mesh>(Mesh::loadSTL("assets/models/pipe.stl"));
         }
     }

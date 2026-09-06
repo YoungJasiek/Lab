@@ -12,6 +12,19 @@ namespace Lab {
 
     SkinnedMesh::SkinnedMesh(const std::vector<SkinnedVertex>& vertices, const std::vector<unsigned int>& indices)
         : _indexCount(static_cast<int>(indices.size())) {
+        if (!vertices.empty()) {
+            _minBounds = vertices[0].position;
+            _maxBounds = vertices[0].position;
+            for (const auto& v : vertices) {
+                _minBounds.x = std::min(_minBounds.x, v.position.x);
+                _minBounds.y = std::min(_minBounds.y, v.position.y);
+                _minBounds.z = std::min(_minBounds.z, v.position.z);
+                _maxBounds.x = std::max(_maxBounds.x, v.position.x);
+                _maxBounds.y = std::max(_maxBounds.y, v.position.y);
+                _maxBounds.z = std::max(_maxBounds.z, v.position.z);
+            }
+        }
+
         glGenVertexArrays(1, &_vao);
         glGenBuffers(1, &_vbo);
         glGenBuffers(1, &_ebo);
@@ -58,7 +71,8 @@ namespace Lab {
     }
 
     SkinnedMesh::SkinnedMesh(SkinnedMesh&& other) noexcept
-        : _vao(other._vao), _vbo(other._vbo), _ebo(other._ebo), _indexCount(other._indexCount) {
+        : _vao(other._vao), _vbo(other._vbo), _ebo(other._ebo), _indexCount(other._indexCount),
+          _minBounds(other._minBounds), _maxBounds(other._maxBounds) {
         other._vao = 0;
         other._vbo = 0;
         other._ebo = 0;
@@ -75,6 +89,8 @@ namespace Lab {
             _vbo = other._vbo;
             _ebo = other._ebo;
             _indexCount = other._indexCount;
+            _minBounds = other._minBounds;
+            _maxBounds = other._maxBounds;
 
             other._vao = 0;
             other._vbo = 0;
@@ -752,98 +768,581 @@ namespace Lab {
         }
     }
 
-    // --- Base64 and JSON Parser for glTF 2.0 ---
+    // --- Complete glTF 2.0 and Binary GLB Parser ---
 
     namespace {
-        [[maybe_unused]] static const std::string base64_chars =
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-            "abcdefghijklmnopqrstuvwxyz"
-            "0123456789+/";
+        struct JsonVal {
+            enum Type { Null, Bool, Number, String, Array, Object } type = Null;
+            bool b = false;
+            double n = 0.0;
+            std::string s;
+            std::vector<JsonVal> arr;
+            std::unordered_map<std::string, JsonVal> obj;
 
-        [[maybe_unused]] static std::vector<unsigned char> decodeBase64(const std::string& in) {
-            std::vector<unsigned char> out;
-            std::vector<int> T(256, -1);
-            for (int i = 0; i < 64; i++) T[base64_chars[i]] = i;
+            const JsonVal& operator[](const std::string& key) const {
+                static const JsonVal kNull;
+                auto it = obj.find(key);
+                return it != obj.end() ? it->second : kNull;
+            }
+            const JsonVal& operator[](size_t idx) const {
+                static const JsonVal kNull;
+                return idx < arr.size() ? arr[idx] : kNull;
+            }
+            bool contains(const std::string& key) const { return obj.find(key) != obj.end(); }
+            int asInt(int def = 0) const { return type == Number ? static_cast<int>(n) : def; }
+            float asFloat(float def = 0.0f) const { return type == Number ? static_cast<float>(n) : def; }
+            const std::string& asStr(const std::string& def = "") const { return type == String ? s : def; }
+        };
 
-            int val = 0, valb = -8;
-            for (unsigned char c : in) {
-                if (T[c] == -1) continue;
-                val = (val << 6) + T[c];
-                valb += 6;
-                if (valb >= 0) {
-                    out.push_back(char((val >> valb) & 0xFF));
-                    valb -= 8;
+        static void skipWhitespace(const std::string& s, size_t& i) {
+            while (i < s.size() && (s[i] == ' ' || s[i] == '\t' || s[i] == '\r' || s[i] == '\n')) {
+                ++i;
+            }
+        }
+
+        static JsonVal parseJsonValue(const std::string& s, size_t& i);
+
+        static std::string parseJsonString(const std::string& s, size_t& i) {
+            if (i >= s.size() || s[i] != '"') return "";
+            ++i; // skip initial quote
+            std::string res;
+            while (i < s.size() && s[i] != '"') {
+                if (s[i] == '\\' && i + 1 < s.size()) {
+                    ++i;
+                    char c = s[i];
+                    if (c == '"' || c == '\\' || c == '/') res += c;
+                    else if (c == 'b') res += '\b';
+                    else if (c == 'f') res += '\f';
+                    else if (c == 'n') res += '\n';
+                    else if (c == 'r') res += '\r';
+                    else if (c == 't') res += '\t';
+                    else res += c;
+                } else {
+                    res += s[i];
+                }
+                ++i;
+            }
+            if (i < s.size() && s[i] == '"') ++i;
+            return res;
+        }
+
+        static JsonVal parseJsonObject(const std::string& s, size_t& i) {
+            JsonVal val;
+            val.type = JsonVal::Object;
+            if (i >= s.size() || s[i] != '{') return val;
+            ++i;
+            skipWhitespace(s, i);
+            if (i < s.size() && s[i] == '}') { ++i; return val; }
+
+            while (i < s.size()) {
+                skipWhitespace(s, i);
+                if (i >= s.size() || s[i] != '"') break;
+                std::string key = parseJsonString(s, i);
+                skipWhitespace(s, i);
+                if (i < s.size() && s[i] == ':') ++i;
+                skipWhitespace(s, i);
+                val.obj[key] = parseJsonValue(s, i);
+                skipWhitespace(s, i);
+                if (i < s.size() && s[i] == ',') {
+                    ++i;
+                    continue;
+                }
+                if (i < s.size() && s[i] == '}') {
+                    ++i;
+                    break;
                 }
             }
-            return out;
+            return val;
         }
 
-        [[maybe_unused]] static std::string extractStringValue(const std::string& json, const std::string& key) {
-            std::string search = "\"" + key + "\"";
-            size_t pos = json.find(search);
-            if (pos == std::string::npos) return "";
-            size_t colon = json.find(':', pos);
-            if (colon == std::string::npos) return "";
-            size_t quote1 = json.find('"', colon);
-            if (quote1 == std::string::npos) return "";
-            size_t quote2 = json.find('"', quote1 + 1);
-            if (quote2 == std::string::npos) return "";
-            return json.substr(quote1 + 1, quote2 - quote1 - 1);
+        static JsonVal parseJsonArray(const std::string& s, size_t& i) {
+            JsonVal val;
+            val.type = JsonVal::Array;
+            if (i >= s.size() || s[i] != '[') return val;
+            ++i;
+            skipWhitespace(s, i);
+            if (i < s.size() && s[i] == ']') { ++i; return val; }
+
+            while (i < s.size()) {
+                skipWhitespace(s, i);
+                val.arr.push_back(parseJsonValue(s, i));
+                skipWhitespace(s, i);
+                if (i < s.size() && s[i] == ',') {
+                    ++i;
+                    continue;
+                }
+                if (i < s.size() && s[i] == ']') {
+                    ++i;
+                    break;
+                }
+            }
+            return val;
         }
+
+        static JsonVal parseJsonNumber(const std::string& s, size_t& i) {
+            size_t start = i;
+            if (i < s.size() && (s[i] == '-' || s[i] == '+')) ++i;
+            while (i < s.size() && ((s[i] >= '0' && s[i] <= '9') || s[i] == '.' || s[i] == 'e' || s[i] == 'E' || s[i] == '-' || s[i] == '+')) {
+                ++i;
+            }
+            JsonVal val;
+            val.type = JsonVal::Number;
+            try {
+                val.n = std::stod(s.substr(start, i - start));
+            } catch (...) {
+                val.n = 0.0;
+            }
+            return val;
+        }
+
+        static JsonVal parseJsonValue(const std::string& s, size_t& i) {
+            skipWhitespace(s, i);
+            if (i >= s.size()) return JsonVal{};
+            if (s[i] == '{') return parseJsonObject(s, i);
+            if (s[i] == '[') return parseJsonArray(s, i);
+            if (s[i] == '"') {
+                JsonVal v;
+                v.type = JsonVal::String;
+                v.s = parseJsonString(s, i);
+                return v;
+            }
+            if (s.compare(i, 4, "true") == 0) {
+                i += 4;
+                JsonVal v;
+                v.type = JsonVal::Bool;
+                v.b = true;
+                return v;
+            }
+            if (s.compare(i, 5, "false") == 0) {
+                i += 5;
+                JsonVal v;
+                v.type = JsonVal::Bool;
+                v.b = false;
+                return v;
+            }
+            if (s.compare(i, 4, "null") == 0) {
+                i += 4;
+                return JsonVal{};
+            }
+            return parseJsonNumber(s, i);
+        }
+
+        struct AccessorHelper {
+            const char* data = nullptr;
+            size_t count = 0;
+            int componentType = 5126;
+            int numComponents = 1;
+            size_t stride = 0;
+
+            float getFloat(size_t elemIdx, int compIdx) const {
+                if (!data || elemIdx >= count) return 0.0f;
+                const char* elemPtr = data + elemIdx * stride;
+                if (componentType == 5126) { // FLOAT
+                    return *reinterpret_cast<const float*>(elemPtr + compIdx * 4);
+                } else if (componentType == 5123) { // UNSIGNED_SHORT
+                    return static_cast<float>(*reinterpret_cast<const uint16_t*>(elemPtr + compIdx * 2));
+                } else if (componentType == 5121) { // UNSIGNED_BYTE
+                    return static_cast<float>(*reinterpret_cast<const uint8_t*>(elemPtr + compIdx * 1));
+                }
+                return 0.0f;
+            }
+
+            uint32_t getUint(size_t elemIdx, int compIdx = 0) const {
+                if (!data || elemIdx >= count) return 0;
+                const char* elemPtr = data + elemIdx * stride;
+                if (componentType == 5125) { // UNSIGNED_INT
+                    return *reinterpret_cast<const uint32_t*>(elemPtr + compIdx * 4);
+                } else if (componentType == 5123) { // UNSIGNED_SHORT
+                    return static_cast<uint32_t>(*reinterpret_cast<const uint16_t*>(elemPtr + compIdx * 2));
+                } else if (componentType == 5121) { // UNSIGNED_BYTE
+                    return static_cast<uint32_t>(*reinterpret_cast<const uint8_t*>(elemPtr + compIdx * 1));
+                }
+                return 0;
+            }
+        };
     }
 
     bool GLTFLoader::load(const std::string& path,
                           std::shared_ptr<Skeleton>& outSkeleton,
                           std::vector<AnimationClip>& outAnimations,
                           std::unique_ptr<SkinnedMesh>& outMesh) {
-        std::ifstream file(path);
+        std::ifstream file(path, std::ios::binary);
         if (!file.is_open()) {
             std::cerr << "[glTF] Warning: Could not open file '" << path << "', building procedural rig fallback." << std::endl;
             createProceduralCombatBot(outSkeleton, outAnimations, outMesh);
             return false;
         }
 
-        std::stringstream buffer;
-        buffer << file.rdbuf();
-        std::string json = buffer.str();
+        char header[12];
+        file.read(header, 12);
+        std::streamsize readBytes = file.gcount();
+        bool isGLB = false;
+        std::string jsonStr;
+        std::vector<char> binBuffer;
 
-        // Check if valid glTF 2.0
-        if (json.find("\"asset\"") == std::string::npos || json.find("\"version\"") == std::string::npos) {
-            std::cerr << "[glTF] Invalid glTF header in '" << path << "', building procedural rig fallback." << std::endl;
+        if (readBytes == 12 && header[0] == 'g' && header[1] == 'l' && header[2] == 'T' && header[3] == 'F') {
+            isGLB = true;
+            uint32_t totalLength = *reinterpret_cast<const uint32_t*>(header + 8);
+
+            // Chunk 0: JSON
+            uint32_t chunk0Len = 0, chunk0Type = 0;
+            file.read(reinterpret_cast<char*>(&chunk0Len), 4);
+            file.read(reinterpret_cast<char*>(&chunk0Type), 4);
+            if (chunk0Len > 0) {
+                jsonStr.resize(chunk0Len);
+                file.read(&jsonStr[0], chunk0Len);
+            }
+
+            // Chunk 1: BIN
+            if (file.tellg() < static_cast<std::streampos>(totalLength)) {
+                uint32_t chunk1Len = 0, chunk1Type = 0;
+                file.read(reinterpret_cast<char*>(&chunk1Len), 4);
+                file.read(reinterpret_cast<char*>(&chunk1Type), 4);
+                if (chunk1Len > 0) {
+                    binBuffer.resize(chunk1Len);
+                    file.read(binBuffer.data(), chunk1Len);
+                }
+            }
+        } else {
+            // Text glTF
+            file.seekg(0, std::ios::beg);
+            std::stringstream ss;
+            ss << file.rdbuf();
+            jsonStr = ss.str();
+        }
+
+        size_t parseIdx = 0;
+        JsonVal meta = parseJsonValue(jsonStr, parseIdx);
+
+        if (!meta.contains("asset") || !meta.contains("meshes") || meta["meshes"].arr.empty()) {
+            std::cout << "[glTF] Using procedural humanoid rig template for: " << path << std::endl;
+            createProceduralCombatBot(outSkeleton, outAnimations, outMesh);
+            if (meta.contains("animations")) {
+                for (const auto& a : meta["animations"].arr) {
+                    std::string animName = a["name"].asStr();
+                    if (!animName.empty()) {
+                        bool exists = false;
+                        for (const auto& existing : outAnimations) {
+                            if (existing.name == animName) { exists = true; break; }
+                        }
+                        if (!exists && outAnimations.size() > 1) {
+                            AnimationClip clip = outAnimations[1]; // Walk template
+                            clip.name = animName;
+                            outAnimations.push_back(clip);
+                        }
+                    }
+                }
+            }
+            std::cout << "[glTF] Loaded glTF 2.0 template '" << path << "' with "
+                      << outSkeleton->getBoneCount() << " bones and "
+                      << outAnimations.size() << " animation clips." << std::endl;
+            return true;
+        }
+
+        const auto& bufferViews = meta["bufferViews"];
+        const auto& accessors = meta["accessors"];
+        const auto& nodes = meta["nodes"];
+        const auto& skins = meta["skins"];
+        const auto& materials = meta["materials"];
+        const auto& meshes = meta["meshes"];
+        const auto& animations = meta["animations"];
+
+        auto getAccessor = [&](int accIdx) -> AccessorHelper {
+            AccessorHelper h;
+            if (accIdx < 0 || accIdx >= static_cast<int>(accessors.arr.size())) return h;
+            const JsonVal& acc = accessors[accIdx];
+            int bvIdx = acc["bufferView"].asInt(-1);
+            if (bvIdx < 0 || bvIdx >= static_cast<int>(bufferViews.arr.size())) return h;
+            const JsonVal& bv = bufferViews[bvIdx];
+
+            size_t byteOffset = static_cast<size_t>(bv["byteOffset"].asInt(0)) + static_cast<size_t>(acc["byteOffset"].asInt(0));
+            if (byteOffset < binBuffer.size()) {
+                h.data = binBuffer.data() + byteOffset;
+            }
+            h.count = static_cast<size_t>(acc["count"].asInt(0));
+            h.componentType = acc["componentType"].asInt(5126);
+
+            std::string typeStr = acc["type"].asStr("SCALAR");
+            if (typeStr == "SCALAR") h.numComponents = 1;
+            else if (typeStr == "VEC2") h.numComponents = 2;
+            else if (typeStr == "VEC3") h.numComponents = 3;
+            else if (typeStr == "VEC4") h.numComponents = 4;
+            else if (typeStr == "MAT4") h.numComponents = 16;
+
+            size_t elemSize = 4;
+            if (h.componentType == 5123) elemSize = 2;
+            else if (h.componentType == 5121) elemSize = 1;
+
+            size_t natStride = h.numComponents * elemSize;
+            size_t bvStride = static_cast<size_t>(bv["byteStride"].asInt(0));
+            h.stride = (bvStride > 0) ? bvStride : natStride;
+            return h;
+        };
+
+        // 1. Build Skeleton Rig from Skin
+        outSkeleton = std::make_shared<Skeleton>();
+        std::unordered_map<int, int> nodeToBoneIndex;
+
+        if (!skins.arr.empty()) {
+            const JsonVal& skin = skins[0];
+            const auto& jointsArr = skin["joints"].arr;
+
+            for (size_t j = 0; j < jointsArr.size(); ++j) {
+                nodeToBoneIndex[jointsArr[j].asInt()] = static_cast<int>(j);
+            }
+
+            for (size_t j = 0; j < jointsArr.size(); ++j) {
+                int nodeIdx = jointsArr[j].asInt();
+                const JsonVal& node = nodes[nodeIdx];
+                std::string name = node["name"].asStr("Bone_" + std::to_string(j));
+
+                int parentBoneIndex = -1;
+                for (size_t p = 0; p < jointsArr.size(); ++p) {
+                    int pNodeIdx = jointsArr[p].asInt();
+                    const auto& chArr = nodes[pNodeIdx]["children"].arr;
+                    for (const auto& ch : chArr) {
+                        if (ch.asInt() == nodeIdx) {
+                            parentBoneIndex = static_cast<int>(p);
+                            break;
+                        }
+                    }
+                    if (parentBoneIndex >= 0) break;
+                }
+
+                Vec3 t{0, 0, 0};
+                if (node.contains("translation")) {
+                    t.x = node["translation"][0].asFloat();
+                    t.y = node["translation"][1].asFloat();
+                    t.z = node["translation"][2].asFloat();
+                }
+
+                Quat r = Quat::identity();
+                if (node.contains("rotation")) {
+                    r.x = node["rotation"][0].asFloat();
+                    r.y = node["rotation"][1].asFloat();
+                    r.z = node["rotation"][2].asFloat();
+                    r.w = node["rotation"][3].asFloat();
+                }
+
+                Vec3 s{1, 1, 1};
+                if (node.contains("scale")) {
+                    s.x = node["scale"][0].asFloat();
+                    s.y = node["scale"][1].asFloat();
+                    s.z = node["scale"][2].asFloat();
+                }
+
+                outSkeleton->addBone(name, parentBoneIndex, t, r, s);
+            }
+
+            // Inverse Bind Matrices
+            int ibmAccIdx = skin["inverseBindMatrices"].asInt(-1);
+            if (ibmAccIdx >= 0) {
+                AccessorHelper ibmAcc = getAccessor(ibmAccIdx);
+                for (size_t j = 0; j < jointsArr.size() && j < ibmAcc.count; ++j) {
+                    Mat4 invBind;
+                    for (int k = 0; k < 16; ++k) {
+                        invBind.m[k] = ibmAcc.getFloat(j, k);
+                    }
+                    outSkeleton->setInverseBindMatrix(static_cast<int>(j), invBind);
+                }
+            } else {
+                outSkeleton->computeBindPose();
+            }
+
+            // Weapon Socket Attachment on Right Hand bone
+            int bHandR = -1;
+            for (size_t j = 0; j < jointsArr.size(); ++j) {
+                int nodeIdx = jointsArr[j].asInt();
+                std::string nName = nodes[nodeIdx]["name"].asStr();
+                if (nName.find("RightHand") != std::string::npos ||
+                    nName.find("Hand_R") != std::string::npos ||
+                    nName.find("Hand.R") != std::string::npos) {
+                    bHandR = static_cast<int>(j);
+                    break;
+                }
+            }
+            if (bHandR >= 0) {
+                outSkeleton->addBone("Socket_Weapon", bHandR,
+                                     Vec3(0.0f, -0.05f, 0.12f),
+                                     Quat::fromEuler(0.0f, 0.0f, 0.0f));
+            }
+        }
+
+        // 2. Build Skinned Mesh Geometry
+        std::vector<SkinnedVertex> allVertices;
+        std::vector<unsigned int> allIndices;
+
+        for (size_t mIdx = 0; mIdx < meshes.arr.size(); ++mIdx) {
+            const auto& primitives = meshes[mIdx]["primitives"].arr;
+            for (size_t pIdx = 0; pIdx < primitives.size(); ++pIdx) {
+                const auto& prim = primitives[pIdx];
+                const auto& attrs = prim["attributes"];
+
+                if (!attrs.contains("POSITION")) continue;
+
+                AccessorHelper posAcc = getAccessor(attrs["POSITION"].asInt(-1));
+                AccessorHelper normAcc = getAccessor(attrs["NORMAL"].asInt(-1));
+                AccessorHelper uvAcc = getAccessor(attrs["TEXCOORD_0"].asInt(-1));
+                AccessorHelper jointsAcc = getAccessor(attrs["JOINTS_0"].asInt(-1));
+                AccessorHelper weightsAcc = getAccessor(attrs["WEIGHTS_0"].asInt(-1));
+
+                // Primitive Material Color
+                int matIdx = prim["material"].asInt(-1);
+                Vec3 primColor = Vec3(0.24f, 0.26f, 0.30f); // Charcoal Terminator metal
+                if (matIdx >= 0 && matIdx < static_cast<int>(materials.arr.size())) {
+                    const auto& mat = materials[matIdx];
+                    std::string mName = mat["name"].asStr();
+                    if (mName.find("red") != std::string::npos || mName.find("eye") != std::string::npos || mName.find("bright") != std::string::npos) {
+                        primColor = Vec3(1.0f, 0.08f, 0.05f); // Glowing Red Eyes
+                    } else if (mat.contains("pbrMetallicRoughness")) {
+                        const auto& pbr = mat["pbrMetallicRoughness"];
+                        if (pbr.contains("baseColorFactor") && pbr["baseColorFactor"].arr.size() >= 3) {
+                            primColor.x = pbr["baseColorFactor"][0].asFloat();
+                            primColor.y = pbr["baseColorFactor"][1].asFloat();
+                            primColor.z = pbr["baseColorFactor"][2].asFloat();
+                            if (primColor.lengthSq() < 0.05f) primColor = Vec3(0.18f, 0.20f, 0.24f);
+                        }
+                    }
+                }
+
+                unsigned int baseIndex = static_cast<unsigned int>(allVertices.size());
+
+                for (size_t v = 0; v < posAcc.count; ++v) {
+                    Vec3 pos(posAcc.getFloat(v, 0), posAcc.getFloat(v, 1), posAcc.getFloat(v, 2));
+                    Vec3 norm(normAcc.getFloat(v, 0), normAcc.getFloat(v, 1), normAcc.getFloat(v, 2));
+                    Vec2 uv(uvAcc.getFloat(v, 0), uvAcc.getFloat(v, 1));
+
+                    unsigned int jIDs[4] = { 0, 0, 0, 0 };
+                    float weights[4] = { 1.0f, 0.0f, 0.0f, 0.0f };
+
+                    if (jointsAcc.data) {
+                        jIDs[0] = jointsAcc.getUint(v, 0);
+                        jIDs[1] = jointsAcc.getUint(v, 1);
+                        jIDs[2] = jointsAcc.getUint(v, 2);
+                        jIDs[3] = jointsAcc.getUint(v, 3);
+                    }
+                    if (weightsAcc.data) {
+                        weights[0] = weightsAcc.getFloat(v, 0);
+                        weights[1] = weightsAcc.getFloat(v, 1);
+                        weights[2] = weightsAcc.getFloat(v, 2);
+                        weights[3] = weightsAcc.getFloat(v, 3);
+                    }
+
+                    allVertices.emplace_back(pos, norm, uv, primColor, jIDs, weights);
+                }
+
+                // Indices
+                if (prim.contains("indices")) {
+                    AccessorHelper idxAcc = getAccessor(prim["indices"].asInt(-1));
+                    for (size_t i = 0; i < idxAcc.count; ++i) {
+                        allIndices.push_back(baseIndex + idxAcc.getUint(i));
+                    }
+                } else {
+                    for (size_t v = 0; v < posAcc.count; ++v) {
+                        allIndices.push_back(baseIndex + static_cast<unsigned int>(v));
+                    }
+                }
+            }
+        }
+
+        if (!allVertices.empty() && !allIndices.empty()) {
+            outMesh = std::make_unique<SkinnedMesh>(allVertices, allIndices);
+        } else {
             createProceduralCombatBot(outSkeleton, outAnimations, outMesh);
             return false;
         }
 
-        // Initialize procedural base rig so that the character is always complete and operable
-        createProceduralCombatBot(outSkeleton, outAnimations, outMesh);
+        // 3. Parse Animation Clips
+        outAnimations.clear();
+        for (size_t aIdx = 0; aIdx < animations.arr.size(); ++aIdx) {
+            const auto& anim = animations[aIdx];
+            AnimationClip clip;
+            clip.name = anim["name"].asStr("Animation_" + std::to_string(aIdx));
 
-        // Parse animations array in glTF
-        size_t animsPos = json.find("\"animations\"");
-        if (animsPos != std::string::npos) {
-            size_t namePos = json.find("\"name\"", animsPos);
-            while (namePos != std::string::npos) {
-                size_t colon = json.find(':', namePos);
-                size_t q1 = json.find('"', colon);
-                size_t q2 = json.find('"', q1 + 1);
-                if (q1 != std::string::npos && q2 != std::string::npos) {
-                    std::string animName = json.substr(q1 + 1, q2 - q1 - 1);
-                    bool exists = false;
-                    for (const auto& a : outAnimations) {
-                        if (a.name == animName) { exists = true; break; }
-                    }
-                    if (!exists) {
-                        // Inherit procedural walk/idle motion and assign named track
-                        AnimationClip clip = outAnimations[1]; // Walk template
-                        clip.name = animName;
-                        outAnimations.push_back(clip);
+            std::unordered_map<int, BoneAnimationTrack> boneTracks;
+            const auto& channelsArr = anim["channels"].arr;
+            const auto& samplersArr = anim["samplers"].arr;
+
+            float maxDuration = 0.0f;
+
+            for (const auto& ch : channelsArr) {
+                int samplerIdx = ch["sampler"].asInt();
+                if (samplerIdx < 0 || samplerIdx >= static_cast<int>(samplersArr.size())) continue;
+                const auto& sampler = samplersArr[samplerIdx];
+
+                int targetNode = ch["target"]["node"].asInt();
+                std::string targetProp = ch["target"]["path"].asStr();
+
+                auto it = nodeToBoneIndex.find(targetNode);
+                if (it == nodeToBoneIndex.end()) continue;
+                int boneIdx = it->second;
+
+                if (boneTracks.find(boneIdx) == boneTracks.end()) {
+                    BoneAnimationTrack track;
+                    track.boneIndex = boneIdx;
+                    const Bone* b = outSkeleton->getBone(boneIdx);
+                    if (b) track.boneName = b->name;
+                    boneTracks[boneIdx] = track;
+                }
+
+                BoneAnimationTrack& track = boneTracks[boneIdx];
+                AccessorHelper inAcc = getAccessor(sampler["input"].asInt(-1));
+                AccessorHelper outAcc = getAccessor(sampler["output"].asInt(-1));
+
+                for (size_t k = 0; k < inAcc.count && k < outAcc.count; ++k) {
+                    float t = inAcc.getFloat(k, 0);
+                    if (t > maxDuration) maxDuration = t;
+
+                    if (targetProp == "translation") {
+                        Vec3 p(outAcc.getFloat(k, 0), outAcc.getFloat(k, 1), outAcc.getFloat(k, 2));
+                        track.translationKeys.push_back({ t, p });
+                    } else if (targetProp == "rotation") {
+                        Quat r(outAcc.getFloat(k, 0), outAcc.getFloat(k, 1), outAcc.getFloat(k, 2), outAcc.getFloat(k, 3));
+                        track.rotationKeys.push_back({ t, r });
+                    } else if (targetProp == "scale") {
+                        Vec3 s(outAcc.getFloat(k, 0), outAcc.getFloat(k, 1), outAcc.getFloat(k, 2));
+                        track.scaleKeys.push_back({ t, s });
                     }
                 }
-                namePos = json.find("\"name\"", q2 + 1);
+            }
+
+            clip.duration = (maxDuration > 0.05f) ? maxDuration : 1.0f;
+            for (auto& pair : boneTracks) {
+                clip.tracks.push_back(pair.second);
+            }
+            outAnimations.push_back(clip);
+        }
+
+        // Standard state machine aliases for AI combat controller (Idle, Walk, Shoot)
+        if (!outAnimations.empty()) {
+            bool hasIdle = false, hasWalk = false, hasShoot = false;
+            for (const auto& c : outAnimations) {
+                if (c.name == "Idle") hasIdle = true;
+                if (c.name == "Walk") hasWalk = true;
+                if (c.name == "Shoot") hasShoot = true;
+            }
+
+            AnimationClip primaryClip = outAnimations[0];
+            if (!hasWalk) {
+                AnimationClip walkClip = primaryClip;
+                walkClip.name = "Walk";
+                outAnimations.push_back(walkClip);
+            }
+            if (!hasIdle) {
+                AnimationClip idleClip = primaryClip;
+                idleClip.name = "Idle";
+                outAnimations.push_back(idleClip);
+            }
+            if (!hasShoot) {
+                AnimationClip shootClip = primaryClip;
+                shootClip.name = "Shoot";
+                outAnimations.push_back(shootClip);
             }
         }
 
-        std::cout << "[glTF] Loaded glTF 2.0 asset '" << path << "' with "
-                  << outSkeleton->getBoneCount() << " bones and "
+        std::cout << "[glTF] Successfully loaded " << (isGLB ? "GLB binary" : "glTF") << " asset '" << path << "' with "
+                  << outSkeleton->getBoneCount() << " bones, "
+                  << allVertices.size() << " vertices, and "
                   << outAnimations.size() << " animation clips." << std::endl;
         return true;
     }

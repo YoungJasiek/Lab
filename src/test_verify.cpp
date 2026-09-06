@@ -3687,6 +3687,140 @@ int main() {
         }
     }
 
+    // =========================================================================
+    // TEST 39: NATIVE BINARY GLB T-800 TERMINATOR SKELETAL BOT & SOCKET WEAPON
+    // =========================================================================
+    {
+        std::cout << "\n[Test 39] Verifying Binary .GLB Loader & Terminator T-800 Skeletal Bot..." << std::endl;
+
+        std::shared_ptr<Lab::Skeleton> t800Skeleton;
+        std::vector<Lab::AnimationClip> t800Clips;
+        std::unique_ptr<Lab::SkinnedMesh> t800Mesh;
+
+        std::string glbPath = "assets/models/t-800_run.glb";
+        if (!std::filesystem::exists(glbPath)) {
+            glbPath = "assets/inwork/t-800_run.glb";
+        }
+
+        bool glbLoaded = Lab::GLTFLoader::load(glbPath, t800Skeleton, t800Clips, t800Mesh);
+        if (!glbLoaded || !t800Skeleton || !t800Mesh || t800Clips.empty()) {
+            std::cerr << "Assertion failed: Failed to load binary GLB model from " << glbPath << "\n";
+            return 1;
+        }
+
+        if (t800Skeleton->getBoneCount() < 34) {
+            std::cerr << "Assertion failed: T-800 skeleton rig must have at least 34 bones, got " << t800Skeleton->getBoneCount() << "\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Binary GLB loaded: " << t800Skeleton->getBoneCount() << " bones, "
+                  << t800Mesh->getIndexCount() << " indices.\n";
+
+        float origHeight = t800Mesh->getHeight();
+        if (origHeight <= 10.0f) {
+            std::cerr << "Assertion failed: T-800 original height should be in Mixamo units (>10), got " << origHeight << "\n";
+            return 1;
+        }
+        float botScale = t800Mesh->getBaseScale(1.85f);
+        float yOffset = -t800Mesh->getMinBounds().y * botScale;
+        std::cout << "  [PASS] Mesh bounds: Height=" << origHeight << ", auto-scale=" << botScale << ", ground yOffset=" << yOffset << "\n";
+
+        Lab::Animator t800Animator;
+        t800Animator.setSkeleton(t800Skeleton);
+        for (const auto& clip : t800Clips) {
+            t800Animator.addClip(clip);
+        }
+        if (!t800Animator.hasClip("Walk")) {
+            std::cerr << "Assertion failed: T-800 missing 'Walk' animation clip\n";
+            return 1;
+        }
+
+        // Animate running cycle
+        t800Animator.playAnimation("Walk", true);
+        t800Animator.update(0.35f); // Advance into running stride
+
+        // Bone socket attachment verification
+        Lab::Mat4 botWorld = Lab::Mat4::translate(Lab::Vec3(0.0f, yOffset, 0.0f)) *
+                             Lab::Mat4::rotate(15.0f * 3.14159265f / 180.0f, Lab::Vec3(0, 1, 0)) *
+                             Lab::Mat4::scale(Lab::Vec3(botScale, botScale, botScale));
+
+        float invBotScale = (botScale > 0.00001f) ? (1.0f / botScale) : 1.0f;
+        float weaponScale = 0.016f * invBotScale;
+        Lab::Vec3 socketPos = Lab::Vec3(0.0f, -0.05f, 0.02f) * invBotScale;
+        Lab::Mat4 socketTransform = t800Animator.getSocketTransform("Socket_Weapon", botWorld,
+            Lab::makeTransform(socketPos, Lab::Quat::fromEuler(0.1f, -0.2f, 0.0f), Lab::Vec3(weaponScale, weaponScale, weaponScale)));
+
+        std::unique_ptr<Lab::Mesh> pipeStl(Lab::Mesh::loadSTL("assets/models/pipe.stl"));
+
+        // Setup Shadow Map & Light
+        Lab::Vec3 sunDir(-0.35f, -0.85f, -0.35f);
+        Lab::Mat4 lightSpaceMatrix = Lab::ShadowMap::computeSunLightSpaceMatrix(sunDir, Lab::Vec3(0, 1, 0), 15.0f);
+        Lab::ShadowMap shadowMap;
+        shadowMap.init(2048, 2048);
+
+        // Render shadow pass
+        shadowMap.beginShadowPass(lightSpaceMatrix);
+        Lab::Renderer::beginShadowDepthPass(lightSpaceMatrix);
+        Lab::Renderer::drawShadowSkinnedMesh(*t800Mesh, botWorld, t800Animator.getSkinMatrices());
+        if (pipeStl) {
+            Lab::Renderer::drawShadowMesh(*pipeStl, socketTransform);
+        }
+        Lab::Renderer::endShadowDepthPass();
+        shadowMap.endShadowPass(w, h);
+
+        // Render main shaded pass
+        glClearColor(0.06f, 0.08f, 0.11f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        Lab::Camera t800Cam(55.0f, (float)w / (float)h, 0.01f, 100.0f);
+        t800Cam.setPosition(Lab::Vec3(0.0f, 1.3f, 2.7f));
+        t800Cam.lookAt(Lab::Vec3(0.0f, 0.95f, 0.0f));
+
+        Lab::Renderer::beginFrame(t800Cam);
+        Lab::Renderer::setSunLight(sunDir, Lab::Vec3(1.0f, 0.96f, 0.92f), Lab::Vec3(0.25f, 0.28f, 0.35f));
+        Lab::Renderer::setShadowMap(lightSpaceMatrix, shadowMap.getDepthTexture());
+
+        // Floor and backdrop
+        Lab::Texture floorTex("assets/textures/floor_tiles.bmp");
+        Lab::Renderer::drawCube(Lab::Vec3(0.0f, -0.05f, 0.0f), Lab::Vec3(20.0f, 0.1f, 20.0f), Lab::Vec3(0.7f, 0.7f, 0.7f), &floorTex, true);
+
+        // Render T-800 Terminator skinned mesh with real-time lighting and shadows
+        Lab::Renderer::drawSkinnedMesh(*t800Mesh, botWorld, t800Animator.getSkinMatrices(), Lab::Vec3(1.0f, 1.0f, 1.0f), nullptr, true);
+
+        // Render attached STL weapon in right hand
+        if (pipeStl) {
+            Lab::Texture pipeTex("assets/textures/weapon_pipe.bmp");
+            Lab::Renderer::drawMesh(*pipeStl, socketTransform, Lab::Vec3(0.95f, 0.95f, 0.95f), &pipeTex, true);
+        }
+
+        Lab::Renderer::disableShadowMap();
+
+        // Diagnostic HUD
+        Lab::Renderer::beginUI(w, h);
+        Lab::Renderer::drawRect(40.0f, 30.0f, 820.0f, 90.0f, Lab::Vec3(0.10f, 0.12f, 0.16f));
+        Lab::Renderer::drawRect(40.0f, 30.0f, 820.0f, 1.0f, Lab::Vec3(0.9f, 0.2f, 0.2f));
+        Lab::LabFont::drawText(56.0f, 44.0f, "BINARY GLB 2.0 SKELETAL BOT - TERMINATOR T-800", 2.0f, Lab::Vec3(0.95f, 0.25f, 0.25f), Lab::LabFontType::GeoSans);
+        Lab::LabFont::drawText(56.0f, 74.0f, "34 JOINTS RIG | RUNNING ANIMATION | DUAL-MATERIAL ENDOSKELETON | STL SOCKET", 1.5f, Lab::Vec3(0.85f, 0.90f, 0.95f), Lab::LabFontType::GeoSans);
+        Lab::Renderer::endUI();
+
+        Lab::Renderer::endFrame();
+        glFinish();
+        saveFrameToBMP("test_t800_bot_render.bmp", w, h);
+        std::cout << "  [PASS] Saved visual T-800 Terminator Skeletal Bot verification to 'test_t800_bot_render.bmp'.\n";
+
+        // Verify AIManager integration
+        Lab::AIManager aiMgr;
+        aiMgr.initAssets();
+        aiMgr.spawnBotsForMap(nullptr, 4, Lab::GameMode::DM);
+        if (aiMgr.bots.size() != 4) {
+            std::cerr << "Assertion failed: AIManager failed to spawn 4 bots\n";
+            return 1;
+        }
+        std::vector<Lab::BulletTracer> testTracers;
+        float testDamage = 0.0f;
+        aiMgr.update(0.016f, Lab::Vec3(0, 0, 0), true, -1, Lab::LabMap(), testTracers, testDamage);
+        std::cout << "  [PASS] AIManager successfully initialized and updated 4 T-800 Terminator bots!\n";
+    }
+
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();

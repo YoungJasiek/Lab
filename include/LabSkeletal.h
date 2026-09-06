@@ -47,11 +47,22 @@ namespace Lab {
         void draw() const;
         int getIndexCount() const { return _indexCount; }
 
+        Vec3 getMinBounds() const { return _minBounds; }
+        Vec3 getMaxBounds() const { return _maxBounds; }
+        float getHeight() const { return _maxBounds.y - _minBounds.y; }
+        float getBaseScale(float targetHeight = 1.85f) const {
+            float h = getHeight();
+            if (h <= 0.001f) return 1.0f;
+            return targetHeight / h;
+        }
+
     private:
         unsigned int _vao = 0;
         unsigned int _vbo = 0;
         unsigned int _ebo = 0;
         int _indexCount = 0;
+        Vec3 _minBounds{0.0f, 0.0f, 0.0f};
+        Vec3 _maxBounds{0.0f, 0.0f, 0.0f};
     };
 
     // --- Bone Definition ---
