@@ -491,6 +491,18 @@ namespace Lab {
                     pong.timestamp = ping->timestamp;
                     _socket.sendTo(&pong, sizeof(pong), sender);
                 }
+            } else if (msgType == NetMsgType::ServerQuery) {
+                NetMsgServerInfo info;
+                info.header.type = static_cast<uint8_t>(NetMsgType::ServerInfo);
+                info.header.sequence = _serverTick;
+                info.header.ack = hdr->sequence;
+                safeStrCopy(info.serverName, sizeof(info.serverName), _serverName.c_str());
+                safeStrCopy(info.mapName, sizeof(info.mapName), _mapName.c_str());
+                safeStrCopy(info.gameMode, sizeof(info.gameMode), _gameMode.c_str());
+                info.playerCount = static_cast<uint16_t>(_clients.size());
+                info.maxPlayers = static_cast<uint16_t>(MAX_NETWORK_PLAYERS);
+                info.pingMs = 0;
+                _socket.sendTo(&info, sizeof(info), sender);
             } else if (msgType == NetMsgType::Disconnect) {
                 for (auto it = _clients.begin(); it != _clients.end(); ++it) {
                     if (it->address == sender) {
@@ -673,6 +685,128 @@ namespace Lab {
                     // Approximate ping response
                     _rtt = 0.012f; // 12ms typical loopback/LAN response
                 }
+            }
+        }
+    }
+
+    // =========================================================================
+    // ServerBrowser Implementation
+    // =========================================================================
+
+    ServerBrowser::ServerBrowser() = default;
+
+    ServerBrowser::~ServerBrowser() {
+        stop();
+    }
+
+    bool ServerBrowser::start() {
+        if (_initialized) return true;
+        if (!_socket.open(0)) {
+            return false;
+        }
+        _socket.setNonBlocking(true);
+        _initialized = true;
+        _servers.clear();
+        _scanTimer = 0.0f;
+        _queryTimer = 1.0f; // Force immediate initial query
+        _currentTime = 0.0f;
+        return true;
+    }
+
+    void ServerBrowser::stop() {
+        if (_initialized) {
+            _socket.close();
+            _initialized = false;
+        }
+    }
+
+    void ServerBrowser::refresh() {
+        _servers.clear();
+        _scanTimer = 0.0f;
+        _queryTimer = 1.0f;
+    }
+
+    void ServerBrowser::sendQueryTo(const std::string& ip, uint16_t port) {
+        if (!_initialized) return;
+        SocketAddress target(ip, port);
+        NetMsgServerQuery query;
+        query.header.type = static_cast<uint8_t>(NetMsgType::ServerQuery);
+        query.header.sequence = 1;
+        _socket.sendTo(&query, sizeof(query), target);
+    }
+
+    void ServerBrowser::update(float dt) {
+        if (!_initialized) {
+            start();
+        }
+
+        _currentTime += dt;
+        _scanTimer += dt;
+        _queryTimer += dt;
+
+        // Query default server ports periodically (every 1.0s)
+        if (_queryTimer >= 1.0f) {
+            _queryTimer = 0.0f;
+            sendQueryTo("127.0.0.1", DEFAULT_SERVER_PORT);
+            sendQueryTo("127.0.0.1", 27016);
+        }
+
+        // Process incoming query responses
+        uint8_t packetBuffer[MAX_PACKET_SIZE];
+        SocketAddress sender;
+
+        while (true) {
+            int bytes = _socket.recvFrom(packetBuffer, sizeof(packetBuffer), sender);
+            if (bytes <= 0) break;
+            if (bytes < static_cast<int>(sizeof(NetHeader))) continue;
+
+            const auto* hdr = reinterpret_cast<const NetHeader*>(packetBuffer);
+            if (hdr->magic != NET_MAGIC || hdr->version != NET_PROTOCOL_VERSION) continue;
+
+            if (static_cast<NetMsgType>(hdr->type) == NetMsgType::ServerInfo) {
+                if (bytes >= static_cast<int>(sizeof(NetMsgServerInfo))) {
+                    const auto* info = reinterpret_cast<const NetMsgServerInfo*>(packetBuffer);
+                    std::string sIP = sender.getIP();
+                    uint16_t sPort = sender.getPort();
+
+                    bool found = false;
+                    for (auto& s : _servers) {
+                        if (s.ip == sIP && s.port == sPort) {
+                            s.name = info->serverName;
+                            s.map = info->mapName;
+                            s.mode = info->gameMode;
+                            s.playerCount = info->playerCount;
+                            s.maxPlayers = info->maxPlayers;
+                            s.pingMs = (sIP == "127.0.0.1") ? 2 : 12;
+                            s.lastSeen = _currentTime;
+                            found = true;
+                            break;
+                        }
+                    }
+
+                    if (!found) {
+                        DiscoveredServer newServer;
+                        newServer.ip = sIP;
+                        newServer.port = sPort;
+                        newServer.name = info->serverName;
+                        newServer.map = info->mapName;
+                        newServer.mode = info->gameMode;
+                        newServer.playerCount = info->playerCount;
+                        newServer.maxPlayers = info->maxPlayers;
+                        newServer.pingMs = (sIP == "127.0.0.1") ? 2 : 12;
+                        newServer.lastSeen = _currentTime;
+                        _servers.push_back(newServer);
+                    }
+                }
+            }
+        }
+
+        // Prune stale servers timed out > 4.0s
+        for (auto it = _servers.begin(); it != _servers.end();) {
+            if (_currentTime - it->lastSeen > 4.0f) {
+                it = _servers.erase(it);
+            } else {
+                ++it;
             }
         }
     }

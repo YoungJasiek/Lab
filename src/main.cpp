@@ -102,6 +102,7 @@ public:
 
         // Initialize Authoritative UDP Network Subsystem
         NetworkSystem::init();
+        _serverBrowser.start();
 
         // Start in Main Menu
         _inMenu = true;
@@ -501,6 +502,14 @@ public:
                 }
             } else {
                 _menuLmbLast = false;
+            }
+
+            if (_menuScreen == MenuScreen::JoinGame) {
+                _serverBrowser.update(time.delta);
+                // F5 Refresh shortcut
+                if (Input::isKeyPressed(294)) {
+                    _serverBrowser.refresh();
+                }
             }
 
             handleMenuInput(mx, my, lmbJustPressed);
@@ -1452,37 +1461,50 @@ public:
         }
         else if (_menuScreen == MenuScreen::JoinGame) {
             if (lmbClick) {
-                // Server Row 0 (x: 120..1160, y: 170..215)
-                if (mx >= 120.0f && mx <= 1160.0f && my >= 170.0f && my <= 215.0f) {
-                    _sessionConfig.mapPath = "assets/maps/facility_alpha.labmap";
-                    _sessionConfig.mode = GameMode::FFA;
-                    _sessionConfig.enableBots = true;
-                    _sessionConfig.botCount = 2;
-                    _netClient.connect("127.0.0.1", 27015, "GuestPlayer");
-                    startSession(_sessionConfig);
-                    _chat.addMessage("[CLIENT]", "Connected to Research Complex Server (127.0.0.1:27015)", Vec3(0.2f, 0.9f, 0.3f));
+                const auto& servers = _serverBrowser.getServers();
+
+                // 1. Select server row
+                for (size_t i = 0; i < servers.size() && i < 6; ++i) {
+                    float rowY = 168.0f + static_cast<float>(i) * 52.0f;
+                    if (mx >= 110.0f && mx <= 1170.0f && my >= rowY && my <= rowY + 46.0f) {
+                        _selectedServerIndex = static_cast<int>(i);
+                        return;
+                    }
+                }
+
+                // 2. Refresh button (x: 620..800, y: 560..608)
+                if (mx >= 620.0f && mx <= 800.0f && my >= 560.0f && my <= 608.0f) {
+                    _serverBrowser.refresh();
                     return;
                 }
-                // Server Row 1 (x: 120..1160, y: 225..270)
-                if (mx >= 120.0f && mx <= 1160.0f && my >= 225.0f && my <= 270.0f) {
-                    _sessionConfig.mapPath = "assets/maps/cryo_outpost.labmap";
-                    _sessionConfig.mode = GameMode::TDM;
-                    _sessionConfig.enableBots = true;
-                    _sessionConfig.botCount = 4;
-                    _netClient.connect("127.0.0.1", 27015, "GuestPlayer");
-                    startSession(_sessionConfig);
-                    _chat.addMessage("[CLIENT]", "Connected to Cryo Outpost Server (127.0.0.1:27015)", Vec3(0.2f, 0.9f, 0.3f));
-                    return;
+
+                // 3. Connect to Server button (x: 830..1170, y: 560..608)
+                if (mx >= 830.0f && mx <= 1170.0f && my >= 560.0f && my <= 608.0f) {
+                    if (!servers.empty() && _selectedServerIndex >= 0 && _selectedServerIndex < (int)servers.size()) {
+                        const auto& s = servers[_selectedServerIndex];
+                        _sessionConfig.mapPath = "assets/maps/" + s.map;
+                        _sessionConfig.mode = (s.mode == "TDM") ? GameMode::TDM : GameMode::FFA;
+                        _sessionConfig.enableBots = true;
+                        _sessionConfig.botCount = 2;
+                        _netClient.connect(s.ip, s.port, "GuestPlayer");
+                        startSession(_sessionConfig);
+                        _chat.addMessage("[CLIENT]", "Connected to " + s.name + " (" + s.ip + ":" + std::to_string(s.port) + ")", Vec3(0.2f, 0.9f, 0.3f));
+                        return;
+                    } else {
+                        // Direct connect fallback to 127.0.0.1:27015
+                        _sessionConfig.mapPath = "assets/maps/facility_alpha.labmap";
+                        _sessionConfig.mode = GameMode::FFA;
+                        _sessionConfig.enableBots = true;
+                        _sessionConfig.botCount = 2;
+                        _netClient.connect("127.0.0.1", 27015, "GuestPlayer");
+                        startSession(_sessionConfig);
+                        _chat.addMessage("[CLIENT]", "Direct Connected to 127.0.0.1:27015", Vec3(0.2f, 0.9f, 0.3f));
+                        return;
+                    }
                 }
-                // Direct Connect button (x: 840..1160, y: 560..608)
-                if (mx >= 840.0f && mx <= 1160.0f && my >= 560.0f && my <= 608.0f) {
-                    _netClient.connect("127.0.0.1", 27015, "GuestPlayer");
-                    startSession(_sessionConfig);
-                    _chat.addMessage("[CLIENT]", "Direct Connected to 127.0.0.1:27015", Vec3(0.2f, 0.9f, 0.3f));
-                    return;
-                }
-                // Back button (x: 100..280, y: 560..608)
-                if (mx >= 100.0f && mx <= 280.0f && my >= 560.0f && my <= 608.0f) {
+
+                // 4. Back button (x: 110..290, y: 560..608)
+                if (mx >= 110.0f && mx <= 290.0f && my >= 560.0f && my <= 608.0f) {
                     _menuScreen = MenuScreen::MultiSelect;
                     return;
                 }
@@ -1714,45 +1736,68 @@ public:
         }
         else if (_menuScreen == MenuScreen::JoinGame) {
             // Server Browser Frame
-            Renderer::drawRect(80.0f, 60.0f, 1120.0f, 600.0f, { 0.1f, 0.13f, 0.18f });
-            Renderer::drawRect(82.0f, 62.0f, 1116.0f, 44.0f, { 0.15f, 0.22f, 0.32f });
+            Renderer::drawRect(80.0f, 60.0f, 1120.0f, 600.0f, { 0.08f, 0.10f, 0.14f });
+            Renderer::drawRect(82.0f, 62.0f, 1116.0f, 44.0f, { 0.12f, 0.16f, 0.22f });
             Renderer::drawRect(82.0f, 106.0f, 1116.0f, 4.0f, { 0.2f, 0.75f, 0.95f });
 
-            LabFont::drawText(100.0f, 74.0f, "MULTIPLAYER : LOCAL LAN SERVER BROWSER", 2.4f, Vec3(0.95f, 0.98f, 1.0f), LabFontType::GeoSans);
+            LabFont::drawText(100.0f, 74.0f, "MULTIPLAYER : DYNAMIC LAN SERVER BROWSER", 2.4f, Vec3(0.95f, 0.98f, 1.0f), LabFontType::GeoSans);
+
+            bool scanning = _serverBrowser.isScanning();
+            std::string scanStatus = scanning ? "[ SCANNING LOCALHOST / LAN :27015 ... ]" : "[ ACTIVE - F5 TO REFRESH ]";
+            Vec3 scanColor = scanning ? Vec3(0.2f, 0.85f, 1.0f) : Vec3(0.4f, 0.85f, 0.4f);
+            LabFont::drawText(720.0f, 76.0f, scanStatus, 1.4f, scanColor, LabFontType::System);
 
             // Table Header
-            Renderer::drawRect(110.0f, 130.0f, 1060.0f, 32.0f, Vec3(0.15f, 0.25f, 0.38f));
-            LabFont::drawText(130.0f, 138.0f, "SERVER NAME", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
-            LabFont::drawText(500.0f, 138.0f, "MAP", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
-            LabFont::drawText(720.0f, 138.0f, "MODE", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
-            LabFont::drawText(880.0f, 138.0f, "PLAYERS", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
-            LabFont::drawText(1030.0f, 138.0f, "PING", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            Renderer::drawRect(110.0f, 126.0f, 1060.0f, 32.0f, Vec3(0.14f, 0.20f, 0.28f));
+            LabFont::drawText(130.0f, 134.0f, "SERVER NAME", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            LabFont::drawText(500.0f, 134.0f, "MAP", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            LabFont::drawText(720.0f, 134.0f, "MODE", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            LabFont::drawText(880.0f, 134.0f, "PLAYERS", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            LabFont::drawText(1030.0f, 134.0f, "PING", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
 
-            // Server Rows
-            Renderer::drawRect(110.0f, 170.0f, 1060.0f, 44.0f, Vec3(0.18f, 0.45f, 0.75f));
-            LabFont::drawText(130.0f, 184.0f, "Research Complex Alpha Arena", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
-            LabFont::drawText(500.0f, 184.0f, "facility_alpha.labmap", 1.8f, Vec3(0.85f, 0.9f, 1.0f), LabFontType::GeoSans);
-            LabFont::drawText(720.0f, 184.0f, "FFA", 1.8f, Vec3(0.95f, 0.85f, 0.2f), LabFontType::GeoSans);
-            LabFont::drawText(880.0f, 184.0f, "1 / 8", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
-            LabFont::drawText(1030.0f, 184.0f, "4 ms", 1.8f, Vec3(0.2f, 0.9f, 0.3f), LabFontType::GeoSans);
+            const auto& servers = _serverBrowser.getServers();
+            if (servers.empty()) {
+                Renderer::drawRect(110.0f, 168.0f, 1060.0f, 95.0f, Vec3(0.06f, 0.08f, 0.11f));
+                Renderer::drawRect(110.0f, 168.0f, 4.0f, 95.0f, Vec3(0.85f, 0.35f, 0.25f));
+                LabFont::drawText(130.0f, 185.0f, "NO RUNNING SERVERS FOUND ON LAN / LOCALHOST", 1.8f, Vec3(0.95f, 0.45f, 0.45f), LabFontType::GeoSans);
+                LabFont::drawText(130.0f, 215.0f, "Run 'LabServer.exe' in terminal or click 'HOST MATCH' in previous screen to start a dedicated instance.", 1.4f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::System);
+                LabFont::drawText(130.0f, 238.0f, "You can still click 'CONNECT TO SERVER' below to connect immediately to 127.0.0.1:27015.", 1.4f, Vec3(0.4f, 0.75f, 0.95f), LabFontType::System);
+            } else {
+                for (size_t i = 0; i < servers.size() && i < 6; ++i) {
+                    const auto& s = servers[i];
+                    float rowY = 168.0f + static_cast<float>(i) * 52.0f;
+                    bool isSelected = (_selectedServerIndex == static_cast<int>(i));
 
-            Renderer::drawRect(110.0f, 222.0f, 1060.0f, 44.0f, Vec3(0.12f, 0.16f, 0.22f));
-            LabFont::drawText(130.0f, 236.0f, "Cryo Outpost Team Fortress", 1.8f, Vec3(0.8f, 0.85f, 0.9f), LabFontType::GeoSans);
-            LabFont::drawText(500.0f, 236.0f, "cryo_outpost.labmap", 1.8f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::GeoSans);
-            LabFont::drawText(720.0f, 236.0f, "TDM", 1.8f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::GeoSans);
-            LabFont::drawText(880.0f, 236.0f, "4 / 8", 1.8f, Vec3(0.8f, 0.85f, 0.9f), LabFontType::GeoSans);
-            LabFont::drawText(1030.0f, 236.0f, "12 ms", 1.8f, Vec3(0.2f, 0.9f, 0.3f), LabFontType::GeoSans);
+                    Vec3 rowBg = isSelected ? Vec3(0.18f, 0.40f, 0.65f) : ((i % 2 == 0) ? Vec3(0.10f, 0.14f, 0.19f) : Vec3(0.08f, 0.11f, 0.15f));
+                    Renderer::drawRect(110.0f, rowY, 1060.0f, 46.0f, rowBg);
+                    if (isSelected) {
+                        Renderer::drawRect(110.0f, rowY, 5.0f, 46.0f, Vec3(0.2f, 0.85f, 1.0f));
+                    }
+
+                    LabFont::drawText(130.0f, rowY + 14.0f, s.name, 1.8f, isSelected ? Vec3(1, 1, 1) : Vec3(0.9f, 0.95f, 1.0f), LabFontType::GeoSans);
+                    LabFont::drawText(500.0f, rowY + 14.0f, s.map, 1.8f, Vec3(0.75f, 0.85f, 0.95f), LabFontType::GeoSans);
+                    LabFont::drawText(720.0f, rowY + 14.0f, s.mode, 1.8f, Vec3(0.95f, 0.85f, 0.2f), LabFontType::GeoSans);
+                    std::string plStr = std::to_string(s.playerCount) + " / " + std::to_string(s.maxPlayers);
+                    LabFont::drawText(880.0f, rowY + 14.0f, plStr, 1.8f, Vec3(0.9f, 0.95f, 1.0f), LabFontType::GeoSans);
+                    std::string pingStr = std::to_string(s.pingMs) + " ms";
+                    LabFont::drawText(1030.0f, rowY + 14.0f, pingStr, 1.8f, Vec3(0.2f, 0.9f, 0.35f), LabFontType::GeoSans);
+                }
+            }
 
             // Direct Connect field
-            Renderer::drawRect(110.0f, 470.0f, 600.0f, 44.0f, Vec3(0.08f, 0.10f, 0.14f));
-            LabFont::drawText(130.0f, 482.0f, "DIRECT CONNECT IP:  127.0.0.1:27015", 1.8f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::GeoSans);
+            Renderer::drawRect(110.0f, 480.0f, 600.0f, 44.0f, Vec3(0.06f, 0.08f, 0.12f));
+            LabFont::drawText(130.0f, 494.0f, "DIRECT CONNECT TARGET:  127.0.0.1:27015", 1.8f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::GeoSans);
 
-            // Bottom Buttons
-            Renderer::drawRect(110.0f, 560.0f, 200.0f, 48.0f, Vec3(0.20f, 0.25f, 0.35f));
-            LabFont::drawText(160.0f, 576.0f, "< BACK", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            // Bottom Buttons: BACK, REFRESH, CONNECT TO SERVER
+            Renderer::drawRect(110.0f, 560.0f, 180.0f, 48.0f, Vec3(0.20f, 0.25f, 0.35f));
+            LabFont::drawText(150.0f, 576.0f, "< BACK", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
 
-            Renderer::drawRect(860.0f, 560.0f, 310.0f, 48.0f, Vec3(0.20f, 0.65f, 0.42f));
-            LabFont::drawText(900.0f, 576.0f, "CONNECT TO SERVER", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            Renderer::drawRect(620.0f, 560.0f, 180.0f, 48.0f, Vec3(0.18f, 0.32f, 0.48f));
+            LabFont::drawText(655.0f, 576.0f, "REFRESH", 1.8f, Vec3(0.9f, 0.95f, 1.0f), LabFontType::GeoSans);
+
+            Renderer::drawRect(830.0f, 560.0f, 340.0f, 48.0f, Vec3(0.20f, 0.65f, 0.42f));
+            Renderer::drawRect(830.0f, 560.0f, 340.0f, 2.0f, Vec3(0.4f, 0.95f, 0.65f));
+            LabFont::drawText(860.0f, 576.0f, "CONNECT TO SERVER", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
         }
         else if (_menuScreen == MenuScreen::Singleplayer) {
             // Existing Singleplayer Map Selection
@@ -2056,6 +2101,8 @@ private:
     PostProcessPipeline _postProcess;
     DedicatedServer _localServer;
     NetworkClient _netClient;
+    ServerBrowser _serverBrowser;
+    int _selectedServerIndex = 0;
     std::unique_ptr<LabMap> _currentMap;
     std::unordered_map<std::string, std::unique_ptr<Texture>> _textures;
     std::unordered_map<std::string, std::unique_ptr<Mesh>> _meshes;

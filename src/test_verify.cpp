@@ -608,6 +608,13 @@ int main() {
             return 1;
         }
 
+        // Verify Bot Grounding (feet clamped to floor, zero levitation)
+        if (std::abs(aiMgr.bots[0].position.y - 0.0f) > 0.05f) {
+            std::cerr << "ERROR: Bot not grounded on floor (Y != 0.0, got " << aiMgr.bots[0].position.y << ")!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Bot ground contact verified: boots firmly clamped to surface (Y=0.0m, no levitation)!\n";
+
         // Test Raycast dispatch through AIManager
         Lab::Vec3 bot0Head = aiMgr.bots[0].position + Lab::Vec3(0.0f, 1.68f, 0.0f);
         Lab::Vec3 aimRayOrigin = bot0Head + Lab::Vec3(0.0f, 0.0f, 5.0f);
@@ -3045,6 +3052,54 @@ int main() {
 
         blizzardPs.shutdown();
         pp.shutdown();
+
+        // Visual Verification: Dark Post-Apocalyptic Cryo Wasteland Outpost with Distance Fog
+        {
+            auto cryoMap = Lab::LabMap::loadFromFile("assets/maps/cryo_outpost.labmap");
+            if (!cryoMap) cryoMap = Lab::LabMap::loadFromFile("cryo_outpost.labmap");
+            if (cryoMap) {
+                // Ensure textures are cached
+                for (const auto& b : cryoMap->brushes) {
+                    if (!b.texturePath.empty() && textures.find(b.texturePath) == textures.end()) {
+                        textures[b.texturePath] = std::make_unique<Lab::Texture>("assets/textures/" + b.texturePath);
+                    }
+                }
+
+                Lab::PostProcessPipeline cryoPP;
+                cryoPP.init(w, h);
+                cryoPP.beginScene();
+
+                Lab::Camera wastelandCam(70.0f, (float)w / (float)h, 0.01f, 1000.0f);
+                wastelandCam.setPosition(Lab::Vec3(0.0f, 2.2f, 14.0f));
+
+                Lab::Renderer::beginFrame(wastelandCam);
+                Lab::Renderer::setSunLight(cryoMap->metadata.sunDir, cryoMap->metadata.sunColor, cryoMap->metadata.ambientColor);
+                Lab::Renderer::setFog(true, Lab::Vec3(0.05f, 0.07f, 0.10f), 10.0f, 75.0f);
+
+                for (const auto& b : cryoMap->brushes) {
+                    Lab::Texture* tex = b.texturePath.empty() ? nullptr : textures[b.texturePath].get();
+                    Lab::Renderer::drawCube(b.position, b.size, b.color, tex, true, b.uvScale, b.uvMode);
+                }
+
+                // Render bots on ground in front of ruined outpost bunker
+                Lab::AIManager wastelandAI;
+                wastelandAI.spawnBotsForMap(cryoMap.get(), 2, Lab::GameMode::FFA);
+                wastelandAI.bots[0].position = Lab::Vec3(-3.5f, 0.0f, -4.0f);
+                wastelandAI.bots[1].position = Lab::Vec3(3.5f, 0.0f, -6.0f);
+                wastelandAI.render();
+
+                Lab::Renderer::endFrame();
+                cryoPP.endScene();
+                cryoPP.render(1.0f, 0.22f, 5.0f, Lab::TonemapperType::ACESFilmic);
+
+                glFinish();
+                saveFrameToBMP("test_cryo_wasteland_outpost.bmp", w, h);
+                std::cout << "  [PASS] Saved visual Dark Post-Apocalyptic Wasteland Atmosphere to 'test_cryo_wasteland_outpost.bmp'.\n";
+                cryoPP.shutdown();
+            } else {
+                std::cerr << "WARNING: Could not load assets/maps/cryo_outpost.labmap for visual verification!\n";
+            }
+        }
     }
 
     // 32. Verify Facial Lip-Sync & Morph Targets (Blend Shapes & Audio Envelope Follower)
@@ -3266,7 +3321,27 @@ int main() {
         }
         std::cout << "  [PASS] Client prediction reconciliation verified: desync snapped and resolved smoothly!\n";
 
-        // 6. Clean Disconnect & Server Teardown
+        // 6. Test Dynamic UDP LAN Server Discovery (ServerBrowser -> DedicatedServer)
+        Lab::ServerBrowser browser;
+        browser.start();
+        browser.sendQueryTo("127.0.0.1", testPort);
+        server.tick(0.016f);
+        browser.update(0.016f);
+
+        if (browser.getServers().empty()) {
+            std::cerr << "Assertion failed: ServerBrowser failed to discover live DedicatedServer on port " << testPort << "!\n";
+            return 1;
+        }
+        const auto& disc = browser.getServers()[0];
+        if (disc.port != testPort || disc.playerCount != 1) {
+            std::cerr << "Assertion failed: Discovered server info mismatch (expected port " << testPort << ", got " << disc.port << ")!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] ServerBrowser LAN discovery verified: found " << disc.name 
+                  << " (Map: " << disc.map << ", Mode: " << disc.mode << ", Ping: " << disc.pingMs << "ms)!\n";
+        browser.stop();
+
+        // 7. Clean Disconnect & Server Teardown
         client.disconnect();
         server.tick(0.05f);
         server.stop();

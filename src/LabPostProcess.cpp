@@ -73,7 +73,7 @@ namespace Lab {
         }
     )";
 
-    // Composite Shader: Scene + Bloom + Cryo Frost Vignette + ACES Tonemapping + Gamma
+    // Composite Shader: Scene + Bloom + Organic Frost Vignette + ACES Tonemapping + Filmic Color Grading
     static const char* s_compositeFragmentShader = R"(
         #version 450 core
         out vec4 FragColor;
@@ -87,24 +87,25 @@ namespace Lab {
         uniform float uTime;
         uniform int uTonemapper; // 0 = ACES, 1 = Reinhard
 
-        // Procedural fractal ice crystallization
+        // Procedural high-frequency organic ice crystallization
         float hash(vec2 p) {
             return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
         }
 
-        float frostNoise(vec2 p) {
+        float smoothNoise(vec2 p) {
             vec2 i = floor(p);
             vec2 f = fract(p);
-            f = f * f * (3.0 - 2.0 * f);
-            return mix(mix(hash(i + vec2(0.0, 0.0)), hash(i + vec2(1.0, 0.0)), f.x),
-                       mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+            vec2 u = f * f * (3.0 - 2.0 * f);
+            return mix(mix(hash(i + vec2(0.0, 0.0)), hash(i + vec2(1.0, 0.0)), u.x),
+                       mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
         }
 
         float fbmFrost(vec2 p) {
             float v = 0.0;
-            v += 0.5000 * frostNoise(p); p *= 2.02;
-            v += 0.2500 * frostNoise(p); p *= 2.03;
-            v += 0.1250 * frostNoise(p);
+            v += 0.5000 * smoothNoise(p); p *= 2.07;
+            v += 0.2500 * smoothNoise(p); p *= 2.05;
+            v += 0.1250 * smoothNoise(p); p *= 2.03;
+            v += 0.0625 * smoothNoise(p);
             return v;
         }
 
@@ -128,20 +129,24 @@ namespace Lab {
             // Additive Screen-Space Bloom
             hdrColor += bloomColor * uBloomIntensity;
 
-            // Cryo Frost HUD Vignette
-            if (uFrostIntensity > 0.001) {
-                vec2 uv = vTexCoords;
-                vec2 centered = abs(uv - 0.5) * 2.0;
-                float dist = max(centered.x, centered.y); // Rectangular visor border
-                
-                // Ice crystal pattern creeping from edges
-                float n = fbmFrost(uv * vec2(14.0, 8.0) + vec2(sin(uTime * 0.1) * 0.2, cos(uTime * 0.08) * 0.2));
-                float threshold = 1.05 - uFrostIntensity * 0.55;
-                float frostMask = smoothstep(threshold, 1.02, dist + n * 0.18);
-                
-                // Cyan-tinted frosted ice crystals
-                vec3 frostTint = vec3(0.72, 0.90, 1.0) * (0.85 + n * 0.45);
-                hdrColor = mix(hdrColor, frostTint * 1.8, frostMask * clamp(uFrostIntensity * 1.25, 0.0, 1.0));
+            // Organic Cryo Frost HUD Vignette
+            if (uFrostIntensity > 0.01) {
+                // Aspect-corrected elliptical visor vignette
+                vec2 centered = (vTexCoords - vec2(0.5)) * vec2(1.0, 0.75);
+                float dist = length(centered) * 2.0;
+
+                // Fine crystalline dendritic ice tendrils
+                vec2 frostUV = vTexCoords * vec2(48.0, 27.0) + vec2(sin(uTime * 0.06) * 0.15, cos(uTime * 0.05) * 0.15);
+                float n = fbmFrost(frostUV);
+
+                // Dynamic threshold: Screen is clear at high health; frost creeps inward at low health
+                float frostThreshold = 1.32 - uFrostIntensity * 0.72;
+                float frostMask = smoothstep(frostThreshold, frostThreshold + 0.30, dist + n * 0.14);
+
+                // Natural cold glacial frost tint (feathered, non-blocking, organic ice)
+                vec3 frostColor = vec3(0.58, 0.76, 0.94) * (0.85 + n * 0.35);
+                float frostAlpha = frostMask * clamp(uFrostIntensity * 0.75, 0.0, 0.85);
+                hdrColor = mix(hdrColor, frostColor, frostAlpha);
             }
 
             // Exposure tone-mapping
@@ -155,6 +160,22 @@ namespace Lab {
 
             // Gamma 2.2 correction
             mapped = pow(mapped, vec3(1.0 / 2.2));
+
+            // --- Cinematic Post-Apocalyptic Color Grading ---
+            // 1. High-contrast gritty shadows (crushed blacks for grim atmosphere)
+            mapped = pow(clamp(mapped, 0.0, 1.0), vec3(1.10));
+
+            // 2. Bleak frozen desaturation (cold nuclear winter / abandoned ruins)
+            float luma = dot(mapped, vec3(0.299, 0.587, 0.114));
+            mapped = mix(vec3(luma), mapped, 0.82);
+
+            // 3. Cold shadow split-toning (subtle icy blue/teal tint in darker tones)
+            vec3 shadowTint = vec3(0.92, 0.96, 1.06);
+            mapped = mix(mapped * shadowTint, mapped, clamp(luma * 2.0, 0.0, 1.0));
+
+            // 4. Subtle tactical film grain
+            float grain = (hash(vTexCoords * vec2(1280.0, 720.0) + vec2(uTime * 13.0, uTime * 37.0)) - 0.5) * 0.022;
+            mapped = clamp(mapped + vec3(grain), 0.0, 1.0);
 
             FragColor = vec4(mapped, 1.0);
         }
@@ -387,6 +408,7 @@ namespace Lab {
         if (!_initialized) return;
         glBindFramebuffer(GL_FRAMEBUFFER, _hdrFbo);
         glViewport(0, 0, _width, _height);
+        glClearColor(0.05f, 0.07f, 0.10f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     }
 

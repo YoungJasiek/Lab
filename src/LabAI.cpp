@@ -107,7 +107,7 @@ namespace Lab {
             Vec3 nextPos = position;
             Vec3 tempVel = moveVel;
             bool grounded = true;
-            LabCollision::moveAndSlide(nextPos, tempVel, grounded, dt, solidBoxes, 1.6f, 0.35f, 1.8f);
+            LabCollision::moveAndSlide(nextPos, tempVel, grounded, dt, solidBoxes, 0.0f, 0.35f, 1.85f);
             position = nextPos;
             walkCycle += dt * 8.0f;
 
@@ -332,6 +332,9 @@ namespace Lab {
             float offsetX = ((i % 3) - 1) * 0.75f;
             float offsetZ = ((i / 3) - 1) * 0.75f;
             Vec3 botSpawnPos = sp.position + Vec3(offsetX, 0.0f, offsetZ);
+            if (botSpawnPos.y >= 1.5f) {
+                botSpawnPos.y = std::max(0.0f, botSpawnPos.y - 1.8f);
+            }
 
             float rad = sp.yaw * 3.14159265f / 180.0f;
             Vec3 forward(std::sin(rad), 0.0f, std::cos(rad));
@@ -495,7 +498,7 @@ namespace Lab {
                 Vec3 nextPos = bot.position;
                 Vec3 tempVel = moveVel;
                 bool grounded = true;
-                LabCollision::moveAndSlide(nextPos, tempVel, grounded, dt, solidBoxes, 1.6f, 0.35f, 1.8f);
+                LabCollision::moveAndSlide(nextPos, tempVel, grounded, dt, solidBoxes, 0.0f, 0.35f, 1.85f);
                 bot.position = nextPos;
                 bot.walkCycle += dt * 8.0f;
 

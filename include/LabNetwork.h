@@ -25,7 +25,9 @@ namespace Lab {
         Pong = 5,
         UserCmd = 6,
         ServerSnapshot = 7,
-        ChatMessage = 8
+        ChatMessage = 8,
+        ServerQuery = 9,
+        ServerInfo = 10
     };
 
     // --- Compact Binary Protocol Structures ---
@@ -102,6 +104,20 @@ namespace Lab {
         NetHeader header;
         char sender[32] = { 0 };
         char text[128] = { 0 };
+    };
+
+    struct NetMsgServerQuery {
+        NetHeader header;
+    };
+
+    struct NetMsgServerInfo {
+        NetHeader header;
+        char serverName[64] = { 0 };
+        char mapName[32] = { 0 };
+        char gameMode[16] = { 0 };
+        uint16_t playerCount = 0;
+        uint16_t maxPlayers = 16;
+        uint16_t pingMs = 0;
     };
 #pragma pack(pop)
 
@@ -212,6 +228,11 @@ namespace Lab {
         uint16_t getPort() const { return _port; }
         size_t getClientCount() const { return _clients.size(); }
         uint32_t getServerTick() const { return _serverTick; }
+        const std::string& getServerName() const { return _serverName; }
+        void setServerName(const std::string& name) { _serverName = name; }
+        const std::string& getMapName() const { return _mapName; }
+        const std::string& getGameMode() const { return _gameMode; }
+        void setGameMode(const std::string& mode) { _gameMode = mode; }
 
         // Send a chat message to all connected clients
         void broadcastChatMessage(const std::string& sender, const std::string& text);
@@ -219,6 +240,8 @@ namespace Lab {
     private:
         UDPSocket _socket;
         uint16_t _port = DEFAULT_SERVER_PORT;
+        std::string _serverName = "Lab Dedicated Arena [LAN]";
+        std::string _gameMode = "FFA";
         std::string _mapName;
         bool _running = false;
         uint32_t _serverTick = 0;
@@ -268,6 +291,42 @@ namespace Lab {
         bool _hasNewSnapshot = false;
 
         void processIncomingPackets();
+    };
+
+    // --- Dynamic LAN Server Discovery Browser ---
+    struct DiscoveredServer {
+        std::string ip = "127.0.0.1";
+        uint16_t port = DEFAULT_SERVER_PORT;
+        std::string name = "Lab Server";
+        std::string map = "facility_alpha.labmap";
+        std::string mode = "FFA";
+        int playerCount = 0;
+        int maxPlayers = 16;
+        int pingMs = 5;
+        float lastSeen = 0.0f;
+    };
+
+    class ServerBrowser {
+    public:
+        ServerBrowser();
+        ~ServerBrowser();
+
+        bool start();
+        void stop();
+        void refresh();
+        void update(float dt);
+
+        const std::vector<DiscoveredServer>& getServers() const { return _servers; }
+        bool isScanning() const { return _scanTimer < 2.5f; }
+        void sendQueryTo(const std::string& ip, uint16_t port);
+
+    private:
+        UDPSocket _socket;
+        std::vector<DiscoveredServer> _servers;
+        float _scanTimer = 0.0f;
+        float _queryTimer = 0.0f;
+        float _currentTime = 0.0f;
+        bool _initialized = false;
     };
 
 } // namespace Lab

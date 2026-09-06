@@ -110,6 +110,12 @@ namespace Lab {
         uniform int enableShadows;
         uniform sampler2D shadowMap;
 
+        // Atmospheric Distance Fog
+        uniform int uEnableFog;
+        uniform vec3 uFogColor;
+        uniform float uFogStart;
+        uniform float uFogEnd;
+
         float calculateShadow(vec4 fragPosLightSpace, vec3 normal, vec3 lightDirection) {
             vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
             projCoords = projCoords * 0.5 + 0.5;
@@ -134,6 +140,12 @@ namespace Lab {
         void main() {
             if (enableLighting == 0) {
                 vec3 albedo = (useTexture == 1) ? texture(texture1, TexCoords).rgb * objectColor : objectColor;
+                if (uEnableFog == 1) {
+                    float dist = length(viewPos - FragPos);
+                    float fogFactor = clamp((dist - uFogStart) / max(uFogEnd - uFogStart, 0.001), 0.0, 1.0);
+                    fogFactor = fogFactor * fogFactor;
+                    albedo = mix(albedo, uFogColor, fogFactor);
+                }
                 FragColor = vec4(albedo, 1.0);
                 return;
             }
@@ -186,6 +198,15 @@ namespace Lab {
             }
 
             vec3 result = baseLighting + spotResult;
+
+            // Volumetric Distance Blizzard Fog
+            if (uEnableFog == 1) {
+                float dist = length(viewPos - FragPos);
+                float fogFactor = clamp((dist - uFogStart) / max(uFogEnd - uFogStart, 0.001), 0.0, 1.0);
+                fogFactor = fogFactor * fogFactor;
+                result = mix(result, uFogColor, fogFactor);
+            }
+
             FragColor = vec4(result, 1.0);
         }
     )";
@@ -860,6 +881,11 @@ namespace Lab {
     Mat4 Renderer::_lightSpaceMatrix;
     unsigned int Renderer::_shadowDepthTexture = 0;
 
+    bool Renderer::_enableFog = true;
+    Vec3 Renderer::_fogColor = { 0.05f, 0.07f, 0.10f };
+    float Renderer::_fogStart = 12.0f;
+    float Renderer::_fogEnd = 85.0f;
+
     void Renderer::applyLightingAndShadowUniforms(Shader* shader) {
         shader->setVec3("viewPos", _cameraPos);
         shader->setVec3("lightDir", Renderer::_lightDir);
@@ -869,6 +895,11 @@ namespace Lab {
         shader->setMat4("lightSpaceMatrix", Renderer::_lightSpaceMatrix);
         shader->setInt("enableShadows", Renderer::_enableShadows ? 1 : 0);
         shader->setInt("enableSpotlight", Renderer::_enableSpotlight ? 1 : 0);
+
+        shader->setInt("uEnableFog", Renderer::_enableFog ? 1 : 0);
+        shader->setVec3("uFogColor", Renderer::_fogColor);
+        shader->setFloat("uFogStart", Renderer::_fogStart);
+        shader->setFloat("uFogEnd", Renderer::_fogEnd);
 
         if (Renderer::_enableSpotlight) {
             shader->setVec3("spotLightPos", Renderer::_spotLightPos);
@@ -888,7 +919,7 @@ namespace Lab {
 
     // --- Renderer Implementation ---
     void Renderer::init() {
-        glClearColor(0.08f, 0.1f, 0.14f, 1.0f);
+        glClearColor(0.05f, 0.07f, 0.10f, 1.0f);
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
@@ -1008,6 +1039,13 @@ namespace Lab {
     void Renderer::disableShadowMap() {
         _enableShadows = false;
         _shadowDepthTexture = 0;
+    }
+
+    void Renderer::setFog(bool enable, const Vec3& color, float startDist, float endDist) {
+        _enableFog = enable;
+        _fogColor = color;
+        _fogStart = startDist;
+        _fogEnd = endDist;
     }
 
     void Renderer::beginShadowDepthPass(const Mat4& lightSpaceMatrix) {

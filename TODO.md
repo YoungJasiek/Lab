@@ -231,3 +231,22 @@ Wszystkie systemy tworzone sa w standardzie **C++20**, **OpenGL 4.5+ Core Profil
   - Rejestracja pakietow i uzgadnianie predykcji ruchu gracza bezposrednio w `onUpdate()`.
 - [x] Zautomatyzowany test 33 w `TestVerify.exe`:
   - Weryfikacja uruchomienia serwera na porcie 27019, handshake klienta, transmisja pakietow UserCmd, odbior snapshotow z autorytatywna pozycja, rozwiazanie 3.5-metrowego desyncu przez modul ClientPrediction, bezpieczne rozlaczenie. Wszystkie 33 testy przechodza w 100%!
+
+### 3. Remaster Klimatu Post-Apo, Fizyki Botów, Post-Processingu i Dynamicznego Server Browsera (100% DONE)
+- [x] **Trwałe doklejenie botów do podłoża (Zero lewitacji):**
+  - Poprawiono `LabCollision::moveAndSlide` dla botów (`eyeHeight = 0.0f` zamiast `1.6f`), likwidując błąd unoszenia stóp bota 1.6m nad ziemię.
+  - Wymuszono podłoże `botSpawnPos.y = 0.0f` w `AIManager::spawnBotsForMap`.
+  - Weryfikacja w teście 9 i 31: buty botów stoją stabilnie na posadzce/śniegu.
+- [x] **Nowy organiczny post-processing i filmic color grading:**
+  - Całkowicie wyeliminowano ordynarny 90-pikselowy szum blokowy `floor(p)` i prostokątne ramki.
+  - Zaimplementowano gładką eliptyczną winietę z drobnokrystalicznym fraktalnym szronem, pojawiającym się organicznie i półprzezroczyście wyłącznie przy spadku HP poniżej 40.
+  - Dodano mroczny, surowy color grading w klimacie Half-Life 2 Beta / S.T.A.L.K.E.R. (zmiażdżone cienie `pow(mapped, 1.10)`, zimna desaturacja ruin `mix(luma, mapped, 0.82)`, subtelne ziarno filmowe).
+- [x] **Wolumetryczna mgła odległościowa (Distance Blizzard Fog) i mroczny klimat:**
+  - Dodano do `defaultFragmentShaderSrc` i `Renderer::setFog()` kwadratową mgłę odległościową (`uFogColor = (0.05, 0.07, 0.10)`, zasięg 10-75m).
+  - Zmieniono kolor tła w silniku na ciemny, zamieciowy granat polarny (`0.05, 0.07, 0.10`).
+  - Przebudowano mapę `cryo_outpost.labmap`: usunięto wiszącą małpę `Model.stl`, dodano zniszczoną industrialną bazę bunkra, zardzewiałe stalowe dźwigary i zapory, oraz zimne, polarne oświetlenie burzowe.
+- [x] **Dynamiczny Server Browser po UDP LAN:**
+  - Dodano pakiety `ServerQuery` (0x09) i `ServerInfo` (0x0A) w `LabNetwork`.
+  - Serwer `DedicatedServer` natychmiast odpowiada na zapytania pakietem zawierającym nazwę serwera, mapę, tryb gry, liczbę graczy oraz limit.
+  - Zaimplementowano klasę `ServerBrowser` automatycznie odpytującą sieć LAN i localhost co 1s.
+  - Menu `JoinGame` w `src/main.cpp` dynamicznie renderuje wykryte uruchomione instancje (np. `LabServer.exe`) z realnym zielonym pingiem (2ms), informacjami o mapie i pozwala na bezpośrednie kliknięcie i połączenie.

@@ -99,6 +99,9 @@ namespace Lab {
         static void setShadowMap(const Mat4& lightSpaceMatrix, unsigned int depthTexture);
         static void disableShadowMap();
 
+        // Atmospheric Volumetric Distance Fog
+        static void setFog(bool enable, const Vec3& color = { 0.05f, 0.07f, 0.10f }, float startDist = 12.0f, float endDist = 85.0f);
+
         // Shadow depth pass rendering
         static void beginShadowDepthPass(const Mat4& lightSpaceMatrix);
         static void endShadowDepthPass();
@@ -163,5 +166,11 @@ namespace Lab {
         static bool _enableShadows;
         static Mat4 _lightSpaceMatrix;
         static unsigned int _shadowDepthTexture;
+
+        // Atmospheric Distance Fog State
+        static bool _enableFog;
+        static Vec3 _fogColor;
+        static float _fogStart;
+        static float _fogEnd;
     };
 }
