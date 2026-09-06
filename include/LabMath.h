@@ -57,6 +57,7 @@ namespace Lab {
             return (len > 0) ? *this / len : Vec3(0, 0, 0);
         }
 
+        float dot(const Vec3& o) const { return x * o.x + y * o.y + z * o.z; }
         static float dot(const Vec3& a, const Vec3& b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
         static Vec3 cross(const Vec3& a, const Vec3& b) {
             return {
@@ -236,19 +237,19 @@ namespace Lab {
         }
 
         static Quat fromEuler(float pitchRad, float yawRad, float rollRad) {
-            // Yaw (Y), Pitch (X), Roll (Z)
-            float cy = std::cos(yawRad * 0.5f);
-            float sy = std::sin(yawRad * 0.5f);
+            // Standard Euler XYZ: Pitch (X), Yaw (Y), Roll (Z)
             float cp = std::cos(pitchRad * 0.5f);
             float sp = std::sin(pitchRad * 0.5f);
+            float cy = std::cos(yawRad * 0.5f);
+            float sy = std::sin(yawRad * 0.5f);
             float cr = std::cos(rollRad * 0.5f);
             float sr = std::sin(rollRad * 0.5f);
 
             return {
-                sr * cp * cy - cr * sp * sy,
-                cr * sp * cy + sr * cp * sy,
-                cr * cp * sy - sr * sp * cy,
-                cr * cp * cy + sr * sp * sy
+                sp * cy * cr + cp * sy * sr,
+                cp * sy * cr - sp * cy * sr,
+                cp * cy * sr + sp * sy * cr,
+                cp * cy * cr - sp * sy * sr
             };
         }
 

@@ -60,8 +60,9 @@ namespace Lab {
         float strafeTimer = 0.0f;
         int strafeDirection = 1; // -1 = Left, +1 = Right
 
-        // glTF 2.0 Skeletal Animation Controller
+        // glTF 2.0 / FBX Skeletal Animation Controller
         Animator animator;
+        std::string deathAnim = "Death";
 
         // Kinetic momentum & ragdoll knockback
         Vec3 velocity{ 0.0f, 0.0f, 0.0f };

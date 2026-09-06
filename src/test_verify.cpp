@@ -4412,6 +4412,213 @@ int main() {
         studio.shutdown();
     }
 
+    // =========================================================================
+    // TEST 44: BOT COMBAT & SKELETAL FBX ANIMATION SUITE EXECUTION
+    // =========================================================================
+    {
+        std::cout << "\n[Test 44] Verifying Bot Combat & Skeletal FBX Animation Suite Execution...\n";
+
+        Lab::AIManager aiMgr;
+        aiMgr.initAssets();
+        if (!aiMgr.skeleton || !aiMgr.skinnedMesh) {
+            std::cerr << "Assertion failed: aiMgr assets missing!\n";
+            return 1;
+        }
+
+        Lab::LabMap testMap;
+        std::vector<Lab::BulletTracer> tracers;
+        float dmgToPlayer = 0.0f;
+
+        // 1. Verify "Heavy Weapon Swing" for Pipe and "Firing Rifle" for Firearm
+        Lab::CombatBot botPipe(0, "Pipe-Bot", Lab::Vec3(0, 0, 0), Lab::Vec3(0, 0, 5), -1, Lab::WeaponID::Pipe);
+        botPipe.initAnimation(aiMgr.skeleton, aiMgr.animations);
+        botPipe.shootAnimTimer = 0.25f;
+        botPipe.update(0.016f, Lab::Vec3(0, 0, 10), testMap, tracers, dmgToPlayer);
+        if (botPipe.animator.getCurrentAnimationName() != "Heavy Weapon Swing") {
+            std::cerr << "Assertion failed: Pipe attack did not execute Heavy Weapon Swing!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Bot Pipe attack executes 'Heavy Weapon Swing'!\n";
+
+        Lab::CombatBot botRifle(1, "Rifle-Bot", Lab::Vec3(0, 0, 0), Lab::Vec3(0, 0, 5), -1, Lab::WeaponID::M4A4S);
+        botRifle.initAnimation(aiMgr.skeleton, aiMgr.animations);
+        botRifle.shootAnimTimer = 0.25f;
+        botRifle.update(0.016f, Lab::Vec3(0, 0, 10), testMap, tracers, dmgToPlayer);
+        if (botRifle.animator.getCurrentAnimationName() != "Firing Rifle") {
+            std::cerr << "Assertion failed: M4A4S attack did not execute Firing Rifle!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Bot M4A4S attack executes 'Firing Rifle'!\n";
+
+        // 2. Verify "Reload" & "Hit Reaction"
+        Lab::CombatBot botReload(2, "Reload-Bot", Lab::Vec3(0, 0, 0), Lab::Vec3(0, 0, 5), -1, Lab::WeaponID::Shotgun);
+        botReload.initAnimation(aiMgr.skeleton, aiMgr.animations);
+        botReload.reloadTimer = 1.2f;
+        botReload.update(0.016f, Lab::Vec3(0, 0, 10), testMap, tracers, dmgToPlayer);
+        if (botReload.animator.getCurrentAnimationName() != "Reload") {
+            std::cerr << "Assertion failed: Bot reload did not execute Reload!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Bot reload executes 'Reload'!\n";
+
+        Lab::CombatBot botHurt(3, "Hurt-Bot", Lab::Vec3(0, 0, 0), Lab::Vec3(0, 0, 5), -1, Lab::WeaponID::Pistol);
+        botHurt.initAnimation(aiMgr.skeleton, aiMgr.animations);
+        botHurt.hurtTimer = 0.2f;
+        botHurt.update(0.016f, Lab::Vec3(0, 0, 10), testMap, tracers, dmgToPlayer);
+        if (botHurt.animator.getCurrentAnimationName() != "Hit Reaction") {
+            std::cerr << "Assertion failed: Bot hurt did not execute Hit Reaction!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Bot damaged state executes 'Hit Reaction'!\n";
+
+        // 3. Verify Movement Animations: "Run Forward", "Sprint Backward", "Pistol Strafe", "Strafing"
+        Lab::CombatBot botChase(4, "Chase-Bot", Lab::Vec3(0, 0, 0), Lab::Vec3(0, 0, 5), -1, Lab::WeaponID::M4A4S);
+        botChase.initAnimation(aiMgr.skeleton, aiMgr.animations);
+        botChase.update(0.016f, Lab::Vec3(0, 0, 15), testMap, tracers, dmgToPlayer); // dist > 8m -> Chase
+        if (botChase.state != Lab::AIState::Chase || botChase.animator.getCurrentAnimationName() != "Run Forward") {
+            std::cerr << "Assertion failed: Bot chase did not execute Run Forward!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Distant target chase executes 'Run Forward'!\n";
+
+        Lab::CombatBot botBack(5, "Retreat-Bot", Lab::Vec3(0, 0, 0), Lab::Vec3(0, 0, 5), -1, Lab::WeaponID::Shotgun);
+        botBack.initAnimation(aiMgr.skeleton, aiMgr.animations);
+        botBack.update(0.016f, Lab::Vec3(0, 0, 2.5f), testMap, tracers, dmgToPlayer); // dist < 3.5m -> Retreat
+        if (botBack.state != Lab::AIState::Attack || botBack.animator.getCurrentAnimationName() != "Sprint Backward") {
+            std::cerr << "Assertion failed: Bot close combat did not execute Sprint Backward!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Close combat retreat executes 'Sprint Backward'!\n";
+
+        Lab::CombatBot botStrafeP(6, "StrafeP-Bot", Lab::Vec3(0, 0, 0), Lab::Vec3(0, 0, 5), -1, Lab::WeaponID::Pistol);
+        botStrafeP.initAnimation(aiMgr.skeleton, aiMgr.animations);
+        botStrafeP.strafeDirection = 1;
+        botStrafeP.update(0.016f, Lab::Vec3(0, 0, 5.5f), testMap, tracers, dmgToPlayer); // 3.5m < dist < 8m -> Strafe
+        if (botStrafeP.animator.getCurrentAnimationName() != "Pistol Strafe") {
+            std::cerr << "Assertion failed: Bot pistol strafe did not execute Pistol Strafe!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Pistol tactical strafe executes 'Pistol Strafe'!\n";
+
+        // 4. Verify Context-Sensitive Death Animations
+        // A) Headshot -> "Death From Front Headshot"
+        Lab::CombatBot botHeadshot(7, "Headshot-Bot", Lab::Vec3(0, 0, 0), Lab::Vec3(0, 0, 5), -1, Lab::WeaponID::M4A4S);
+        botHeadshot.initAnimation(aiMgr.skeleton, aiMgr.animations);
+        botHeadshot.rotation.y = 0.0f; // Facing +Z
+        if (!botHeadshot.takeDamage(100.0f, true, Lab::Vec3(0, 0, -5.0f)) ||
+            botHeadshot.deathAnim != "Death From Front Headshot" ||
+            botHeadshot.animator.getCurrentAnimationName() != "Death From Front Headshot") {
+            std::cerr << "Assertion failed: Headshot did not trigger Death From Front Headshot!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Headshot kill executes 'Death From Front Headshot'!\n";
+
+        // B) Shot from behind -> "Death From The Back"
+        Lab::CombatBot botBackshot(8, "Backshot-Bot", Lab::Vec3(0, 0, 0), Lab::Vec3(0, 0, 5), -1, Lab::WeaponID::Pipe);
+        botBackshot.initAnimation(aiMgr.skeleton, aiMgr.animations);
+        botBackshot.rotation.y = 0.0f; // Facing +Z
+        if (!botBackshot.takeDamage(100.0f, false, Lab::Vec3(0, 0, 8.0f)) ||
+            botBackshot.deathAnim != "Death From The Back" ||
+            botBackshot.animator.getCurrentAnimationName() != "Death From The Back") {
+            std::cerr << "Assertion failed: Back kill did not trigger Death From The Back!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Back kill executes 'Death From The Back'!\n";
+
+        // C) Frontal body shot -> "Rifle Death"
+        Lab::CombatBot botFront(9, "Front-Bot", Lab::Vec3(0, 0, 0), Lab::Vec3(0, 0, 5), -1, Lab::WeaponID::Minigun);
+        botFront.initAnimation(aiMgr.skeleton, aiMgr.animations);
+        botFront.rotation.y = 0.0f; // Facing +Z
+        if (!botFront.takeDamage(100.0f, false, Lab::Vec3(0, 0, -8.0f)) ||
+            botFront.deathAnim != "Rifle Death" ||
+            botFront.animator.getCurrentAnimationName() != "Rifle Death") {
+            std::cerr << "Assertion failed: Front kill did not trigger Rifle Death!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Frontal rifle kill executes 'Rifle Death'!\n";
+
+        // 5. Verify Dead Bot Skeletal Mesh Rendering (Not Placeholder Cube)
+        botHeadshot.animator.update(0.5f);
+        if (botHeadshot.animator.getSkinMatrices().empty()) {
+            std::cerr << "Assertion failed: Dead bot skin matrices empty!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Dead bot corpse updates skeletal skin matrices for ground pose!\n";
+
+        // 6. Visual Verification Scene: 5 Combat Bots in Live Animation States
+        glClearColor(0.07f, 0.09f, 0.12f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        Lab::Camera showcaseCam(58.0f, (float)w / (float)h, 0.01f, 1000.0f);
+        showcaseCam.setPosition(Lab::Vec3(0.0f, 1.9f, 7.2f));
+        showcaseCam.lookAt(Lab::Vec3(0.0f, 1.05f, 0.0f));
+
+        Lab::Renderer::beginFrame(showcaseCam);
+        Lab::Renderer::setSunLight(Lab::Vec3(-0.4f, -0.9f, -0.4f), Lab::Vec3(1.0f, 0.98f, 0.95f), Lab::Vec3(0.25f, 0.28f, 0.35f));
+
+        Lab::Texture floorTex("assets/textures/floor_tiles.bmp");
+        Lab::Texture wallTex("assets/textures/concrete_wall.bmp");
+        Lab::Renderer::drawCube(Lab::Vec3(0.0f, -0.1f, 0.0f), Lab::Vec3(35.0f, 0.2f, 35.0f), Lab::Vec3(0.65f, 0.65f, 0.65f), &floorTex, true);
+        Lab::Renderer::drawCube(Lab::Vec3(0.0f, 3.0f, -6.0f), Lab::Vec3(30.0f, 6.0f, 0.5f), Lab::Vec3(0.55f, 0.55f, 0.55f), &wallTex, true);
+
+        // Position 5 bots displaying key FBX animations:
+        // Bot 1: Run Forward (M4A4S)
+        Lab::CombatBot botRun(1, "RUNNER", Lab::Vec3(-4.0f, 0.0f, 0.0f), Lab::Vec3(-4.0f, 0.0f, 5.0f), 0, Lab::WeaponID::M4A4S);
+        botRun.initAnimation(aiMgr.skeleton, aiMgr.animations);
+        botRun.animator.playAnimation("Run Forward", true);
+        botRun.animator.update(0.35f);
+
+        // Bot 2: Heavy Weapon Swing (Pipe)
+        Lab::CombatBot botSwing(2, "MELEE", Lab::Vec3(-2.0f, 0.0f, 0.0f), Lab::Vec3(-2.0f, 0.0f, 5.0f), 1, Lab::WeaponID::Pipe);
+        botSwing.initAnimation(aiMgr.skeleton, aiMgr.animations);
+        botSwing.animator.playAnimation("Heavy Weapon Swing", false);
+        botSwing.animator.update(0.30f);
+
+        // Bot 3: Firing Rifle (Minigun)
+        Lab::CombatBot botGun(3, "GUNNER", Lab::Vec3(0.0f, 0.0f, 0.0f), Lab::Vec3(0.0f, 0.0f, 5.0f), 0, Lab::WeaponID::Minigun);
+        botGun.initAnimation(aiMgr.skeleton, aiMgr.animations);
+        botGun.animator.playAnimation("Firing Rifle", true);
+        botGun.animator.update(0.18f);
+        botGun.muzzleFlashTimer = 0.15f;
+
+        // Bot 4: Pistol Strafe (Pistol)
+        Lab::CombatBot botStraf(4, "STRAFER", Lab::Vec3(2.0f, 0.0f, 0.0f), Lab::Vec3(2.0f, 0.0f, 5.0f), 1, Lab::WeaponID::Pistol);
+        botStraf.initAnimation(aiMgr.skeleton, aiMgr.animations);
+        botStraf.animator.playAnimation("Pistol Strafe", true);
+        botStraf.animator.update(0.40f);
+
+        // Bot 5: Death From Front Headshot (Corpse lying flat on floor)
+        Lab::CombatBot botDead(5, "FALLEN", Lab::Vec3(4.0f, 0.0f, 0.0f), Lab::Vec3(4.0f, 0.0f, 5.0f), 0, Lab::WeaponID::Shotgun);
+        botDead.initAnimation(aiMgr.skeleton, aiMgr.animations);
+        botDead.takeDamage(500.0f, true, Lab::Vec3(0, 0, -5.0f));
+        botDead.animator.update(1.8f); // Complete fall onto floor
+
+        // Render all 5 bots with their weapons
+        std::vector<Lab::CombatBot*> sceneBots = { &botRun, &botSwing, &botGun, &botStraf, &botDead };
+        for (auto* b : sceneBots) {
+            int wIdx = static_cast<int>(b->equippedWeapon);
+            const Lab::Mesh* wMesh = aiMgr.weaponMeshes[wIdx] ? aiMgr.weaponMeshes[wIdx].get() : aiMgr.weaponMesh.get();
+            const Lab::Texture* wTex = aiMgr.weaponTextures[wIdx].get();
+            const Lab::BotWeaponConfig* bCfg = &aiMgr.botWeaponConfigs[wIdx];
+            b->render(aiMgr.skinnedMesh.get(), wMesh, bCfg, wTex);
+        }
+
+        Lab::Renderer::endFrame();
+
+        // Diagnostics HUD Overlay
+        Lab::Renderer::beginUI(w, h);
+        Lab::Renderer::drawRect(30.0f, 25.0f, 960.0f, 100.0f, Lab::Vec3(0.08f, 0.10f, 0.14f));
+        Lab::Renderer::drawRect(30.0f, 25.0f, 960.0f, 3.0f, Lab::Vec3(0.2f, 0.85f, 1.0f));
+        Lab::LabFont::drawText(50.0f, 38.0f, "LAB ENGINE - FBX SKELETAL COMBAT ANIMATION SUITE", 1.8f, Lab::Vec3(1.0f, 0.9f, 0.3f), Lab::LabFontType::GeoSans);
+        Lab::LabFont::drawText(50.0f, 68.0f, "Active: [1] Run Forward  [2] Heavy Weapon Swing  [3] Firing Rifle  [4] Pistol Strafe  [5] Headshot Death", 1.3f, Lab::Vec3(0.85f, 0.9f, 0.95f), Lab::LabFontType::GeoSans);
+        Lab::LabFont::drawText(50.0f, 92.0f, "Human Recoil Arcs | 19 Mixamo FBX Clips | Dynamic Ragdoll Knockback | Skinned Mesh Death", 1.15f, Lab::Vec3(0.5f, 0.8f, 0.7f), Lab::LabFontType::GeoSans);
+        Lab::Renderer::endUI();
+
+        glFinish();
+        saveFrameToBMP("test_bot_fbx_combat_animations.bmp", w, h);
+        std::cout << "  [PASS] Saved visual FBX Combat Animations verification to 'test_bot_fbx_combat_animations.bmp'.\n";
+    }
+
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();

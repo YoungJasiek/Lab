@@ -233,17 +233,45 @@ namespace Lab {
         // Update glTF 2.0 / FBX Skeletal Animator (Death, Hit, Reload, Shoot recoil, Walk, Idle)
         if (animator.getSkeleton()) {
             if (state == AIState::Dead) {
-                animator.playAnimation("Death", false);
+                animator.playAnimation(deathAnim, false);
             } else if (hurtTimer > 0.0f) {
                 animator.playAnimation("Hit Reaction", false, 0.05f);
             } else if (reloadTimer > 0.0f) {
-                animator.playAnimation("Reload", false);
+                animator.playAnimation("Reload", false, 0.1f);
             } else if (shootAnimTimer > 0.0f) {
-                animator.playAnimation("Shoot", false);
-            } else if (state == AIState::Chase || state == AIState::Patrol || (state == AIState::Attack && (distToPlayer > 8.0f || distToPlayer < 3.5f))) {
-                animator.playAnimation("Walk", true);
+                if (equippedWeapon == WeaponID::Pipe) {
+                    animator.playAnimation("Heavy Weapon Swing", false, 0.05f);
+                } else {
+                    animator.playAnimation("Firing Rifle", false, 0.05f);
+                }
+            } else if (state == AIState::Chase) {
+                animator.playAnimation("Run Forward", true, 0.1f);
+            } else if (state == AIState::Attack) {
+                if (distToPlayer < 3.5f) {
+                    animator.playAnimation("Sprint Backward", true, 0.1f);
+                } else if (std::abs(strafeDirection) > 0) {
+                    if (equippedWeapon == WeaponID::Pistol) {
+                        animator.playAnimation("Pistol Strafe", true, 0.1f);
+                    } else {
+                        animator.playAnimation("Strafing", true, 0.1f);
+                    }
+                } else if (distToPlayer > 8.0f) {
+                    animator.playAnimation("Walking", true, 0.1f);
+                } else {
+                    if (equippedWeapon == WeaponID::Pistol) {
+                        animator.playAnimation("Pistol Idle", true, 0.15f);
+                    } else {
+                        animator.playAnimation("Idle", true, 0.15f);
+                    }
+                }
+            } else if (state == AIState::Patrol) {
+                animator.playAnimation("Walking", true, 0.1f);
             } else {
-                animator.playAnimation("Idle", true);
+                if (equippedWeapon == WeaponID::Pistol) {
+                    animator.playAnimation("Pistol Idle", true, 0.15f);
+                } else {
+                    animator.playAnimation("Idle", true, 0.15f);
+                }
             }
             animator.update(dt);
         }
@@ -275,7 +303,27 @@ namespace Lab {
             state = AIState::Dead;
             deaths++;
             respawnTimer = 4.5f;
-            rotation.x = -80.0f; // Collapse back onto ground
+            deathTimer = 0.0f;
+            rotation.x = 0.0f;
+
+            // Context-sensitive death animation based on hit location & knockback angle
+            float rad = rotation.y * 3.14159265f / 180.0f;
+            Vec3 botForward(std::sin(rad), 0.0f, std::cos(rad));
+            Vec3 kbFlat(knockback.x, 0.0f, knockback.z);
+            float dot = (kbFlat.lengthSq() > 0.01f) ? Vec3::dot(botForward, kbFlat.normalized()) : 0.0f;
+
+            if (isHeadshot) {
+                deathAnim = "Death From Front Headshot";
+            } else if (dot > 0.2f) {
+                deathAnim = "Death From The Back";
+            } else {
+                deathAnim = "Rifle Death";
+            }
+
+            if (animator.getSkeleton()) {
+                animator.playAnimation(deathAnim, false, 0.05f);
+            }
+
             if (velocity.lengthSq() < 0.1f) {
                 position.y = 0.25f;
             }
@@ -289,10 +337,21 @@ namespace Lab {
     void CombatBot::render(const SkinnedMesh* mesh, const Mesh* weaponMesh,
                            const BotWeaponConfig* botWepCfg, const Texture* weaponTex) const {
         if (state == AIState::Dead) {
-            // Render defeated bot on floor
-            Renderer::drawCube(position + Vec3(0.0f, 0.15f, 0.0f), Vec3(80.0f, rotation.y, 0.0f),
-                               Vec3(0.55f, 0.25f, 1.35f), Vec3(0.18f, 0.18f, 0.20f));
-            return;
+            if (mesh && animator.getSkeleton()) {
+                float botScale = mesh->getBaseScale(1.85f);
+                float yOffset = -mesh->getMinBounds().y * botScale;
+                Mat4 botModel = Mat4::translate(position + Vec3(0.0f, yOffset, 0.0f)) *
+                                Mat4::rotate(rotation.y * 3.14159265f / 180.0f, Vec3(0, 1, 0)) *
+                                Mat4::scale(Vec3(botScale, botScale, botScale));
+                Vec3 corpseCol = Vec3(0.18f, 0.18f, 0.20f);
+                Renderer::drawSkinnedMesh(*mesh, botModel, animator.getSkinMatrices(), corpseCol, nullptr, true);
+                return;
+            } else {
+                // Fallback cube
+                Renderer::drawCube(position + Vec3(0.0f, 0.15f, 0.0f), Vec3(80.0f, rotation.y, 0.0f),
+                                   Vec3(0.55f, 0.25f, 1.35f), Vec3(0.18f, 0.18f, 0.20f));
+                return;
+            }
         }
 
         float bodyBob = std::abs(std::sin(walkCycle * 2.0f)) * 0.04f;
@@ -393,6 +452,18 @@ namespace Lab {
 
     void CombatBot::renderShadow(const SkinnedMesh* mesh, const Mesh* weaponMesh,
                                  const BotWeaponConfig* botWepCfg) const {
+        if (state == AIState::Dead) {
+            if (deathTimer > 4.0f) return;
+            if (mesh && animator.getSkeleton()) {
+                float botScale = mesh->getBaseScale(1.85f);
+                float yOffset = -mesh->getMinBounds().y * botScale;
+                Mat4 botModel = Mat4::translate(position + Vec3(0.0f, yOffset, 0.0f)) *
+                                Mat4::rotate(rotation.y * 3.14159265f / 180.0f, Vec3(0, 1, 0)) *
+                                Mat4::scale(Vec3(botScale, botScale, botScale));
+                Renderer::drawShadowSkinnedMesh(*mesh, botModel, animator.getSkinMatrices());
+            }
+            return;
+        }
         if (!isAlive()) return;
         float bodyBob = std::abs(std::sin(walkCycle * 2.0f)) * 0.04f;
         Vec3 bPos = position + Vec3(0.0f, bodyBob, 0.0f);
@@ -736,11 +807,19 @@ namespace Lab {
                 }
                 bot.deathTimer += dt;
                 bot.respawnTimer -= dt;
+                if (bot.animator.getSkeleton()) {
+                    bot.animator.update(dt);
+                }
                 if (bot.respawnTimer <= 0.0f) {
                     bot.state = AIState::Patrol;
                     bot.health = bot.maxHealth;
                     bot.velocity = Vec3(0, 0, 0);
                     bot.rotation.x = 0.0f;
+                    bot.deathTimer = 0.0f;
+                    bot.deathAnim = "Death";
+                    if (bot.animator.getSkeleton()) {
+                        bot.animator.playAnimation("Walking", true, 0.1f);
+                    }
 
                     // Collect active enemy positions for anti-spawncamp selection
                     std::vector<Vec3> enemies;
@@ -926,7 +1005,9 @@ namespace Lab {
                             } else {
                                 bool isHeadshot = (rand() % 100) < 25;
                                 float dmg = isHeadshot ? (stats.damage * 2.2f) : stats.damage;
-                                bool killed = bots[targetBotIdx].takeDamage(dmg, isHeadshot);
+                                Vec3 shotDir = (targetHitPos - gunMuzzle).normalized();
+                                Vec3 kb = shotDir * (stats.damage * 0.15f) + Vec3(0.0f, 1.0f, 0.0f);
+                                bool killed = bots[targetBotIdx].takeDamage(dmg, isHeadshot, kb);
 
                                 if (killed) {
                                     bot.kills++;
@@ -989,17 +1070,45 @@ namespace Lab {
             // Update bot skeletal animator (Death, Hit, Reload, Shoot recoil, Walk, Idle)
             if (bot.animator.getSkeleton()) {
                 if (bot.state == AIState::Dead) {
-                    bot.animator.playAnimation("Death", false);
+                    bot.animator.playAnimation(bot.deathAnim, false);
                 } else if (bot.hurtTimer > 0.0f) {
                     bot.animator.playAnimation("Hit Reaction", false, 0.05f);
                 } else if (bot.reloadTimer > 0.0f) {
-                    bot.animator.playAnimation("Reload", false);
+                    bot.animator.playAnimation("Reload", false, 0.1f);
                 } else if (bot.shootAnimTimer > 0.0f) {
-                    bot.animator.playAnimation("Shoot", false);
-                } else if (bot.state == AIState::Chase || bot.state == AIState::Patrol || (bot.state == AIState::Attack && (bestDist > 8.0f || bestDist < 3.5f || std::abs(bot.strafeDirection) > 0))) {
-                    bot.animator.playAnimation("Walk", true);
+                    if (bot.equippedWeapon == WeaponID::Pipe) {
+                        bot.animator.playAnimation("Heavy Weapon Swing", false, 0.05f);
+                    } else {
+                        bot.animator.playAnimation("Firing Rifle", false, 0.05f);
+                    }
+                } else if (bot.state == AIState::Chase) {
+                    bot.animator.playAnimation("Run Forward", true, 0.1f);
+                } else if (bot.state == AIState::Attack) {
+                    if (bestDist < 3.5f) {
+                        bot.animator.playAnimation("Sprint Backward", true, 0.1f);
+                    } else if (std::abs(bot.strafeDirection) > 0) {
+                        if (bot.equippedWeapon == WeaponID::Pistol) {
+                            bot.animator.playAnimation("Pistol Strafe", true, 0.1f);
+                        } else {
+                            bot.animator.playAnimation("Strafing", true, 0.1f);
+                        }
+                    } else if (bestDist > 8.0f) {
+                        bot.animator.playAnimation("Walking", true, 0.1f);
+                    } else {
+                        if (bot.equippedWeapon == WeaponID::Pistol) {
+                            bot.animator.playAnimation("Pistol Idle", true, 0.15f);
+                        } else {
+                            bot.animator.playAnimation("Idle", true, 0.15f);
+                        }
+                    }
+                } else if (bot.state == AIState::Patrol) {
+                    bot.animator.playAnimation("Walking", true, 0.1f);
                 } else {
-                    bot.animator.playAnimation("Idle", true);
+                    if (bot.equippedWeapon == WeaponID::Pistol) {
+                        bot.animator.playAnimation("Pistol Idle", true, 0.15f);
+                    } else {
+                        bot.animator.playAnimation("Idle", true, 0.15f);
+                    }
                 }
                 bot.animator.update(dt);
             }
