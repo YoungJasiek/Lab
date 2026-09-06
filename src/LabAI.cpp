@@ -230,9 +230,13 @@ namespace Lab {
             }
         }
 
-        // Update glTF 2.0 Skeletal Animator (Idle, Walk, Shoot recoil, Reload)
+        // Update glTF 2.0 / FBX Skeletal Animator (Death, Hit, Reload, Shoot recoil, Walk, Idle)
         if (animator.getSkeleton()) {
-            if (reloadTimer > 0.0f) {
+            if (state == AIState::Dead) {
+                animator.playAnimation("Death", false);
+            } else if (hurtTimer > 0.0f) {
+                animator.playAnimation("Hit Reaction", false, 0.05f);
+            } else if (reloadTimer > 0.0f) {
                 animator.playAnimation("Reload", false);
             } else if (shootAnimTimer > 0.0f) {
                 animator.playAnimation("Shoot", false);
@@ -611,6 +615,9 @@ namespace Lab {
                 GLTFLoader::createProceduralCombatBot(skeleton, animations, skinnedMesh);
             }
 
+            // Ingest all FBX / binary animations into the AI bot skeleton
+            FBXLoader::loadAllFromDirectory("assets/animations", animations, skeleton.get());
+
             // Load bot weapon configuration from studio profile
             loadConfig("assets/configs/character_studio.cfg");
 
@@ -979,9 +986,13 @@ namespace Lab {
                 }
             }
 
-            // Update bot skeletal animator (Idle, Walk, Shoot recoil, Reload)
+            // Update bot skeletal animator (Death, Hit, Reload, Shoot recoil, Walk, Idle)
             if (bot.animator.getSkeleton()) {
-                if (bot.reloadTimer > 0.0f) {
+                if (bot.state == AIState::Dead) {
+                    bot.animator.playAnimation("Death", false);
+                } else if (bot.hurtTimer > 0.0f) {
+                    bot.animator.playAnimation("Hit Reaction", false, 0.05f);
+                } else if (bot.reloadTimer > 0.0f) {
                     bot.animator.playAnimation("Reload", false);
                 } else if (bot.shootAnimTimer > 0.0f) {
                     bot.animator.playAnimation("Shoot", false);

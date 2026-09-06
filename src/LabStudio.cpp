@@ -447,6 +447,10 @@ namespace Lab {
         if (!loadedBot || !_botMesh) {
             GLTFLoader::createProceduralCombatBot(_botSkeleton, _botAnimations, _botMesh);
         }
+
+        // Ingest all FBX / binary animations for Bot Studio
+        FBXLoader::loadAllFromDirectory("assets/animations", _botAnimations, _botSkeleton.get());
+
         if (_botSkeleton && _botMesh) {
             _botAnimator.setSkeleton(_botSkeleton);
             for (const auto& c : _botAnimations) {
@@ -1859,25 +1863,34 @@ namespace Lab {
         }
         drawHammerSlider(x + 14.0f + pBtnW + 8.0f, curY + 46.0f, w - 28.0f - pBtnW - 8.0f, 16.0f, "Speed:", _animPlaybackSpeed, 0.25f, 2.5f, "%.2fx");
 
-        // Dynamic Clips loaded for Bot (Mixamo / glTF / user added clips)
+        // Dynamic Clips loaded for Bot (Mixamo FBX / glTF / binary .anim)
         float clipX = x + 14.0f;
         float clipY = curY + 70.0f;
-        LabFont::drawText(clipX, clipY + 2.0f, "CLIPS:", 1.2f, Vec3(0.65f, 0.70f, 0.75f), LabFontType::System);
-        clipX += 45.0f;
+        LabFont::drawText(clipX, clipY + 2.0f, "FBX / BOT CLIPS:", 1.2f, Vec3(0.65f, 0.70f, 0.75f), LabFontType::System);
+        clipY += 18.0f;
         if (!_botAnimations.empty()) {
-            float clipAvailW = (w - 28.0f - 45.0f);
-            float singleClipW = std::min(60.0f, clipAvailW / std::max(1, (int)_botAnimations.size()));
+            float clipBtnW = 96.0f;
+            float clipBtnH = 18.0f;
+            float curRowX = x + 14.0f;
+            float maxRowX = x + w - 14.0f;
             for (size_t cIdx = 0; cIdx < _botAnimations.size(); ++cIdx) {
                 const auto& clip = _botAnimations[cIdx];
+                if (curRowX + clipBtnW > maxRowX) {
+                    curRowX = x + 14.0f;
+                    clipY += clipBtnH + 3.0f;
+                }
                 bool isActiveClip = (_activeBotClipName == clip.name);
-                if (drawHammerButton(clipX + cIdx * (singleClipW + 2.0f), clipY, singleClipW, 18.0f, clip.name.c_str(), isActiveClip)) {
+                if (drawHammerButton(curRowX, clipY, clipBtnW, clipBtnH, clip.name.c_str(), isActiveClip)) {
                     setBotAnimationClip(clip.name);
                 }
+                curRowX += clipBtnW + 3.0f;
             }
+            clipY += clipBtnH + 6.0f;
         } else {
-            LabFont::drawText(clipX, clipY + 2.0f, "Procedural Rig (Add glTF animations to models/)", 1.1f, Vec3(0.5f, 0.5f, 0.5f), LabFontType::System);
+            LabFont::drawText(clipX, clipY + 2.0f, "Procedural Rig (Add FBX animations to assets/animations/)", 1.1f, Vec3(0.5f, 0.5f, 0.5f), LabFontType::System);
+            clipY += 22.0f;
         }
-        curY += 102.0f;
+        curY = clipY;
 
         if (_poserSubMode == PoserSubMode::WeaponTransform) {
             // Mode Toggle: Move Weapon Only (Hands Fixed) vs Move Together

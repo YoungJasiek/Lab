@@ -5,6 +5,7 @@
 #include <iostream>
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
 
 namespace Lab {
 
@@ -133,7 +134,25 @@ namespace Lab {
 
     int Skeleton::findBoneIndex(const std::string& name) const {
         auto it = _nameToIndex.find(name);
-        return (it != _nameToIndex.end()) ? it->second : -1;
+        if (it != _nameToIndex.end()) return it->second;
+
+        auto cleanName = [](std::string s) {
+            auto p = s.find("mixamorig:");
+            if (p != std::string::npos) s.erase(p, 10);
+            p = s.find("mixamorig_");
+            if (p != std::string::npos) s.erase(p, 10);
+            while (!s.empty() && (s.back() >= '0' && s.back() <= '9')) s.pop_back();
+            if (!s.empty() && s.back() == '_') s.pop_back();
+            return s;
+        };
+
+        std::string target = cleanName(name);
+        for (const auto& pair : _nameToIndex) {
+            if (cleanName(pair.first) == target) {
+                return pair.second;
+            }
+        }
+        return -1;
     }
 
     const Bone* Skeleton::getBone(int index) const {
@@ -350,11 +369,32 @@ namespace Lab {
     }
 
     void Animator::playAnimation(const std::string& name, bool loop, float blendDuration) {
-        if (_currentClipName == name && _looping == loop) {
+        std::string target = name;
+        if (!hasClip(target)) {
+            if (target == "Shoot" || target == "Fire") {
+                if (hasClip("Firing Rifle")) target = "Firing Rifle";
+            } else if (target == "Walk" || target == "Run") {
+                if (hasClip("Walking")) target = "Walking";
+                else if (hasClip("Run Forward")) target = "Run Forward";
+            } else if (target == "Idle") {
+                if (hasClip("Pistol Idle")) target = "Pistol Idle";
+            } else if (target == "Death" || target == "Dead") {
+                if (hasClip("Death")) target = "Death";
+                else if (hasClip("Rifle Death")) target = "Rifle Death";
+                else if (hasClip("Dying")) target = "Dying";
+                else if (hasClip("Death From Front Headshot")) target = "Death From Front Headshot";
+            } else if (target == "Hit" || target == "Hurt") {
+                if (hasClip("Hit Reaction")) target = "Hit Reaction";
+            } else if (target == "Melee" || target == "Melee_Swing") {
+                if (hasClip("Heavy Weapon Swing")) target = "Heavy Weapon Swing";
+            }
+        }
+
+        if (_currentClipName == target && _looping == loop) {
             return;
         }
 
-        if (hasClip(name)) {
+        if (hasClip(target)) {
             if (!_currentClipName.empty() && blendDuration > 0.001f) {
                 _previousClipName = _currentClipName;
                 _previousTime = _currentTime;
@@ -365,7 +405,7 @@ namespace Lab {
                 _blendDuration = 0.0f;
             }
 
-            _currentClipName = name;
+            _currentClipName = target;
             _currentTime = 0.0f;
             _looping = loop;
         }
@@ -1498,4 +1538,157 @@ namespace Lab {
         return true;
     }
 
+    // --- FBX & Binary Animation Loader Implementation ---
+
+    bool FBXLoader::loadAnimation(const std::string& path, AnimationClip& outClip, const Skeleton* skeleton) {
+        std::string targetPath = path;
+        // If an .fbx path is provided, check for a matching precompiled .anim cache
+        if (targetPath.size() >= 4 && targetPath.substr(targetPath.size() - 4) == ".fbx") {
+            std::string animPath = targetPath.substr(0, targetPath.size() - 4) + ".anim";
+            if (std::filesystem::exists(animPath)) {
+                targetPath = animPath;
+            }
+        }
+
+        std::ifstream file(targetPath, std::ios::binary);
+        if (!file.is_open()) {
+            std::cerr << "[FBXLoader] Failed to open animation file: " << targetPath << std::endl;
+            return false;
+        }
+
+        char magic[9] = {0};
+        file.read(magic, 9);
+        if (file.gcount() < 9 || std::string(magic, 8) != "LAB_ANIM" || magic[8] != '\0') {
+            std::cerr << "[FBXLoader] Invalid magic in binary animation: " << targetPath << std::endl;
+            return false;
+        }
+
+        uint16_t nameLen = 0;
+        file.read(reinterpret_cast<char*>(&nameLen), sizeof(uint16_t));
+        std::string clipName(nameLen, '\0');
+        if (nameLen > 0) {
+            file.read(&clipName[0], nameLen);
+        }
+
+        float duration = 0.0f;
+        file.read(reinterpret_cast<char*>(&duration), sizeof(float));
+
+        uint32_t trackCount = 0;
+        file.read(reinterpret_cast<char*>(&trackCount), sizeof(uint32_t));
+
+        outClip.name = clipName;
+        outClip.duration = duration;
+        outClip.tracks.clear();
+        outClip.tracks.reserve(trackCount);
+
+        for (uint32_t i = 0; i < trackCount; ++i) {
+            BoneAnimationTrack track;
+            uint16_t bNameLen = 0;
+            file.read(reinterpret_cast<char*>(&bNameLen), sizeof(uint16_t));
+            track.boneName.resize(bNameLen);
+            if (bNameLen > 0) {
+                file.read(&track.boneName[0], bNameLen);
+            }
+            if (skeleton) {
+                track.boneIndex = skeleton->findBoneIndex(track.boneName);
+            }
+
+            uint32_t tCount = 0;
+            file.read(reinterpret_cast<char*>(&tCount), sizeof(uint32_t));
+            track.translationKeys.resize(tCount);
+            for (uint32_t j = 0; j < tCount; ++j) {
+                float t, x, y, z;
+                file.read(reinterpret_cast<char*>(&t), sizeof(float));
+                file.read(reinterpret_cast<char*>(&x), sizeof(float));
+                file.read(reinterpret_cast<char*>(&y), sizeof(float));
+                file.read(reinterpret_cast<char*>(&z), sizeof(float));
+                track.translationKeys[j] = { t, Vec3(x, y, z) };
+            }
+
+            uint32_t rCount = 0;
+            file.read(reinterpret_cast<char*>(&rCount), sizeof(uint32_t));
+            track.rotationKeys.resize(rCount);
+            for (uint32_t j = 0; j < rCount; ++j) {
+                float t, x, y, z, w;
+                file.read(reinterpret_cast<char*>(&t), sizeof(float));
+                file.read(reinterpret_cast<char*>(&x), sizeof(float));
+                file.read(reinterpret_cast<char*>(&y), sizeof(float));
+                file.read(reinterpret_cast<char*>(&z), sizeof(float));
+                file.read(reinterpret_cast<char*>(&w), sizeof(float));
+                track.rotationKeys[j] = { t, Quat(x, y, z, w) };
+            }
+
+            uint32_t sCount = 0;
+            file.read(reinterpret_cast<char*>(&sCount), sizeof(uint32_t));
+            track.scaleKeys.resize(sCount);
+            for (uint32_t j = 0; j < sCount; ++j) {
+                float t, x, y, z;
+                file.read(reinterpret_cast<char*>(&t), sizeof(float));
+                file.read(reinterpret_cast<char*>(&x), sizeof(float));
+                file.read(reinterpret_cast<char*>(&y), sizeof(float));
+                file.read(reinterpret_cast<char*>(&z), sizeof(float));
+                track.scaleKeys[j] = { t, Vec3(x, y, z) };
+            }
+
+            outClip.tracks.push_back(std::move(track));
+        }
+
+        return true;
+    }
+
+    int FBXLoader::loadAllFromDirectory(const std::string& dirPath, std::vector<AnimationClip>& outClips, const Skeleton* skeleton) {
+        if (!std::filesystem::exists(dirPath) || !std::filesystem::is_directory(dirPath)) {
+            std::cerr << "[FBXLoader] Directory not found: " << dirPath << std::endl;
+            return 0;
+        }
+
+        int loadedCount = 0;
+        std::vector<std::filesystem::path> animFiles;
+
+        for (const auto& entry : std::filesystem::directory_iterator(dirPath)) {
+            if (!entry.is_regular_file()) continue;
+            std::string ext = entry.path().extension().string();
+            std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) -> char { return static_cast<char>(std::tolower(c)); });
+            if (ext == ".anim") {
+                animFiles.push_back(entry.path());
+            }
+        }
+
+        // If no precompiled .anim files found, check for .fbx
+        if (animFiles.empty()) {
+            for (const auto& entry : std::filesystem::directory_iterator(dirPath)) {
+                if (!entry.is_regular_file()) continue;
+                std::string ext = entry.path().extension().string();
+                std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) -> char { return static_cast<char>(std::tolower(c)); });
+                if (ext == ".fbx") {
+                    animFiles.push_back(entry.path());
+                }
+            }
+        }
+
+        std::sort(animFiles.begin(), animFiles.end());
+
+        for (const auto& p : animFiles) {
+            AnimationClip clip;
+            if (loadAnimation(p.string(), clip, skeleton)) {
+                bool replaced = false;
+                for (auto& existing : outClips) {
+                    if (existing.name == clip.name) {
+                        existing = std::move(clip);
+                        replaced = true;
+                        break;
+                    }
+                }
+                if (!replaced) {
+                    outClips.push_back(std::move(clip));
+                }
+                loadedCount++;
+            }
+        }
+
+        std::cout << "[FBXLoader] Loaded " << loadedCount << " animations from '" << dirPath << "'." << std::endl;
+        return loadedCount;
+    }
+
 }
+

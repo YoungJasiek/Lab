@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Authoritative 64Hz UDP Dedicated Server &amp; Multiplayer ? Technical architecture for Lab Dedicated Server, client-side prediction, server reconciliation, and LAN discovery.">
+  <meta name="keywords" content="Multiplayer, UDP, Dedicated Server, 64Hz, Client-Side Prediction, Server Reconciliation, Delta Snapshots, LAN Discovery, C++20">
+  <meta name="author" content="YoungJasiek">
+
+  <title>UDP Multiplayer &amp; 64Hz Dedicated Server ? Lab Developer Community</title>
+  <link rel="icon" type="image/webp" href="assets/img/LabLogo.webp">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <a href="#content" class="skip-link">Skip to main content</a>
+
+  <header class="vdc-top-header" role="banner">
+    <div class="vdc-header-left">
+      <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
+      <a href="index.html" class="vdc-brand">
+        <img src="assets/img/LabLogo.webp" alt="Lab Engine Logo" class="vdc-logo-img">
+        <div class="vdc-brand-text">
+          <span class="vdc-brand-title"><span class="accent">Lab</span> Developer Community</span>
+          <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LABHAMMER</span>
+        </div>
+      </a>
+    </div>
+
+    <div class="vdc-search-bar" role="search">
+      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search documentation..." aria-label="Search wiki documentation">
+      <span class="vdc-search-icon" aria-hidden="true">&#128269;</span>
+    </div>
+
+    <div class="vdc-header-right">
+      <button id="theme-toggle-btn" class="theme-toggle-btn" aria-label="Toggle theme">&#9728;&#65039; Light Mode</button>
+      <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="github-badge-btn" aria-label="GitHub repository">
+        <span>GitHub</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <div class="vdc-page-container">
+    <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
+      <div class="sidebar-block">
+                <div class="sidebar-title">Documentation</div>
+        <ul class="sidebar-links">
+          <li><a href="index.html">Main Page (Portal)</a></li>
+          <li><a href="labhammer.html">LabHammer Editor</a></li>
+          <li><a href="character-studio.html">Character & Weapon Studio</a></li>
+          <li><a href="skeletal-animations.html">Skeletal & FBX Animations</a></li>
+          <li><a href="bot-ai.html">Combat Bot AI</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons & Viewmodel</a></li>
+          <li><a href="multiplayer.html" class="active">UDP Multiplayer</a></li>
+          <li><a href="audio-synthesizer.html">3D Audio & Synthesizer</a></li>
+          <li><a href="lua-scripting.html">Lua 5.4 Scripting</a></li>
+          <li><a href="frozen-life.html">Frozen-Life Build</a></li>
+          <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+          <li><a href="building.html">Building from Source</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Multiplayer Topics</div>
+        <ul class="sidebar-links">
+          <li><a href="#sec-overview">Network Topology</a></li>
+          <li><a href="#sec-protocol">Lightweight UDP Protocol</a></li>
+          <li><a href="#sec-server">Dedicated Server (LabServer.exe)</a></li>
+          <li><a href="#sec-prediction">Client-Side Prediction</a></li>
+          <li><a href="#sec-reconciliation">Server Reconciliation &amp; Clamping</a></li>
+          <li><a href="#sec-snapshots">Delta Snapshots &amp; Entity State</a></li>
+          <li><a href="#sec-lan">LAN Discovery &amp; Server Browser</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Project &amp; Source</div>
+        <ul class="sidebar-links">
+          <li><a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer">GitHub Repository</a></li>
+          <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="building.html">Compilation Guide</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <main id="content" class="vdc-main-content" role="main">
+      <nav class="vdc-page-tabs" aria-label="Namespace tabs">
+        <div class="tabs-left">
+          <a href="multiplayer.html" class="wiki-tab active">Multiplayer Article</a>
+          <a href="architecture.html" class="wiki-tab">Architecture</a>
+        </div>
+        <div class="tabs-right">
+          <a href="multiplayer.html" class="wiki-tab active">Read</a>
+          <a href="https://github.com/YoungJasiek/Lab/blob/main/src/LabServer.cpp" target="_blank" class="wiki-tab">View C++ Source</a>
+        </div>
+      </nav>
+
+      <div class="wiki-breadcrumbs">
+        <a href="index.html">Main Page</a>
+        <span class="crumb-sep">&gt;</span>
+        <span>Networking &amp; Infrastructure</span>
+        <span class="crumb-sep">&gt;</span>
+        <span class="crumb-current">UDP Multiplayer</span>
+      </div>
+
+      <h1 class="firstHeading">
+        <span>Authoritative 64Hz UDP Dedicated Server</span>
+        <span style="font-size: 0.85rem; font-weight: normal; font-family: var(--font-mono); color: var(--wiki-accent);">[LabServer.exe]</span>
+      </h1>
+      <div class="siteSub">From Lab Developer Community &ndash; High-Performance UDP Socket Protocol, Client-Side Prediction, Server Reconciliation, Ground Clamping, and LAN Discovery</div>
+
+      <aside class="infobox" aria-label="Multiplayer Network Architecture">
+        <div class="infobox-title">
+          LabServer
+          <span class="infobox-subtitle">64HZ AUTHORITATIVE NETWORK</span>
+        </div>
+        <div class="infobox-image">
+          <img src="assets/img/test_multiplayer_simulation.webp" alt="Multiplayer Simulation Frame" style="max-height:180px; width:100%; object-fit:cover;">
+          <div class="infobox-caption">Multiplayer client-server test verifying 10-frame movement and zero-desync ground clamping</div>
+        </div>
+        <table class="infobox-table">
+          <tbody>
+            <tr>
+              <td class="infobox-label">Server Binary</td>
+              <td class="infobox-data"><code>LabServer.exe</code></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Transport Layer</td>
+              <td class="infobox-data">Raw Berkeley/Winsock UDP Sockets (Port 27015/27019/27028)</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Fixed Tickrate</td>
+              <td class="infobox-data">64.0 Hz (15.625 ms tick interval)</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Authority Model</td>
+              <td class="infobox-data">Strict Server-Authoritative Physics</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Lag Compensation</td>
+              <td class="infobox-data">Client Prediction + Smooth Reconciliation Snap</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Discovery</td>
+              <td class="infobox-data">UDP Broadcast LAN Discovery Beacon (Port 27020)</td>
+            </tr>
+          </tbody>
+        </table>
+      </aside>
+
+      <div class="toc" role="navigation" aria-labelledby="mw-toc-heading">
+        <div class="toctitle">
+          <h2 id="mw-toc-heading">Contents</h2>
+          <span class="toctoggle">[<a href="javascript:void(0)" class="toggle-link">hide</a>]</span>
+        </div>
+        <ul>
+          <li class="toclevel-1"><a href="#sec-overview"><span class="tocnumber">1</span> <span class="toctext">Network Architecture &amp; Topologies</span></a></li>
+          <li class="toclevel-1"><a href="#sec-protocol"><span class="tocnumber">2</span> <span class="toctext">Lightweight UDP Packet Protocol</span></a></li>
+          <li class="toclevel-1"><a href="#sec-server"><span class="tocnumber">3</span> <span class="toctext">Dedicated Server Architecture (LabServer.exe)</span></a></li>
+          <li class="toclevel-1"><a href="#sec-prediction"><span class="tocnumber">4</span> <span class="toctext">Client-Side Prediction Architecture</span></a></li>
+          <li class="toclevel-1"><a href="#sec-reconciliation"><span class="tocnumber">5</span> <span class="toctext">Server Reconciliation &amp; Ground Clamping</span></a></li>
+          <li class="toclevel-1"><a href="#sec-snapshots"><span class="tocnumber">6</span> <span class="toctext">World State Delta Snapshots</span></a></li>
+          <li class="toclevel-1"><a href="#sec-lan"><span class="tocnumber">7</span> <span class="toctext">LAN Broadcast Discovery &amp; Server Browser</span></a></li>
+        </ul>
+      </div>
+
+      <h2 id="sec-overview">1. Network Architecture &amp; Topologies</h2>
+      <p>
+        Multiplayer in Lab Engine is built around a <strong>strict client-server authoritative architecture</strong>. The server owns all game state, physics calculations, player positions, projectile hits, and health values. Clients send raw input commands (movement directions, view angles, jump and fire actions) and immediately simulate movement locally to ensure zero perceivable latency.
+      </p>
+
+      <h2 id="sec-protocol">2. Lightweight UDP Packet Protocol</h2>
+      <p>
+        The engine uses raw UDP datagrams without bloated third-party transport layers. Packets are binary-encoded using compact structs:
+      </p>
+      <ul>
+        <li><code>ConnectRequest / ConnectAccept:</code> Handshake packets exchanging client callsign, protocol version, and assigned <code>ClientID</code>.</li>
+        <li><code>ClientInputPacket:</code> High-frequency 64Hz input packet carrying sequence numbers, pitch/yaw, movement intent vectors, and weapon trigger flags.</li>
+        <li><code>NetServerSnapshot:</code> Periodic authoritative broadcast containing the current server tick, authoritative position, velocity, active players, and bullet impact events.</li>
+      </ul>
+
+      <h2 id="sec-server">3. Dedicated Server Architecture (LabServer.exe)</h2>
+      <p>
+        <code>LabServer.exe</code> runs headless on Linux or Windows without initializing an OpenGL context or audio device. It loads the map's <code>.labmap</code> file, compiles solid polyhedral collision boxes, and executes a deterministic 64Hz simulation loop:
+      </p>
+      <div class="vdc-code-container">
+        <pre><code>// 64Hz Fixed Simulation Tick in DedicatedServer
+void DedicatedServer::update(float dt) {
+    _tickAccumulator += dt;
+    while (_tickAccumulator &gt;= 0.015625f) { // 1/64 sec
+        _currentTick++;
+        processClientPackets();
+        updatePlayerPhysics(0.015625f);
+        updateCombatAndProjectiles(0.015625f);
+        broadcastSnapshot();
+        _tickAccumulator -= 0.015625f;
+    }
+}</code></pre>
+      </div>
+
+      <h2 id="sec-prediction">4. Client-Side Prediction Architecture</h2>
+      <p>
+        To eliminate the feeling of lag, the client does not wait for server confirmation before moving. When the player presses <code>W</code>, local physics calculates the displacement immediately, stores the move in an input history buffer, and sends the command sequence to the server.
+      </p>
+
+      <h2 id="sec-reconciliation">5. Server Reconciliation &amp; Ground Clamping</h2>
+      <p>
+        When an authoritative snapshot arrives from the server, the client compares its historical predicted position at that server tick with the authoritative state.
+      </p>
+      <p>
+        If a discrepancy exceeds a tolerance threshold (e.g. pushed by an explosion or bumped into another player), the client <strong>reconciles</strong>:
+      </p>
+      <ol>
+        <li>Snaps the player's position to the server authoritative position.</li>
+        <li>Re-clamps the player stably to the solid brush floor (zero penetration).</li>
+        <li>Re-applies all unacknowledged client input packets from the history buffer forward to the current frame.</li>
+      </ol>
+      <p>
+        This guarantees that even under network jitter or packet loss, movement remains responsive and cheat-resistant without rubber-banding.
+      </p>
+
+      <h2 id="sec-snapshots">6. World State Delta Snapshots</h2>
+      <p>
+        Snapshots broadcast the state of all connected clients (position, eye rotation, alive status, equipped weapon ID, and health). Remote entities are smoothly interpolated between the last two received snapshots via cubic Hermite splines.
+      </p>
+
+      <h2 id="sec-lan">7. LAN Broadcast Discovery &amp; Server Browser</h2>
+      <p>
+        Running servers broadcast a lightweight UDP beacon on port 27020 every 1.5 seconds containing server name, map name, player count, and max capacity.
+      </p>
+      <p>
+        The in-game <strong>Server Browser</strong> listens for these datagrams, measures round-trip ping, and renders clickable server entries allowing players to join matches with a single click.
+      </p>
+
+      <div class="vdc-see-also">
+        <h3>See Also</h3>
+        <ul>
+          <li><a href="architecture.html">Engine Core Architecture</a> ? Fixed timestep loop and physics dynamics.</li>
+          <li><a href="bot-ai.html">Combat Bot AI</a> ? AI bot replication across multiplayer sessions.</li>
+          <li><a href="building.html">Building from Source</a> ? Compiling LabServer.exe.</li>
+        </ul>
+      </div>
+    </main>
+  </div>
+
+  <footer class="vdc-footer" role="contentinfo">
+    <div class="vdc-footer-content">
+      <div class="footer-left">
+        <p><strong>Lab Developer Community</strong> ? The Valve-Style Knowledge Hub for Lab Engine, LabHammer &amp; Frozen-Life.</p>
+        <p>Crafted in ISO C++20 with OpenGL 4.5+ Direct State Access (DSA). Zero runtime external dependencies.</p>
+      </div>
+      <div class="footer-right">
+        <ul class="footer-links">
+          <li><a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+          <li><a href="building.html">Build Guide</a></li>
+          <li><a href="multiplayer.html">Multiplayer</a></li>
+          <li><a href="architecture.html">Architecture</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+  <script src="js/main.js"></script>
+</body>
+</html>

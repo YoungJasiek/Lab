@@ -214,4 +214,14 @@ namespace Lab {
                                               std::unique_ptr<SkinnedMesh>& outMesh);
     };
 
+    // --- FBX & Binary Animation Loader ---
+    class FBXLoader {
+    public:
+        // Loads a binary .anim or .fbx animation clip
+        static bool loadAnimation(const std::string& path, AnimationClip& outClip, const Skeleton* skeleton = nullptr);
+
+        // Discovers and loads all animation clips from an animation directory (e.g. "assets/animations")
+        static int loadAllFromDirectory(const std::string& dirPath, std::vector<AnimationClip>& outClips, const Skeleton* skeleton = nullptr);
+    };
+
 }

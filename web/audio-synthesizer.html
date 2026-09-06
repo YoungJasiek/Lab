@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="3D Spatial Audio &amp; Procedural Synthesizer ? Technical documentation for miniaudio backend, 26 procedural 16-bit PCM sound synthesizers, and real-time phoneme lip-sync.">
+  <meta name="keywords" content="Audio Engine, miniaudio, 3D Spatial Sound, Procedural Audio, PCM Synthesizer, Lip-Sync, RMS Analysis, C++20">
+  <meta name="author" content="YoungJasiek">
+
+  <title>3D Spatial Audio &amp; Sound Synthesizer ? Lab Developer Community</title>
+  <link rel="icon" type="image/webp" href="assets/img/LabLogo.webp">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <a href="#content" class="skip-link">Skip to main content</a>
+
+  <header class="vdc-top-header" role="banner">
+    <div class="vdc-header-left">
+      <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
+      <a href="index.html" class="vdc-brand">
+        <img src="assets/img/LabLogo.webp" alt="Lab Engine Logo" class="vdc-logo-img">
+        <div class="vdc-brand-text">
+          <span class="vdc-brand-title"><span class="accent">Lab</span> Developer Community</span>
+          <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LABHAMMER</span>
+        </div>
+      </a>
+    </div>
+
+    <div class="vdc-search-bar" role="search">
+      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search documentation..." aria-label="Search wiki documentation">
+      <span class="vdc-search-icon" aria-hidden="true">&#128269;</span>
+    </div>
+
+    <div class="vdc-header-right">
+      <button id="theme-toggle-btn" class="theme-toggle-btn" aria-label="Toggle theme">&#9728;&#65039; Light Mode</button>
+      <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="github-badge-btn" aria-label="GitHub repository">
+        <span>GitHub</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <div class="vdc-page-container">
+    <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
+      <div class="sidebar-block">
+                <div class="sidebar-title">Documentation</div>
+        <ul class="sidebar-links">
+          <li><a href="index.html">Main Page (Portal)</a></li>
+          <li><a href="labhammer.html">LabHammer Editor</a></li>
+          <li><a href="character-studio.html">Character & Weapon Studio</a></li>
+          <li><a href="skeletal-animations.html">Skeletal & FBX Animations</a></li>
+          <li><a href="bot-ai.html">Combat Bot AI</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons & Viewmodel</a></li>
+          <li><a href="multiplayer.html">UDP Multiplayer</a></li>
+          <li><a href="audio-synthesizer.html" class="active">3D Audio & Synthesizer</a></li>
+          <li><a href="lua-scripting.html">Lua 5.4 Scripting</a></li>
+          <li><a href="frozen-life.html">Frozen-Life Build</a></li>
+          <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+          <li><a href="building.html">Building from Source</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Audio Topics</div>
+        <ul class="sidebar-links">
+          <li><a href="#sec-overview">Audio Engine Design</a></li>
+          <li><a href="#sec-miniaudio">miniaudio Backend &amp; Threading</a></li>
+          <li><a href="#sec-spatial">3D Distance Attenuation &amp; Panning</a></li>
+          <li><a href="#sec-synthesizers">26 Procedural PCM Synthesizers</a></li>
+          <li><a href="#sec-lipsync">Real-Time RMS Lip-Sync Analysis</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Project &amp; Source</div>
+        <ul class="sidebar-links">
+          <li><a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer">GitHub Repository</a></li>
+          <li><a href="character-studio.html">Character Studio</a></li>
+          <li><a href="architecture.html">Engine Architecture</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <main id="content" class="vdc-main-content" role="main">
+      <nav class="vdc-page-tabs" aria-label="Namespace tabs">
+        <div class="tabs-left">
+          <a href="audio-synthesizer.html" class="wiki-tab active">Audio Article</a>
+          <a href="character-studio.html" class="wiki-tab">Character Studio</a>
+        </div>
+        <div class="tabs-right">
+          <a href="audio-synthesizer.html" class="wiki-tab active">Read</a>
+          <a href="https://github.com/YoungJasiek/Lab/blob/main/src/LabAudio.cpp" target="_blank" class="wiki-tab">View C++ Source</a>
+        </div>
+      </nav>
+
+      <div class="wiki-breadcrumbs">
+        <a href="index.html">Main Page</a>
+        <span class="crumb-sep">&gt;</span>
+        <span>Audio Subsystem</span>
+        <span class="crumb-sep">&gt;</span>
+        <span class="crumb-current">3D Audio &amp; Synthesizer</span>
+      </div>
+
+      <h1 class="firstHeading">
+        <span>3D Spatial Audio &amp; Procedural Synthesizer</span>
+        <span style="font-size: 0.85rem; font-weight: normal; font-family: var(--font-mono); color: var(--wiki-accent);">[LabAudio.h]</span>
+      </h1>
+      <div class="siteSub">From Lab Developer Community &ndash; Hardware-Accelerated miniaudio Backend, 3D Attenuation, 26 Procedural 16-Bit PCM Sounds, and Real-Time Lip-Sync RMS Analysis</div>
+
+      <aside class="infobox" aria-label="Audio System Infobox">
+        <div class="infobox-title">
+          LabAudio
+          <span class="infobox-subtitle">SPATIAL SOUND &amp; SYNTHESIS</span>
+        </div>
+        <div class="infobox-image">
+          <img src="assets/img/test_facial_lipsync.png" alt="Phoneme Lip-Sync Interface" style="max-height:180px; width:100%; object-fit:cover;">
+          <div class="infobox-caption">Real-time procedural dialogue audio coupled with 3D facial mesh blend shapes</div>
+        </div>
+        <table class="infobox-table">
+          <tbody>
+            <tr>
+              <td class="infobox-label">Source Files</td>
+              <td class="infobox-data"><code>src/LabAudio.cpp</code><br><code>include/LabAudio.h</code></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Audio Backend</td>
+              <td class="infobox-data">miniaudio (DirectSound, WASAPI, ALSA, PulseAudio)</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Sample Format</td>
+              <td class="infobox-data">16-Bit Signed PCM &bull; 44,100 Hz / 48,000 Hz Stereo</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Procedural Sounds</td>
+              <td class="infobox-data">26 Fully Synthesized Sound Waveforms</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Spatial Attenuation</td>
+              <td class="infobox-data">Inverse Clamped Distance Curve with Stereo Panning</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Lip-Sync Analysis</td>
+              <td class="infobox-data">Sliding Window Root-Mean-Square (RMS) Energy Tracking</td>
+            </tr>
+          </tbody>
+        </table>
+      </aside>
+
+      <div class="toc" role="navigation" aria-labelledby="mw-toc-heading">
+        <div class="toctitle">
+          <h2 id="mw-toc-heading">Contents</h2>
+          <span class="toctoggle">[<a href="javascript:void(0)" class="toggle-link">hide</a>]</span>
+        </div>
+        <ul>
+          <li class="toclevel-1"><a href="#sec-overview"><span class="tocnumber">1</span> <span class="toctext">Audio Engine Architecture</span></a></li>
+          <li class="toclevel-1"><a href="#sec-miniaudio"><span class="tocnumber">2</span> <span class="toctext">miniaudio Backend &amp; Zero-Allocation Mixing</span></a></li>
+          <li class="toclevel-1"><a href="#sec-spatial"><span class="tocnumber">3</span> <span class="toctext">3D Distance Attenuation &amp; Stereo Panning</span></a></li>
+          <li class="toclevel-1"><a href="#sec-synthesizers"><span class="tocnumber">4</span> <span class="toctext">26 Procedural 16-Bit PCM Synthesizers</span></a></li>
+          <li class="toclevel-1"><a href="#sec-lipsync"><span class="tocnumber">5</span> <span class="toctext">Real-Time RMS Lip-Sync Analysis</span></a></li>
+        </ul>
+      </div>
+
+      <h2 id="sec-overview">1. Audio Engine Architecture</h2>
+      <p>
+        The <strong>LabAudio</strong> subsystem is designed to operate completely independently of heavy external binary libraries. Instead of requiring gigabytes of recorded audio samples, the engine features a mathematical synthesis layer capable of generating <strong>26 distinct tactical sounds</strong> directly in code.
+      </p>
+
+      <h2 id="sec-miniaudio">2. miniaudio Backend &amp; Zero-Allocation Mixing</h2>
+      <p>
+        Audio output is driven by <code>miniaudio</code>, configured for low-latency asynchronous callback operation. The engine streams 16-bit signed integer PCM data at 44.1 kHz, maintaining lock-free circular buffers to prevent frame drops.
+      </p>
+
+      <h2 id="sec-spatial">3. 3D Distance Attenuation &amp; Stereo Panning</h2>
+      <p>
+        Sounds played in 3D space calculate distance attenuation and stereo channel gain relative to the listener camera:
+      </p>
+      <div class="vdc-code-container">
+        <pre><code>// 3D Spatial Attenuation Math
+Vec3 toSource = soundPos - listenerPos;
+float dist = toSource.length();
+float gain = 1.0f / (1.0f + 0.12f * std::max(0.0f, dist - 1.5f));
+
+// Stereo panning based on listener right vector
+Vec3 dir = toSource.normalized();
+float pan = dir.dot(listenerRight); // -1.0 (full left) to +1.0 (full right)
+float leftVol = gain * std::clamp(0.5f * (1.0f - pan), 0.0f, 1.0f);
+float rightVol = gain * std::clamp(0.5f * (1.0f + pan), 0.0f, 1.0f);</code></pre>
+      </div>
+
+      <h2 id="sec-synthesizers">4. 26 Procedural 16-Bit PCM Synthesizers</h2>
+      <p>
+        Lab Engine mathematically synthesizes all combat and environmental sounds in pure C++:
+      </p>
+      <ul>
+        <li><strong>M4A4-S Silenced Gunfire:</strong> Initial high-frequency impulse burst mixed with decaying white noise and chamber resonance.</li>
+        <li><strong>Railgun Discharge:</strong> Hyper-velocity sub-bass sweep (80Hz to 20Hz) combined with electrical plasma crackle.</li>
+        <li><strong>Cryo-Beam Freezing:</strong> Resonant white noise modulation with crisp crystal shatter harmonics.</li>
+        <li><strong>Footsteps (Snow &amp; Metal):</strong> Low-pass filtered granular crunches varying dynamically based on floor texture tag.</li>
+        <li><strong>Door Hydraulics &amp; Mechanical Clicks:</strong> Low-frequency motor hum and metal bolt latching transients.</li>
+      </ul>
+
+      <h2 id="sec-lipsync">5. Real-Time RMS Lip-Sync Analysis</h2>
+      <p>
+        In dialogue sequences, spoken audio is analyzed on a 20ms sliding window via Root-Mean-Square (RMS) energy calculation:
+      </p>
+      <div class="vdc-code-container">
+        <pre><code>float rms = 0.0f;
+for (int i = 0; i &lt; windowSize; ++i) {
+    float sample = pcmBuffer[idx + i] / 32768.0f;
+    rms += sample * sample;
+}
+rms = std::sqrt(rms / windowSize);
+
+// Directly drives facial blend shape
+jawOpenWeight = std::clamp(rms * 4.5f, 0.0f, 1.0f);</code></pre>
+      </div>
+
+      <div class="vdc-see-also">
+        <h3>See Also</h3>
+        <ul>
+          <li><a href="character-studio.html">Character Studio</a> ? Facial blend shape editor and dialogue waveforms.</li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a> ? Gunfire sound coupling.</li>
+        </ul>
+      </div>
+    </main>
+  </div>
+
+  <footer class="vdc-footer" role="contentinfo">
+    <div class="vdc-footer-content">
+      <div class="footer-left">
+        <p><strong>Lab Developer Community</strong> ? The Valve-Style Knowledge Hub for Lab Engine, LabHammer &amp; Frozen-Life.</p>
+        <p>Crafted in ISO C++20 with OpenGL 4.5+ Direct State Access (DSA). Zero runtime external dependencies.</p>
+      </div>
+      <div class="footer-right">
+        <ul class="footer-links">
+          <li><a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+          <li><a href="building.html">Build Guide</a></li>
+          <li><a href="audio-synthesizer.html">3D Audio</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+  <script src="js/main.js"></script>
+</body>
+</html>

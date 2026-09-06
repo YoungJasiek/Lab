@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="9-Weapon Tactical Arsenal &amp; Viewmodel Kinematics ? Comprehensive technical guide for weapon ballistics, spring-damper inertia sway, roll sway, ADS sightlines, and custom STL skins.">
+  <meta name="keywords" content="Weapons, Viewmodel Kinematics, Spring Damper, ADS, Roll Sway, Custom STL, PBR Materials, Lab Engine, C++20">
+  <meta name="author" content="YoungJasiek">
+
+  <title>Weapons &amp; Viewmodel Kinematics ? Lab Developer Community</title>
+  <link rel="icon" type="image/webp" href="assets/img/LabLogo.webp">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <a href="#content" class="skip-link">Skip to main content</a>
+
+  <header class="vdc-top-header" role="banner">
+    <div class="vdc-header-left">
+      <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
+      <a href="index.html" class="vdc-brand">
+        <img src="assets/img/LabLogo.webp" alt="Lab Engine Logo" class="vdc-logo-img">
+        <div class="vdc-brand-text">
+          <span class="vdc-brand-title"><span class="accent">Lab</span> Developer Community</span>
+          <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LABHAMMER</span>
+        </div>
+      </a>
+    </div>
+
+    <div class="vdc-search-bar" role="search">
+      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search documentation..." aria-label="Search wiki documentation">
+      <span class="vdc-search-icon" aria-hidden="true">&#128269;</span>
+    </div>
+
+    <div class="vdc-header-right">
+      <button id="theme-toggle-btn" class="theme-toggle-btn" aria-label="Toggle theme">&#9728;&#65039; Light Mode</button>
+      <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="github-badge-btn" aria-label="GitHub repository">
+        <span>GitHub</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <div class="vdc-page-container">
+    <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
+      <div class="sidebar-block">
+                <div class="sidebar-title">Documentation</div>
+        <ul class="sidebar-links">
+          <li><a href="index.html">Main Page (Portal)</a></li>
+          <li><a href="labhammer.html">LabHammer Editor</a></li>
+          <li><a href="character-studio.html">Character & Weapon Studio</a></li>
+          <li><a href="skeletal-animations.html">Skeletal & FBX Animations</a></li>
+          <li><a href="bot-ai.html">Combat Bot AI</a></li>
+          <li><a href="weapons-viewmodel.html" class="active">Weapons & Viewmodel</a></li>
+          <li><a href="multiplayer.html">UDP Multiplayer</a></li>
+          <li><a href="audio-synthesizer.html">3D Audio & Synthesizer</a></li>
+          <li><a href="lua-scripting.html">Lua 5.4 Scripting</a></li>
+          <li><a href="frozen-life.html">Frozen-Life Build</a></li>
+          <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+          <li><a href="building.html">Building from Source</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Weapons Topics</div>
+        <ul class="sidebar-links">
+          <li><a href="#sec-overview">Arsenal Architecture</a></li>
+          <li><a href="#sec-table">Complete Ballistics Table</a></li>
+          <li><a href="#sec-spring">Dual-Spring Damper Physics</a></li>
+          <li><a href="#sec-walk-sway">Tactical Walking Roll Sway</a></li>
+          <li><a href="#sec-ads">Aim-Down-Sights (ADS) Math</a></li>
+          <li><a href="#sec-stl">Universal STL Mesh Ingestion</a></li>
+          <li><a href="#sec-pbr">PBR Skin Shading &amp; Textures</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Project &amp; Source</div>
+        <ul class="sidebar-links">
+          <li><a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer">GitHub Repository</a></li>
+          <li><a href="character-studio.html">Character Studio</a></li>
+          <li><a href="bot-ai.html">Combat Bot AI</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <main id="content" class="vdc-main-content" role="main">
+      <nav class="vdc-page-tabs" aria-label="Namespace tabs">
+        <div class="tabs-left">
+          <a href="weapons-viewmodel.html" class="wiki-tab active">Weapons Article</a>
+          <a href="character-studio.html" class="wiki-tab">Character Studio</a>
+        </div>
+        <div class="tabs-right">
+          <a href="weapons-viewmodel.html" class="wiki-tab active">Read</a>
+          <a href="https://github.com/YoungJasiek/Lab/blob/main/src/LabWeapon.cpp" target="_blank" class="wiki-tab">View C++ Source</a>
+        </div>
+      </nav>
+
+      <div class="wiki-breadcrumbs">
+        <a href="index.html">Main Page</a>
+        <span class="crumb-sep">&gt;</span>
+        <span>Weapons &amp; Ballistics</span>
+        <span class="crumb-sep">&gt;</span>
+        <span class="crumb-current">Weapons &amp; Viewmodel</span>
+      </div>
+
+      <h1 class="firstHeading">
+        <span>9-Weapon Tactical Arsenal &amp; Viewmodel Kinematics</span>
+        <span style="font-size: 0.85rem; font-weight: normal; font-family: var(--font-mono); color: var(--wiki-accent);">[LabWeapon.h]</span>
+      </h1>
+      <div class="siteSub">From Lab Developer Community &ndash; Spring-Damper Inertia Sway, Tactical Walking Roll Sway, Sub-Frame Recoil, Iron-Sights ADS Alignment, and Custom STL PBR Skins</div>
+
+      <aside class="infobox" aria-label="Weapon System Infobox">
+        <div class="infobox-title">
+          LabWeapon
+          <span class="infobox-subtitle">TACTICAL ARSENAL &amp; VIEWMODEL</span>
+        </div>
+        <div class="infobox-image">
+          <img src="assets/img/test_weapon_arsenal.webp" alt="Weapon Arsenal Lineup" style="max-height:180px; width:100%; object-fit:cover;">
+          <div class="infobox-caption">9-weapon tactical lineup showing tactical carbines, miniguns, and cryo weapons</div>
+        </div>
+        <table class="infobox-table">
+          <tbody>
+            <tr>
+              <td class="infobox-label">Source Files</td>
+              <td class="infobox-data"><code>src/LabWeapon.cpp</code><br><code>include/LabWeapon.h</code></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Total Weapons</td>
+              <td class="infobox-data">9 Unique Tactical Weapons</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Viewmodel Dynamics</td>
+              <td class="infobox-data">Dual-Spring Damper + Walking Roll Sway (Roll: ~1.45&deg;)</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Sights Mode</td>
+              <td class="infobox-data">Kinematic ADS Slerp with Field-of-View Zoom</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Custom Mesh</td>
+              <td class="infobox-data">ASCII &amp; Binary STL Loader with Bounding Box Auto-Scale</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Textures</td>
+              <td class="infobox-data">Universal STBI Decoder (PNG, JPG, BMP up to 4096&times;4096)</td>
+            </tr>
+          </tbody>
+        </table>
+      </aside>
+
+      <div class="toc" role="navigation" aria-labelledby="mw-toc-heading">
+        <div class="toctitle">
+          <h2 id="mw-toc-heading">Contents</h2>
+          <span class="toctoggle">[<a href="javascript:void(0)" class="toggle-link">hide</a>]</span>
+        </div>
+        <ul>
+          <li class="toclevel-1"><a href="#sec-overview"><span class="tocnumber">1</span> <span class="toctext">Arsenal Architecture &amp; Rationale</span></a></li>
+          <li class="toclevel-1"><a href="#sec-table"><span class="tocnumber">2</span> <span class="toctext">Complete 9-Weapon Ballistics Table</span></a></li>
+          <li class="toclevel-1"><a href="#sec-spring"><span class="tocnumber">3</span> <span class="toctext">Dual-Spring Damper Viewmodel Physics</span></a></li>
+          <li class="toclevel-1"><a href="#sec-walk-sway"><span class="tocnumber">4</span> <span class="toctext">Tactical Walking Roll Sway &amp; Bobbing</span></a></li>
+          <li class="toclevel-1"><a href="#sec-ads"><span class="tocnumber">5</span> <span class="toctext">Iron-Sights ADS Alignment &amp; Zoom</span></a></li>
+          <li class="toclevel-1"><a href="#sec-stl"><span class="tocnumber">6</span> <span class="toctext">Universal STL 3D Mesh Ingestion</span></a></li>
+          <li class="toclevel-1"><a href="#sec-pbr"><span class="tocnumber">7</span> <span class="toctext">PBR Skin Shading, Normalization &amp; Textures</span></a></li>
+        </ul>
+      </div>
+
+      <h2 id="sec-overview">1. Arsenal Architecture &amp; Rationale</h2>
+      <p>
+        The weapon system in Lab Engine combines competitive hitscan precision with tactile physical feedback. Rather than rendering a static gun model glued to the camera, the viewmodel is treated as an articulated physical object suspended on high-frequency spring-dampers. When the player rotates their view, sprints across ice, or unleashes automatic fire, the weapon reacts with realistic mass, momentum, and angular lag.
+      </p>
+
+      <h2 id="sec-table">2. Complete 9-Weapon Ballistics Table</h2>
+      <p>
+        The table below details the full technical ballistics specification for all 9 weapons:
+      </p>
+      <table class="wikitable">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Weapon Name</th>
+            <th>Type</th>
+            <th>Damage</th>
+            <th>Fire Rate (RPM)</th>
+            <th>Magazine</th>
+            <th>Ballistic Model</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>0</td><td><strong>Melee Pipe</strong></td><td>Blunt Melee</td><td>45 HP</td><td>90 RPM</td><td>&infin;</td><td>Spherical Collision Sweep (1.6m)</td></tr>
+          <tr><td>1</td><td><strong>Service Pistol</strong></td><td>Sidearm</td><td>24 HP</td><td>300 RPM</td><td>12 Rds</td><td>Instant Hitscan (Range 60m)</td></tr>
+          <tr><td>2</td><td><strong>Pump Shotgun</strong></td><td>Shotgun</td><td>8 &times; 14 HP</td><td>75 RPM</td><td>8 Rds</td><td>8-Pellet Spread Cone (0.045 rad)</td></tr>
+          <tr><td>3</td><td><strong>M4A4-S Carbine</strong></td><td>Assault Rifle</td><td>32 HP</td><td>660 RPM</td><td>30 Rds</td><td>Hitscan with Sub-Frame Recoil</td></tr>
+          <tr><td>4</td><td><strong>SG553 Scoped</strong></td><td>Scoped Rifle</td><td>38 HP</td><td>545 RPM</td><td>30 Rds</td><td>Pinpoint Accuracy + 1.8x Optical ADS</td></tr>
+          <tr><td>5</td><td><strong>Rotary Minigun</strong></td><td>Heavy Support</td><td>18 HP</td><td>920 RPM</td><td>100 Rds</td><td>Suppressive Hitscan with Barrel Spin</td></tr>
+          <tr><td>6</td><td><strong>Railgun</strong></td><td>High-Energy</td><td>150 HP</td><td>40 RPM</td><td>1 Rd</td><td>Piercing Beam with Light Trail</td></tr>
+          <tr><td>7</td><td><strong>RPG-7 Launcher</strong></td><td>Heavy Ordnance</td><td>180 HP</td><td>30 RPM</td><td>1 Rocket</td><td>3D Ballistic Rocket (Explosive Radius 6.5m)</td></tr>
+          <tr><td>8</td><td><strong>Cryo-Gauntlets</strong></td><td>Experimental</td><td>15 HP + Freeze</td><td>360 RPM</td><td>50 Energy</td><td>Cryogenic Particle Beam (Slows Target 50%)</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="sec-spring">3. Dual-Spring Damper Viewmodel Physics</h2>
+      <p>
+        Viewmodel inertia is simulated using two coupled second-order spring-damper differential equations (one for angular rotation lag, one for positional offset):
+      </p>
+      <div class="math-block">
+        \[ \ddot{x} + 2\zeta\omega_n \dot{x} + \omega_n^2 x = F_{	ext{mouse}} \]
+      </div>
+      <p>
+        where \(\omega_n\) is the natural resonance frequency and \(\zeta\) is the damping ratio. This prevents robotic camera motion, ensuring the weapon drifts naturally behind fast mouse flicks and eases into target alignment without oscillation.
+      </p>
+
+      <h2 id="sec-walk-sway">4. Tactical Walking Roll Sway &amp; Bobbing</h2>
+      <p>
+        When the player is moving, <code>WeaponAnimator::update</code> calculates dynamic movement bobbing and roll sway:
+      </p>
+      <figure class="vdc-img-figure">
+        <img src="assets/img/test_pipe_textured_viewmodel.webp" alt="Pipe STL Viewmodel" class="vdc-article-img">
+        <figcaption class="vdc-img-caption">Figure 1: Custom pipe.stl viewmodel with high-resolution texture demonstrating walking bob and roll offset.</figcaption>
+      </figure>
+
+      <div class="vdc-code-container">
+        <pre><code>// Tactical walking roll sway and sinusoidal bobbing
+float walkFreq = 8.5f;
+float walkCycle = _walkTimer * walkFreq;
+float speedFactor = std::clamp(playerSpeed / 5.5f, 0.0f, 1.2f);
+
+// Roll sway tilts weapon along lateral axis during strafes and footsteps
+float rollSway = std::sin(walkCycle * 0.5f) * 1.45f * speedFactor; // ~1.45 deg roll
+float pitchSway = std::cos(walkCycle) * 1.15f * speedFactor;       // ~1.14 deg pitch
+float yawSway = std::sin(walkCycle * 0.5f) * 0.85f * speedFactor;
+
+// Positional figure-8 bobbing
+Vec3 bobOffset(
+    std::cos(walkCycle * 0.5f) * 0.012f * speedFactor,
+    std::abs(std::sin(walkCycle)) * 0.015f * speedFactor,
+    std::sin(walkCycle) * 0.008f * speedFactor
+);</code></pre>
+      </div>
+
+      <h2 id="sec-ads">5. Iron-Sights ADS Alignment &amp; Zoom</h2>
+      <p>
+        Holding Right-Mouse Button smoothly transitions the weapon from hip-fire into Aim-Down-Sights (ADS). The viewmodel offset interpolates towards the exact sightline position calibrated in <a href="character-studio.html">LabStudio</a>:
+      </p>
+      <div class="vdc-code-container">
+        <pre><code>// Smooth exponential lerp towards calibrated ADS sightline
+float adsTarget = isAiming ? 1.0f : 0.0f;
+_adsProgress = Math::lerp(_adsProgress, adsTarget, 1.0f - std::exp(-18.0f * dt));
+
+Vec3 currentOffset = Math::lerp(hipOffset, gripConfig.adsOffset, _adsProgress);
+float currentFov = Math::lerp(baseFov, gripConfig.adsFov, _adsProgress);</code></pre>
+      </div>
+
+      <h2 id="sec-stl">6. Universal STL 3D Mesh Ingestion</h2>
+      <p>
+        Lab Engine includes a high-performance native parser for 3D STL files (<code>Mesh::loadSTL</code>), reading both binary and ASCII formats. 
+      </p>
+      <p>
+        Because CAD models often vary wildly in scale (e.g. exported in inches, centimeters, or millimeters), <code>Mesh::loadSTL</code> automatically computes the axis-aligned bounding box and calculates an optimal scale factor to normalize the mesh into viewmodel units:
+      </p>
+      <div class="vdc-code-container">
+        <pre><code>float height = maxBounds.y - minBounds.y;
+float targetHeight = 0.28f; // ~28cm tactical viewmodel profile
+float autoScale = (height &gt; 0.001f) ? (targetHeight / height) : 1.0f;</code></pre>
+      </div>
+
+      <h2 id="sec-pbr">7. PBR Skin Shading, Normalization &amp; Textures</h2>
+      <p>
+        Through the universal STBI texture loader, weapon skins support both standard BMP files and lossless 2048&times;2048 PNG textures. Surface appearance is evaluated via a PBR shader combining:
+      </p>
+      <ul>
+        <li><strong>Albedo Map &amp; Tint:</strong> Base diffuse texture modulated by artist-defined RGB tint.</li>
+        <li><strong>Metallic Slider:</strong> Drives specular reflection intensity for polished steel or titanium finishes.</li>
+        <li><strong>Roughness Slider:</strong> Modulates microfacet blur and environmental specular highlights.</li>
+        <li><strong>UV Tiling Scale:</strong> Real-time texture tiling adjustment for carbon fiber or hazard stripe materials.</li>
+      </ul>
+
+      <div class="vdc-see-also">
+        <h3>See Also</h3>
+        <ul>
+          <li><a href="character-studio.html">Valve Hammer Character Studio</a> ? Visual weapon grip calibration and skin editor.</li>
+          <li><a href="bot-ai.html">Combat Bot AI</a> ? Third-person bot weapon sockets and exact weapon drops.</li>
+          <li><a href="audio-synthesizer.html">3D Audio &amp; Synthesizer</a> ? Procedural gunfire sound synthesis.</li>
+        </ul>
+      </div>
+    </main>
+  </div>
+
+  <footer class="vdc-footer" role="contentinfo">
+    <div class="vdc-footer-content">
+      <div class="footer-left">
+        <p><strong>Lab Developer Community</strong> ? The Valve-Style Knowledge Hub for Lab Engine, LabHammer &amp; Frozen-Life.</p>
+        <p>Crafted in ISO C++20 with OpenGL 4.5+ Direct State Access (DSA). Zero runtime external dependencies.</p>
+      </div>
+      <div class="footer-right">
+        <ul class="footer-links">
+          <li><a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+          <li><a href="building.html">Build Guide</a></li>
+          <li><a href="character-studio.html">Character Studio</a></li>
+          <li><a href="architecture.html">Architecture</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+  <script src="js/main.js"></script>
+</body>
+</html>

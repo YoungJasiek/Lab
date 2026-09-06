@@ -4339,6 +4339,79 @@ int main() {
         studio.shutdown();
     }
 
+    // =========================================================================
+    // TEST 43: FBX ANIMATION LOADER, MIXAMO HUMAN RIG RETARGETING & STUDIO PREVIEW
+    // =========================================================================
+    {
+        std::cout << "\n[Test 43] Verifying FBX Animation Loader, Mixamo 19-Clip Ingestion & Studio Preview...\n";
+
+        // 1. Single Clip Loading and Structure Verification
+        Lab::AnimationClip singleClip;
+        bool loadedSingle = Lab::FBXLoader::loadAnimation("assets/animations/Firing Rifle.anim", singleClip);
+        if (!loadedSingle) {
+            loadedSingle = Lab::FBXLoader::loadAnimation("assets/animations/Firing Rifle.fbx", singleClip);
+        }
+        assert(loadedSingle);
+        assert(singleClip.name == "Firing Rifle");
+        assert(singleClip.duration > 1.0f);
+        assert(!singleClip.tracks.empty());
+        std::cout << "  [PASS] Single clip loaded: '" << singleClip.name << "' (Duration: " 
+                  << singleClip.duration << "s, Tracks: " << singleClip.tracks.size() << ")\n";
+
+        // 2. Batch Ingestion of all 19 FBX / .anim Clips from Directory
+        std::vector<Lab::AnimationClip> allClips;
+        int ingestedCount = Lab::FBXLoader::loadAllFromDirectory("assets/animations", allClips);
+        assert(ingestedCount >= 19);
+        assert(allClips.size() >= 19);
+        std::cout << "  [PASS] Batch ingested " << ingestedCount << " FBX animations into clip library.\n";
+
+        // 3. T-800 Rig Retargeting Verification
+        std::shared_ptr<Lab::Skeleton> skel;
+        std::vector<Lab::AnimationClip> botClips;
+        std::unique_ptr<Lab::SkinnedMesh> botMesh;
+        bool loadedMesh = Lab::GLTFLoader::load("assets/models/t-800_run.glb", skel, botClips, botMesh);
+        if (!loadedMesh || !botMesh) {
+            loadedMesh = Lab::GLTFLoader::load("assets/inwork/t-800_run.glb", skel, botClips, botMesh);
+        }
+        if (!loadedMesh || !botMesh) {
+            Lab::GLTFLoader::createProceduralCombatBot(skel, botClips, botMesh);
+        }
+        assert(skel != nullptr);
+
+        // Verify fuzzy bone mapping for key Mixamo humanoid bones to T-800 nodes
+        int rightHandIdx = skel->findBoneIndex("mixamorig:RightHand");
+        int spineIdx = skel->findBoneIndex("mixamorig:Spine");
+        int headIdx = skel->findBoneIndex("mixamorig:Head");
+        assert(rightHandIdx >= 0);
+        assert(spineIdx >= 0);
+        assert(headIdx >= 0);
+        std::cout << "  [PASS] Mixamo rig fuzzy bone mapping verified (RightHand: Bone #" 
+                  << rightHandIdx << ", Spine: Bone #" << spineIdx << ", Head: Bone #" << headIdx << ")!\n";
+
+        // 4. CharacterStudio Integration & Animation Switcher Verification
+        Lab::CharacterStudio studio;
+        studio.init();
+        const auto& studioClips = studio.getBotAnimationClips();
+        assert(studioClips.size() >= 19);
+        std::cout << "  [PASS] CharacterStudio loaded " << studioClips.size() << " FBX animation clips into UI palette.\n";
+
+        // Switch to "Firing Rifle" clip and verify state
+        studio.setBotAnimationClip("Firing Rifle");
+        assert(studio.getActiveBotClipName() == "Firing Rifle");
+
+        // Update studio and verify animation progression
+        studio.update(0.1f, 0.0f, 0.0f, false, false, 0.0f);
+
+        // 5. Render Studio Visual Verification Frame
+        studio.setActiveTab(Lab::StudioTab::GripPoser);
+        studio.render(w, h);
+        glFinish();
+        saveFrameToBMP("test_fbx_bot_animations.bmp", w, h);
+        std::cout << "  [PASS] Rendered CharacterStudio preview with FBX 'Firing Rifle' animation to 'test_fbx_bot_animations.bmp'.\n";
+
+        studio.shutdown();
+    }
+
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();

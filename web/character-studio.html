@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Valve Hammer Character &amp; Weapon Studio (LabStudio) ? Technical documentation for 3D weapon grip posing, bot sockets, reload choreography, PBR skins, and FBX skeletal animation preview.">
+  <meta name="keywords" content="LabStudio, Valve Hammer, Character Studio, Weapon Grip Poser, Bot Sockets, Skeletal Animation, FBX, glTF 2.0, Lip-Sync, C++20, OpenGL">
+  <meta name="author" content="YoungJasiek">
+
+  <title>Valve Hammer Character &amp; Weapon Studio ? Lab Developer Community</title>
+  <link rel="icon" type="image/webp" href="assets/img/LabLogo.webp">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <a href="#content" class="skip-link">Skip to main content</a>
+
+  <header class="vdc-top-header" role="banner">
+    <div class="vdc-header-left">
+      <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
+      <a href="index.html" class="vdc-brand">
+        <img src="assets/img/LabLogo.webp" alt="Lab Engine Logo" class="vdc-logo-img">
+        <div class="vdc-brand-text">
+          <span class="vdc-brand-title"><span class="accent">Lab</span> Developer Community</span>
+          <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LABHAMMER</span>
+        </div>
+      </a>
+    </div>
+
+    <div class="vdc-search-bar" role="search">
+      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search documentation..." aria-label="Search wiki documentation">
+      <span class="vdc-search-icon" aria-hidden="true">&#128269;</span>
+    </div>
+
+    <div class="vdc-header-right">
+      <button id="theme-toggle-btn" class="theme-toggle-btn" aria-label="Toggle theme">&#9728;&#65039; Light Mode</button>
+      <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="github-badge-btn" aria-label="GitHub repository">
+        <span>GitHub</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <div class="vdc-page-container">
+    <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
+      <div class="sidebar-block">
+                <div class="sidebar-title">Documentation</div>
+        <ul class="sidebar-links">
+          <li><a href="index.html">Main Page (Portal)</a></li>
+          <li><a href="labhammer.html">LabHammer Editor</a></li>
+          <li><a href="character-studio.html" class="active">Character & Weapon Studio</a></li>
+          <li><a href="skeletal-animations.html">Skeletal & FBX Animations</a></li>
+          <li><a href="bot-ai.html">Combat Bot AI</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons & Viewmodel</a></li>
+          <li><a href="multiplayer.html">UDP Multiplayer</a></li>
+          <li><a href="audio-synthesizer.html">3D Audio & Synthesizer</a></li>
+          <li><a href="lua-scripting.html">Lua 5.4 Scripting</a></li>
+          <li><a href="frozen-life.html">Frozen-Life Build</a></li>
+          <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+          <li><a href="building.html">Building from Source</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Studio Topics</div>
+        <ul class="sidebar-links">
+          <li><a href="#sec-overview">Studio Architecture</a></li>
+          <li><a href="#sec-ui-layout">Valve Hammer UI &amp; Gizmos</a></li>
+          <li><a href="#sec-tab-poser">Tab 1: Weapon Grip Poser</a></li>
+          <li><a href="#sec-bot-socket">Bot Sockets &amp; Normalization</a></li>
+          <li><a href="#sec-tab-reload">Tab 2: Reload Choreographer</a></li>
+          <li><a href="#sec-tab-skins">Tab 3: Custom STL &amp; PBR Skins</a></li>
+          <li><a href="#sec-tab-appearance">Tab 4: Character Appearance</a></li>
+          <li><a href="#sec-tab-facial">Tab 5: Facial Blend Shapes</a></li>
+          <li><a href="#sec-anim-preview">23-Clip FBX Animation Palette</a></li>
+          <li><a href="#sec-persistence">Serialization (.cfg)</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Project &amp; Source</div>
+        <ul class="sidebar-links">
+          <li><a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer">GitHub Repository</a></li>
+          <li><a href="skeletal-animations.html">Skeletal Rig Pipeline</a></li>
+          <li><a href="building.html">Compilation Guide</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <main id="content" class="vdc-main-content" role="main">
+      <nav class="vdc-page-tabs" aria-label="Namespace tabs">
+        <div class="tabs-left">
+          <a href="character-studio.html" class="wiki-tab active">Studio Article</a>
+          <a href="skeletal-animations.html" class="wiki-tab">Animation Pipeline</a>
+        </div>
+        <div class="tabs-right">
+          <a href="character-studio.html" class="wiki-tab active">Read</a>
+          <a href="https://github.com/YoungJasiek/Lab/blob/main/src/LabStudio.cpp" target="_blank" class="wiki-tab">View C++ Source</a>
+        </div>
+      </nav>
+
+      <div class="wiki-breadcrumbs">
+        <a href="index.html">Main Page</a>
+        <span class="crumb-sep">&gt;</span>
+        <span>Authoring Tools</span>
+        <span class="crumb-sep">&gt;</span>
+        <span class="crumb-current">Character &amp; Weapon Studio</span>
+      </div>
+
+      <h1 class="firstHeading">
+        <span>Valve Hammer Character &amp; Weapon Studio</span>
+        <span style="font-size: 0.85rem; font-weight: normal; font-family: var(--font-mono); color: var(--wiki-accent);">[LabStudio.exe]</span>
+      </h1>
+      <div class="siteSub">From Lab Developer Community &ndash; Real-Time 3D Weapon Alignment, Dual-Socket Poser, Reload Choreography, PBR Custom STL Skins, and 23-Clip FBX Skeletal Previewer</div>
+
+      <aside class="infobox" aria-label="LabStudio Information">
+        <div class="infobox-title">
+          LabStudio
+          <span class="infobox-subtitle">VALVE HAMMER CHARACTER SUITE</span>
+        </div>
+        <div class="infobox-image">
+          <img src="assets/img/test_character_studio.webp" alt="Valve Hammer Character Studio Interface" style="max-height:180px; width:100%; object-fit:cover;">
+          <div class="infobox-caption">LabStudio showing 3D Cryo-Marine turntable and Valve Hammer beveled UI</div>
+        </div>
+        <table class="infobox-table">
+          <tbody>
+            <tr>
+              <td class="infobox-label">Executable</td>
+              <td class="infobox-data"><code>LabStudio.exe</code></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Source Files</td>
+              <td class="infobox-data"><code>src/LabStudio.cpp</code><br><code>include/LabStudio.h</code></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">UI Paradigm</td>
+              <td class="infobox-data">Immediate-Mode Classic Valve Hammer (Bevels, Sliders, Dropdowns)</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Core Modes</td>
+              <td class="infobox-data">5 Workflow Tabs (Grip, Reload, Skins, Appearance, Face)</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Animation Support</td>
+              <td class="infobox-data">23 Concurrent Skeletal Clips (Mixamo FBX + Procedural)</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Rig Integration</td>
+              <td class="infobox-data">Dual-Socket Skeletons (FPP Arms + Third-Person Bots)</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Configuration</td>
+              <td class="infobox-data"><code>assets/configs/character_studio.cfg</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </aside>
+
+      <div class="toc" role="navigation" aria-labelledby="mw-toc-heading">
+        <div class="toctitle">
+          <h2 id="mw-toc-heading">Contents</h2>
+          <span class="toctoggle">[<a href="javascript:void(0)" class="toggle-link">hide</a>]</span>
+        </div>
+        <ul>
+          <li class="toclevel-1"><a href="#sec-overview"><span class="tocnumber">1</span> <span class="toctext">Studio Architecture &amp; Rationale</span></a></li>
+          <li class="toclevel-1"><a href="#sec-ui-layout"><span class="tocnumber">2</span> <span class="toctext">Valve Hammer UI, Gizmos &amp; Diagnostics</span></a></li>
+          <li class="toclevel-1"><a href="#sec-tab-poser"><span class="tocnumber">3</span> <span class="toctext">Tab 1: Weapon Grip Poser &amp; Sub-Modes</span></a></li>
+          <li class="toclevel-1"><a href="#sec-bot-socket"><span class="tocnumber">4</span> <span class="toctext">Third-Person Bot Weapon Sockets &amp; Scaling</span></a></li>
+          <li class="toclevel-1"><a href="#sec-tab-reload"><span class="tocnumber">5</span> <span class="toctext">Tab 2: Reload Timeline Choreography</span></a></li>
+          <li class="toclevel-1"><a href="#sec-tab-skins"><span class="tocnumber">6</span> <span class="toctext">Tab 3: Custom STL Models &amp; PBR Material Skins</span></a></li>
+          <li class="toclevel-1"><a href="#sec-tab-appearance"><span class="tocnumber">7</span> <span class="toctext">Tab 4: Character Appearance &amp; Armor Classes</span></a></li>
+          <li class="toclevel-1"><a href="#sec-tab-facial"><span class="tocnumber">8</span> <span class="toctext">Tab 5: Facial Blend Shapes &amp; Real-Time Lip-Sync</span></a></li>
+          <li class="toclevel-1"><a href="#sec-anim-preview"><span class="tocnumber">9</span> <span class="toctext">23-Clip FBX Skeletal Animation Palette</span></a></li>
+          <li class="toclevel-1"><a href="#sec-persistence"><span class="tocnumber">10</span> <span class="toctext">Config Serialization &amp; Engine Hot-Reloading</span></a></li>
+        </ul>
+      </div>
+
+      <h2 id="sec-overview">1. Studio Architecture &amp; Rationale</h2>
+      <p>
+        In traditional game production, aligning first-person viewmodels, calibrating two-handed weapon grips, tuning aim-down-sights (ADS) camera offsets, and fitting third-person bot skeletal sockets is an arduous trial-and-error cycle of recompiling code or re-exporting 3D assets. 
+      </p>
+      <p>
+        <strong>LabStudio</strong> (<code>LabStudio.exe</code>) is a specialized, zero-overhead standalone authoring suite built natively inside Lab Engine. Modeled after the iconic industrial aesthetic of <em>Valve Hammer Editor</em>, it allows technical artists and gameplay programmers to inspect, pose, animate, and customize all 9 tactical weapons and character rigs directly inside OpenGL 4.5+ with instant visual feedback and sub-millimeter precision.
+      </p>
+
+      <div class="vdc-callout vdc-callout-tip">
+        <div class="callout-title">&#128161; Studio Hot-Reloading</div>
+        <div class="callout-body">
+          Any transform, reload event timing, or custom STL skin saved in LabStudio is immediately serialized to <code>assets/configs/character_studio.cfg</code>. When launched, both the single-player campaign (<code>Lab.exe</code>), the level editor (<code>LabHammer.exe</code>), and multiplayer bots ingest this file automatically, guaranteeing 100% visual parity across all executables.
+        </div>
+      </div>
+
+      <h2 id="sec-ui-layout">2. Valve Hammer UI, Gizmos &amp; Diagnostics</h2>
+      <p>
+        The user interface of LabStudio is rendered using immediate-mode 2D and 3D primitives via <code>LabRenderer</code> and <code>LabFont</code>. It avoids heavyweight web views or bloated third-party GUI libraries, maintaining a blistering <strong>&gt;1000 FPS</strong> rendering loop.
+      </p>
+      <figure class="vdc-img-figure">
+        <img src="assets/img/test_weapon_grip_studio.webp" alt="Valve Hammer Weapon Grip Poser" class="vdc-article-img">
+        <figcaption class="vdc-img-caption">Figure 1: LabStudio Weapon Grip Poser showing the M4A4-S tactical carbine, cybernetic viewmodel arms, and industrial Hammer bevel controls.</figcaption>
+      </figure>
+
+      <h3>UI Anatomy</h3>
+      <ul>
+        <li><strong>Left Tool Palette:</strong> Quick-access buttons for <code>SAVE</code>, <code>LOAD</code>, <code>RESET</code>, <code>GRID</code> toggle, <code>GIZMOS</code>, <code>CAMERA RESET</code>, and transform sub-mode selectors (<code>MOVE</code>, <code>ROT</code>, <code>SCALE</code>, <code>HANDS-FREE</code>).</li>
+        <li><strong>Top Tab Bar:</strong> 5 major workflow editors: <code>GRIP</code>, <code>RELOAD</code>, <code>SKINS</code>, <code>BODY</code>, and <code>FACE</code>.</li>
+        <li><strong>Main 3D Viewport:</strong> Interactive orbit camera (Right-Mouse orbit, Middle-Mouse pan, Scroll wheel distance zoom) rendered over a CAD-style ground grid.</li>
+        <li><strong>Bottom Diagnostics Console:</strong> 8-line live scrolling log window displaying file operations, matrix evaluations, and socket transforms in real time.</li>
+        <li><strong>Modal Dropdowns:</strong> Classic Win32/Hammer menus (<code>File</code>, <code>Edit</code>, <code>View</code>, <code>Tools</code>, <code>Help</code>) featuring full keyboard shortcuts, Undo/Redo history snapshots, and clipboard socket copying.</li>
+      </ul>
+
+      <h2 id="sec-tab-poser">3. Tab 1: Weapon Grip Poser &amp; Sub-Modes</h2>
+      <p>
+        The <strong>Grip Poser</strong> tab provides comprehensive spatial calibration for each of the 9 weapons across 4 distinct sub-modes:
+      </p>
+      <table class="wikitable">
+        <thead>
+          <tr>
+            <th>Sub-Mode</th>
+            <th>Target Transform</th>
+            <th>Primary Controls</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>1. WEAPON TRANSFORM</strong></td>
+            <td>Viewmodel STL Mesh</td>
+            <td>Offset X/Y/Z, Pitch/Yaw/Roll, Scale X/Y/Z</td>
+            <td>Positions and orients the weapon mesh relative to the camera eye line. Supports independent translation without moving hands via <code>lockHands</code>.</td>
+          </tr>
+          <tr>
+            <td><strong>2. RIGHT HAND POSER</strong></td>
+            <td>Socket <code>bHandR</code></td>
+            <td>Grip Pos X/Y/Z, Rot X/Y/Z, Finger Curls</td>
+            <td>Attaches the primary cybernetic viewmodel hand to the weapon grip, handle, or trigger guard.</td>
+          </tr>
+          <tr>
+            <td><strong>3. LEFT HAND POSER</strong></td>
+            <td>Socket <code>bHandL</code></td>
+            <td>Grip Pos X/Y/Z, Rot X/Y/Z, Finger Curls</td>
+            <td>Calibrates the secondary support hand on handguards, forward grips, or forends.</td>
+          </tr>
+          <tr>
+            <td><strong>4. ADS ALIGNMENT</strong></td>
+            <td>Camera Sightline Offset</td>
+            <td>Sight X/Y/Z, Eye Relief, Zoom FOV</td>
+            <td>Aligns iron sights, holographic reticles, or scope tubes directly onto the screen center during right-click aim.</td>
+          </tr>
+          <tr>
+            <td><strong>5. BOT SOCKET 3D</strong></td>
+            <td>Third-Person Bot Hand</td>
+            <td>Socket Pos X/Y/Z, Rot X/Y/Z, Uniform Scale</td>
+            <td>Aligns the weapon model rigidly onto third-person combat bot humanoid armatures.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Independent Weapon Translation (Lock Hands Feature)</h3>
+      <p>
+        A frequent issue in FPP weapon authoring is that adjusting the weapon's position inadvertently displaces already-posed viewmodel hands. LabStudio solves this with the <strong>Lock Hands (Move Weapon Only)</strong> toggle. When active (<code>lockHands = true</code>), transforming the weapon automatically computes an inverse counter-offset for the viewmodel arm sockets, allowing the gun to slide or angle freely while the hands remain anchored in space.
+      </p>
+      <figure class="vdc-img-figure">
+        <img src="assets/img/test_weapon_only_transform.webp" alt="Independent Weapon Transform" class="vdc-article-img">
+        <figcaption class="vdc-img-caption">Figure 2: Independent weapon translation in action ? weapon position shifted forward without disrupting finger anchor sockets.</figcaption>
+      </figure>
+
+      <h2 id="sec-bot-socket">4. Third-Person Bot Weapon Sockets &amp; Scaling</h2>
+      <p>
+        In third-person combat, bots must hold weapons rigidly in their right hand bone socket (<code>mixamorig:RightHand</code>). However, weapon models designed for first-person viewmodels are frequently modeled at radically different scales (e.g. M4A4-S in millimeters vs STL pipe in centimeters).
+      </p>
+      <p>
+        LabStudio features a dedicated <strong>BOT SOCKET</strong> sub-panel with real-time 3D preview:
+      </p>
+      <pre><code>// Bot Socket Attachment Matrix Evaluation
+Mat4 Skeleton::getSocketTransform(int boneIndex, 
+                                 const Mat4&amp; modelTransform,
+                                 const std::vector&lt;Mat4&gt;&amp; globalTransforms,
+                                 const Mat4&amp; socketOffset) const {
+    if (boneIndex &lt; 0 || boneIndex &gt;= static_cast&lt;int&gt;(globalTransforms.size())) {
+        return modelTransform;
+    }
+    return modelTransform * globalTransforms[boneIndex] * socketOffset;
+}</code></pre>
+
+      <p>
+        The artist can adjust <strong>Socket Offset X/Y/Z</strong>, <strong>Socket Rotation Pitch/Yaw/Roll</strong>, and <strong>Uniform Bot Weapon Scale</strong> with instant visual rendering directly on the animated T-800 Terminator skeletal mesh.
+      </p>
+
+      <h2 id="sec-tab-reload">5. Tab 2: Reload Timeline Choreography</h2>
+      <p>
+        The <strong>Reload Timeline</strong> tab provides sub-frame event choreography for tactical weapon reloads. Instead of static non-interactive animations, reloads are divided into 4 sequential keyframe markers:
+      </p>
+      <ol>
+        <li><strong>Mag Eject (0.0s ? 0.35s):</strong> Left hand drops to magazine well; audio cue <code>sound_mag_out.pcm</code> fires; spent magazine falls away.</li>
+        <li><strong>Mag Insert (0.35s ? 0.72s):</strong> Fresh magazine retrieved from tactical pouch and seated into receiver; <code>sound_mag_in.pcm</code> triggers; ammo count replenishes.</li>
+        <li><strong>Slide Pull / Bolt Release (0.72s ? 1.05s):</strong> Hand racks charging handle or presses bolt release; chambering audio cue.</li>
+        <li><strong>Return to Ready (1.05s ? 1.30s):</strong> Hands resume standard two-handed firing grip; weapon enters ready state.</li>
+      </ol>
+
+      <h2 id="sec-tab-skins">6. Tab 3: Custom STL Models &amp; PBR Material Skins</h2>
+      <p>
+        Lab Engine features a native <strong>Binary &amp; ASCII STL Loader</strong> (<code>Mesh::loadSTL</code>) and a universal texture decoder supporting high-resolution PNG, JPG, and BMP textures up to 4096&times;4096.
+      </p>
+      <figure class="vdc-img-figure">
+        <img src="assets/img/test_custom_model_viewmodel.webp" alt="Custom Model STL Viewmodel" class="vdc-article-img">
+        <figcaption class="vdc-img-caption">Figure 3: Custom Model.stl tactical rifle loaded into first-person viewmodel with procedural chrome material.</figcaption>
+      </figure>
+
+      <p>
+        Through the <strong>Weapon Skins</strong> tab, developers can hot-swap external 3D STL files into any weapon slot and customize PBR surface parameters:
+      </p>
+      <ul>
+        <li><strong>Custom STL Path:</strong> Specify custom model filenames (e.g. <code>assets/models/Model.stl</code> or <code>pipe.stl</code>).</li>
+        <li><strong>Base Scale Normalization:</strong> Automatically detects STL vertex bounding box and normalizes millimeter or meter dimensions to standard viewmodel coordinates.</li>
+        <li><strong>PBR Texture Assignment:</strong> Bind custom diffuse/albedo maps (e.g. <code>weapon_m4a4s.bmp</code>, <code>hazard_stripes.bmp</code>, <code>metal_hull.bmp</code>).</li>
+        <li><strong>Material Sliders:</strong> Real-time control of <strong>Metallic</strong> (0.0 to 1.0), <strong>Roughness</strong> (0.0 to 1.0), <strong>UV Texture Tiling Scale</strong> (0.1x to 10.0x), and <strong>RGB Tint Color</strong>.</li>
+      </ul>
+
+      <h2 id="sec-tab-appearance">7. Tab 4: Character Appearance &amp; Armor Classes</h2>
+      <p>
+        The <strong>Appearance</strong> tab enables customization of third-person player models and combat bots. Features include:
+      </p>
+      <ul>
+        <li><strong>Armor Classes:</strong> <code>Light Scout</code> (streamlined composite plating, high mobility), <code>Cryo Marine</code> (heavy thermal insulated environmental suit), and <code>Tactical Officer</code> (reinforced combat vest and utility rig).</li>
+        <li><strong>Helmet Options:</strong> <code>Combat Visor</code> (heads-up tactical HUD), <code>Sealed Environmental Helmet</code> (cryogenic respirator), and <code>Tactical Beanie</code> (lightweight reconnaissance).</li>
+        <li><strong>Camouflage Patterns:</strong> Procedurally shaded camouflage palettes including <em>Urban Slate</em>, <em>Arctic White</em>, <em>Cryo Navy</em>, and <em>Hazard Rust</em>.</li>
+      </ul>
+
+      <h2 id="sec-tab-facial">8. Tab 5: Facial Blend Shapes &amp; Real-Time Lip-Sync</h2>
+      <p>
+        The <strong>Face &amp; Dialogue</strong> tab inspects procedural facial deformation and speech synchronization. The rig provides 6 discrete facial blend shapes:
+      </p>
+      <div class="vdc-code-container">
+        <pre><code>// 6 Discrete Facial Blend Shapes evaluated in GPU VBO
+enum class BlendShape : int {
+    Jaw_Open    = 0, // Vowel phonemes: 'AA', 'AH', 'AW'
+    Brow_Raise  = 1, // Combat stress and exclamation
+    Mouth_Smile = 2, // Non-combat morale stance
+    Mouth_O     = 3, // Rounded vowel phonemes: 'OO', 'OH'
+    Eye_Blink_L = 4, // Autonomous micro-blink left
+    Eye_Blink_R = 5  // Autonomous micro-blink right
+};</code></pre>
+      </div>
+      <p>
+        The built-in speech track synthesizer generates procedural speech waveforms and runs real-time root-mean-square (RMS) energy tracking to evaluate phoneme intensity, driving the jaw and lip mesh deformations synchronously with dialogue audio.
+      </p>
+
+      <h2 id="sec-anim-preview">9. 23-Clip FBX Skeletal Animation Palette</h2>
+      <p>
+        To test character posing and weapon socket stability during movement and combat, LabStudio incorporates a live <strong>Animation Switcher &amp; FBX Clip Previewer</strong>.
+      </p>
+      <figure class="vdc-img-figure">
+        <img src="assets/img/test_fbx_bot_animations.webp" alt="FBX Animation Clip Grid in LabStudio" class="vdc-article-img">
+        <figcaption class="vdc-img-caption">Figure 4: LabStudio previewing the T-800 skeletal bot in the FBX 'Firing Rifle' animation stance with 23 selectable animation clips.</figcaption>
+      </figure>
+
+      <p>
+        The animation panel features:
+      </p>
+      <ul>
+        <li><strong>Playback Controls:</strong> Seamless <code>PLAY</code> / <code>PAUSE</code> toggle and dynamic speed slider (0.25&times; to 2.50&times;) allowing frame-by-frame inspection of recoil arcs and muzzle alignment.</li>
+        <li><strong>23 Selectable Clips:</strong> Responsive 3-column button grid automatically populated from all glTF and FBX clips in <code>assets/animations/</code> (including <em>Walking</em>, <em>Run Forward</em>, <em>Firing Rifle</em>, <em>Reload</em>, <em>Hit Reaction</em>, <em>Death From Front Headshot</em>, <em>Pistol Idle</em>, <em>Heavy Weapon Swing</em>, and <em>Jump Up</em>).</li>
+        <li><strong>Dual-Mode State Sync:</strong> Switching to <em>Walk</em> or <em>Shoot</em> activates both viewmodel weapon bobbing/recoil and the corresponding third-person bot skeletal animation simultaneously.</li>
+      </ul>
+
+      <h2 id="sec-persistence">10. Config Serialization &amp; Engine Hot-Reloading</h2>
+      <p>
+        When clicking <code>SAVE CONFIG</code> or pressing <code>Ctrl + S</code>, LabStudio serializes all weapon grips, bot sockets, skin paths, and appearance settings into an ASCII configuration file:
+      </p>
+      <div class="vdc-code-container">
+        <pre><code>// assets/configs/character_studio.cfg sample excerpt
+[Weapon_3_M4A4S]
+offset = 0.024 -0.015 0.082
+rotation = 1.200 -2.400 0.500
+lock_hands = 0
+right_grip_pos = 0.015 -0.045 0.010
+right_grip_rot = 5.000 12.000 -2.000
+left_grip_pos = -0.020 -0.025 0.220
+left_grip_rot = 2.000 4.000 10.000
+bot_socket_pos = 0.085 0.020 0.110
+bot_socket_rot = -5.000 85.000 0.000
+bot_socket_scale = 1.000
+custom_model = assets/models/Model.stl
+texture = weapon_m4a4s.bmp
+metallic = 0.85
+roughness = 0.35</code></pre>
+      </div>
+
+      <div class="vdc-see-also">
+        <h3>See Also</h3>
+        <ul>
+          <li><a href="skeletal-animations.html">glTF 2.0 &amp; FBX Skeletal Animation Pipeline</a> ? Mixamo humanoid retargeting and GPU skinning.</li>
+          <li><a href="bot-ai.html">Combat Bot AI</a> ? Bot weapon arsenals, cadence, and human recoil arcs.</li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel Kinematics</a> ? Spring-damper sway and ADS mechanics.</li>
+          <li><a href="labhammer.html">LabHammer 3D Level Editor</a> ? CSG brush modeling and .labmap format.</li>
+        </ul>
+      </div>
+    </main>
+  </div>
+
+  <footer class="vdc-footer" role="contentinfo">
+    <div class="vdc-footer-content">
+      <div class="footer-left">
+        <p><strong>Lab Developer Community</strong> ? The Valve-Style Knowledge Hub for Lab Engine, LabHammer &amp; Frozen-Life.</p>
+        <p>Crafted in ISO C++20 with OpenGL 4.5+ Direct State Access (DSA). Zero runtime external dependencies.</p>
+      </div>
+      <div class="footer-right">
+        <ul class="footer-links">
+          <li><a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+          <li><a href="building.html">Build Guide</a></li>
+          <li><a href="character-studio.html">Character Studio</a></li>
+          <li><a href="architecture.html">Architecture</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+  <script src="js/main.js"></script>
+</body>
+</html>

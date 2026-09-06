@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Combat Bot AI &amp; Skeletal Dynamics ? Technical documentation for Lab Engine tactical AI, finite state machines, ray-AABB line of sight, human recoil cadence, and exact weapon drops.">
+  <meta name="keywords" content="Combat Bot AI, Finite State Machine, Raycast LOS, Human Recoil Arc, Weapon Drops, T-800 Terminator, C++20, OpenGL">
+  <meta name="author" content="YoungJasiek">
+
+  <title>Combat Bot AI &amp; Skeletal Dynamics ? Lab Developer Community</title>
+  <link rel="icon" type="image/webp" href="assets/img/LabLogo.webp">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <a href="#content" class="skip-link">Skip to main content</a>
+
+  <header class="vdc-top-header" role="banner">
+    <div class="vdc-header-left">
+      <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
+      <a href="index.html" class="vdc-brand">
+        <img src="assets/img/LabLogo.webp" alt="Lab Engine Logo" class="vdc-logo-img">
+        <div class="vdc-brand-text">
+          <span class="vdc-brand-title"><span class="accent">Lab</span> Developer Community</span>
+          <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LABHAMMER</span>
+        </div>
+      </a>
+    </div>
+
+    <div class="vdc-search-bar" role="search">
+      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search documentation..." aria-label="Search wiki documentation">
+      <span class="vdc-search-icon" aria-hidden="true">&#128269;</span>
+    </div>
+
+    <div class="vdc-header-right">
+      <button id="theme-toggle-btn" class="theme-toggle-btn" aria-label="Toggle theme">&#9728;&#65039; Light Mode</button>
+      <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="github-badge-btn" aria-label="GitHub repository">
+        <span>GitHub</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <div class="vdc-page-container">
+    <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
+      <div class="sidebar-block">
+                <div class="sidebar-title">Documentation</div>
+        <ul class="sidebar-links">
+          <li><a href="index.html">Main Page (Portal)</a></li>
+          <li><a href="labhammer.html">LabHammer Editor</a></li>
+          <li><a href="character-studio.html">Character & Weapon Studio</a></li>
+          <li><a href="skeletal-animations.html">Skeletal & FBX Animations</a></li>
+          <li><a href="bot-ai.html" class="active">Combat Bot AI</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons & Viewmodel</a></li>
+          <li><a href="multiplayer.html">UDP Multiplayer</a></li>
+          <li><a href="audio-synthesizer.html">3D Audio & Synthesizer</a></li>
+          <li><a href="lua-scripting.html">Lua 5.4 Scripting</a></li>
+          <li><a href="frozen-life.html">Frozen-Life Build</a></li>
+          <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+          <li><a href="building.html">Building from Source</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Bot AI Topics</div>
+        <ul class="sidebar-links">
+          <li><a href="#sec-overview">AI Architecture</a></li>
+          <li><a href="#sec-fsm">5-State Combat FSM</a></li>
+          <li><a href="#sec-los">LOS Raycast &amp; Fast Slab AABB</a></li>
+          <li><a href="#sec-arsenal">Diverse Weapon Allocation</a></li>
+          <li><a href="#sec-cadence">Human Recoil Arc &amp; Cadence</a></li>
+          <li><a href="#sec-strafing">Combat Strafing &amp; Obstacle Sliding</a></li>
+          <li><a href="#sec-drops">Exact 3D Weapon Drops on Death</a></li>
+          <li><a href="#sec-damage">Hit Reaction &amp; Headshot Fatalities</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Project &amp; Source</div>
+        <ul class="sidebar-links">
+          <li><a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer">GitHub Repository</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons Arsenal</a></li>
+          <li><a href="character-studio.html">Character Studio</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <main id="content" class="vdc-main-content" role="main">
+      <nav class="vdc-page-tabs" aria-label="Namespace tabs">
+        <div class="tabs-left">
+          <a href="bot-ai.html" class="wiki-tab active">AI Article</a>
+          <a href="character-studio.html" class="wiki-tab">Character Studio</a>
+        </div>
+        <div class="tabs-right">
+          <a href="bot-ai.html" class="wiki-tab active">Read</a>
+          <a href="https://github.com/YoungJasiek/Lab/blob/main/src/LabAI.cpp" target="_blank" class="wiki-tab">View C++ Source</a>
+        </div>
+      </nav>
+
+      <div class="wiki-breadcrumbs">
+        <a href="index.html">Main Page</a>
+        <span class="crumb-sep">&gt;</span>
+        <span>Gameplay Systems</span>
+        <span class="crumb-sep">&gt;</span>
+        <span class="crumb-current">Combat Bot AI</span>
+      </div>
+
+      <h1 class="firstHeading">
+        <span>Combat Bot AI &amp; Skeletal Dynamics</span>
+        <span style="font-size: 0.85rem; font-weight: normal; font-family: var(--font-mono); color: var(--wiki-accent);">[LabAI.h]</span>
+      </h1>
+      <div class="siteSub">From Lab Developer Community &ndash; Tactical Finite State Machine, Ray-AABB Line of Sight, Human Recoil Arc, Weapon Variety, and Exact Physical Weapon Drops</div>
+
+      <aside class="infobox" aria-label="Combat Bot AI Subsystem">
+        <div class="infobox-title">
+          LabAI
+          <span class="infobox-subtitle">TACTICAL COMBAT OPPONENTS</span>
+        </div>
+        <div class="infobox-image">
+          <img src="assets/img/test_bot_weapon_and_animations.webp" alt="Combat Bot Holding Weapon" style="max-height:180px; width:100%; object-fit:cover;">
+          <div class="infobox-caption">T-800 Combat Bot executing tactical engagement with weapon attached to bone socket</div>
+        </div>
+        <table class="infobox-table">
+          <tbody>
+            <tr>
+              <td class="infobox-label">Source Files</td>
+              <td class="infobox-data"><code>src/LabAI.cpp</code><br><code>include/LabAI.h</code></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">State Machine</td>
+              <td class="infobox-data">5 Discrete States (Idle, Patrol, Chase, Attack, Dead)</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Line of Sight</td>
+              <td class="infobox-data">Branchless Slab Ray-AABB against map polyhedra &amp; props</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Weapon Allocation</td>
+              <td class="infobox-data">6 Distinct Weapons (Minigun, Shotgun, M4A4-S, SG553, Pistol, Pipe)</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Recoil Arc</td>
+              <td class="infobox-data">0.28s Human-like visual firing arc with arm rise</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Weapon Drops</td>
+              <td class="infobox-data">100% exact weapon, texture, and ammo dropped upon death</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Fatality Reactions</td>
+              <td class="infobox-data">Hit Reaction, Front Headshot (2.5x), Rifle Death, Back Death</td>
+            </tr>
+          </tbody>
+        </table>
+      </aside>
+
+      <div class="toc" role="navigation" aria-labelledby="mw-toc-heading">
+        <div class="toctitle">
+          <h2 id="mw-toc-heading">Contents</h2>
+          <span class="toctoggle">[<a href="javascript:void(0)" class="toggle-link">hide</a>]</span>
+        </div>
+        <ul>
+          <li class="toclevel-1"><a href="#sec-overview"><span class="tocnumber">1</span> <span class="toctext">Combat AI Architecture &amp; Rationale</span></a></li>
+          <li class="toclevel-1"><a href="#sec-fsm"><span class="tocnumber">2</span> <span class="toctext">5-State Combat Finite State Machine</span></a></li>
+          <li class="toclevel-1"><a href="#sec-los"><span class="tocnumber">3</span> <span class="toctext">Line of Sight &amp; Branchless Slab Ray-AABB</span></a></li>
+          <li class="toclevel-1"><a href="#sec-arsenal"><span class="tocnumber">4</span> <span class="toctext">Diverse Weapon Allocation across Bots</span></a></li>
+          <li class="toclevel-1"><a href="#sec-cadence"><span class="tocnumber">5</span> <span class="toctext">Human Recoil Arc &amp; Weapon-Specific Cadence</span></a></li>
+          <li class="toclevel-1"><a href="#sec-strafing"><span class="tocnumber">6</span> <span class="toctext">Combat Circle-Strafing &amp; Obstacle Sliding</span></a></li>
+          <li class="toclevel-1"><a href="#sec-drops"><span class="tocnumber">7</span> <span class="toctext">Exact 3D Weapon Drops on Death</span></a></li>
+          <li class="toclevel-1"><a href="#sec-damage"><span class="tocnumber">8</span> <span class="toctext">Hit Reactions &amp; Multi-Directional Fatalities</span></a></li>
+        </ul>
+      </div>
+
+      <h2 id="sec-overview">1. Combat AI Architecture &amp; Rationale</h2>
+      <p>
+        The <strong>LabAI</strong> subsystem provides reactive, physically grounded, and visually compelling combat opponents. Unlike static turrets or simplistic pathfollowers, bots in Lab Engine:
+      </p>
+      <ul>
+        <li>Operate on a rigorous <strong>Finite State Machine (FSM)</strong> with line-of-sight awareness and memory decay.</li>
+        <li>Wield a <strong>diverse arsenal</strong> where each bot visibly carries and fires a unique weapon (Minigun, Shotgun, M4A4-S, SG553, Pistol, or Melee Pipe) matching its assigned tactical profile.</li>
+        <li>Exhibit <strong>human-like shooting cadence</strong> with continuous recoil arcs rather than instantaneous zero-duration shots.</li>
+        <li>Perform <strong>exact weapon drops on death</strong>: when a bot holding a Shotgun is killed, it physically drops that exact Shotgun model and texture onto the ground plane for the player to scavenge.</li>
+      </ul>
+
+      <h2 id="sec-fsm">2. 5-State Combat Finite State Machine</h2>
+      <p>
+        Each <code>CombatBot</code> transitions across 5 well-defined lifecycle states:
+      </p>
+      <table class="wikitable">
+        <thead>
+          <tr>
+            <th>AI State</th>
+            <th>Trigger Condition</th>
+            <th>Animation</th>
+            <th>Behavior</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Idle</strong></td>
+            <td>Spawn / No target sighted</td>
+            <td><code>Idle</code> or <code>Pistol Idle</code></td>
+            <td>Stationary scanning stance; low tick frequency; detects targets within 18 meters.</td>
+          </tr>
+          <tr>
+            <td><strong>Patrol</strong></td>
+            <td>Waypoints assigned</td>
+            <td><code>Walking</code> (1.37s cycle)</td>
+            <td>Linear navigation between waypoint A and B with smooth yaw turning towards travel direction.</td>
+          </tr>
+          <tr>
+            <td><strong>Chase</strong></td>
+            <td>Target sighted out of optimal range</td>
+            <td><code>Run Forward</code> (0.50s sprint)</td>
+            <td>Aggressive forward pursuit while maintaining collision sliding against map walls.</td>
+          </tr>
+          <tr>
+            <td><strong>Attack</strong></td>
+            <td>Clear LOS within firing range (&lt; 25m)</td>
+            <td><code>Firing Rifle</code> / <code>Strafing</code></td>
+            <td>Weapon cadence discharge, human recoil muzzle rise, dynamic circle-strafing, and tactical reloads.</td>
+          </tr>
+          <tr>
+            <td><strong>Dead</strong></td>
+            <td>Health &le; 0.0</td>
+            <td><code>Death From Front Headshot</code> / <code>Death</code></td>
+            <td>Ceases physics, spawns exact weapon drop pickup, plays death choreography, and disables collision.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2 id="sec-los">3. Line of Sight &amp; Branchless Slab Ray-AABB</h2>
+      <p>
+        To determine whether a bot can engage a target, the engine casts a line-of-sight ray from the bot's eye position (\(y + 1.62	ext{ m}\)) towards the target center:
+      </p>
+      <div class="vdc-code-container">
+        <pre><code>bool Raycast::rayIntersectAABB(const Vec3&amp; origin, const Vec3&amp; dir,
+                              const Vec3&amp; boxMin, const Vec3&amp; boxMax,
+                              float&amp; outT, Vec3* outNormal) {
+    Vec3 invDir(1.0f / (std::abs(dir.x) &gt; 1e-6f ? dir.x : 1e-6f),
+                1.0f / (std::abs(dir.y) &gt; 1e-6f ? dir.y : 1e-6f),
+                1.0f / (std::abs(dir.z) &gt; 1e-6f ? dir.z : 1e-6f));
+
+    float t1 = (boxMin.x - origin.x) * invDir.x;
+    float t2 = (boxMax.x - origin.x) * invDir.x;
+    float t3 = (boxMin.y - origin.y) * invDir.y;
+    float t4 = (boxMax.y - origin.y) * invDir.y;
+    float t5 = (boxMin.z - origin.z) * invDir.z;
+    float t6 = (boxMax.z - origin.z) * invDir.z;
+
+    float tmin = std::max(std::max(std::min(t1, t2), std::min(t3, t4)), std::min(t5, t6));
+    float tmax = std::min(std::min(std::max(t1, t2), std::max(t3, t4)), std::max(t5, t6));
+
+    if (tmax &lt; 0.0f || tmin &gt; tmax) return false;
+    outT = tmin;
+    return true;
+}</code></pre>
+      </div>
+
+      <p>
+        If the ray intersects any solid map brush or wall before reaching the target, LOS is blocked and the bot transitions into <code>Chase</code> to re-establish sightline.
+      </p>
+
+      <h2 id="sec-arsenal">4. Diverse Weapon Allocation across Bots</h2>
+      <p>
+        To prevent repetitive gameplay where every bot looks identical and holds a generic prop, the <code>AIManager</code> distributes weapons across the active bot roster:
+      </p>
+      <table class="wikitable">
+        <thead>
+          <tr>
+            <th>Bot ID</th>
+            <th>Name</th>
+            <th>Equipped Weapon</th>
+            <th>Mesh Type</th>
+            <th>Ammo Capacity</th>
+            <th>Fire Interval</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Bot #0</td><td>Alpha-Heavy</td><td><strong>Minigun</strong></td><td>Rotary 6-Barrel Mesh</td><td>100 Rounds</td><td>0.065s (920 RPM)</td></tr>
+          <tr><td>Bot #1</td><td>Bravo-Breacher</td><td><strong>Shotgun</strong></td><td>Tactical Pump Mesh</td><td>8 Shells</td><td>0.750s (80 RPM)</td></tr>
+          <tr><td>Bot #2</td><td>Charlie-Rifleman</td><td><strong>M4A4-S Carbine</strong></td><td>CAD STL (Model.stl)</td><td>30 Rounds</td><td>0.095s (630 RPM)</td></tr>
+          <tr><td>Bot #3</td><td>Delta-Marksman</td><td><strong>SG553 Rifle</strong></td><td>Optical Scoped Mesh</td><td>30 Rounds</td><td>0.110s (545 RPM)</td></tr>
+          <tr><td>Bot #4</td><td>Echo-Scout</td><td><strong>Pistol</strong></td><td>Polymer Sidearm Mesh</td><td>12 Rounds</td><td>0.220s (270 RPM)</td></tr>
+          <tr><td>Bot #5</td><td>Foxtrot-Brawler</td><td><strong>Melee Pipe</strong></td><td>Rigid Steel Pipe (pipe.stl)</td><td>&infin; Melee</td><td>0.650s (Swing Arc)</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="sec-cadence">5. Human Recoil Arc &amp; Weapon-Specific Cadence</h2>
+      <p>
+        In older engines, AI gunfire often consisted of an instantaneous single-frame raycast with no visible weapon motion. Lab Engine introduces the <strong>Human Recoil Arc</strong>:
+      </p>
+      <figure class="vdc-img-figure">
+        <img src="assets/img/test_studio_anim_and_human_shooting.webp" alt="Human Shooting Recoil Arc" class="vdc-article-img">
+        <figcaption class="vdc-img-caption">Figure 1: Combat bot firing arc &ndash; right arm rises smoothly with mechanical recoil momentum while ejecting bullet tracers.</figcaption>
+      </figure>
+
+      <p>
+        When a bot pulls the trigger, <code>shootAnimTimer</code> is set to <strong>0.28 seconds</strong>. During this window, the skeletal animator plays <code>"Firing Rifle"</code> (or <code>"Shoot"</code>), applying a procedural upward muzzle pitch and torso twist before smoothly recovering to rest position. If a bot's magazine empties, it enters a <strong>tactical reload state</strong> for 2.2 seconds, seeking cover rather than continuing to aim forward.
+      </p>
+
+      <h2 id="sec-strafing">6. Combat Circle-Strafing &amp; Obstacle Sliding</h2>
+      <p>
+        During the <code>Attack</code> state, bots do not stand still. If the distance to the target is between 3.5m and 8.0m, bots engage in <strong>combat circle-strafing</strong>, alternating lateral movement left and right to evade incoming hitscan tracers:
+      </p>
+      <div class="vdc-code-container">
+        <pre><code>// Dynamic combat strafing vector
+Vec3 forward = (targetPos - bot.position).normalized();
+Vec3 right = forward.cross(Vec3(0, 1, 0)).normalized();
+Vec3 moveDir = right * bot.strafeDirection;
+
+Vec3 nextPos = bot.position + moveDir * (bot.speed * 0.75f) * dt;
+bool grounded = true;
+LabCollision::moveAndSlide(nextPos, bot.velocity, grounded, dt, solidBoxes, 0.0f, 0.35f, 1.85f);
+bot.position = nextPos;</code></pre>
+      </div>
+
+      <h2 id="sec-drops">7. Exact 3D Weapon Drops on Death</h2>
+      <p>
+        A core gameplay design requirement is that <strong>enemies must drop the exact weapon they were holding</strong>. When a bot takes fatal damage, <code>AIManager::update</code> creates a 3D weapon pickup at the bot's death location inheriting the bot's weapon ID, custom STL mesh, and texture:
+      </p>
+      <div class="vdc-code-container">
+        <pre><code>if (bot.state == AIState::Dead &amp;&amp; !bot.hasDroppedWeapon) {
+    bot.hasDroppedWeapon = true;
+    
+    // Instantiate 3D physics weapon pickup
+    WeaponPickup drop;
+    drop.weaponID = bot.weaponID;
+    drop.position = bot.position + Vec3(0.0f, 0.45f, 0.0f);
+    drop.ammo = bot.ammoInClip;
+    drop.isDroppedByBot = true;
+    
+    activeWeaponPickups.push_back(drop);
+}</code></pre>
+      </div>
+      <p>
+        This guarantees that if a player battles a Minigun bot, the defeated bot drops a Minigun with its remaining ammunition, creating high-stakes tactical scavenge opportunities.
+      </p>
+
+      <h2 id="sec-damage">8. Hit Reactions &amp; Multi-Directional Fatalities</h2>
+      <p>
+        Bot hitboxes are segmented into distinct <strong>Head</strong> and <strong>Body</strong> bounding boxes. Shots striking the head apply a <strong>2.5&times; damage multiplier</strong>.
+      </p>
+      <p>
+        Upon receiving non-lethal damage, the bot interrupts its movement with <code>"Hit Reaction"</code> (kinetic flinch). Upon fatal damage, the engine selects the death animation based on impact context:
+      </p>
+      <ul>
+        <li><strong>Headshot Fatalities:</strong> Plays <code>"Death From Front Headshot"</code> &ndash; violent backward head snap and ragdoll collapse.</li>
+        <li><strong>Flanking / Back Fatalities:</strong> Plays <code>"Death From The Back"</code> &ndash; forward pitch and stumble onto the ground plane.</li>
+        <li><strong>Rifle Fatalities:</strong> Plays <code>"Rifle Death"</code> &ndash; hands releasing weapon receiver and chest crumple.</li>
+      </ul>
+
+      <div class="vdc-see-also">
+        <h3>See Also</h3>
+        <ul>
+          <li><a href="skeletal-animations.html">glTF 2.0 &amp; FBX Skeletal Animation Pipeline</a> ? Mixamo 52-bone retargeting and GPU skinning.</li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel Kinematics</a> ? Arsenal statistics, sway, and recoil.</li>
+          <li><a href="character-studio.html">Valve Hammer Character Studio</a> ? Bot socket calibration and weapon alignment.</li>
+        </ul>
+      </div>
+    </main>
+  </div>
+
+  <footer class="vdc-footer" role="contentinfo">
+    <div class="vdc-footer-content">
+      <div class="footer-left">
+        <p><strong>Lab Developer Community</strong> ? The Valve-Style Knowledge Hub for Lab Engine, LabHammer &amp; Frozen-Life.</p>
+        <p>Crafted in ISO C++20 with OpenGL 4.5+ Direct State Access (DSA). Zero runtime external dependencies.</p>
+      </div>
+      <div class="footer-right">
+        <ul class="footer-links">
+          <li><a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+          <li><a href="building.html">Build Guide</a></li>
+          <li><a href="character-studio.html">Character Studio</a></li>
+          <li><a href="architecture.html">Architecture</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+  <script src="js/main.js"></script>
+</body>
+</html>

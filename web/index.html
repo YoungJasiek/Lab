@@ -59,10 +59,17 @@
     <!-- Left Sidebar Navigation -->
     <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
       <div class="sidebar-block">
-        <div class="sidebar-title">Documentation</div>
+                <div class="sidebar-title">Documentation</div>
         <ul class="sidebar-links">
           <li><a href="index.html" class="active">Main Page (Portal)</a></li>
           <li><a href="labhammer.html">LabHammer Editor</a></li>
+          <li><a href="character-studio.html">Character & Weapon Studio</a></li>
+          <li><a href="skeletal-animations.html">Skeletal & FBX Animations</a></li>
+          <li><a href="bot-ai.html">Combat Bot AI</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons & Viewmodel</a></li>
+          <li><a href="multiplayer.html">UDP Multiplayer</a></li>
+          <li><a href="audio-synthesizer.html">3D Audio & Synthesizer</a></li>
+          <li><a href="lua-scripting.html">Lua 5.4 Scripting</a></li>
           <li><a href="frozen-life.html">Frozen-Life Build</a></li>
           <li><a href="architecture.html">Engine Architecture</a></li>
           <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
@@ -233,7 +240,112 @@
           </ul>
         </div>
 
-      </section>
+      
+        <!-- Portal: Character Studio -->
+        <div class="portal-box">
+          <div class="portal-header">
+            <span class="portal-icon">&#9874;</span>
+            <h3 class="portal-title"><a href="character-studio.html">Character &amp; Weapon Studio</a></h3>
+          </div>
+          <p class="portal-desc">Valve Hammer styled standalone 3D authoring suite. Weapon grip poser, independent weapon-only translation, bot sockets, reload timeline, and FBX previewer.</p>
+          <ul class="portal-links">
+            <li><a href="character-studio.html#sec-tab-poser">&bull; Weapon Grip &amp; Dual Sockets</a></li>
+            <li><a href="character-studio.html#sec-bot-socket">&bull; Third-Person Bot Sockets</a></li>
+            <li><a href="character-studio.html#sec-tab-skins">&bull; Custom STL &amp; PBR Skins</a></li>
+            <li><a href="character-studio.html#sec-anim-preview">&bull; 23-Clip FBX Animation Grid</a></li>
+          </ul>
+        </div>
+
+        <!-- Portal: Skeletal Animations -->
+        <div class="portal-box">
+          <div class="portal-header">
+            <span class="portal-icon">&#128128;</span>
+            <h3 class="portal-title"><a href="skeletal-animations.html">Skeletal &amp; FBX Animations</a></h3>
+          </div>
+          <p class="portal-desc">Mixamo 52-bone humanoid retargeting, T-800 Terminator rig, 0.05ms binary .anim cache, OpenGL 4.5+ DSA GPU Linear Blend Skinning, and dual-socket attachments.</p>
+          <ul class="portal-links">
+            <li><a href="skeletal-animations.html#sec-binary-cache">&bull; LAB_ANIM Binary Cache</a></li>
+            <li><a href="skeletal-animations.html#sec-retargeting">&bull; Fuzzy Bone Retargeting</a></li>
+            <li><a href="skeletal-animations.html#sec-gl-shader">&bull; GPU Vertex Skinning Shader</a></li>
+            <li><a href="skeletal-animations.html#sec-animator">&bull; Cross-Fade Slerp Blending</a></li>
+          </ul>
+        </div>
+
+        <!-- Portal: Combat Bot AI -->
+        <div class="portal-box">
+          <div class="portal-header">
+            <span class="portal-icon">&#128163;</span>
+            <h3 class="portal-title"><a href="bot-ai.html">Combat Bot AI &amp; Dynamics</a></h3>
+          </div>
+          <p class="portal-desc">Tactical 5-state FSM, fast slab ray-AABB line of sight, human recoil cadence (0.28s), multi-target prioritization, and exact physical weapon drops on death.</p>
+          <ul class="portal-links">
+            <li><a href="bot-ai.html#sec-fsm">&bull; 5-State Combat FSM</a></li>
+            <li><a href="bot-ai.html#sec-arsenal">&bull; Diverse Weapon Allocation</a></li>
+            <li><a href="bot-ai.html#sec-cadence">&bull; Human Recoil Arc &amp; Cadence</a></li>
+            <li><a href="bot-ai.html#sec-drops">&bull; Exact 3D Weapon Drops</a></li>
+          </ul>
+        </div>
+
+        <!-- Portal: Weapons & Viewmodel -->
+        <div class="portal-box">
+          <div class="portal-header">
+            <span class="portal-icon">&#128299;</span>
+            <h3 class="portal-title"><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></h3>
+          </div>
+          <p class="portal-desc">9-weapon tactical arsenal, coupled spring-damper inertia sway, tactical walking roll sway (~1.45 deg), smooth ADS alignment, and custom STL PBR skins.</p>
+          <ul class="portal-links">
+            <li><a href="weapons-viewmodel.html#sec-table">&bull; 9-Weapon Ballistics Table</a></li>
+            <li><a href="weapons-viewmodel.html#sec-spring">&bull; Dual-Spring Damper Physics</a></li>
+            <li><a href="weapons-viewmodel.html#sec-walk-sway">&bull; Tactical Walking Roll Sway</a></li>
+            <li><a href="weapons-viewmodel.html#sec-stl">&bull; Universal STL Mesh Normalization</a></li>
+          </ul>
+        </div>
+
+        <!-- Portal: Multiplayer -->
+        <div class="portal-box">
+          <div class="portal-header">
+            <span class="portal-icon">&#127760;</span>
+            <h3 class="portal-title"><a href="multiplayer.html">UDP Multiplayer &amp; 64Hz Server</a></h3>
+          </div>
+          <p class="portal-desc">Authoritative 64Hz dedicated server (LabServer.exe), client-side prediction, zero-desync server reconciliation, ground clamping, and LAN discovery.</p>
+          <ul class="portal-links">
+            <li><a href="multiplayer.html#sec-protocol">&bull; Lightweight UDP Protocol</a></li>
+            <li><a href="multiplayer.html#sec-server">&bull; Dedicated Server Architecture</a></li>
+            <li><a href="multiplayer.html#sec-prediction">&bull; Client-Side Prediction</a></li>
+            <li><a href="multiplayer.html#sec-reconciliation">&bull; Server Reconciliation &amp; Clamping</a></li>
+          </ul>
+        </div>
+
+        <!-- Portal: Audio Synthesizer -->
+        <div class="portal-box">
+          <div class="portal-header">
+            <span class="portal-icon">&#128266;</span>
+            <h3 class="portal-title"><a href="audio-synthesizer.html">3D Audio &amp; Synthesizers</a></h3>
+          </div>
+          <p class="portal-desc">Hardware-accelerated miniaudio backend, 3D distance attenuation, 26 procedural 16-bit PCM sound synthesizers, and real-time sliding window RMS lip-sync.</p>
+          <ul class="portal-links">
+            <li><a href="audio-synthesizer.html#sec-miniaudio">&bull; miniaudio Backend Threading</a></li>
+            <li><a href="audio-synthesizer.html#sec-spatial">&bull; 3D Distance Attenuation</a></li>
+            <li><a href="audio-synthesizer.html#sec-synthesizers">&bull; 26 Procedural PCM Sounds</a></li>
+            <li><a href="audio-synthesizer.html#sec-lipsync">&bull; Real-Time RMS Lip-Sync</a></li>
+          </ul>
+        </div>
+
+        <!-- Portal: Lua Scripting -->
+        <div class="portal-box">
+          <div class="portal-header">
+            <span class="portal-icon">&#128220;</span>
+            <h3 class="portal-title"><a href="lua-scripting.html">Lua 5.4 Scripting &amp; Modding</a></h3>
+          </div>
+          <p class="portal-desc">Decoupled game balance tables (scripts/balance.lua), interactive tilde (~) console, live lethality tuning, C-API engine hooks, and safe hot reloading.</p>
+          <ul class="portal-links">
+            <li><a href="lua-scripting.html#sec-balance">&bull; Decoupled Game Balance</a></li>
+            <li><a href="lua-scripting.html#sec-console">&bull; In-Engine Developer Console</a></li>
+            <li><a href="lua-scripting.html#sec-bindings">&bull; C++ / Lua C-API Hooks</a></li>
+            <li><a href="lua-scripting.html#sec-sandboxing">&bull; Hot-Reloading &amp; Sandboxing</a></li>
+          </ul>
+        </div>
+</section>
 
       <!-- ================================================================
            FEATURED ARTICLES SPLIT (WIKIPEDIA STYLE)
