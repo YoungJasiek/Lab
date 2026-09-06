@@ -58,6 +58,23 @@ public:
         _decalSystem.init();
         _interactiveSystem.init();
 
+        // Initialize Lua Scripting Engine & Game Mechanics Subsystem
+        if (_scriptEngine.init("assets/scripts/game_mechanics.lua")) {
+            ScriptEngine::registerDoorUnlockCallback([this](int doorIdx) {
+                if (_currentMap && doorIdx >= 0 && doorIdx < (int)_currentMap->doors.size()) {
+                    _currentMap->doors[doorIdx].isLocked = false;
+                    _currentMap->doors[doorIdx].isOpen = true;
+                }
+            });
+            ScriptEngine::registerServerChatCallback([this](const std::string& sender, const std::string& msg) {
+                _chat.addMessage(sender, msg, Vec3(0.2f, 0.9f, 1.0f));
+            });
+
+            for (const auto& wdef : _scriptEngine.getWeaponDefinitions()) {
+                _weaponSystem.applyScriptOverrides(wdef.id, wdef.damage, wdef.fireRate, wdef.clipSize, wdef.maxReserve, wdef.splashDamage, wdef.splashRadius);
+            }
+        }
+
         // Check ONCE at startup which weapons have custom STL models and textures
         _cachedWeaponMeshes.resize(9, nullptr);
         _cachedWeaponTextures.resize(9, nullptr);
@@ -251,6 +268,29 @@ public:
         }
     }
 
+    void applyDamageToPlayer(float rawDamage, const std::string& sourceName) {
+        if (_isPlayerDead || rawDamage <= 0.0f) return;
+
+        AudioEngine::playSound(SoundID::PlayerHurt);
+        _hud.triggerDamageFlash();
+        _particleSystem.spawnBlood(_camera.getPosition() - Vec3(0, 0.2f, 0), Vec3(0, 1, 0), false);
+        _decalSystem.spawnDecal(DecalType::BloodSplatter, Vec3(_camera.getPosition().x, 0.02f, _camera.getPosition().z), Vec3(0, 1, 0), 0.35f);
+
+        auto dmg = _scriptEngine.calculateDamage(rawDamage, _hud.suitArmor, _hud.health);
+        _hud.suitArmor = std::max(0.0f, _hud.suitArmor - dmg.absorbedByArmor);
+        _hud.health = std::max(0.0f, _hud.health - dmg.finalDamage);
+
+        if (dmg.isLethal || _hud.health <= 0.0f) {
+            _hud.health = 0.0f;
+            _isPlayerDead = true;
+            _playerDeaths++;
+            _playerRespawnTimer = _scriptEngine.getPlayerRespawnTime();
+            _velocity = { 0, 0, 0 };
+            _chat.addMessage("[SERVER]", "Player was eliminated by " + sourceName + "!", Vec3(1.0f, 0.3f, 0.3f));
+            _hud.showCombatMessage("YOU WERE ELIMINATED! PRESS [SPACE] TO RESPAWN", 3.5f);
+        }
+    }
+
     void startSession(const GameSessionConfig& config) {
         _sessionConfig = config;
         loadSelectedMap(_sessionConfig.mapPath);
@@ -258,9 +298,13 @@ public:
         _hud.mapName = _currentMap ? _currentMap->metadata.name : "Sector";
         _hud.gameModeName = _sessionConfig.getModeString();
         _hud.frags = 0;
+        _hud.maxHealth = _scriptEngine.getPlayerMaxHealth();
         _hud.health = _hud.maxHealth;
-        _hud.suitArmor = 50.0f;
+        _hud.suitArmor = _scriptEngine.getPlayerStartArmor();
         _weaponSystem.reset();
+        for (const auto& wdef : _scriptEngine.getWeaponDefinitions()) {
+            _weaponSystem.applyScriptOverrides(wdef.id, wdef.damage, wdef.fireRate, wdef.clipSize, wdef.maxReserve, wdef.splashDamage, wdef.splashRadius);
+        }
         syncHudWeapon();
         _particleSystem.clear();
         _decalSystem.clear();
@@ -276,20 +320,23 @@ public:
         if (_currentMap && !_currentMap->doors.empty()) {
             InteractiveEntity term;
             term.id = 1;
-            term.type = InteractiveType::Terminal;
-            term.title = "AIRLOCK CONSOLE";
-            term.subtitle = "DOOR ACTUATOR 01";
-            term.statusText = "LOCKED - LAB-OS SEC-04";
+            term.type = InteractiveType::RetinalScanner;
+            term.title = "RETINAL SCANNER";
+            term.subtitle = "BIOMETRIC AIRLOCK GATE";
+            term.statusText = "STAND STILL FOR RETINAL SCAN";
+            term.authorizedUser = _scriptEngine.getRetinalAuthorizedUser();
+            term.clearanceLevel = _scriptEngine.getRetinalClearanceLevel();
+            term.scanDuration = _scriptEngine.getRetinalScanDuration();
             term.isLocked = true;
             term.isActivated = false;
             term.targetDoorIndex = 0;
             const auto& d0 = _currentMap->doors[0];
             term.position = d0.position + Vec3(-d0.size.x * 0.7f - 0.4f, 0.0f, 0.35f);
             term.normal = Vec3(0, 0, 1);
-            term.themeColor = Vec3(1.0f, 0.25f, 0.2f);
+            term.themeColor = Vec3(0.2f, 0.85f, 1.0f);
             _interactiveSystem.addEntity(term);
 
-            // Door is physically locked shut by default until terminal override!
+            // Door is physically locked shut by default until biometric retinal authorization!
             _currentMap->doors[0].isLocked = true;
             _currentMap->doors[0].isOpen = false;
         }
@@ -350,13 +397,6 @@ public:
             if (Input::isKeyPressed(32)) camPos.y += flySpeed * fixedDelta; // Space = Up
             if (Input::isKeyPressed(341)) camPos.y -= flySpeed * fixedDelta; // Left Ctrl = Down
             _camera.setPosition(camPos);
-            return;
-        }
-
-        // Freeze player movement while operating in-game Computer Terminal OS
-        if (_interactiveSystem.isAnyTerminalOpen()) {
-            _velocity.x = 0.0f;
-            _velocity.z = 0.0f;
             return;
         }
 
@@ -446,10 +486,12 @@ public:
             bool enterPressed = Input::isKeyPressed(257);
             if (_playerRespawnTimer <= 0.0f || spacePressed || enterPressed) {
                 _isPlayerDead = false;
-                _playerRespawnTimer = 0.0f;
-                _hud.health = _hud.maxHealth;
-                _hud.suitArmor = 50.0f;
+                _hud.health = _scriptEngine.getPlayerMaxHealth();
+                _hud.suitArmor = _scriptEngine.getPlayerStartArmor();
                 _weaponSystem.reset();
+                for (const auto& wdef : _scriptEngine.getWeaponDefinitions()) {
+                    _weaponSystem.applyScriptOverrides(wdef.id, wdef.damage, wdef.fireRate, wdef.clipSize, wdef.maxReserve, wdef.splashDamage, wdef.splashRadius);
+                }
                 syncHudWeapon();
                 if (_currentMap) {
                     std::vector<Vec3> enemies;
@@ -497,34 +539,6 @@ public:
         _tPressedLast = tPressed;
         _backspacePressedLast = backspacePressed;
         _chat.update(time.delta);
-
-        // ==================== INTERACTIVE TERMINAL OS INPUT HANDLING ====================
-        if (_interactiveSystem.isAnyTerminalOpen()) {
-            int aliveBots = 0;
-            for (const auto& b : _aiManager.bots) {
-                if (b.isAlive()) aliveBots++;
-            }
-
-            const int termKeys[] = { GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_0, GLFW_KEY_ESCAPE, GLFW_KEY_E, GLFW_KEY_BACKSPACE };
-            for (int k : termKeys) {
-                if (Input::isKeyPressed(k)) {
-                    if (!_termKeysLast[k]) {
-                        _interactiveSystem.handleTerminalKey(k, _currentMap.get(), aliveBots);
-                        _termKeysLast[k] = true;
-                    }
-                } else {
-                    _termKeysLast[k] = false;
-                }
-            }
-
-            // Keep background world simulation running
-            AudioEngine::setListener(_camera.getPosition(), _camera.getFront(), _camera.getUp());
-            AudioEngine::update(time.delta);
-            if (_currentMap) _particleSystem.update(time.delta, _currentMap.get());
-            _decalSystem.update(time.delta);
-
-            return; // Pause combat and camera look while using terminal
-        }
 
         // Gameplay camera orientation update (only when not typing in chat)
         if (!_chat.isOpen) {
@@ -928,6 +942,15 @@ public:
                 _decalSystem.spawnExplosionScorch(hitPos, proj.splashRadius * 0.75f, _currentMap ? _currentMap->brushes : std::vector<MapBrush>{});
                 AudioEngine::playSound3D(SoundID::RPGExplosion, hitPos);
                 _physicsWorld.applyExplosionImpulse(hitPos, proj.splashRadius, 420.0f, proj.damage + proj.splashDamage);
+
+                // Affect player if in splash radius
+                float pDist = (_camera.getPosition() - hitPos).length();
+                if (pDist <= proj.splashRadius) {
+                    float factor = 1.0f - (pDist / proj.splashRadius);
+                    float pDmg = (proj.damage * 0.5f + proj.splashDamage) * factor;
+                    applyDamageToPlayer(pDmg, (proj.weaponId == WeaponID::RPG) ? "RPG Splash" : "Plasma Blast");
+                }
+
                 float radiusSq = proj.splashRadius * proj.splashRadius;
 
                 for (auto& bot : _aiManager.bots) {
@@ -996,10 +1019,8 @@ public:
                     Vec3 pDir = (playerPos - exp.position).normalized();
                     if (pDir.lengthSq() < 0.01f) pDir = Vec3(0, 1, 0);
                     _velocity += pDir * (14.0f * factor) + Vec3(0.0f, 6.0f * factor, 0.0f);
-                    float pDmg = exp.maxDamage * factor * 0.75f;
-                    _hud.health -= pDmg;
-                    _hud.triggerDamageFlash();
-                    AudioEngine::playSound(SoundID::PlayerHurt);
+                    float pDmg = exp.maxDamage * factor * _scriptEngine.getBarrelDamageMultiplier();
+                    applyDamageToPlayer(pDmg, "Explosive Barrel");
                 }
 
                 // Affect bots
@@ -1033,27 +1054,7 @@ public:
         }
 
         if (botDamageToPlayer > 0.0f) {
-            AudioEngine::playSound(SoundID::PlayerHurt);
-            _hud.triggerDamageFlash();
-            _particleSystem.spawnBlood(_camera.getPosition() - Vec3(0, 0.2f, 0), Vec3(0, 1, 0), false);
-            _decalSystem.spawnDecal(DecalType::BloodSplatter, Vec3(_camera.getPosition().x, 0.02f, _camera.getPosition().z), Vec3(0, 1, 0), 0.35f);
-            if (_hud.suitArmor > 0.0f) {
-                float absorb = std::min(_hud.suitArmor, botDamageToPlayer * 0.7f);
-                _hud.suitArmor -= absorb;
-                _hud.health -= (botDamageToPlayer - absorb);
-            } else {
-                _hud.health -= botDamageToPlayer;
-            }
-
-            if (_hud.health <= 0.0f) {
-                _hud.health = 0.0f;
-                _isPlayerDead = true;
-                _playerDeaths++;
-                _playerRespawnTimer = 4.0f;
-                _velocity = { 0, 0, 0 };
-                _chat.addMessage("[SERVER]", "Player was eliminated by Combat Synth!", Vec3(1.0f, 0.3f, 0.3f));
-                _hud.showCombatMessage("YOU WERE ELIMINATED! PRESS [SPACE] TO RESPAWN", 3.5f);
-            }
+            applyDamageToPlayer(botDamageToPlayer, "Combat Synth");
         }
 
         // Update Pickups and Proximity Collection
@@ -1733,11 +1734,6 @@ public:
             } else {
                 _hud.render(w, h);
                 _interactiveSystem.renderHUD(w, h);
-
-                if (_interactiveSystem.isAnyTerminalOpen()) {
-                    int aliveBots = (int)std::count_if(_aiManager.bots.begin(), _aiManager.bots.end(), [](const auto& b){ return b.isAlive(); });
-                    _interactiveSystem.renderTerminalOS(w, h, _currentMap.get(), aliveBots);
-                }
             }
             _chat.render(w, h);
 
@@ -1957,6 +1953,7 @@ public:
         _particleSystem.shutdown();
         _decalSystem.shutdown();
         _interactiveSystem.shutdown();
+        _scriptEngine.shutdown();
         Renderer::shutdown();
     }
 
@@ -1965,6 +1962,7 @@ private:
     ParticleSystem _particleSystem;
     DecalSystem _decalSystem;
     InteractiveSystem _interactiveSystem;
+    ScriptEngine _scriptEngine;
     std::unique_ptr<LabMap> _currentMap;
     std::unordered_map<std::string, std::unique_ptr<Texture>> _textures;
     std::unordered_map<std::string, std::unique_ptr<Mesh>> _meshes;
@@ -2026,7 +2024,6 @@ private:
     bool _backspacePressedLast = false;
     bool _fPressedLast = false;
     bool _vPressedLast = false;
-    std::unordered_map<int, bool> _termKeysLast;
 
     // Real-Time Lighting & Shadow Mapping (Sprint 3)
     Flashlight _flashlight;

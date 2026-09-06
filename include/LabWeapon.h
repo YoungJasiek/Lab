@@ -137,6 +137,7 @@ namespace Lab {
 
         void update(float dt);
         void spawnProjectile(const Vec3& origin, const Vec3& direction);
+        void applyScriptOverrides(int weaponId, float damage, float fireRate, int clipSize, int maxReserve, float splashDamage, float splashRadius);
 
         // Viewmodel procedural and STL renderer
         void renderViewModel(const Camera& camera, WeaponAnimator& animator,

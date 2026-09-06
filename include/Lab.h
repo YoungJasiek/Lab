@@ -23,3 +23,4 @@
 #include "LabCSG.h"
 #include "LabDecals.h"
 #include "LabInteractive.h"
+#include "LabScript.h"

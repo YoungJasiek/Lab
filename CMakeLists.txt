@@ -25,12 +25,39 @@ set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(glfw)
 
+# Add Lua 5.4 scripting runtime
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/lua/onelua.c")
+    add_library(lua STATIC "${CMAKE_CURRENT_SOURCE_DIR}/external/lua/onelua.c")
+    target_compile_definitions(lua PRIVATE MAKE_LIB)
+    target_include_directories(lua PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/external/lua")
+    if(MSVC)
+        target_compile_options(lua PRIVATE /W3)
+    endif()
+else()
+    FetchContent_Declare(
+        lua
+        GIT_REPOSITORY https://github.com/lua/lua.git
+        GIT_TAG        v5.4.6
+    )
+    FetchContent_GetProperties(lua)
+    if(NOT lua_POPULATED)
+        FetchContent_Populate(lua)
+        add_library(lua STATIC ${lua_SOURCE_DIR}/onelua.c)
+        target_compile_definitions(lua PRIVATE MAKE_LIB)
+        target_include_directories(lua PUBLIC ${lua_SOURCE_DIR})
+        if(MSVC)
+            target_compile_options(lua PRIVATE /W3)
+        endif()
+    endif()
+endif()
+
 # Find OpenGL
 find_package(OpenGL REQUIRED)
 
 # Include directories
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/glad/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/lua)
 
 # Engine files
 set(ENGINE_SOURCES
@@ -53,6 +80,7 @@ set(ENGINE_SOURCES
     src/LabCSG.cpp
     src/LabDecals.cpp
     src/LabInteractive.cpp
+    src/LabScript.cpp
     src/glad/src/gl.c
 )
 
@@ -79,6 +107,7 @@ set(ENGINE_HEADERS
     include/LabCSG.h
     include/LabDecals.h
     include/LabInteractive.h
+    include/LabScript.h
     include/Lab.h
 )
 
@@ -87,7 +116,8 @@ add_library(LabEngineLib STATIC ${ENGINE_SOURCES} ${ENGINE_HEADERS})
 target_compile_options(LabEngineLib PRIVATE ${COMPILER_FLAGS})
 target_include_directories(LabEngineLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_include_directories(LabEngineLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/glad/include)
-target_link_libraries(LabEngineLib PUBLIC glfw OpenGL::GL)
+target_include_directories(LabEngineLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/external/lua)
+target_link_libraries(LabEngineLib PUBLIC glfw OpenGL::GL lua)
 
 # Game executable
 add_executable(Lab src/main.cpp)

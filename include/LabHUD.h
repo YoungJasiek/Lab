@@ -167,7 +167,8 @@ namespace Lab {
             drawSuitIcon(suitX + 16.0f, cardY + 18.0f, 16.0f, 20.0f, textYellow);
             LabFont::drawText(suitX + 38.0f, cardY + 26.0f, "SUIT", 2.2f, textYellow, LabFontType::GeoSans);
 
-            std::string suitStr = std::to_string((int)suitArmor) + "%";
+            int dispSuit = std::max(0, (int)std::ceil(suitArmor));
+            std::string suitStr = std::to_string(dispSuit) + "%";
             LabFont::drawText(suitX + suitCardW - 88.0f, cardY + 16.0f, suitStr, 4.4f, textYellow, LabFontType::GeoSans);
 
             // --- CARD 2: HEALTH ---
@@ -178,7 +179,8 @@ namespace Lab {
             drawHealthIcon(hpX + 16.0f, cardY + 19.0f, 18.0f, (health < 30.0f ? Vec3(1.0f, 0.2f, 0.2f) : textYellow));
             LabFont::drawText(hpX + 42.0f, cardY + 26.0f, "HEALTH", 2.2f, textYellow, LabFontType::GeoSans);
 
-            std::string hpStr = std::to_string((int)health);
+            int dispHp = std::max(0, (int)std::ceil(health));
+            std::string hpStr = std::to_string(dispHp);
             Vec3 hpColor = (health < 30.0f) ? Vec3(1.0f, 0.2f, 0.2f) : textYellow;
             LabFont::drawText(hpX + hpCardW - 88.0f, cardY + 16.0f, hpStr, 4.4f, hpColor, LabFontType::GeoSans);
 

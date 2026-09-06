@@ -10,28 +10,21 @@
 namespace Lab {
 
     enum class InteractiveType {
-        Terminal,       // Wall-mounted CRT terminal with diagnostic screen & access override
+        RetinalScanner, // Biometric Retinal Scanner with animated eye calibration & laser sweep
+        Terminal,       // Auxiliary computer console
         WallSwitch,     // Heavy-duty industrial toggle switch with red/green LED
-        Keypad,         // Security keypad with passcode entry
-        AirLockConsole  // Large airlock control console
-    };
-
-    enum class TerminalPage {
-        Main,
-        DoorControl,
-        SecurityLogs,
-        BotTelemetry
+        Keypad          // Security keypad with passcode entry
     };
 
     struct InteractiveEntity {
         int id = 0;
-        InteractiveType type = InteractiveType::Terminal;
+        InteractiveType type = InteractiveType::RetinalScanner;
         Vec3 position{ 0.0f, 0.0f, 0.0f };
-        Vec3 size{ 0.8f, 0.6f, 0.12f };
+        Vec3 size{ 0.70f, 0.55f, 0.12f };
         Vec3 normal{ 0.0f, 0.0f, 1.0f };
         
-        std::string title = "SECURITY TERMINAL";
-        std::string subtitle = "SECTOR ACCESS CONTROL";
+        std::string title = "RETINAL SCANNER";
+        std::string subtitle = "BIOMETRIC AIRLOCK GATE";
         std::string statusText = "STANDBY - READY";
         Vec3 themeColor{ 0.2f, 0.85f, 1.0f }; // Cyan default
 
@@ -42,11 +35,12 @@ namespace Lab {
         float cooldown = 0.0f;
         float displayTimer = 0.0f;
 
-        // Terminal OS runtime state
-        bool isTerminalOpen = false;
-        TerminalPage currentPage = TerminalPage::Main;
-        std::string accessCode = "0451";
-        std::vector<std::string> securityLogs;
+        // Biometric Retinal Scanning State
+        bool isScanning = false;
+        float scanProgress = 0.0f;       // 0.0 to 1.0
+        float scanDuration = 1.25f;      // Seconds to complete retinal match
+        std::string authorizedUser = "DR. VANCE";
+        int clearanceLevel = 3;
     };
 
     class InteractiveSystem {
@@ -66,24 +60,17 @@ namespace Lab {
         InteractiveEntity* getHoveredEntity() const { return _hoveredEntity; }
         int getHoveredEntityIndex() const { return _hoveredIndex; }
 
-        bool isAnyTerminalOpen() const;
-        InteractiveEntity* getActiveTerminal();
-        void closeActiveTerminal();
-
         // Updates interaction detection and handles [E] use input
         void update(float dt, const Vec3& playerPos, const Vec3& lookDir, bool useKeyPressed, LabMap* map = nullptr);
 
-        // Handles hotkeys (1, 2, 3, 0, ESC, E) while inside Terminal OS mode
-        bool handleTerminalKey(int key, LabMap* map = nullptr, int aliveBotsCount = 0);
+        // Retinal scan triggers
+        bool triggerRetinalScan(int entityId, LabMap* map = nullptr);
 
-        // Renders all in-world terminal screens, housings, and status telemetry in 3D
+        // Renders all in-world scanner screens, housings, and status telemetry in 3D
         void render(const Camera& cam);
 
-        // Renders 2D HUD prompt (e.g. "[E] USE TERMINAL") when looking at an interactive entity
+        // Renders 2D HUD prompt & scanning progress widget
         void renderHUD(int screenWidth, int screenHeight);
-
-        // Renders the full-screen interactive Computer Terminal OS (LAB-OS)
-        void renderTerminalOS(int screenWidth, int screenHeight, const LabMap* map, int aliveBotsCount = 0);
 
         const std::string& getLastNotice() const { return _lastInteractionNotice; }
         float getNoticeTimer() const { return _noticeTimer; }

@@ -6,6 +6,8 @@
 logos/
 skills/
 scripts/
+!assets/scripts/
+!assets/scripts/**
 auraTools/
 .agents/
 .vscode/

@@ -138,19 +138,32 @@ Wszystkie systemy tworzone sa w standardzie **C++20**, **OpenGL 4.5+ Core Profil
 
 ---
 
-### 13. System Interaktywnych Terminali Swiatowych (LAB-OS v3.42) & Odryglowywanie Bram (Sprint 8 - 100% DONE)
-- [x] Podsystem encji interaktywnych `LabInteractive` (`InteractiveSystem`, `InteractiveEntity`, `InteractiveType`): terminale bezpieczenstwa, klawiatury numeryczne, przelaczniki szynowe i konsole sluzowe z raycast pickingiem (zasieg 2.8m).
-- [x] Pelny interaktywny system operacyjny terminala **LAB-OS v3.42** (GUI w stylu Doom 3 / System Shock / Fallout) aktywowany klawiszem `[E]`:
-  - Kineskopowy ekran CRT z zielonym/cyjanowym fosforem, liniami rastra i naglowkiem stacji badawczej KORF Cryogenics.
-  - Interaktywne menu klawiaturowe (`1`, `2`, `3`, `0`, `ESC`, `E`, `Backspace`):
-    * `[1] AIRLOCK OVERRIDE`: Przelaczenie stanu rygla (`LOCKED` <-> `UNLOCKED`), dzwiek autoryzacji/odmowy, uruchomienie silnikow hydraulicznych bramy w swiecie 3D.
-    * `[2] SECURITY LOGS`: Baza wiedzy i lore stacji (akta incydentu #0451 o wycieku cieklego azotu i buncie syntetycznych jednostek strazniczych).
-    * `[3] BOT TELEMETRY`: Radar sensorowy stacji z odczytem liczby aktywnych syntetykow, uzbrojenia i stanu zagrozenia.
-    * `[ESC] / [E] EXIT`: Plynne zamkniecie terminala OS i powrot do sterowania postacia.
-- [x] Fizyczne ryglowanie bram w `LabMap` (`MapDoor::isLocked`): brama jest fizycznie zablokowana i nie reaguje na czujnik zblizeniowy, dopoki gracz nie uzyje terminala do autoryzacji i odryglowania.
-- [x] Generowanie dynamicznej tekstury monitora 3D w swiecie gry z czytelnym napisem `LAB-OS // SEC-04`, statusem `LOCKED / UNLOCKED`, informacja o sluzie oraz pulsujacym kursorem `> PRESS [E] _` z korekcja orientacji osi pionowej OpenGL.
-- [x] Rozszerzenie silnika dzwiekowego `LabAudio` o syntetyzatory proceduralne WAV (`SoundID::TerminalBeep`, `SoundID::AccessGranted`, `SoundID::AccessDenied`) z pelna weryfikacja RIFF 16-bit PCM (26 proceduralnych dzwiekow).
-- [x] Zaktualizowany test 30 w `TestVerify.exe` weryfikujacy calosc: rejestracje encji, raycast picking, blokade keypadu, wejscie w tryb LAB-OS po `[E]`, przelaczenie odryglowania bramy opcja `[1]`, nawigacje do logow opcja `[2]`, powrot `[0]`, telemetrie botow `[3]`, rendering ekranu OS (`test_interactive_terminals.bmp`) i wyjscie `[ESC]`. Wszystkie 30 testow przechodza w 100%!
+### 13. Biometryczny Skaner Siatkowki Oka (Retinal Scanner) & Odryglowywanie Sluz (Sprint 8 - 100% DONE)
+- [x] Podsystem encji interaktywnych `LabInteractive` (`InteractiveSystem`, `InteractiveEntity`, `InteractiveType`): biometryczne skanery siatkowki (`RetinalScanner`), klawiatury bezpieczenstwa (`Keypad`), przelaczniki zasilania (`WallSwitch`) z raycast pickingiem w zasiegu 2.8m.
+- [x] Pelna eliminacja niepotrzebnego, modalnego terminala CRT OS na rzecz wbudowanego bezposrednio w swiat 3D **Biometrycznego Skanera Siatkowki**:
+  - Proceduralna tekstura 3D siatkowki oka: pierscienie kalibracyjne, zrenica, teczowka, celownik krzyzowy oraz animowana linia lasera skanujacego.
+  - Interakcja pod klawiszem `[E]` wyzwalajaca sekwencje skanowania biometrycznego (1.25s) z plynna synchronizacja czasowa.
+  - Po zakonczeniu autoryzacji: weryfikacja tozsamosci badacza (Dr. Vance, Poziom uprawnien 3), odtworzenie syntetycznego dzwieku autoryzacji `SoundID::AccessGranted`, odryglowanie i plynne otwarcie powiazanej bramy sluzowej (`MapDoor::isLocked = false; isOpen = true`).
+  - Efektowny widzet HUD 2D ze stanem skanowania siatkowki (animowany pasek postepu, dane podmiotu i stopien dopasowania).
+- [x] Naprawa bledu ujemnego zdrowia (Negative HP Bug Fix):
+  - Poprawka w `LabHUD.h`: zamkniecie wartosci wyswietlanego zdrowia i pancerza kombinezonu przez `std::max(0, (int)std::ceil(...))` – eliminacja bledow pokroju `-38 HP`.
+  - Pelna obsluga zgonu od detonacji beczek z paliwem: wczesniejszy kod odejmowal obrazenia bez sprawdzania progu zgonu i ustawiania `_isPlayerDead = true`. Teraz wszystkie zrodla obrazen przechodza przez ujednolicona procedure `applyDamageToPlayer()`.
+
+---
+
+### 14. Podsystem Skryptow Gry w Lua 5.4 (LabScript) & Separacja Logiki Gry (Sprint 8.5 - 100% DONE)
+- [x] Kompilacja i integracja czystego interpretera **Lua 5.4.6** (`external/lua/onelua.c` z flaga `MAKE_LIB` i poziomem `/W3`, brak wyciekow, C++20 RAII).
+- [x] Modul silnika `LabScript` (`include/LabScript.h`, `src/LabScript.cpp`): zarzadzanie instancja `lua_State*`, bezpieczne wywolywanie skryptow, dwukierunkowe callbacki C++ <-> Lua (`Lab.log`, `Lab.playSound`, `Lab.unlockDoor`, `Lab.addChatMessage`).
+- [x] Glowny skrypt mechanik gry **`assets/scripts/game_mechanics.lua`**:
+  - `PlayerRules`: bazowe zdrowie (150 HP), pancerz kombinezonu (50 Armor), wspolczynnik absorpcji pancerza (70%), czas respawnu (4.0s), mnoznik wybuchow beczek (0.75x).
+  - `RetinalScanner`: czas trwania skanowania (1.25s), uprawniony uzytkownik (`DR. VANCE`), clearance level (3), indeks docelowej bramy (0).
+  - `Pickups`: leczenie apteczki (+50 HP), amunicja skrzynki (+36 sztuk), czas odrodzenia broni na padzie (60s).
+  - `Weapons`: zewnetrzny balans wszystkich 9 broni (obrazenia, fireRate, pojemnosc magazynka, rezerwa, obrazenia obszarowe RPG/Plasma, odrzut).
+  - Czysta funkcja Lua `CalculateDamage(incomingDamage, currentArmor, currentHealth)` wyliczajaca absorpcje pancerza oraz flage smiertelnosci `isLethal`.
+- [x] Refaktoryzacja `main.cpp`:
+  - Wdrozenie `applyDamageToPlayer(rawDamage, sourceName)`: wywolanie funkcji Lua `CalculateDamage`, aktualizacja stanu pancerza i HP, obsluga smierci gracza od beczek, ostrzalu botow oraz wybuchu wlasnych rakiet RPG pod nogami.
+  - Ladowanie i synchronizacja statystyk broni z pliku `.lua` przy starcie gry oraz po respawnie.
+- [x] Zaktualizowany test 30 w `TestVerify.exe` weryfikujacy 100% integracji: skanowanie siatkowki, odryglowanie bramy, inicjalizacje interpretera Lua 5.4, kalkulacje obrazen w Lua, brak ujemnego HP na HUD oraz zrzut klatki weryfikacyjnej (`test_interactive_terminals.bmp`). Wszystkie 30 testow przechodza bezblednie!
 
 ---
 

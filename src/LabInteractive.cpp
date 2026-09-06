@@ -37,30 +37,6 @@ namespace Lab {
         _noticeTimer = 0.0f;
     }
 
-    bool InteractiveSystem::isAnyTerminalOpen() const {
-        for (const auto& e : _entities) {
-            if (e.isTerminalOpen) return true;
-        }
-        return false;
-    }
-
-    InteractiveEntity* InteractiveSystem::getActiveTerminal() {
-        for (auto& e : _entities) {
-            if (e.isTerminalOpen) return &e;
-        }
-        return nullptr;
-    }
-
-    void InteractiveSystem::closeActiveTerminal() {
-        for (auto& e : _entities) {
-            if (e.isTerminalOpen) {
-                e.isTerminalOpen = false;
-                e.currentPage = TerminalPage::Main;
-                AudioEngine::playSound(SoundID::TerminalBeep, 0.8f);
-            }
-        }
-    }
-
     void InteractiveSystem::initScreenTexture() {
         const int S = 64;
         std::vector<unsigned char> img(S * S * 4, 0);
@@ -120,56 +96,106 @@ namespace Lab {
         }
     }
 
+    // Draws a circle on the monitor texture
+    static void drawCircle(std::vector<unsigned char>& pixels, int w, int h, int cx, int cy, int radius, unsigned char r, unsigned char g, unsigned char b) {
+        for (int a = 0; a < 360; a += 3) {
+            float rad = (float)a * 3.14159265f / 180.0f;
+            int x = cx + (int)(std::cos(rad) * radius);
+            int y = cy + (int)(std::sin(rad) * radius);
+            setPixel(pixels, w, h, x, y, r, g, b);
+        }
+    }
+
     void InteractiveSystem::updateMonitorFaceTexture(const InteractiveEntity& ent) {
         const int W = 128;
         const int H = 96;
-        std::vector<unsigned char> pixels(W * H * 4, 15);
+        std::vector<unsigned char> pixels(W * H * 4, 12);
 
-        // Scanline raster background
+        // 1. Scanline raster background
         for (int y = 0; y < H; ++y) {
             for (int x = 0; x < W; ++x) {
                 bool isScan = (y % 2 == 0);
-                unsigned char r = isScan ? 8 : 16;
-                unsigned char g = isScan ? 22 : 36;
-                unsigned char b = isScan ? 14 : 26;
+                unsigned char r = isScan ? 6 : 14;
+                unsigned char g = isScan ? 14 : 26;
+                unsigned char b = isScan ? 18 : 34;
                 setPixel(pixels, W, H, x, y, r, g, b);
             }
         }
 
-        // Header bar at top of screen (y = 2 to 13)
+        // Header bar at top of screen
         for (int x = 2; x < W - 2; ++x) {
             for (int y = 2; y < 14; ++y) {
-                setPixel(pixels, W, H, x, y, 20, 70, 40);
+                setPixel(pixels, W, H, x, y, 16, 38, 52);
             }
         }
 
-        // Title text in header bar
-        drawTextOnMonitor(pixels, W, H, 6, 4, "LAB-OS // SEC-04", 60, 255, 140);
+        // Title text in header
+        drawTextOnMonitor(pixels, W, H, 6, 4, "KORF // RETINA-SCAN", 60, 220, 255);
 
-        // Status Line
-        if (ent.isLocked) {
-            drawTextOnMonitor(pixels, W, H, 6, 22, "STATUS: LOCKED", 255, 70, 60);
-            drawTextOnMonitor(pixels, W, H, 6, 34, "SEAL: [ENGAGED]", 255, 120, 90);
-        } else {
-            drawTextOnMonitor(pixels, W, H, 6, 22, "STATUS: UNLOCKED", 70, 255, 120);
-            drawTextOnMonitor(pixels, W, H, 6, 34, "SEAL: [DISENGAGED]", 100, 255, 160);
+        // 2. Biometric Retinal Eye Graphics
+        int eyeX = 64;
+        int eyeY = 46;
+
+        // Theme colors based on scanner state
+        unsigned char eyeR = 220, eyeG = 45, eyeB = 40; // Default locked: Red
+        if (ent.isScanning) {
+            eyeR = 255; eyeG = 210; eyeB = 40; // Scanning: Amber Gold
+        } else if (!ent.isLocked) {
+            eyeR = 40; eyeG = 240; eyeB = 120; // Unlocked / Verified: Vibrant Green
         }
 
-        // Subtitle / Door info
-        drawTextOnMonitor(pixels, W, H, 6, 48, "AIRLOCK ACTUATOR", 180, 220, 240);
+        // Outer Calibration Ring
+        drawCircle(pixels, W, H, eyeX, eyeY, 26, eyeR / 2, eyeG / 2, eyeB / 2);
 
-        // Blinking Prompt cursor
-        bool blink = ((int)(ent.displayTimer * 2.5f) % 2 == 0);
-        std::string promptText = blink ? "> PRESS [E] _" : "> PRESS [E]  ";
-        drawTextOnMonitor(pixels, W, H, 6, 64, promptText, 255, 220, 40);
+        // Mid Iris Ring
+        drawCircle(pixels, W, H, eyeX, eyeY, 15, eyeR, eyeG, eyeB);
 
-        // Bottom status border
-        for (int x = 4; x < W - 4; ++x) {
-            unsigned char r = ent.isLocked ? 200 : 50;
-            unsigned char g = ent.isLocked ? 40 : 220;
-            unsigned char b = ent.isLocked ? 40 : 80;
-            setPixel(pixels, W, H, x, 80, r, g, b);
-            setPixel(pixels, W, H, x, 81, r, g, b);
+        // Inner Pupil Disc
+        for (int dy = -4; dy <= 4; ++dy) {
+            for (int dx = -4; dx <= 4; ++dx) {
+                if (dx * dx + dy * dy <= 16) {
+                    setPixel(pixels, W, H, eyeX + dx, eyeY + dy, eyeR, eyeG, eyeB);
+                }
+            }
+        }
+
+        // Crosshairs tick marks
+        for (int i = 18; i <= 28; ++i) {
+            setPixel(pixels, W, H, eyeX + i, eyeY, eyeR, eyeG, eyeB);
+            setPixel(pixels, W, H, eyeX - i, eyeY, eyeR, eyeG, eyeB);
+            setPixel(pixels, W, H, eyeX, eyeY + i * 8 / 10, eyeR, eyeG, eyeB);
+            setPixel(pixels, W, H, eyeX, eyeY - i * 8 / 10, eyeR, eyeG, eyeB);
+        }
+
+        // Animated Laser Sweep Line (Sweeping up and down across retina)
+        float laserPhase = std::fmod(ent.displayTimer * (ent.isScanning ? 3.0f : 1.2f), 1.0f);
+        int laserY = 24 + (int)(laserPhase * 44.0f);
+        for (int x = eyeX - 28; x <= eyeX + 28; ++x) {
+            setPixel(pixels, W, H, x, laserY, 255, 255, 255);
+            setPixel(pixels, W, H, x, laserY - 1, eyeR, eyeG, eyeB);
+            setPixel(pixels, W, H, x, laserY + 1, eyeR, eyeG, eyeB);
+        }
+
+        // Status texts
+        if (ent.isScanning) {
+            int pct = std::min(100, (int)(ent.scanProgress * 100.0f));
+            std::string scanStr = "SCAN: " + std::to_string(pct) + "%";
+            drawTextOnMonitor(pixels, W, H, 6, 74, scanStr, 255, 220, 40);
+
+            // Progress bar at bottom
+            int barW = (int)(ent.scanProgress * (W - 16));
+            for (int x = 8; x < 8 + barW; ++x) {
+                setPixel(pixels, W, H, x, 86, 255, 220, 40);
+                setPixel(pixels, W, H, x, 87, 255, 220, 40);
+            }
+        } else if (ent.isLocked) {
+            drawTextOnMonitor(pixels, W, H, 6, 74, "SEAL: [LOCKED]", 255, 70, 60);
+            bool blink = ((int)(ent.displayTimer * 2.5f) % 2 == 0);
+            std::string pStr = blink ? "> PRESS [E] _" : "> PRESS [E]  ";
+            drawTextOnMonitor(pixels, W, H, 6, 84, pStr, 255, 220, 40);
+        } else {
+            drawTextOnMonitor(pixels, W, H, 6, 74, "RETINA: VERIFIED", 70, 255, 120);
+            drawTextOnMonitor(pixels, W, H, 6, 84, "SEAL: [DISENGAGED]", 100, 255, 160);
         }
 
         if (!_texMonitorFace) {
@@ -190,6 +216,33 @@ namespace Lab {
         return nullptr;
     }
 
+    bool InteractiveSystem::triggerRetinalScan(int entityId, LabMap* map) {
+        InteractiveEntity* ent = getEntity(entityId);
+        if (!ent) return false;
+
+        if (ent->isLocked && !ent->isScanning) {
+            ent->isScanning = true;
+            ent->scanProgress = 0.0f;
+            AudioEngine::playSound(SoundID::TerminalBeep, 0.95f);
+            _lastInteractionNotice = "[ INITIATING BIOMETRIC RETINAL SCAN... HOLD STILL ]";
+            _noticeColor = Vec3(0.3f, 0.85f, 1.0f);
+            _noticeTimer = 2.0f;
+            return true;
+        } else if (!ent->isLocked) {
+            // Already verified: toggle door state
+            ent->isActivated = !ent->isActivated;
+            AudioEngine::playSound(SoundID::AccessGranted, 0.9f);
+            if (ent->targetDoorIndex >= 0 && map && (size_t)ent->targetDoorIndex < map->doors.size()) {
+                map->doors[ent->targetDoorIndex].isOpen = ent->isActivated;
+            }
+            _lastInteractionNotice = ent->isActivated ? "[ AIRLOCK CYCLING: OPEN ]" : "[ AIRLOCK CYCLING: CLOSED ]";
+            _noticeColor = Vec3(0.2f, 0.95f, 0.4f);
+            _noticeTimer = 2.5f;
+            return true;
+        }
+        return false;
+    }
+
     void InteractiveSystem::update(float dt, const Vec3& playerPos, const Vec3& lookDir, bool useKeyPressed, LabMap* map) {
         init();
 
@@ -197,17 +250,35 @@ namespace Lab {
             _noticeTimer = std::max(0.0f, _noticeTimer - dt);
         }
 
-        // Update entity state timers
+        // Update entity state timers and active biometric retinal scanning
         for (auto& ent : _entities) {
             if (ent.cooldown > 0.0f) {
                 ent.cooldown = std::max(0.0f, ent.cooldown - dt);
             }
             ent.displayTimer += dt;
-        }
 
-        // If a terminal is currently open in full-screen OS mode, skip raycast picking
-        if (isAnyTerminalOpen()) {
-            return;
+            // Retinal scan progress simulation
+            if (ent.isScanning) {
+                ent.scanProgress += dt / std::max(0.1f, ent.scanDuration);
+                if (ent.scanProgress >= 1.0f) {
+                    ent.scanProgress = 1.0f;
+                    ent.isScanning = false;
+                    ent.isLocked = false;
+                    ent.isActivated = true;
+                    ent.statusText = "VERIFIED - CLEARANCE LEVEL " + std::to_string(ent.clearanceLevel);
+                    ent.themeColor = Vec3(0.2f, 0.95f, 0.40f);
+                    AudioEngine::playSound(SoundID::AccessGranted, 1.0f);
+                    _lastInteractionNotice = "[ ACCESS GRANTED // RETINAL MATCH CONFIRMED // " + ent.authorizedUser + " // AIRLOCK UNLOCKED ]";
+                    _noticeColor = Vec3(0.25f, 0.95f, 0.45f);
+                    _noticeTimer = 3.5f;
+
+                    if (ent.targetDoorIndex >= 0 && map && (size_t)ent.targetDoorIndex < map->doors.size()) {
+                        auto& door = map->doors[ent.targetDoorIndex];
+                        door.isLocked = false;
+                        door.isOpen = true;
+                    }
+                }
+            }
         }
 
         // Raycast picking for interactive entities
@@ -250,96 +321,30 @@ namespace Lab {
         if (_hoveredEntity && useKeyPressed && _hoveredEntity->cooldown <= 0.0f) {
             _hoveredEntity->cooldown = 0.45f;
 
-            if (_hoveredEntity->type == InteractiveType::Terminal) {
-                // Open full interactive Computer Terminal OS (LAB-OS)
-                _hoveredEntity->isTerminalOpen = true;
-                _hoveredEntity->currentPage = TerminalPage::Main;
-                AudioEngine::playSound(SoundID::TerminalBeep, 0.95f);
-            } else {
+            if (_hoveredEntity->type == InteractiveType::RetinalScanner) {
+                triggerRetinalScan(_hoveredEntity->id, map);
+            } else if (_hoveredEntity->type == InteractiveType::Keypad) {
                 if (_hoveredEntity->isLocked) {
-                    // Entity is locked (e.g. Keypad requiring higher clearance)
                     AudioEngine::playSound(SoundID::AccessDenied, 1.0f);
-                    _lastInteractionNotice = "ACCESS DENIED - LEVEL 4 SECURITY CLEARANCE REQUIRED";
+                    _lastInteractionNotice = "[ ACCESS DENIED - LEVEL 4 CLEARANCE REQUIRED ]";
                     _noticeColor = Vec3(1.0f, 0.25f, 0.2f);
                     _noticeTimer = 2.5f;
-                } else {
-                    // Quick switch / button toggle
-                    _hoveredEntity->isActivated = !_hoveredEntity->isActivated;
-                    AudioEngine::playSound(SoundID::AccessGranted, 0.9f);
-                    AudioEngine::playSound(SoundID::TerminalBeep, 0.8f);
-                    _lastInteractionNotice = _hoveredEntity->isActivated ? "SYSTEM OVERRIDE: ACTIVATED" : "SYSTEM OVERRIDE: DEACTIVATED";
-                    _noticeColor = _hoveredEntity->isActivated ? Vec3(0.2f, 0.95f, 0.4f) : Vec3(0.95f, 0.7f, 0.2f);
-                    _noticeTimer = 2.5f;
+                }
+            } else {
+                // Wall switch / general actuator
+                _hoveredEntity->isActivated = !_hoveredEntity->isActivated;
+                AudioEngine::playSound(SoundID::AccessGranted, 0.9f);
+                _lastInteractionNotice = _hoveredEntity->isActivated ? "[ SYSTEM OVERRIDE: ACTIVATED ]" : "[ SYSTEM OVERRIDE: DEACTIVATED ]";
+                _noticeColor = _hoveredEntity->isActivated ? Vec3(0.2f, 0.95f, 0.4f) : Vec3(0.95f, 0.7f, 0.2f);
+                _noticeTimer = 2.5f;
 
-                    if (_hoveredEntity->targetDoorIndex >= 0 && map) {
-                        if ((size_t)_hoveredEntity->targetDoorIndex < map->doors.size()) {
-                            auto& door = map->doors[_hoveredEntity->targetDoorIndex];
-                            door.isLocked = !_hoveredEntity->isActivated;
-                            door.isOpen = _hoveredEntity->isActivated;
-                        }
-                    }
+                if (_hoveredEntity->targetDoorIndex >= 0 && map && (size_t)_hoveredEntity->targetDoorIndex < map->doors.size()) {
+                    auto& door = map->doors[_hoveredEntity->targetDoorIndex];
+                    door.isLocked = !_hoveredEntity->isActivated;
+                    door.isOpen = _hoveredEntity->isActivated;
                 }
             }
         }
-    }
-
-    bool InteractiveSystem::handleTerminalKey(int key, LabMap* map, int /*aliveBotsCount*/) {
-        InteractiveEntity* act = getActiveTerminal();
-        if (!act) return false;
-
-        // ESC (GLFW 256 or ASCII 27) or E ('E'/69 or 'e'/101) closes terminal
-        if (key == 256 || key == 27 || key == 'E' || key == 'e' || key == 69 || key == 101) {
-            closeActiveTerminal();
-            return true;
-        }
-
-        if (act->currentPage == TerminalPage::Main) {
-            if (key == '1' || key == 49 || key == 1) {
-                // Toggle Door Lock / Unlock
-                act->isLocked = !act->isLocked;
-                act->isActivated = !act->isLocked;
-
-                if (act->targetDoorIndex >= 0 && map && (size_t)act->targetDoorIndex < map->doors.size()) {
-                    auto& door = map->doors[act->targetDoorIndex];
-                    door.isLocked = act->isLocked;
-                    door.isOpen = act->isActivated;
-                }
-
-                if (!act->isLocked) {
-                    act->statusText = "UNLOCKED - AIRLOCK CYCLING OPEN";
-                    act->themeColor = Vec3(0.2f, 0.95f, 0.40f);
-                    AudioEngine::playSound(SoundID::AccessGranted, 1.0f);
-                    AudioEngine::playSound(SoundID::TerminalBeep, 0.9f);
-                    _lastInteractionNotice = "SECURITY OVERRIDE: AIRLOCK CYCLING OPEN";
-                    _noticeColor = Vec3(0.25f, 0.95f, 0.35f);
-                } else {
-                    act->statusText = "LOCKED - BLAST SEAL ENGAGED";
-                    act->themeColor = Vec3(1.0f, 0.25f, 0.2f);
-                    AudioEngine::playSound(SoundID::AccessDenied, 0.95f);
-                    _lastInteractionNotice = "AIRLOCK SEAL ENGAGED: PASSAGE LOCKED";
-                    _noticeColor = Vec3(1.0f, 0.3f, 0.25f);
-                }
-                _noticeTimer = 3.0f;
-                return true;
-            } else if (key == '2' || key == 50 || key == 2) {
-                act->currentPage = TerminalPage::SecurityLogs;
-                AudioEngine::playSound(SoundID::TerminalBeep, 0.85f);
-                return true;
-            } else if (key == '3' || key == 51 || key == 3) {
-                act->currentPage = TerminalPage::BotTelemetry;
-                AudioEngine::playSound(SoundID::TerminalBeep, 0.85f);
-                return true;
-            }
-        } else {
-            // In sub-pages: '0' or Backspace (GLFW 259 / ASCII 8) returns to Main Menu
-            if (key == '0' || key == 48 || key == 0 || key == 259 || key == 8) {
-                act->currentPage = TerminalPage::Main;
-                AudioEngine::playSound(SoundID::TerminalBeep, 0.8f);
-                return true;
-            }
-        }
-
-        return false;
     }
 
     void InteractiveSystem::render(const Camera& /*cam*/) {
@@ -349,11 +354,11 @@ namespace Lab {
         for (const auto& ent : _entities) {
             bool isHovered = (&ent == _hoveredEntity);
 
-            // Update procedural monitor texture with real text
+            // Update procedural monitor texture with retinal graphics
             updateMonitorFaceTexture(ent);
 
-            // 1. Dark metallic console housing
-            Vec3 housingCol = isHovered ? Vec3(0.18f, 0.22f, 0.28f) : Vec3(0.12f, 0.14f, 0.18f);
+            // 1. Dark metallic scanner casing
+            Vec3 housingCol = isHovered ? Vec3(0.18f, 0.24f, 0.30f) : Vec3(0.12f, 0.14f, 0.18f);
             Renderer::drawCube(ent.position, ent.size, housingCol, nullptr, true);
 
             // 2. Beveled bezel border and screen face
@@ -364,14 +369,19 @@ namespace Lab {
             Vec3 scrPos = ent.position + scrOffset;
             Vec3 scrSize(ent.size.x * 0.86f, ent.size.y * 0.82f, 0.004f);
 
-            // 3. CRT Terminal Screen with rendered text texture!
+            // 3. Scanner Screen with rendered eye/laser texture
             Vec3 screenGlow = isHovered ? Vec3(1.35f, 1.35f, 1.35f) : Vec3(1.0f, 1.0f, 1.0f);
             Renderer::drawCube(scrPos, scrSize, screenGlow, _texMonitorFace.get(), true);
 
-            // 4. Status Indicator LED on housing bezel (Red = Locked, Green = Unlocked)
+            // 4. Status Indicator LED on housing bezel (Red = Locked, Amber = Scanning, Green = Unlocked)
             Vec3 ledOffset = Vec3(0.0f, ent.size.y * 0.44f, ent.size.z * 0.5f + 0.008f);
             Vec3 ledPos = ent.position + ledOffset;
-            Vec3 ledCol = ent.isLocked ? Vec3(1.0f, 0.15f, 0.15f) : Vec3(0.15f, 1.0f, 0.35f);
+            Vec3 ledCol = Vec3(0.15f, 1.0f, 0.35f);
+            if (ent.isScanning) {
+                ledCol = Vec3(1.0f, 0.85f, 0.2f);
+            } else if (ent.isLocked) {
+                ledCol = Vec3(1.0f, 0.15f, 0.15f);
+            }
             Renderer::drawCube(ledPos, Vec3(0.05f, 0.05f, 0.02f), ledCol, nullptr, false);
         }
     }
@@ -380,175 +390,70 @@ namespace Lab {
         float sw = (float)screenWidth;
         float sh = (float)screenHeight;
 
-        // If terminal is open in full OS mode, HUD interaction prompt is hidden
-        if (isAnyTerminalOpen()) return;
-
-        // Interaction Prompt at Center-Bottom
+        // 1. Interaction Prompt or Biometric Scanning Widget at Center-Bottom
         if (_hoveredEntity) {
             float cx = sw * 0.5f;
             float cy = sh * 0.72f;
-            float boxW = 540.0f;
-            float boxH = 54.0f;
 
-            // Background panel
-            Renderer::drawRect(cx - boxW * 0.5f, cy, boxW, boxH, Vec3(0.06f, 0.08f, 0.10f));
+            if (_hoveredEntity->isScanning) {
+                // Sleek Retinal Scanning Progress Card
+                float boxW = 520.0f;
+                float boxH = 68.0f;
+                float bx = cx - boxW * 0.5f;
+                float by = cy;
 
-            // Accent border line
-            Vec3 accent = _hoveredEntity->isLocked ? Vec3(1.0f, 0.3f, 0.25f) : Vec3(0.2f, 0.95f, 0.40f);
-            Renderer::drawRect(cx - boxW * 0.5f, cy, boxW, 2.0f, accent);
-            Renderer::drawRect(cx - boxW * 0.5f, cy + boxH - 2.0f, boxW, 2.0f, Vec3(0.16f, 0.20f, 0.24f));
+                Renderer::drawRect(bx, by, boxW, boxH, Vec3(0.08f, 0.12f, 0.16f));
+                Renderer::drawRect(bx, by, boxW, 2.0f, Vec3(0.3f, 0.85f, 1.0f));
+                Renderer::drawRect(bx, by + boxH - 2.0f, boxW, 2.0f, Vec3(0.3f, 0.85f, 1.0f));
 
-            // Key icon box [E]
-            Renderer::drawRect(cx - boxW * 0.5f + 16.0f, cy + 10.0f, 34.0f, 34.0f, Vec3(0.16f, 0.22f, 0.26f));
-            Renderer::drawRect(cx - boxW * 0.5f + 16.0f, cy + 10.0f, 34.0f, 1.0f, Vec3(1.0f, 0.85f, 0.2f));
-            LabFont::drawText(cx - boxW * 0.5f + 26.0f, cy + 16.0f, "E", 1.6f, Vec3(1.0f, 0.85f, 0.2f), LabFontType::GeoSans);
+                LabFont::drawText(bx + 20.0f, by + 12.0f, "BIOMETRIC RETINAL SCAN IN PROGRESS...", 1.7f, Vec3(1.0f, 0.9f, 0.35f), LabFontType::GeoSans);
 
-            // Action label
-            std::string prompt = "LOG IN: " + _hoveredEntity->title + " - [" + (_hoveredEntity->isLocked ? "LOCKED" : "UNLOCKED") + "]";
-            LabFont::drawText(cx - boxW * 0.5f + 62.0f, cy + 17.0f, prompt, 1.4f, Vec3(0.95f, 0.96f, 0.98f), LabFontType::GeoSans);
-        }
+                int pct = std::min(100, (int)(_hoveredEntity->scanProgress * 100.0f));
+                std::string subText = "Subject: " + _hoveredEntity->authorizedUser + " // Matching Neural Retina: " + std::to_string(pct) + "%";
+                LabFont::drawText(bx + 20.0f, by + 32.0f, subText, 1.3f, Vec3(0.75f, 0.9f, 1.0f), LabFontType::GeoSans);
 
-        // Diagnostic Notice Banner
-        if (_noticeTimer > 0.0f && !_lastInteractionNotice.empty()) {
-            float ncy = 135.0f;
-            float nbw = 580.0f;
-            float nbh = 38.0f;
-            float ncx = sw * 0.5f - nbw * 0.5f;
-
-            Renderer::drawRect(ncx, ncy, nbw, nbh, Vec3(0.08f, 0.10f, 0.14f));
-            Renderer::drawRect(ncx, ncy, nbw, 1.5f, _noticeColor);
-            Renderer::drawRect(ncx, ncy + nbh - 1.0f, nbw, 1.0f, Vec3(0.18f, 0.22f, 0.26f));
-
-            LabFont::drawText(ncx + 20.0f, ncy + 9.0f, _lastInteractionNotice, 1.4f, _noticeColor, LabFontType::GeoSans);
-        }
-    }
-
-    void InteractiveSystem::renderTerminalOS(int screenWidth, int screenHeight, const LabMap* map, int aliveBotsCount) {
-        InteractiveEntity* act = getActiveTerminal();
-        if (!act) return;
-
-        float sw = (float)screenWidth;
-        float sh = (float)screenHeight;
-
-        // 1. Dark phosphor backdrop overlay covering the screen
-        Renderer::beginUI(screenWidth, screenHeight);
-        Renderer::drawRect(0.0f, 0.0f, sw, sh, Vec3(0.02f, 0.04f, 0.05f));
-
-        // 2. CRT Computer Terminal Window Frame (1080 x 620)
-        float tw = 1080.0f;
-        float th = 620.0f;
-        float tx = (sw - tw) * 0.5f;
-        float ty = (sh - th) * 0.5f;
-
-        // Bezel and scanline background
-        Renderer::drawRect(tx, ty, tw, th, Vec3(0.04f, 0.07f, 0.06f));
-        Renderer::drawRect(tx, ty, tw, 2.0f, Vec3(0.2f, 0.95f, 0.45f));
-        Renderer::drawRect(tx, ty + th - 2.0f, tw, 2.0f, Vec3(0.2f, 0.95f, 0.45f));
-        Renderer::drawRect(tx, ty, 2.0f, th, Vec3(0.2f, 0.95f, 0.45f));
-        Renderer::drawRect(tx + tw - 2.0f, ty, 2.0f, th, Vec3(0.2f, 0.95f, 0.45f));
-
-        // 3. Header Bar
-        Renderer::drawRect(tx + 4.0f, ty + 4.0f, tw - 8.0f, 52.0f, Vec3(0.07f, 0.14f, 0.10f));
-        Renderer::drawRect(tx + 4.0f, ty + 56.0f, tw - 8.0f, 1.0f, Vec3(0.2f, 0.95f, 0.45f));
-
-        LabFont::drawText(tx + 24.0f, ty + 14.0f, "LAB-OS v3.42 // KORE CRYOGENIC RESEARCH FACILITY // SEC-04", 1.8f, Vec3(0.25f, 1.0f, 0.50f), LabFontType::GeoSans);
-        LabFont::drawText(tx + 24.0f, ty + 36.0f, "TERMINAL NODE: AIRLOCK OVERRIDE // CLEARANCE: LEVEL 3 GUEST", 1.3f, Vec3(0.65f, 0.85f, 0.70f), LabFontType::GeoSans);
-
-        // 4. Page Routing
-        if (act->currentPage == TerminalPage::Main) {
-            // Main Menu Options
-            LabFont::drawText(tx + 35.0f, ty + 85.0f, ">>> SELECT SYSTEM FUNCTION (HOTKEYS 1 - 3):", 1.6f, Vec3(0.3f, 1.0f, 0.6f), LabFontType::GeoSans);
-
-            // Option 1: Door Actuator
-            bool doorOpen = false;
-            if (act->targetDoorIndex >= 0 && map && (size_t)act->targetDoorIndex < map->doors.size()) {
-                doorOpen = map->doors[act->targetDoorIndex].isOpen;
+                // Progress Bar
+                float barX = bx + 20.0f;
+                float barY = by + 50.0f;
+                float barW = boxW - 40.0f;
+                float barH = 8.0f;
+                Renderer::drawRect(barX, barY, barW, barH, Vec3(0.15f, 0.20f, 0.25f));
+                Renderer::drawRect(barX, barY, barW * _hoveredEntity->scanProgress, barH, Vec3(0.2f, 0.95f, 0.45f));
             } else {
-                doorOpen = act->isActivated;
+                // Static Prompt Card
+                float boxW = 460.0f;
+                float boxH = 50.0f;
+                float bx = cx - boxW * 0.5f;
+                float by = cy;
+
+                Renderer::drawRect(bx, by, boxW, boxH, Vec3(0.10f, 0.13f, 0.17f));
+                Renderer::drawRect(bx, by, boxW, 1.0f, _hoveredEntity->themeColor);
+                Renderer::drawRect(bx, by, 4.0f, boxH, _hoveredEntity->themeColor);
+
+                std::string promptText;
+                if (_hoveredEntity->type == InteractiveType::RetinalScanner) {
+                    promptText = _hoveredEntity->isLocked ? "[E] SCAN RETINA - AUTH CLEARANCE" : "[E] CYCLE AIRLOCK DOOR (UNLOCKED)";
+                } else if (_hoveredEntity->isLocked) {
+                    promptText = "[E] ACCESS RESTRICTED (KEYPAD LOCKED)";
+                } else {
+                    promptText = "[E] TOGGLE SWITCH";
+                }
+
+                LabFont::drawText(bx + 24.0f, by + 16.0f, promptText, 1.8f, Vec3(1.0f, 0.95f, 0.9f), LabFontType::GeoSans);
             }
-
-            Renderer::drawRect(tx + 35.0f, ty + 120.0f, tw - 70.0f, 75.0f, Vec3(0.06f, 0.10f, 0.08f));
-            Renderer::drawRect(tx + 35.0f, ty + 120.0f, 4.0f, 75.0f, doorOpen ? Vec3(0.2f, 0.95f, 0.4f) : Vec3(1.0f, 0.3f, 0.2f));
-
-            LabFont::drawText(tx + 55.0f, ty + 132.0f, "[1] AIRLOCK BLAST DOOR ACTUATOR", 1.7f, Vec3(1.0f, 0.95f, 0.4f), LabFontType::GeoSans);
-            std::string doorStatus = doorOpen ? "STATUS: [ UNLOCKED // AIRLOCK OPEN ]" : "STATUS: [ LOCKED // SEAL CLAMP ENGAGED ]";
-            Vec3 statusCol = doorOpen ? Vec3(0.25f, 1.0f, 0.45f) : Vec3(1.0f, 0.35f, 0.25f);
-            LabFont::drawText(tx + 55.0f, ty + 158.0f, doorStatus + "  (Press [1] to toggle pneumatic seal)", 1.3f, statusCol, LabFontType::GeoSans);
-
-            // Option 2: Security Logs
-            Renderer::drawRect(tx + 35.0f, ty + 215.0f, tw - 70.0f, 75.0f, Vec3(0.06f, 0.10f, 0.08f));
-            Renderer::drawRect(tx + 35.0f, ty + 215.0f, 4.0f, 75.0f, Vec3(0.2f, 0.8f, 1.0f));
-
-            LabFont::drawText(tx + 55.0f, ty + 227.0f, "[2] FACILITY INCIDENT ARCHIVE LOGS", 1.7f, Vec3(1.0f, 0.95f, 0.4f), LabFontType::GeoSans);
-            LabFont::drawText(tx + 55.0f, ty + 253.0f, "STATUS: [ 3 RECOVERED AUDIO & DATA LOGS ]  (Press [2] to read incident file #0451)", 1.3f, Vec3(0.7f, 0.85f, 0.95f), LabFontType::GeoSans);
-
-            // Option 3: Bot Telemetry
-            Renderer::drawRect(tx + 35.0f, ty + 310.0f, tw - 70.0f, 75.0f, Vec3(0.06f, 0.10f, 0.08f));
-            Renderer::drawRect(tx + 35.0f, ty + 310.0f, 4.0f, 75.0f, Vec3(0.9f, 0.6f, 0.2f));
-
-            LabFont::drawText(tx + 55.0f, ty + 322.0f, "[3] SYNTH COMBAT UNIT TELEMETRY", 1.7f, Vec3(1.0f, 0.95f, 0.4f), LabFontType::GeoSans);
-            std::string botSummary = "STATUS: [ " + std::to_string(aliveBotsCount) + " ACTIVE SYNTHS DETECTED ON GRID ]  (Press [3] to query sensor feed)";
-            LabFont::drawText(tx + 55.0f, ty + 348.0f, botSummary, 1.3f, Vec3(0.95f, 0.80f, 0.40f), LabFontType::GeoSans);
-
-            // Diagnostic Terminal Logs Box
-            Renderer::drawRect(tx + 35.0f, ty + 410.0f, tw - 70.0f, 120.0f, Vec3(0.03f, 0.06f, 0.05f));
-            Renderer::drawRect(tx + 35.0f, ty + 410.0f, tw - 70.0f, 1.0f, Vec3(0.15f, 0.35f, 0.25f));
-            LabFont::drawText(tx + 48.0f, ty + 422.0f, "DIAGNOSTIC SYSTEM TELEMETRY:", 1.3f, Vec3(0.35f, 0.85f, 0.5f), LabFontType::GeoSans);
-            LabFont::drawText(tx + 48.0f, ty + 444.0f, "> HYDRAULIC PRESSURE: 450 PSI // COOLANT LOOP: 14 KELVIN", 1.2f, Vec3(0.6f, 0.75f, 0.65f), LabFontType::GeoSans);
-            LabFont::drawText(tx + 48.0f, ty + 466.0f, "> SUB-ZERO CONTAINMENT FIELD: STABLE // GRID ALPHA RESTRICTED", 1.2f, Vec3(0.6f, 0.75f, 0.65f), LabFontType::GeoSans);
-            LabFont::drawText(tx + 48.0f, ty + 488.0f, "> WARNING: COMBAT DRONES PATROLLING EXTERIOR PERIMETER", 1.2f, Vec3(0.95f, 0.55f, 0.35f), LabFontType::GeoSans);
-
-        } else if (act->currentPage == TerminalPage::SecurityLogs) {
-            // Logs View
-            LabFont::drawText(tx + 35.0f, ty + 85.0f, ">>> RECOVERED INCIDENT LOGS // ARCHIVE FILE #0451:", 1.6f, Vec3(0.3f, 1.0f, 0.6f), LabFontType::GeoSans);
-
-            // Log 1
-            Renderer::drawRect(tx + 35.0f, ty + 120.0f, tw - 70.0f, 90.0f, Vec3(0.06f, 0.10f, 0.08f));
-            Renderer::drawRect(tx + 35.0f, ty + 120.0f, 4.0f, 90.0f, Vec3(0.2f, 0.85f, 0.45f));
-            LabFont::drawText(tx + 55.0f, ty + 130.0f, "LOG 01 // 02:14 UTC - DR. VANCE, CRYOGENICS LEAD", 1.4f, Vec3(1.0f, 0.9f, 0.4f), LabFontType::GeoSans);
-            LabFont::drawText(tx + 55.0f, ty + 154.0f, "\"Coolant leak detected in Subterranean Facility Alpha. Primary containment valves are failing.", 1.2f, Vec3(0.85f, 0.9f, 0.85f), LabFontType::GeoSans);
-            LabFont::drawText(tx + 55.0f, ty + 176.0f, "Liquid nitrogen is venting into corridors. The temperature has plunged to -45 C. We must evacuate.\"", 1.2f, Vec3(0.85f, 0.9f, 0.85f), LabFontType::GeoSans);
-
-            // Log 2
-            Renderer::drawRect(tx + 35.0f, ty + 225.0f, tw - 70.0f, 90.0f, Vec3(0.06f, 0.10f, 0.08f));
-            Renderer::drawRect(tx + 35.0f, ty + 225.0f, 4.0f, 90.0f, Vec3(0.9f, 0.5f, 0.2f));
-            LabFont::drawText(tx + 55.0f, ty + 235.0f, "LOG 02 // 03:45 UTC - CHIEF SECURITY OFFICER", 1.4f, Vec3(1.0f, 0.9f, 0.4f), LabFontType::GeoSans);
-            LabFont::drawText(tx + 55.0f, ty + 259.0f, "\"The synthetic guard units encountered a logic lockup from the cryogenic frost.", 1.2f, Vec3(0.85f, 0.9f, 0.85f), LabFontType::GeoSans);
-            LabFont::drawText(tx + 55.0f, ty + 281.0f, "They have identified human survivors as hostile intruders. Do not approach them unarmed.\"", 1.2f, Vec3(0.85f, 0.9f, 0.85f), LabFontType::GeoSans);
-
-            // Log 3
-            Renderer::drawRect(tx + 35.0f, ty + 330.0f, tw - 70.0f, 90.0f, Vec3(0.06f, 0.10f, 0.08f));
-            Renderer::drawRect(tx + 35.0f, ty + 330.0f, 4.0f, 90.0f, Vec3(0.3f, 0.7f, 1.0f));
-            LabFont::drawText(tx + 55.0f, ty + 340.0f, "LOG 03 // 05:10 UTC - EMERGENCY SYSTEM OVERRIDE", 1.4f, Vec3(1.0f, 0.9f, 0.4f), LabFontType::GeoSans);
-            LabFont::drawText(tx + 55.0f, ty + 364.0f, "\"All automated blast doors have been clamped shut to contain the synthetic outbreak.", 1.2f, Vec3(0.85f, 0.9f, 0.85f), LabFontType::GeoSans);
-            LabFont::drawText(tx + 55.0f, ty + 386.0f, "Use manual terminal option [1] to cycle the hydraulic blast door seals and advance.\"", 1.2f, Vec3(0.85f, 0.9f, 0.85f), LabFontType::GeoSans);
-
-            LabFont::drawText(tx + 55.0f, ty + 460.0f, ">>> PRESS [0] OR [BACKSPACE] TO RETURN TO MAIN MENU", 1.5f, Vec3(1.0f, 0.85f, 0.3f), LabFontType::GeoSans);
-
-        } else if (act->currentPage == TerminalPage::BotTelemetry) {
-            // Telemetry View
-            LabFont::drawText(tx + 35.0f, ty + 85.0f, ">>> SYNTH SENSOR GRID // REAL-TIME THREAT RADAR:", 1.6f, Vec3(0.3f, 1.0f, 0.6f), LabFontType::GeoSans);
-
-            Renderer::drawRect(tx + 35.0f, ty + 120.0f, tw - 70.0f, 300.0f, Vec3(0.04f, 0.08f, 0.06f));
-            Renderer::drawRect(tx + 35.0f, ty + 120.0f, tw - 70.0f, 1.0f, Vec3(0.2f, 0.8f, 0.4f));
-
-            LabFont::drawText(tx + 55.0f, ty + 140.0f, "SECTOR-04 ACTIVE SENSORS: 6 SENSORS ONLINE", 1.4f, Vec3(0.3f, 0.9f, 0.5f), LabFontType::GeoSans);
-            LabFont::drawText(tx + 55.0f, ty + 175.0f, "CONFIRMED SYNTH SQUAD: " + std::to_string(aliveBotsCount) + " UNITS CURRENTLY OPERATIONAL", 1.5f, Vec3(1.0f, 0.85f, 0.35f), LabFontType::GeoSans);
-            LabFont::drawText(tx + 55.0f, ty + 215.0f, "- UNIT #1: COMBAT SYNTH // HEALTH: 100% // PATROL SCRIPT ACTIVE", 1.3f, Vec3(0.8f, 0.85f, 0.8f), LabFontType::GeoSans);
-            LabFont::drawText(tx + 55.0f, ty + 245.0f, "- UNIT #2: ENFORCER SYNTH // HEALTH: 85% // ENGAGING TARGETS", 1.3f, Vec3(0.8f, 0.85f, 0.8f), LabFontType::GeoSans);
-            LabFont::drawText(tx + 55.0f, ty + 275.0f, "- WEAPON PAYLOADS DETECTED: 9mm AUTOMATIC, SHOTGUN, RPG", 1.3f, Vec3(0.95f, 0.6f, 0.3f), LabFontType::GeoSans);
-            LabFont::drawText(tx + 55.0f, ty + 310.0f, "- RADIAL SENSOR SWEEP: AIRLOCK PERIMETER CLEAR", 1.3f, Vec3(0.3f, 1.0f, 0.5f), LabFontType::GeoSans);
-
-            LabFont::drawText(tx + 55.0f, ty + 460.0f, ">>> PRESS [0] OR [BACKSPACE] TO RETURN TO MAIN MENU", 1.5f, Vec3(1.0f, 0.85f, 0.3f), LabFontType::GeoSans);
         }
 
-        // Footer Bar
-        Renderer::drawRect(tx + 4.0f, ty + th - 52.0f, tw - 8.0f, 48.0f, Vec3(0.06f, 0.10f, 0.08f));
-        Renderer::drawRect(tx + 4.0f, ty + th - 52.0f, tw - 8.0f, 1.0f, Vec3(0.2f, 0.95f, 0.45f));
+        // 2. Interaction Notice Banner (Upper-Mid Screen)
+        if (_noticeTimer > 0.0f && !_lastInteractionNotice.empty()) {
+            float nw = 620.0f;
+            float nh = 40.0f;
+            float nx = (sw - nw) * 0.5f;
+            float ny = sh * 0.22f;
 
-        LabFont::drawText(tx + 24.0f, ty + th - 36.0f, "[HOTKEYS: 1-3 SELECT]       [ESC] / [E] LOG OUT & RETURN TO COMBAT", 1.5f, Vec3(0.3f, 1.0f, 0.5f), LabFontType::GeoSans);
-
-        Renderer::endUI();
+            Renderer::drawRect(nx, ny, nw, nh, Vec3(0.08f, 0.11f, 0.15f));
+            Renderer::drawRect(nx, ny, nw, 2.0f, _noticeColor);
+            LabFont::drawText(nx + 20.0f, ny + 12.0f, _lastInteractionNotice, 1.7f, _noticeColor, LabFontType::GeoSans);
+        }
     }
 
 } // namespace Lab

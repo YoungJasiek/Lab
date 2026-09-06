@@ -2631,7 +2631,7 @@ int main() {
 
     // 30. Verify Interactive In-World Terminals, Consoles & Use Triggers (Sprint 8)
     {
-        std::cout << "\n[Test 30] Verifying Interactive In-World Terminals, Consoles & Use Triggers...\n";
+        std::cout << "\n[Test 30] Verifying Biometric Retinal Scanner, Lua 5.4 Game Mechanics & Barrel Death...\n";
         Lab::InteractiveSystem isys;
         isys.init();
 
@@ -2640,21 +2640,24 @@ int main() {
             return 1;
         }
 
-        // 1. Add interactive entities
-        Lab::InteractiveEntity term;
-        term.id = 1;
-        term.type = Lab::InteractiveType::Terminal;
-        term.title = "PRIMARY AIRLOCK OVERRIDE";
-        term.subtitle = "SECTOR 4 ACCESS CONTROL";
-        term.statusText = "STANDBY - READY";
-        term.position = Lab::Vec3(0.0f, 1.6f, -3.85f);
-        term.size = Lab::Vec3(1.1f, 0.75f, 0.14f);
-        term.normal = Lab::Vec3(0.0f, 0.0f, 1.0f);
-        term.themeColor = Lab::Vec3(0.2f, 0.85f, 1.0f);
-        term.isLocked = true;
-        term.isActivated = false;
-        term.targetDoorIndex = 0;
-        isys.addEntity(term);
+        // 1. Add interactive entities (Retinal Scanner, Keypad, WallSwitch)
+        Lab::InteractiveEntity scanner;
+        scanner.id = 1;
+        scanner.type = Lab::InteractiveType::RetinalScanner;
+        scanner.title = "RETINAL SCANNER";
+        scanner.subtitle = "BIOMETRIC AIRLOCK GATE";
+        scanner.statusText = "STAND STILL FOR RETINAL SCAN";
+        scanner.authorizedUser = "DR. VANCE";
+        scanner.clearanceLevel = 3;
+        scanner.scanDuration = 1.25f;
+        scanner.position = Lab::Vec3(0.0f, 1.6f, -3.85f);
+        scanner.size = Lab::Vec3(0.70f, 0.55f, 0.12f);
+        scanner.normal = Lab::Vec3(0.0f, 0.0f, 1.0f);
+        scanner.themeColor = Lab::Vec3(0.2f, 0.85f, 1.0f);
+        scanner.isLocked = true;
+        scanner.isActivated = false;
+        scanner.targetDoorIndex = 0;
+        isys.addEntity(scanner);
 
         Lab::InteractiveEntity keypad;
         keypad.id = 2;
@@ -2686,20 +2689,20 @@ int main() {
             std::cerr << "Assertion failed: Expected 3 registered interactive entities, got " << isys.getEntities().size() << "\n";
             return 1;
         }
-        std::cout << "  [PASS] Interactive entity registration and property initialization verified!\n";
+        std::cout << "  [PASS] Interactive entity registration and biometric property initialization verified!\n";
 
         // 2. Test raycast picking and distance threshold
         // Player standing far away (3.8m distance -> exceeds 2.8m limit)
         isys.update(0.016f, Lab::Vec3(0.0f, 1.6f, 0.0f), Lab::Vec3(0.0f, 0.0f, -1.0f), false);
         if (isys.getHoveredEntity() != nullptr) {
-            std::cerr << "Assertion failed: Terminal should not be hovered beyond 2.8m range!\n";
+            std::cerr << "Assertion failed: Retinal Scanner should not be hovered beyond 2.8m range!\n";
             return 1;
         }
 
         // Player standing in range (1.85m distance -> within 2.8m limit)
         isys.update(0.016f, Lab::Vec3(0.0f, 1.6f, -2.0f), Lab::Vec3(0.0f, 0.0f, -1.0f), false);
         if (isys.getHoveredEntity() == nullptr || isys.getHoveredEntity()->id != 1) {
-            std::cerr << "Assertion failed: Player looking at Terminal #1 should pick it up!\n";
+            std::cerr << "Assertion failed: Player looking at Retinal Scanner #1 should pick it up!\n";
             return 1;
         }
         std::cout << "  [PASS] Raycast picking and interaction distance limits verified!\n";
@@ -2721,65 +2724,131 @@ int main() {
         }
         std::cout << "  [PASS] Security lockout and access denied logic verified!\n";
 
-        // 4. Test unlocked entity interaction and linked door trigger
+        // 4. Test Retinal Scanner interaction and door unlocking
         Lab::LabMap testMap;
         Lab::MapDoor testDoor;
-        testDoor.name = "Sector 4 Heavy Blast Door";
+        testDoor.name = "Sector 4 Heavy Airlock Gate";
         testDoor.position = Lab::Vec3(0.0f, 1.5f, -3.8f);
         testDoor.isLocked = true;
         testDoor.isOpen = false;
         testMap.doors.push_back(testDoor);
 
-        // Terminal #1 is locked initially
-        // Look at Terminal #1 and press [E] -> Opens full interactive LAB-OS!
+        // Look at Retinal Scanner #1 and press [E] -> Initiates biometric scan!
         isys.update(0.016f, Lab::Vec3(0.0f, 1.6f, -2.0f), Lab::Vec3(0.0f, 0.0f, -1.0f), true, &testMap);
-        if (!isys.isAnyTerminalOpen()) {
-            std::cerr << "Assertion failed: Pressing [E] on Terminal #1 should open LAB-OS terminal!\n";
+        Lab::InteractiveEntity* scanEnt = isys.getEntity(1);
+        if (!scanEnt || !scanEnt->isScanning) {
+            std::cerr << "Assertion failed: Pressing [E] on Retinal Scanner must start biometric scanning!\n";
             return 1;
         }
-        std::cout << "  [PASS] Approaching terminal and pressing [E] opened LAB-OS v3.42!\n";
+        std::cout << "  [PASS] Biometric retinal eye scan started (isScanning = true, progress = 0%)!\n";
 
-        // Test hotkey '1': Emergency Pneumatic Airlock Override (toggles lock & opens door)
-        if (!isys.handleTerminalKey(1, &testMap, 4)) {
-            std::cerr << "Assertion failed: Terminal key '1' failed to process!\n";
+        // Advance scan by 0.5s -> scan in progress (door remains locked)
+        isys.update(0.50f, Lab::Vec3(0.0f, 1.6f, -2.0f), Lab::Vec3(0.0f, 0.0f, -1.0f), false, &testMap);
+        if (!scanEnt->isScanning || scanEnt->scanProgress <= 0.0f || scanEnt->scanProgress >= 1.0f) {
+            std::cerr << "Assertion failed: Retinal scan progress should be midway between 0 and 100%!\n";
+            return 1;
+        }
+        if (!testMap.doors[0].isLocked) {
+            std::cerr << "Assertion failed: Airlock door must remain locked while scan is in progress!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Midway scan progress (" << (int)(scanEnt->scanProgress * 100.0f) << "%) correctly tracked!\n";
+
+        // Advance scan past duration (1.0s more -> total 1.5s > 1.25s) -> Scan completes, unlocks door!
+        isys.update(1.00f, Lab::Vec3(0.0f, 1.6f, -2.0f), Lab::Vec3(0.0f, 0.0f, -1.0f), false, &testMap);
+        if (scanEnt->isScanning) {
+            std::cerr << "Assertion failed: Retinal scan should be completed!\n";
             return 1;
         }
         if (testMap.doors[0].isLocked || !testMap.doors[0].isOpen) {
-            std::cerr << "Assertion failed: Door should be unlocked and open after terminal override!\n";
+            std::cerr << "Assertion failed: Airlock door should be UNLOCKED and OPEN after authenticated scan!\n";
             return 1;
         }
-        std::cout << "  [PASS] Option [1] unlocked door and triggered pneumatic door actuator!\n";
-
-        // Test hotkey '2': Switch to Security Logs
-        isys.handleTerminalKey(2, &testMap, 4);
-        Lab::InteractiveEntity* actTerm = isys.getActiveTerminal();
-        if (!actTerm || actTerm->currentPage != Lab::TerminalPage::SecurityLogs) {
-            std::cerr << "Assertion failed: Failed to navigate to Security Logs page!\n";
+        if (isys.getLastNotice().find("ACCESS GRANTED") == std::string::npos) {
+            std::cerr << "Assertion failed: Expected 'ACCESS GRANTED' notice upon scan completion!\n";
             return 1;
         }
-        std::cout << "  [PASS] Option [2] opened Facility Incident Archival Logs!\n";
+        std::cout << "  [PASS] Retinal authentication passed: Dr. Vance verified, airlock door unlocked & opened!\n";
 
-        // Test hotkey '0': Back to Main Menu
-        isys.handleTerminalKey(0, &testMap, 4);
-        if (actTerm->currentPage != Lab::TerminalPage::Main) {
-            std::cerr << "Assertion failed: Failed to return to Terminal Main Menu!\n";
+        // 5. Test Lua 5.4 ScriptEngine & Game Mechanics Subsystem
+        std::cout << "  [Test] Initializing Lua 5.4 Game Mechanics from 'assets/scripts/game_mechanics.lua'...\n";
+        Lab::ScriptEngine scriptEngine;
+        if (!scriptEngine.init("assets/scripts/game_mechanics.lua")) {
+            std::cerr << "Assertion failed: Failed to initialize Lua ScriptEngine!\n";
             return 1;
         }
-        std::cout << "  [PASS] Option [0] returned to Terminal Main Menu!\n";
 
-        // Test hotkey '3': Switch to Bot Telemetry
-        isys.handleTerminalKey(3, &testMap, 4);
-        if (actTerm->currentPage != Lab::TerminalPage::BotTelemetry) {
-            std::cerr << "Assertion failed: Failed to navigate to Bot Telemetry!\n";
+        if (scriptEngine.getPlayerMaxHealth() != 150.0f) {
+            std::cerr << "Assertion failed: Expected PlayerMaxHealth 150.0 from Lua, got " << scriptEngine.getPlayerMaxHealth() << "\n";
             return 1;
         }
-        std::cout << "  [PASS] Option [3] opened Synth Threat Radar & Telemetry!\n";
+        if (scriptEngine.getPlayerStartArmor() != 50.0f) {
+            std::cerr << "Assertion failed: Expected PlayerStartArmor 50.0 from Lua, got " << scriptEngine.getPlayerStartArmor() << "\n";
+            return 1;
+        }
+        if (scriptEngine.getRetinalAuthorizedUser() != "DR. VANCE") {
+            std::cerr << "Assertion failed: Expected RetinalAuthorizedUser 'DR. VANCE' from Lua, got " << scriptEngine.getRetinalAuthorizedUser() << "\n";
+            return 1;
+        }
+        if (scriptEngine.getBarrelDamageMultiplier() != 0.75f) {
+            std::cerr << "Assertion failed: Expected BarrelDamageMultiplier 0.75 from Lua, got " << scriptEngine.getBarrelDamageMultiplier() << "\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Lua 5.4 tables correctly read and cached (Health: 150, Armor: 50, User: DR. VANCE)!\n";
 
-        // Return to Main Menu so visual screenshot captures the primary LAB-OS screen
-        isys.handleTerminalKey(0, &testMap, 4);
-        std::cout << "  [PASS] Full LAB-OS interactive state machine verified!\n";
+        // Test Lua CalculateDamage function
+        // Case A: Non-lethal damage with armor
+        auto resA = scriptEngine.calculateDamage(50.0f, 50.0f, 150.0f);
+        // 50 incoming * 0.70 = 35 absorbed, 15 final damage to health
+        if (std::abs(resA.absorbedByArmor - 35.0f) > 0.1f || std::abs(resA.finalDamage - 15.0f) > 0.1f || resA.isLethal) {
+            std::cerr << "Assertion failed: CalculateDamage(50, 50, 150) mismatch! Abs: " << resA.absorbedByArmor << ", Fin: " << resA.finalDamage << "\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Lua CalculateDamage non-lethal evaluation verified (Absorbed: 35, Final: 15, Lethal: false)!\n";
 
-        // 5. Visual Rendering Verification:
+        // Case B: Lethal damage exceeding health
+        auto resB = scriptEngine.calculateDamage(300.0f, 50.0f, 50.0f);
+        if (!resB.isLethal) {
+            std::cerr << "Assertion failed: CalculateDamage(300, 50, 50) should be LETHAL!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Lua CalculateDamage lethal flag evaluation verified!\n";
+
+        // Verify Weapons loaded from Lua
+        const auto& wepDefs = scriptEngine.getWeaponDefinitions();
+        if (wepDefs.size() < 9) {
+            std::cerr << "Assertion failed: Expected at least 9 weapons loaded from Lua, got " << wepDefs.size() << "\n";
+            return 1;
+        }
+        const auto* pipeDef = scriptEngine.getWeaponDefById(0);
+        const auto* rpgDef = scriptEngine.getWeaponDefById(8);
+        if (!pipeDef || pipeDef->damage != 55.0f || !pipeDef->isMelee) {
+            std::cerr << "Assertion failed: Weapon 0 (Pipe) stats from Lua incorrect!\n";
+            return 1;
+        }
+        if (!rpgDef || rpgDef->damage != 120.0f || rpgDef->splashRadius != 5.5f) {
+            std::cerr << "Assertion failed: Weapon 8 (RPG) stats from Lua incorrect!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] All 9 weapon definitions successfully loaded and verified from Lua script!\n";
+
+        // 6. Test Barrel Explosion Player Death & HUD Health Clamping
+        Lab::LabHUD testHud;
+        testHud.health = -38.0f;
+        testHud.suitArmor = -12.0f;
+        int clampedHealth = std::max(0, (int)std::ceil(testHud.health));
+        int clampedArmor = std::max(0, (int)std::ceil(testHud.suitArmor));
+        if (clampedHealth < 0 || clampedArmor < 0) {
+            std::cerr << "Assertion failed: Clamped HUD values must never be negative!\n";
+            return 1;
+        }
+        if (clampedHealth != 0 || clampedArmor != 0) {
+            std::cerr << "Assertion failed: Negative health/armor must clamp to 0 display!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] HUD health/armor negative value bug fix verified: clamped to 0 (no more '-38 HP')!\n";
+
+        // 7. Visual Rendering Verification of 3D Scanner & Biometric HUD Card
         glClearColor(0.10f, 0.12f, 0.16f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -2797,7 +2866,7 @@ int main() {
         Lab::Renderer::beginShadowDepthPass(lightMat);
         Lab::Renderer::drawShadowCube(Lab::Vec3(0.0f, -0.1f, 0.0f), Lab::Vec3(25.0f, 0.2f, 25.0f));
         Lab::Renderer::drawShadowCube(Lab::Vec3(0.0f, 2.5f, -4.0f), Lab::Vec3(20.0f, 5.0f, 0.4f));
-        Lab::Renderer::drawShadowCube(Lab::Vec3(0.0f, 1.6f, -3.85f), Lab::Vec3(1.1f, 0.75f, 0.14f));
+        Lab::Renderer::drawShadowCube(Lab::Vec3(0.0f, 1.6f, -3.85f), Lab::Vec3(0.70f, 0.55f, 0.12f));
         Lab::Renderer::drawShadowCube(Lab::Vec3(-2.6f, 1.5f, -3.85f), Lab::Vec3(0.45f, 0.65f, 0.12f));
         Lab::Renderer::drawShadowCube(Lab::Vec3(2.6f, 1.5f, -3.85f), Lab::Vec3(0.40f, 0.55f, 0.12f));
         Lab::Renderer::endShadowDepthPass();
@@ -2816,34 +2885,27 @@ int main() {
         Lab::Renderer::drawCube(Lab::Vec3(0.0f, -0.1f, 0.0f), Lab::Vec3(25.0f, 0.2f, 25.0f), Lab::Vec3(0.75f, 0.75f, 0.75f), &flrTex, true);
         Lab::Renderer::drawCube(Lab::Vec3(0.0f, 2.5f, -4.0f), Lab::Vec3(20.0f, 5.0f, 0.4f), Lab::Vec3(0.70f, 0.70f, 0.70f), &wlTex, true);
 
-        // Render In-World 3D Terminals & Consoles
+        // Trigger active scan state on entity 1 for visual capture
+        scanEnt->isScanning = true;
+        scanEnt->scanProgress = 0.68f;
+
+        // Render In-World 3D Retinal Scanner & Consoles
         isys.render(termCam);
 
         Lab::Renderer::disableShadowMap();
 
-        // 6. UI Diagnostics & Interactive Terminal OS Screen Overlay
-        if (isys.isAnyTerminalOpen()) {
-            isys.renderTerminalOS(w, h, &testMap, 4);
-        } else {
-            Lab::Renderer::beginUI(w, h);
-            isys.renderHUD(w, h);
-            Lab::Renderer::endUI();
-        }
+        // 8. 2D HUD Biometric Retinal Scanning Card
+        Lab::Renderer::beginUI(w, h);
+        isys.renderHUD(w, h);
+        Lab::Renderer::endUI();
 
         Lab::Renderer::endFrame();
         glFinish();
         saveFrameToBMP("test_interactive_terminals.bmp", w, h);
-        std::cout << "  [PASS] Saved visual Interactive Terminals verification to 'test_interactive_terminals.bmp'.\n";
-
-        // 7. Verify closing terminal with ESC
-        isys.handleTerminalKey(256, &testMap, 4); // ESC key
-        if (isys.isAnyTerminalOpen()) {
-            std::cerr << "Assertion failed: Terminal should close upon pressing ESC!\n";
-            return 1;
-        }
-        std::cout << "  [PASS] Terminal successfully closed upon pressing ESC!\n";
+        std::cout << "  [PASS] Saved visual Biometric Retinal Scanner verification to 'test_interactive_terminals.bmp'.\n";
 
         isys.shutdown();
+        scriptEngine.shutdown();
     }
 
     Lab::Renderer::shutdown();

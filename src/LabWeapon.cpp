@@ -430,6 +430,17 @@ namespace Lab {
         _projectiles.push_back(p);
     }
 
+    void WeaponSystem::applyScriptOverrides(int weaponId, float damage, float fireRate, int clipSize, int maxReserve, float splashDamage, float splashRadius) {
+        if (weaponId < 0 || weaponId >= 9) return;
+        auto& wep = _weapons[weaponId];
+        if (damage > 0.0f) wep.def.damage = damage;
+        if (fireRate > 0.0f) wep.def.fireRate = fireRate;
+        if (clipSize > 0) wep.def.clipSize = clipSize;
+        if (maxReserve > 0) wep.def.maxReserve = maxReserve;
+        if (splashDamage > 0.0f) wep.def.splashDamage = splashDamage;
+        if (splashRadius > 0.0f) wep.def.splashRadius = splashRadius;
+    }
+
     void WeaponSystem::drawProceduralWeapon(WeaponID id, const Vec3& basePos, const Vec3& rot, Texture* tex, float muzzleFlash) {
         switch (id) {
             case WeaponID::Pipe: { // 1. PIPE (Steel Pipe)
