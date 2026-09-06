@@ -12,6 +12,10 @@ public:
         : Engine("Valve Hammer Character & Weapon Studio - [Lab Engine 2026]", 1600, 900) {
     }
 
+    ~LabStudioApp() override {
+        _studio.saveConfig();
+    }
+
     void onInit() override {
         LabLog::info("Initializing Standalone Valve Hammer Character Studio...");
         Renderer::init();
@@ -57,6 +61,7 @@ public:
         Input::scrollDelta = 0.0f;
 
         if (_studio.requestExit()) {
+            _studio.saveConfig();
             stop();
         }
     }

@@ -48,6 +48,9 @@ namespace Lab {
         void unbind() const;
         void updateData(const unsigned char* data, int width, int height, int channels);
         unsigned int getId() const { return _id; }
+        int getWidth() const { return _width; }
+        int getHeight() const { return _height; }
+        int getChannels() const { return _channels; }
 
     private:
         unsigned int _id;
@@ -135,8 +138,8 @@ namespace Lab {
         static void drawCube(const Mat4& modelTransform, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true, const Vec2& uvTiling = { 1.0f, 1.0f }, int uvMode = 1);
         static void drawWireCube(const Vec3& position, const Vec3& size, const Vec3& color);
         static void drawBoundingBox(const Vec3& min, const Vec3& max, const Vec3& color);
-        static void drawMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true);
-        static void drawMesh(const Mesh& mesh, const Mat4& modelTransform, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true);
+        static void drawMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true, float uvScale = 1.0f);
+        static void drawMesh(const Mesh& mesh, const Mat4& modelTransform, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true, float uvScale = 1.0f);
         static void drawSkinnedMesh(const SkinnedMesh& mesh, const Mat4& modelTransform, const std::vector<Mat4>& boneMatrices, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true);
         static void drawFacialMesh(const FacialMesh& mesh, const Mat4& modelTransform, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true);
         static void drawBaseplate(float size, const Texture* texture = nullptr);

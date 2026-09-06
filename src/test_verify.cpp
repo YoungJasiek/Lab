@@ -3623,6 +3623,39 @@ int main() {
         glFinish();
         saveFrameToBMP("test_custom_model_viewmodel.bmp", w, h);
         std::cout << "  [PASS] Saved Custom Model.stl FPP viewmodel frame to 'test_custom_model_viewmodel.bmp'.\n";
+
+        // 11. Verify Universal STBI Texture Loading (PNG / misnamed BMP) & Textured STL Viewmodel
+        {
+            std::unique_ptr<Lab::Texture> pipePng(new Lab::Texture("assets/models/textures/PipeWrenchTool_baseColor.png"));
+            if (!pipePng || pipePng->getId() == 0 || pipePng->getWidth() <= 64) {
+                std::cerr << "Assertion failed: Loading PipeWrenchTool_baseColor.png via STBI failed!\n";
+                return 1;
+            }
+            std::unique_ptr<Lab::Texture> pipeBmpPng(new Lab::Texture("assets/textures/weapon_pipe.bmp"));
+            if (!pipeBmpPng || pipeBmpPng->getId() == 0 || pipeBmpPng->getWidth() <= 64) {
+                std::cerr << "Assertion failed: Loading weapon_pipe.bmp (PNG content) failed!\n";
+                return 1;
+            }
+            std::cout << "  [PASS] Universal STBI Texture Loading (PNG & misnamed BMP) validated! (" << pipePng->getWidth() << "x" << pipePng->getHeight() << ")\n";
+
+            // Visual Verification 4: Pipe STL with actual High-Res Texture in player hands
+            glClearColor(0.08f, 0.09f, 0.11f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+            Lab::Camera pipeTexCam(70.0f, (float)w / (float)h, 0.01f, 100.0f);
+            Lab::Renderer::beginFrame(pipeTexCam);
+            Lab::WeaponSystem pipeWs;
+            pipeWs.init();
+            pipeWs.switchWeapon(Lab::WeaponID::Pipe);
+            Lab::WeaponAnimator pipeAnim;
+            std::unique_ptr<Lab::Mesh> pipeMesh(Lab::Mesh::loadSTL("assets/models/pipe.stl"));
+            pipeWs.renderViewModel(pipeTexCam, pipeAnim, pipePng.get(), pipeMesh.get(), 0.0f);
+            Lab::Renderer::endFrame();
+
+            glFinish();
+            saveFrameToBMP("test_pipe_textured_viewmodel.bmp", w, h);
+            std::cout << "  [PASS] Saved Pipe STL with High-Res PNG Texture to 'test_pipe_textured_viewmodel.bmp'.\n";
+        }
     }
 
     Lab::Renderer::shutdown();

@@ -2,6 +2,9 @@
 #include "LabSkeletal.h"
 #include "LabFace.h"
 #include <glad/gl.h>
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_NO_SIMD
+#include "stb_image.h"
 #include <fstream>
 #include <iostream>
 #include <algorithm>
@@ -69,7 +72,7 @@ namespace Lab {
                     TexCoords = vec2(aPos.z * brushSize.z, aPos.y * brushSize.y) * uvTiling;
                 }
             } else {
-                TexCoords = aTexCoords;
+                TexCoords = aTexCoords * uvTiling;
             }
 
             Color = aColor;
@@ -360,14 +363,17 @@ namespace Lab {
         std::string fname = std::filesystem::path(path).filename().string();
         std::vector<std::string> candidates = {
             fname,
+            "assets/models/textures/" + fname,
             "assets/textures/" + fname,
             "assets/models/" + fname,
             "assets/maps/" + fname,
             "assets/" + fname,
+            "../assets/models/textures/" + fname,
             "../assets/textures/" + fname,
             "../assets/models/" + fname,
             "../assets/maps/" + fname,
             "../assets/" + fname,
+            "../../assets/models/textures/" + fname,
             "../../assets/textures/" + fname,
             "../../assets/models/" + fname,
             "../../assets/maps/" + fname,
@@ -478,18 +484,37 @@ namespace Lab {
     // --- Texture Implementation ---
     Texture::Texture(const std::string& path) : _id(0), _width(0), _height(0), _channels(0) {
         unsigned char* data = nullptr;
-        std::string ext = path.substr(path.find_last_of(".") + 1);
-        std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return (char)::tolower(c); });
+        bool isStbi = false;
 
-        if (ext == "tga") {
-            data = loadTGA(path.c_str(), &_width, &_height, &_channels);
-            _channels /= 8;
-        } else if (ext == "bmp") {
-            data = loadBMP(path.c_str(), &_width, &_height, &_channels);
-            _channels /= 8;
+        // 1. Universal STBI loader (PNG, JPG, BMP, TGA regardless of magic bytes / extension)
+        std::string resolved = resolveAssetPath(path);
+        if (std::filesystem::exists(resolved)) {
+            int w = 0, h = 0, ch = 0;
+            unsigned char* stbiData = stbi_load(resolved.c_str(), &w, &h, &ch, 0);
+            if (stbiData && w > 0 && h > 0 && (ch == 3 || ch == 4)) {
+                data = stbiData;
+                _width = w;
+                _height = h;
+                _channels = ch;
+                isStbi = true;
+            }
         }
 
-        // If file does not exist on disk, seamlessly use built-in procedural texture
+        // 2. Fallback to legacy TGA / BMP if STBI didn't load
+        if (!data) {
+            std::string ext = path.substr(path.find_last_of(".") + 1);
+            std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return (char)::tolower(c); });
+
+            if (ext == "tga") {
+                data = loadTGA(path.c_str(), &_width, &_height, &_channels);
+                _channels /= 8;
+            } else if (ext == "bmp") {
+                data = loadBMP(path.c_str(), &_width, &_height, &_channels);
+                _channels /= 8;
+            }
+        }
+
+        // 3. If file does not exist on disk, seamlessly use built-in procedural texture
         if (!data) {
             _width = 64;
             _height = 64;
@@ -600,7 +625,11 @@ namespace Lab {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
         glBindTexture(GL_TEXTURE_2D, 0);
-        delete[] data;
+        if (isStbi) {
+            stbi_image_free(data);
+        } else {
+            delete[] data;
+        }
     }
 
     Texture::Texture(const unsigned char* data, int width, int height, int channels)
@@ -816,10 +845,16 @@ namespace Lab {
             return nullptr;
         }
 
-        std::vector<Vertex> vertices;
-        std::vector<unsigned int> indices;
-        vertices.reserve(triangleCount * 3);
-        indices.reserve(triangleCount * 3);
+        struct RawTri {
+            Vec3 normal;
+            Vec3 v[3];
+            Vec3 color;
+        };
+        std::vector<RawTri> rawTris;
+        rawTris.reserve(triangleCount);
+
+        Vec3 minB(1e9f, 1e9f, 1e9f);
+        Vec3 maxB(-1e9f, -1e9f, -1e9f);
 
         for (unsigned int i = 0; i < triangleCount; i++) {
             float n[3], v[3][3];
@@ -846,10 +881,45 @@ namespace Lab {
                 vColor = Vec3(r, g, b);
             }
 
-            for (int j = 0; j < 3; j++) {
-                Vec3 pos(v[j][0], v[j][1], v[j][2]);
-                float uvScale = 0.1f;
-                vertices.push_back(Vertex(pos, normal, Vec2(pos.x * uvScale, pos.z * uvScale), vColor));
+            RawTri tri;
+            tri.normal = normal;
+            tri.color = vColor;
+            for (int j = 0; j < 3; ++j) {
+                tri.v[j] = Vec3(v[j][0], v[j][1], v[j][2]);
+                minB.x = std::min(minB.x, tri.v[j].x);
+                minB.y = std::min(minB.y, tri.v[j].y);
+                minB.z = std::min(minB.z, tri.v[j].z);
+                maxB.x = std::max(maxB.x, tri.v[j].x);
+                maxB.y = std::max(maxB.y, tri.v[j].y);
+                maxB.z = std::max(maxB.z, tri.v[j].z);
+            }
+            rawTris.push_back(tri);
+        }
+
+        Vec3 size = maxB - minB;
+        float maxDim = std::max({ size.x, size.y, size.z, 0.001f });
+
+        std::vector<Vertex> vertices;
+        std::vector<unsigned int> indices;
+        vertices.reserve(triangleCount * 3);
+        indices.reserve(triangleCount * 3);
+
+        for (unsigned int i = 0; i < rawTris.size(); ++i) {
+            const auto& tri = rawTris[i];
+            Vec3 absN(std::abs(tri.normal.x), std::abs(tri.normal.y), std::abs(tri.normal.z));
+
+            for (int j = 0; j < 3; ++j) {
+                const auto& pos = tri.v[j];
+                Vec2 uv;
+                // Planar box projection across normalized mesh bounding bounds
+                if (absN.y >= absN.x && absN.y >= absN.z) {
+                    uv = Vec2((pos.x - minB.x) / maxDim, (pos.z - minB.z) / maxDim);
+                } else if (absN.z >= absN.x && absN.z >= absN.y) {
+                    uv = Vec2((pos.x - minB.x) / maxDim, (pos.y - minB.y) / maxDim);
+                } else {
+                    uv = Vec2((pos.z - minB.z) / maxDim, (pos.y - minB.y) / maxDim);
+                }
+                vertices.push_back(Vertex(pos, tri.normal, uv, tri.color));
                 indices.push_back(i * 3 + j);
             }
         }
@@ -1234,17 +1304,17 @@ namespace Lab {
         drawWireCube(center, size, color);
     }
 
-    void Renderer::drawMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color, const Texture* texture, bool enableLighting) {
-        drawMesh(mesh, getTransform(position, rotation, scale), color, texture, enableLighting);
+    void Renderer::drawMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color, const Texture* texture, bool enableLighting, float uvScale) {
+        drawMesh(mesh, getTransform(position, rotation, scale), color, texture, enableLighting, uvScale);
     }
 
-    void Renderer::drawMesh(const Mesh& mesh, const Mat4& modelTransform, const Vec3& color, const Texture* texture, bool enableLighting) {
+    void Renderer::drawMesh(const Mesh& mesh, const Mat4& modelTransform, const Vec3& color, const Texture* texture, bool enableLighting, float uvScale) {
         _defaultShader->use();
         _defaultShader->setMat4("projection", _projMatrix);
         _defaultShader->setMat4("view", _viewMatrix);
         _defaultShader->setMat4("model", modelTransform);
         _defaultShader->setVec3("brushSize", {1.0f, 1.0f, 1.0f});
-        _defaultShader->setVec2("uvTiling", {1.0f, 1.0f});
+        _defaultShader->setVec2("uvTiling", {uvScale, uvScale});
         _defaultShader->setInt("uvMode", 0);
         _defaultShader->setInt("uUseSkinning", 0);
         _defaultShader->setVec3("objectColor", color);
@@ -1420,13 +1490,20 @@ namespace Lab {
 
         std::vector<std::string> candidates;
         if (!parentDir.empty()) {
+            candidates.push_back(parentDir + "/" + stem + ".png");
             candidates.push_back(parentDir + "/" + stem + ".bmp");
             candidates.push_back(parentDir + "/" + stem + ".tga");
         }
+        candidates.push_back("assets/models/textures/" + stem + ".png");
+        candidates.push_back("assets/models/textures/" + stem + "_baseColor.png");
+        candidates.push_back("assets/models/" + stem + ".png");
         candidates.push_back("assets/models/" + stem + ".bmp");
         candidates.push_back("assets/models/" + stem + ".tga");
+        candidates.push_back("assets/textures/" + stem + ".png");
         candidates.push_back("assets/textures/" + stem + ".bmp");
         candidates.push_back("assets/textures/" + stem + ".tga");
+        candidates.push_back("../assets/models/textures/" + stem + ".png");
+        candidates.push_back("../assets/models/textures/" + stem + "_baseColor.png");
         candidates.push_back("../assets/models/" + stem + ".bmp");
         candidates.push_back("../assets/textures/" + stem + ".bmp");
 

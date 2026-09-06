@@ -149,7 +149,8 @@ namespace Lab {
                              const Vec3* tintColor = nullptr,
                              const Vec3* weaponOffset = nullptr,
                              const Vec3* weaponRotation = nullptr,
-                             const Vec3* weaponScale = nullptr);
+                             const Vec3* weaponScale = nullptr,
+                             float uvScale = 1.0f);
 
         // Static factory of all 9 weapon definitions
         static std::array<WeaponDef, 9> createWeaponDefinitions();

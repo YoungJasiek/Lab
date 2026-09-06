@@ -444,9 +444,15 @@ namespace Lab {
         if (it != _textures.end()) return it->second.get();
 
         std::vector<std::string> searchPaths = {
+            filename,
+            "assets/models/textures/" + filename,
             "assets/textures/" + filename,
+            "assets/models/" + filename,
             "assets/" + filename,
-            filename
+            "../assets/models/textures/" + filename,
+            "../assets/textures/" + filename,
+            "../../assets/models/textures/" + filename,
+            "../../assets/textures/" + filename
         };
         for (const auto& path : searchPaths) {
             if (std::filesystem::exists(path)) {
@@ -457,6 +463,13 @@ namespace Lab {
                     return ptr;
                 }
             }
+        }
+        // Last resort: pass to Texture constructor which calls resolveAssetPath
+        auto tex = std::make_unique<Texture>(filename);
+        if (tex && tex->getId() != 0) {
+            Texture* ptr = tex.get();
+            _textures[filename] = std::move(tex);
+            return ptr;
         }
         return nullptr;
     }
@@ -849,7 +862,7 @@ namespace Lab {
         if (weaponMesh) {
             float baseScale = weaponMesh->getBaseScale(0.70f);
             Vec3 renderScale = { baseScale * weaponScale.x, baseScale * weaponScale.y, baseScale * weaponScale.z };
-            Renderer::drawMesh(*weaponMesh, weaponPos, weaponRot, renderScale, skin.tintColor, skinTex);
+            Renderer::drawMesh(*weaponMesh, weaponPos, weaponRot, renderScale, skin.tintColor, skinTex, true, skin.uvScale);
         } else {
             // High-detail procedural weapon fallback
             Renderer::drawCube(weaponPos, weaponRot, Vec3(0.06f * weaponScale.x, 0.12f * weaponScale.y, 0.65f * weaponScale.z), skin.tintColor, skinTex, true);
@@ -929,7 +942,7 @@ namespace Lab {
         if (weaponMesh) {
             float baseScale = weaponMesh->getBaseScale(0.70f);
             Vec3 renderScale = { baseScale * weaponScale.x, baseScale * weaponScale.y, baseScale * weaponScale.z };
-            Renderer::drawMesh(*weaponMesh, weaponPos, weaponRot, renderScale, skin.tintColor, skinTex);
+            Renderer::drawMesh(*weaponMesh, weaponPos, weaponRot, renderScale, skin.tintColor, skinTex, true, skin.uvScale);
         } else {
             Renderer::drawCube(weaponPos, weaponRot, Vec3(0.06f * weaponScale.x, 0.12f * weaponScale.y, 0.65f * weaponScale.z), skin.tintColor, skinTex, true);
         }
@@ -1856,6 +1869,46 @@ namespace Lab {
         LabFont::drawText(x + 10.0f, curY, "2. SURFACE TEXTURES & CAMO:", 1.5f, Vec3(0.95f, 0.85f, 0.3f), LabFontType::System);
         curY += 20.0f;
 
+        std::string currentTex = skin.textureFile.empty() ? "(Default Texture)" : skin.textureFile;
+        if (currentTex.size() > 30) {
+            currentTex = "..." + currentTex.substr(currentTex.size() - 27);
+        }
+        LabFont::drawText(x + 14.0f, curY, "Active: " + currentTex, 1.3f, Vec3(0.35f, 0.9f, 1.0f), LabFontType::System);
+        curY += 18.0f;
+
+        float texPad = 4.0f;
+        float texW = (w - 24.0f - 2.0f * texPad) / 3.0f;
+        if (drawHammerButton(x + 12.0f + 0 * (texW + texPad), curY, texW, 20.0f, "Pipe Wrench", skin.textureFile.find("PipeWrench") != std::string::npos || skin.textureFile == "weapon_pipe.bmp")) {
+            pushUndoState();
+            skin.textureFile = "PipeWrenchTool_baseColor.png";
+            getTexture(skin.textureFile);
+            log("Assigned texture: PipeWrenchTool_baseColor.png");
+        }
+        if (drawHammerButton(x + 12.0f + 1 * (texW + texPad), curY, texW, 20.0f, "Rail Main", skin.textureFile.find("rail_main") != std::string::npos)) {
+            pushUndoState();
+            skin.textureFile = "rail_main_baseColor.png";
+            getTexture(skin.textureFile);
+            log("Assigned texture: rail_main_baseColor.png");
+        }
+        if (drawHammerButton(x + 12.0f + 2 * (texW + texPad), curY, texW, 20.0f, "Rail Detail", skin.textureFile.find("rail_details") != std::string::npos)) {
+            pushUndoState();
+            skin.textureFile = "rail_details_baseColor.png";
+            getTexture(skin.textureFile);
+            log("Assigned texture: rail_details_baseColor.png");
+        }
+        curY += 24.0f;
+
+        if (drawHammerButton(x + 12.0f, curY, w - 24.0f, 22.0f, "Browse Custom Texture (PNG/BMP/TGA)...")) {
+            std::string picked = LabDialogs::openFileDialog(_window, "Texture Images (*.png;*.bmp;*.tga;*.jpg)\0*.png;*.bmp;*.tga;*.jpg\0All Files (*.*)\0*.*\0", "assets\\models\\textures");
+            if (!picked.empty()) {
+                pushUndoState();
+                skin.textureFile = picked;
+                getTexture(picked);
+                log("Selected custom weapon texture: " + picked);
+            }
+        }
+        curY += 26.0f;
+
         struct SkinPreset { std::string name; std::string file; };
         SkinPreset skins[] = {
             { "Standard Army", "weapon_m4a4s.bmp" },
@@ -2130,17 +2183,7 @@ namespace Lab {
     // =========================================================================
 
     bool CharacterStudio::saveConfig(const std::string& filepath) {
-        std::filesystem::path p(filepath);
-        if (p.has_parent_path()) {
-            std::filesystem::create_directories(p.parent_path());
-        }
-
-        std::ofstream out(filepath);
-        if (!out.is_open()) {
-            log("ERROR: Could not open config for writing: " + filepath);
-            return false;
-        }
-
+        std::stringstream out;
         out << "# Frozen-Life Character & Weapon Studio Configuration\n";
         out << "[Studio]\nVersion=1.0\n\n";
 
@@ -2180,16 +2223,44 @@ namespace Lab {
         out << "VisorColor=" << _appearance.visorGlowColor.x << "," << _appearance.visorGlowColor.y << "," << _appearance.visorGlowColor.z << "\n";
         out << "FatiguesColor=" << _appearance.fatiguesColor.x << "," << _appearance.fatiguesColor.y << "," << _appearance.fatiguesColor.z << "\n";
 
-        out.close();
+        std::string content = out.str();
 
-        // Mirror to counterpart directory to prevent desync between root and build/Release
-        try {
-            if (filepath == "assets/configs/character_studio.cfg" && std::filesystem::exists("build/Release/assets/configs")) {
-                std::filesystem::copy_file(filepath, "build/Release/assets/configs/character_studio.cfg", std::filesystem::copy_options::overwrite_existing);
-            } else if (filepath == "build/Release/assets/configs/character_studio.cfg" && std::filesystem::exists("assets/configs")) {
-                std::filesystem::copy_file(filepath, "assets/configs/character_studio.cfg", std::filesystem::copy_options::overwrite_existing);
+        std::vector<std::string> targetPaths = { filepath };
+        if (filepath.find("character_studio.cfg") != std::string::npos) {
+            std::vector<std::string> syncCandidates = {
+                "assets/configs/character_studio.cfg",
+                "build/Release/assets/configs/character_studio.cfg",
+                "../assets/configs/character_studio.cfg",
+                "../../assets/configs/character_studio.cfg"
+            };
+            for (const auto& sc : syncCandidates) {
+                std::filesystem::path p(sc);
+                if (std::filesystem::exists(p) || std::filesystem::exists(p.parent_path())) {
+                    targetPaths.push_back(sc);
+                }
             }
-        } catch (...) { }
+        }
+
+        bool anySaved = false;
+        for (const auto& tp : targetPaths) {
+            try {
+                std::filesystem::path p(tp);
+                if (p.has_parent_path()) {
+                    std::filesystem::create_directories(p.parent_path());
+                }
+                std::ofstream f(p);
+                if (f.is_open()) {
+                    f << content;
+                    f.close();
+                    anySaved = true;
+                }
+            } catch (...) {}
+        }
+
+        if (!anySaved) {
+            log("ERROR: Could not open config for writing: " + filepath);
+            return false;
+        }
 
         log("Studio configuration successfully saved to: " + filepath);
         return true;
@@ -2206,22 +2277,31 @@ namespace Lab {
     }
 
     bool CharacterStudio::loadConfig(const std::string& filepath) {
-        std::string actualPath = filepath;
-        if (!std::filesystem::exists(actualPath)) {
-            std::vector<std::string> candidates = {
-                "assets/configs/character_studio.cfg",
-                "build/Release/assets/configs/character_studio.cfg",
-                "../assets/configs/character_studio.cfg",
-                "../../assets/configs/character_studio.cfg"
-            };
-            for (const auto& c : candidates) {
+        std::vector<std::string> candidates = {
+            filepath,
+            "assets/configs/character_studio.cfg",
+            "build/Release/assets/configs/character_studio.cfg",
+            "../assets/configs/character_studio.cfg",
+            "../../assets/configs/character_studio.cfg"
+        };
+        std::string actualPath;
+        std::filesystem::file_time_type newestTime;
+        bool foundAny = false;
+
+        for (const auto& c : candidates) {
+            try {
                 if (std::filesystem::exists(c)) {
-                    actualPath = c;
-                    break;
+                    auto wt = std::filesystem::last_write_time(c);
+                    if (!foundAny || wt > newestTime) {
+                        newestTime = wt;
+                        actualPath = c;
+                        foundAny = true;
+                    }
                 }
-            }
+            } catch (...) {}
         }
-        if (!std::filesystem::exists(actualPath)) {
+
+        if (!foundAny || actualPath.empty()) {
             return false;
         }
 
@@ -2281,8 +2361,27 @@ namespace Lab {
                 else if (key == "FatiguesColor") _appearance.fatiguesColor = parseVec3(val, _appearance.fatiguesColor);
             }
         }
+        in.close();
 
-        log("Loaded user studio configuration: " + filepath);
+        // Sync loaded configuration across candidate locations
+        if (actualPath.find("character_studio.cfg") != std::string::npos) {
+            std::vector<std::string> syncCandidates = {
+                "assets/configs/character_studio.cfg",
+                "build/Release/assets/configs/character_studio.cfg",
+                "../assets/configs/character_studio.cfg",
+                "../../assets/configs/character_studio.cfg"
+            };
+            for (const auto& sc : syncCandidates) {
+                try {
+                    std::filesystem::path sp(sc);
+                    if (sc != actualPath && (std::filesystem::exists(sp) || std::filesystem::exists(sp.parent_path()))) {
+                        std::filesystem::copy_file(actualPath, sp, std::filesystem::copy_options::overwrite_existing);
+                    }
+                } catch (...) {}
+            }
+        }
+
+        log("Loaded user studio configuration: " + actualPath);
         return true;
     }
 

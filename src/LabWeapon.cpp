@@ -623,7 +623,8 @@ namespace Lab {
                                        const Vec3* tintColor,
                                        const Vec3* weaponOffset,
                                        const Vec3* weaponRotation,
-                                       const Vec3* weaponScale) {
+                                       const Vec3* weaponScale,
+                                       float uvScale) {
         Renderer::beginViewModel();
 
         // Base idle viewmodel position (lower right screen quadrant, classic FPS framing)
@@ -659,7 +660,7 @@ namespace Lab {
             Vec3 stlRot = finalRot;
             float baseScale = stlMesh->getBaseScale(0.70f);
             Vec3 stlScale = { baseScale * userScale.x, baseScale * userScale.y, baseScale * userScale.z };
-            Renderer::drawMesh(*stlMesh, stlPos, stlRot, stlScale, finalTint, texture);
+            Renderer::drawMesh(*stlMesh, stlPos, stlRot, stlScale, finalTint, texture, true, uvScale);
             if (muzzleFlash > 0.0f) {
                 Renderer::drawCube(finalPos + Vec3(0.0f, 0.05f * userScale.y, -0.45f * userScale.z), finalRot, { 0.18f * userScale.x, 0.18f * userScale.y, 0.18f * userScale.z }, { 1.0f, 0.85f, 0.2f }, nullptr, false);
             }

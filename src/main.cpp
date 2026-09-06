@@ -24,6 +24,10 @@ public:
           _muzzleFlashTime(0.0f) {
     }
 
+    ~FrozenLife() override {
+        _characterStudio.saveConfig();
+    }
+
     void onInit() override {
         LabLog::info("Frozen-Life Init: Modular .LABMAP and GUI System...");
         Renderer::init();
@@ -124,10 +128,14 @@ public:
             }
             _cachedWeaponMeshes[i] = mesh;
 
-            std::string texName = !skin.textureFile.empty() ? skin.textureFile : wDef.textureFile;
-            std::string modelRef = !skin.modelFile.empty() ? skin.modelFile : wDef.modelFile;
-            std::string resolvedTex = Renderer::resolveModelTexture(modelRef, texName);
-            _cachedWeaponTextures[i] = getTexture(resolvedTex);
+            std::string texName;
+            if (!skin.textureFile.empty()) {
+                texName = skin.textureFile;
+            } else {
+                std::string modelRef = !skin.modelFile.empty() ? skin.modelFile : wDef.modelFile;
+                texName = Renderer::resolveModelTexture(modelRef, wDef.textureFile);
+            }
+            _cachedWeaponTextures[i] = getTexture(texName);
 
             if (_cachedWeaponMeshes[i]) customSTLCount++;
         }
@@ -558,6 +566,8 @@ public:
                 Input::scrollDelta = 0.0f;
 
                 if (_characterStudio.requestExit()) {
+                    _characterStudio.saveConfig();
+                    reloadStudioWeapons();
                     _menuScreen = MenuScreen::Main;
                     _characterStudio.clearRequestExit();
                 }
@@ -1669,7 +1679,8 @@ public:
                                       &grip.rightSocketPos, &grip.rightSocketRot,
                                       &grip.leftSocketPos, &grip.leftSocketRot,
                                       &skin.tintColor,
-                                      &grip.weaponOffset, &grip.weaponRotation, &grip.weaponScale);
+                                      &grip.weaponOffset, &grip.weaponRotation, &grip.weaponScale,
+                                      skin.uvScale);
     }
 
     void drawMenu() {
