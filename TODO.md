@@ -250,3 +250,32 @@ Wszystkie systemy tworzone sa w standardzie **C++20**, **OpenGL 4.5+ Core Profil
   - Serwer `DedicatedServer` natychmiast odpowiada na zapytania pakietem zawierającym nazwę serwera, mapę, tryb gry, liczbę graczy oraz limit.
   - Zaimplementowano klasę `ServerBrowser` automatycznie odpytującą sieć LAN i localhost co 1s.
   - Menu `JoinGame` w `src/main.cpp` dynamicznie renderuje wykryte uruchomione instancje (np. `LabServer.exe`) z realnym zielonym pingiem (2ms), informacjami o mapie i pozwala na bezpośrednie kliknięcie i połączenie.
+
+### 4. Animacje Chodzenia z Bronią, Przełącznik w LabStudio, Ludzki Recoil Bota i Modularna Dokumentacja (100% DONE)
+- [x] **Animacja chodzenia z bronią (Tactical Walking Kinematics):**
+  - Zaimplementowano dynamiczny roll i pitch broni podczas chodu (`WeaponAnimator::calculateRotationOffset`), harmoniczny roll sway (`1.8 deg`) i pitch bob (`1.2 deg`) zsynchronizowane z krokami.
+  - Zsynchronizowano ruch modelu broni i proceduralnych rąk w widoku FPP oraz w LabStudio.
+- [x] **Przełącznik animacji w LabStudio (Animation Preview & Kinematics):**
+  - Przyciski `IDLE`, `WALK`, `SHOOT`, `RELOAD`, `INSPECT` w prawym panelu Studio.
+  - Przycisk `PLAY` / `PAUSE` (obsługiwany również spacją w zakładce GripPoser) oraz płynny suwak prędkości odtwarzania (`0.25x - 2.50x`).
+  - Dynamiczne wykrywanie i lista klipów (`CLIPS:`): automatyczne ładowanie i renderowanie przycisków dla wszystkich klipów z pliku `.glb` / Mixamo (`Idle`, `Walk`, `Shoot`, `Inspect`, itp.) - użytkownik może dodawać własne animacje bez edycji kodu C++.
+- [x] **Ludzkie strzelanie botów (Human-Like Shooting & Recoil Arc):**
+  - Wydłużono łuk animacji strzału do 280ms (`shootAnimTimer = 0.28f`), likwidując przedwczesne urywanie animacji przy gaśnięciu błysku lufy (80ms). Bot unosi lufę, absorbuje odrzut i płynnie wraca na cel jak człowiek.
+  - Zaimplementowano dedykowaną kadencję, pojemności magazynków, czasy przeładowania (`reloadTimer`) oraz unikalne dźwięki 3D dla każdej z 9 broni bota (Minigun, Shotgun, Pistol, Railgun, RPG, itp.).
+  - Zaktualizowano pętlę animacji szkieletowej w `AIManager::update` i `CombatBot::update`.
+- [x] **Rozbicie i aktualizacja dokumentacji silnika (`docs/`):**
+  - Utworzono modułowy katalog `docs/` z 10 szczegółowymi artykułami technicznymi:
+    - `docs/README.md` — Główny spis treści i hub nawigacyjny.
+    - `docs/ARCHITECTURE.md` — Standardy C++20, RAII, OpenGL 4.5+ DSA, stałokrokowa pętla 64Hz.
+    - `docs/CHARACTER_STUDIO.md` — LabStudio, Grip Poser, Bot Socket, ADS, Timeline, Facial Morphs, Anim Switcher.
+    - `docs/SKELETAL_ANIMATIONS.md` — glTF 2.0 / GLB, szkielet 35 kości T-800, GPU skinning, ludzki łuk odrzutu.
+    - `docs/BOT_AI_SYSTEM.md` — Maszyna stanów, LOS ray-AABB, arsenał, kadencja, taktyczne przeładowania, zrzut broni.
+    - `docs/WEAPONS_AND_VIEWMODEL.md` — 9 broni, sprężynowo-tłumikowy odrzut, chodzenie z kołysaniem, cryo-hands.
+    - `docs/MULTIPLAYER.md` — Serwer autorytatywny 64Hz UDP, predykcja klienta, uzgadnianie stanów, LAN browser.
+    - `docs/LEVEL_EDITOR_HAMMER.md` — LabHammer 3D, wycinanie CSG, encje, specyfikacja `.labmap`.
+    - `docs/AUDIO_SYSTEM.md` — miniaudio, przestrzenne 3D, 26 syntezowanych dźwięków PCM, analiza RMS i lip-sync.
+    - `docs/LUA_SCRIPTING.md` — Lua 5.4.6, statyczna integracja, tabele balansu, skaner siatkówki.
+  - Zaktualizowano główny `README.md` o odnośniki i tabelę celów silnika.
+- [x] **Kompleksowa weryfikacja (Test 42):**
+  - 42/42 testów zaliczonych w 100% sukcesem w `TestVerify.exe`.
+  - Zapisano klatkę weryfikacji wizualnej `test_studio_anim_and_human_shooting.bmp`.

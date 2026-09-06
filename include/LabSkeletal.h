@@ -174,6 +174,8 @@ namespace Lab {
         const std::string& getCurrentAnimationName() const { return _currentClipName; }
         float getCurrentTime() const { return _currentTime; }
         float getProgress() const;
+        bool isPlaying() const { return !_currentClipName.empty() && (_looping || getProgress() < 1.0f); }
+        bool isLooping() const { return _looping; }
 
         // Attaches an STL weapon model to a bone socket on this animated character
         Mat4 getSocketTransform(const std::string& boneName,

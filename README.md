@@ -18,10 +18,30 @@
 
 **Lab** is a high-performance, modular First-Person Shooter (FPS) game engine written from scratch in modern **C++20** and **OpenGL 4.5+ Core (Direct State Access)**. 
 
-The project encompasses three tightly integrated components:
+The project encompasses five tightly integrated targets:
 1. **Frozen-Life (FL)** (`Lab.exe`): A fast-paced tactical FPS prototype inspired by the visual language, contrast, and movement mechanics of the classic **Source Engine** (*Half-Life 2*).
 2. **LabHammer** (`LabHammer.exe`): A standalone CAD-style 3D level editor for authoring geometry, dynamic doors, light sources, player spawns, and weapon pickup nodes in plain-text `.labmap` files.
-3. **LabEngineLib** (`LabEngineLib.lib`): The shared static engine library providing deterministic game loop timing, DSA rendering pipelines, Kay-Kajiya slab ray-AABB collision math, particle systems, and AI bot state machines.
+3. **LabStudio** (`LabStudio.exe`): A Valve Hammer styled Character & Weapon Studio for 3D weapon grip posing, bot weapon socket alignment, ADS optical tuning, reload choreography, facial morphs, and kinematic animation previewing.
+4. **LabServer** (`LabServer.exe`): Dedicated authoritative UDP multiplayer server running a deterministic 64Hz tickrate simulation with client prediction reconciliation.
+5. **LabEngineLib** (`LabEngineLib.lib`): The shared static engine library providing deterministic game loop timing, DSA rendering pipelines, Kay-Kajiya slab ray-AABB collision math, glTF 2.0 GPU skeletal animation, miniaudio spatial sound, and Lua 5.4 scripting.
+
+---
+
+## 📚 Modular Documentation Suite
+
+Comprehensive technical articles are organized modularly in the [`docs/`](docs/) directory:
+
+| Article | Subsystem / Focus | Link |
+| :--- | :--- | :--- |
+| **Engine Architecture & Standards** | Modern C++20, RAII, DSA OpenGL 4.5+, Fixed Timestep Loop | [📘 docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| **Character & Weapon Studio** | Posing, Bot Socket Alignment, ADS, Reload Scrubber, Animation Switcher | [📘 docs/CHARACTER_STUDIO.md](docs/CHARACTER_STUDIO.md) |
+| **Skeletal Animation Pipeline** | glTF 2.0 / GLB binary loader, 35-Bone rig, GPU skinning, Human recoil arc | [📘 docs/SKELETAL_ANIMATIONS.md](docs/SKELETAL_ANIMATIONS.md) |
+| **Combat Bot AI & FSM** | Tactical state machine, ray-AABB LOS, weapon cadence, exact drops | [📘 docs/BOT_AI_SYSTEM.md](docs/BOT_AI_SYSTEM.md) |
+| **Weapons & Viewmodel Kinematics** | 9-weapon arsenal, spring-damper recoil, walking roll sway & bobbing | [📘 docs/WEAPONS_AND_VIEWMODEL.md](docs/WEAPONS_AND_VIEWMODEL.md) |
+| **Authoritative Multiplayer** | Dedicated UDP server (64Hz), client prediction, reconciliation, LAN | [📘 docs/MULTIPLAYER.md](docs/MULTIPLAYER.md) |
+| **LabHammer 3D Level Editor** | Viewports, CSG convex polygon clipping, `.labmap` format specification | [📘 docs/LEVEL_EDITOR_HAMMER.md](docs/LEVEL_EDITOR_HAMMER.md) |
+| **Spatial Audio & Synthesizer** | miniaudio v0.11.25, 3D attenuation, 26 procedural 16-bit PCM sounds | [📘 docs/AUDIO_SYSTEM.md](docs/AUDIO_SYSTEM.md) |
+| **Lua 5.4 Scripting & Balance** | Statically compiled Lua 5.4.6, game balance tables, biometric credentials | [📘 docs/LUA_SCRIPTING.md](docs/LUA_SCRIPTING.md) |
 
 ---
 
@@ -73,9 +93,11 @@ The project encompasses three tightly integrated components:
 | Binary Target | Type | Description |
 | :--- | :--- | :--- |
 | **`Lab.exe`** | Executable | The playable **Frozen-Life** FPS client (weapons, HUD, audio, AI bots, scoreboard, chat). |
-| **`LabHammer.exe`** | Executable | Standalone 3D Level Editor with free-cam navigation, brush creation, and `.labmap` I/O. |
-| **`TestVerify.exe`** | Executable | Automated test suite validating ray-AABB collision math, matrix transforms, and map parsing. |
-| **`LabEngineLib.lib`** | Static Library | Core engine subsystems linked by both the game client and level editor. |
+| **`LabHammer.exe`** | Executable | Standalone 3D Level Editor with free-cam navigation, CSG brush creation, and `.labmap` I/O. |
+| **`LabStudio.exe`** | Executable | Valve Hammer styled Character & Weapon Studio (weapon sockets, grips, timeline, anim switcher). |
+| **`LabServer.exe`** | Executable | Headless dedicated authoritative UDP multiplayer server (64Hz tickrate, prediction reconciliation). |
+| **`TestVerify.exe`** | Executable | Automated test suite validating collision math, transforms, map parsing, network, and studio (42 tests). |
+| **`LabEngineLib.lib`** | Static Library | Core engine subsystems linked by all client, editor, and server binaries. |
 
 ---
 

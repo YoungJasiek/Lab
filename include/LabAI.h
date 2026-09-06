@@ -48,6 +48,10 @@ namespace Lab {
         float reactionTimer = 0.25f;
         float hurtTimer = 0.0f;
         float muzzleFlashTimer = 0.0f;
+        float shootAnimTimer = 0.0f;
+        float reloadTimer = 0.0f;
+        int ammoInClip = 30;
+        int maxClipAmmo = 30;
         float deathTimer = 0.0f;
         float walkCycle = 0.0f;
         int kills = 0;

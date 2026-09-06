@@ -8,6 +8,7 @@
 #include <fstream>
 #include <cmath>
 #include <filesystem>
+#include <cassert>
 
 static void saveFrameToBMP(const char* filename, int width, int height) {
     std::vector<unsigned char> pixels(width * height * 4);
@@ -4255,6 +4256,85 @@ int main() {
         glFinish();
         saveFrameToBMP("test_bot_weapon_and_animations.bmp", w, h);
         std::cout << "  [PASS] Saved visual Bot Weapon & Skeletal Animations verification to 'test_bot_weapon_and_animations.bmp'.\n";
+
+        studio.shutdown();
+    }
+
+    // =========================================================================
+    // TEST 42: Studio Animation Switcher, Walking Kinematics & Human Shooting Arc
+    // =========================================================================
+    {
+        std::cout << "\n[Test 42] Verifying Studio Animation Switcher, Walking Kinematics & Human Shooting Arc...\n";
+
+        Lab::CharacterStudio studio;
+        studio.init();
+
+        // 1. Studio Animation State Transitions
+        studio.setStudioAnimation(Lab::StudioAnimState::Idle);
+        assert(studio.getStudioAnimState() == Lab::StudioAnimState::Idle);
+        assert(studio.getActiveBotClipName() == "Idle");
+
+        studio.setStudioAnimation(Lab::StudioAnimState::Walk);
+        assert(studio.getStudioAnimState() == Lab::StudioAnimState::Walk);
+        assert(studio.getActiveBotClipName() == "Walk");
+
+        studio.setStudioAnimation(Lab::StudioAnimState::Shoot);
+        assert(studio.getStudioAnimState() == Lab::StudioAnimState::Shoot);
+        assert(studio.getActiveBotClipName() == "Shoot");
+
+        studio.setStudioAnimation(Lab::StudioAnimState::Reload);
+        assert(studio.getStudioAnimState() == Lab::StudioAnimState::Reload);
+        assert(studio.getActiveBotClipName() == "Reload");
+
+        studio.setStudioAnimation(Lab::StudioAnimState::Inspect);
+        assert(studio.getStudioAnimState() == Lab::StudioAnimState::Inspect);
+        assert(studio.getActiveBotClipName() == "Inspect");
+
+        // Dynamic clip discovery
+        const auto& clips = studio.getBotAnimationClips();
+        assert(!clips.empty());
+        std::cout << "  [PASS] Studio animation switching & " << clips.size() << " dynamic skeletal clips verified!\n";
+
+        // Playback speed and controls
+        studio.setAnimPlaybackSpeed(1.5f);
+        assert(std::abs(studio.getAnimPlaybackSpeed() - 1.5f) < 0.01f);
+        studio.setAnimPlaying(false);
+        assert(!studio.isAnimPlaying());
+        studio.setAnimPlaying(true);
+
+        // 2. Viewmodel Walking Roll & Pitch Kinematics
+        Lab::WeaponAnimator wpnAnim;
+        wpnAnim.update(0.25f, Lab::Vec2(0.0f, 0.0f), 4.8f); // Tactical walk speed
+        Lab::Vec3 walkRot = wpnAnim.calculateRotationOffset(Lab::Vec3(0, 0, 0));
+        assert(std::abs(walkRot.z) > 0.001f || std::abs(walkRot.x) > 0.001f);
+        std::cout << "  [PASS] Tactical weapon walking kinematics verified (Roll: " << walkRot.z << " deg, Pitch: " << walkRot.x << " deg)!\n";
+
+        // 3. Human-like Shooting Recoil Arc & Weapon Specific Cadence
+        Lab::CombatBot botMinigun(1, "Bot-Minigun", Lab::Vec3(0, 0, 0), Lab::Vec3(0, 0, 5), -1, Lab::WeaponID::Minigun);
+        assert(botMinigun.maxClipAmmo == 100);
+        assert(std::abs(botMinigun.shootInterval - 0.065f) < 0.001f);
+
+        Lab::CombatBot botShotgun(2, "Bot-Shotgun", Lab::Vec3(0, 0, 0), Lab::Vec3(0, 0, 5), -1, Lab::WeaponID::Shotgun);
+        assert(botShotgun.maxClipAmmo == 8);
+        assert(std::abs(botShotgun.shootInterval - 0.75f) < 0.001f);
+
+        // Simulate firing update
+        Lab::LabMap testMap;
+        std::vector<Lab::BulletTracer> tracers;
+        float dmgToPlayer = 0.0f;
+        botShotgun.shootCooldown = 0.0f;
+        botShotgun.update(0.016f, Lab::Vec3(0, 0, 4), testMap, tracers, dmgToPlayer);
+
+        assert(botShotgun.shootAnimTimer > 0.20f); // Human recoil duration active (~0.28s), not premature cut
+        assert(botShotgun.ammoInClip == 7);
+        std::cout << "  [PASS] Bot human-like shooting recoil arc verified (Duration: " << botShotgun.shootAnimTimer << "s, Ammo: " << botShotgun.ammoInClip << "/8)!\n";
+
+        // 4. Render Studio Visual Verification Frame
+        studio.setStudioAnimation(Lab::StudioAnimState::Walk);
+        studio.render(w, h);
+        glFinish();
+        saveFrameToBMP("test_studio_anim_and_human_shooting.bmp", w, h);
+        std::cout << "  [PASS] Saved visual Studio Animation & Human Shooting verification to 'test_studio_anim_and_human_shooting.bmp'.\n";
 
         studio.shutdown();
     }

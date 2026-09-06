@@ -139,6 +139,13 @@ namespace Lab {
         for (int i = 0; i < 9; ++i) {
             _weaponGrips[i].botSocket = { Vec3(0.0f, -0.05f, 0.02f), Vec3(5.73f, -11.46f, 0.0f), Vec3(1.0f, 1.0f, 1.0f) };
         }
+
+        // Animation preview defaults
+        _activeAnimState = StudioAnimState::Idle;
+        _animPlaybackSpeed = 1.0f;
+        _animPlaying = true;
+        _viewmodelWalkSpeed = 0.0f;
+        _activeBotClipName = "Idle";
     }
 
     void CharacterStudio::pushUndoState() {
@@ -334,6 +341,9 @@ namespace Lab {
                 } else if (_activeTab == StudioTab::FaceDialogue) {
                     _dialoguePlaying = !_dialoguePlaying;
                     if (_dialoguePlaying) _dialogueTimer = 0.0f;
+                } else if (_activeTab == StudioTab::GripPoser) {
+                    _animPlaying = !_animPlaying;
+                    log(_animPlaying ? "Animation playback resumed [SPACE]." : "Animation playback paused [SPACE].");
                 }
                 return;
             }
@@ -616,6 +626,55 @@ namespace Lab {
         return _weaponSkins[idx];
     }
 
+    void CharacterStudio::setStudioAnimation(StudioAnimState state) {
+        _activeAnimState = state;
+        switch (state) {
+            case StudioAnimState::Idle:
+                _viewmodelWalkSpeed = 0.0f;
+                if (_animator) _animator->state = WeaponAnimState::Idle;
+                if (_botAnimator.getSkeleton()) _botAnimator.playAnimation("Idle", true);
+                _activeBotClipName = "Idle";
+                log("Animation: Idle (Viewmodel stationary, Bot idle stance)");
+                break;
+            case StudioAnimState::Walk:
+                _viewmodelWalkSpeed = 4.8f; // Tactical walking speed triggers dynamic walk sway & bobbing
+                if (_animator) _animator->state = WeaponAnimState::Idle;
+                if (_botAnimator.getSkeleton()) _botAnimator.playAnimation("Walk", true);
+                _activeBotClipName = "Walk";
+                log("Animation: Walk (Viewmodel tactical walking bob/sway, Bot run/walk cycle)");
+                break;
+            case StudioAnimState::Shoot:
+                _viewmodelWalkSpeed = 0.0f;
+                if (_animator) _animator->onFire();
+                if (_botAnimator.getSkeleton()) _botAnimator.playAnimation("Shoot", false);
+                _activeBotClipName = "Shoot";
+                log("Animation: Shoot (Viewmodel weapon recoil kick, Bot human-like firing arc)");
+                break;
+            case StudioAnimState::Reload:
+                _viewmodelWalkSpeed = 0.0f;
+                if (_animator) _animator->onReload();
+                if (_botAnimator.getSkeleton()) _botAnimator.playAnimation("Reload", false);
+                _activeBotClipName = "Reload";
+                log("Animation: Reload (Viewmodel reload choreography, Bot reload clip)");
+                break;
+            case StudioAnimState::Inspect:
+                _viewmodelWalkSpeed = 0.0f;
+                if (_animator) _animator->onInspect();
+                if (_botAnimator.getSkeleton()) _botAnimator.playAnimation("Inspect", false);
+                _activeBotClipName = "Inspect";
+                log("Animation: Inspect (Viewmodel weapon inspect rotation, Bot showcase pose)");
+                break;
+        }
+    }
+
+    void CharacterStudio::setBotAnimationClip(const std::string& clipName) {
+        _activeBotClipName = clipName;
+        if (_botAnimator.getSkeleton()) {
+            _botAnimator.playAnimation(clipName, true);
+        }
+        log("Bot Animation Clip set: " + clipName);
+    }
+
     void CharacterStudio::update(float dt, float mouseX, float mouseY, bool lmbPressed, bool rmbPressed, float scrollDelta) {
         _mouseX = mouseX;
         _mouseY = mouseY;
@@ -805,8 +864,21 @@ namespace Lab {
             _facialHead->evaluate();
         }
 
-        if (_botAnimator.getSkeleton()) {
-            _botAnimator.update(dt);
+        if (_animPlaying) {
+            float effDt = dt * _animPlaybackSpeed;
+            if (_animator) {
+                _animator->update(effDt, Vec2(0.0f, 0.0f), _viewmodelWalkSpeed);
+                // Continuous loop for shoot preview mode
+                if (_activeAnimState == StudioAnimState::Shoot && _animator->state == WeaponAnimState::Idle) {
+                    _animator->onFire();
+                }
+            }
+            if (_botAnimator.getSkeleton()) {
+                _botAnimator.update(effDt);
+                if (_activeAnimState == StudioAnimState::Shoot && !_botAnimator.isPlaying()) {
+                    _botAnimator.playAnimation("Shoot", false);
+                }
+            }
         }
 
         _lastMouseX = mouseX;
@@ -991,9 +1063,11 @@ namespace Lab {
             return;
         }
 
-        // Weapon Base Transform (including user offset, rotation and scale!)
-        Vec3 weaponPos = grip.weaponOffset;
-        Vec3 weaponRot = grip.weaponRotation;
+        // Weapon Base Transform (including user offset, rotation and scale, plus active procedural animator kinematics!)
+        Vec3 baseWepPos = grip.weaponOffset;
+        Vec3 baseWepRot = grip.weaponRotation;
+        Vec3 weaponPos = _animator ? _animator->calculatePositionOffset(baseWepPos) : baseWepPos;
+        Vec3 weaponRot = _animator ? _animator->calculateRotationOffset(baseWepRot) : baseWepRot;
         Vec3 weaponScale = grip.weaponScale;
 
         // Render Weapon with active skin, tint and scale (normalized to 0.7m base human-hand size)
@@ -1009,8 +1083,8 @@ namespace Lab {
 
         // Render Tactical Arms aligned to configured sockets!
         if (_arms && _animator) {
-            Vec3 armsPos = grip.lockHands ? Vec3(0.0f, 0.0f, 0.0f) : weaponPos;
-            Vec3 armsRot = grip.lockHands ? Vec3(0.0f, 0.0f, 0.0f) : weaponRot;
+            Vec3 armsPos = grip.lockHands ? Vec3(0.0f, 0.0f, 0.0f) : baseWepPos;
+            Vec3 armsRot = grip.lockHands ? Vec3(0.0f, 0.0f, 0.0f) : baseWepRot;
             _arms->render(armsPos, armsRot, wid, *_animator, nullptr,
                           &grip.rightSocketPos, &grip.rightSocketRot,
                           &grip.leftSocketPos, &grip.leftSocketRot);
@@ -1753,6 +1827,57 @@ namespace Lab {
             log("Switched to Bot Weapon Socket Alignment & Scaling.");
         }
         curY += 28.0f;
+
+        // ==================== ANIMATION PREVIEW & WEAPON KINEMATICS ====================
+        Renderer::drawRect(x + 8.0f, curY, w - 16.0f, 96.0f, Vec3(0.16f, 0.17f, 0.19f));
+        drawHammerBevel(x + 8.0f, curY, w - 16.0f, 96.0f, true);
+        LabFont::drawText(x + 14.0f, curY + 5.0f, "ANIMATION PREVIEW & KINEMATICS:", 1.4f, Vec3(1.0f, 0.85f, 0.25f), LabFontType::System);
+
+        float aBtnPad = 3.0f;
+        float aBtnW = (w - 28.0f - 4.0f * aBtnPad) / 5.0f;
+        if (drawHammerButton(x + 14.0f + 0 * (aBtnW + aBtnPad), curY + 20.0f, aBtnW, 20.0f, "IDLE", _activeAnimState == StudioAnimState::Idle)) {
+            setStudioAnimation(StudioAnimState::Idle);
+        }
+        if (drawHammerButton(x + 14.0f + 1 * (aBtnW + aBtnPad), curY + 20.0f, aBtnW, 20.0f, "WALK", _activeAnimState == StudioAnimState::Walk)) {
+            setStudioAnimation(StudioAnimState::Walk);
+        }
+        if (drawHammerButton(x + 14.0f + 2 * (aBtnW + aBtnPad), curY + 20.0f, aBtnW, 20.0f, "SHOOT", _activeAnimState == StudioAnimState::Shoot)) {
+            setStudioAnimation(StudioAnimState::Shoot);
+        }
+        if (drawHammerButton(x + 14.0f + 3 * (aBtnW + aBtnPad), curY + 20.0f, aBtnW, 20.0f, "RELOAD", _activeAnimState == StudioAnimState::Reload)) {
+            setStudioAnimation(StudioAnimState::Reload);
+        }
+        if (drawHammerButton(x + 14.0f + 4 * (aBtnW + aBtnPad), curY + 20.0f, aBtnW, 20.0f, "INSPECT", _activeAnimState == StudioAnimState::Inspect)) {
+            setStudioAnimation(StudioAnimState::Inspect);
+        }
+
+        // Play/Pause + Playback Speed slider
+        float pBtnW = 64.0f;
+        if (drawHammerButton(x + 14.0f, curY + 44.0f, pBtnW, 20.0f, _animPlaying ? "PAUSE" : "PLAY", !_animPlaying)) {
+            _animPlaying = !_animPlaying;
+            log(_animPlaying ? "Animation playback resumed." : "Animation playback paused.");
+        }
+        drawHammerSlider(x + 14.0f + pBtnW + 8.0f, curY + 46.0f, w - 28.0f - pBtnW - 8.0f, 16.0f, "Speed:", _animPlaybackSpeed, 0.25f, 2.5f, "%.2fx");
+
+        // Dynamic Clips loaded for Bot (Mixamo / glTF / user added clips)
+        float clipX = x + 14.0f;
+        float clipY = curY + 70.0f;
+        LabFont::drawText(clipX, clipY + 2.0f, "CLIPS:", 1.2f, Vec3(0.65f, 0.70f, 0.75f), LabFontType::System);
+        clipX += 45.0f;
+        if (!_botAnimations.empty()) {
+            float clipAvailW = (w - 28.0f - 45.0f);
+            float singleClipW = std::min(60.0f, clipAvailW / std::max(1, (int)_botAnimations.size()));
+            for (size_t cIdx = 0; cIdx < _botAnimations.size(); ++cIdx) {
+                const auto& clip = _botAnimations[cIdx];
+                bool isActiveClip = (_activeBotClipName == clip.name);
+                if (drawHammerButton(clipX + cIdx * (singleClipW + 2.0f), clipY, singleClipW, 18.0f, clip.name.c_str(), isActiveClip)) {
+                    setBotAnimationClip(clip.name);
+                }
+            }
+        } else {
+            LabFont::drawText(clipX, clipY + 2.0f, "Procedural Rig (Add glTF animations to models/)", 1.1f, Vec3(0.5f, 0.5f, 0.5f), LabFontType::System);
+        }
+        curY += 102.0f;
 
         if (_poserSubMode == PoserSubMode::WeaponTransform) {
             // Mode Toggle: Move Weapon Only (Hands Fixed) vs Move Together

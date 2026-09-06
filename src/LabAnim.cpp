@@ -143,6 +143,12 @@ namespace Lab {
     Vec3 WeaponAnimator::calculateRotationOffset(const Vec3& defaultRot) const {
         float kickPitch = recoilSpring.position.y * 80.0f;
         float swayRoll = swaySpring.position.x * 35.0f;
+        float walkRoll = 0.0f;
+        float walkPitch = 0.0f;
+        if (currentSpeed > 0.1f) {
+            walkRoll = std::sin(bobTimer * 0.5f) * 1.8f;
+            walkPitch = std::sin(bobTimer) * 1.2f;
+        }
         Vec3 stateRotOffset(0.0f, 0.0f, 0.0f);
         float p = getStateProgress();
 
@@ -194,7 +200,7 @@ namespace Lab {
             }
         }
 
-        return defaultRot + Vec3(kickPitch, 0.0f, swayRoll) + stateRotOffset;
+        return defaultRot + Vec3(kickPitch + walkPitch, 0.0f, swayRoll + walkRoll) + stateRotOffset;
     }
 
     Vec3 WeaponAnimator::getLeftHandReloadOffset() const {

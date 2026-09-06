@@ -60,6 +60,14 @@ namespace Lab {
         ScaleWeapon = 3
     };
 
+    enum class StudioAnimState : int {
+        Idle = 0,
+        Walk = 1,
+        Shoot = 2,
+        Reload = 3,
+        Inspect = 4
+    };
+
     // --- Reload Animation Timeline Choreography ---
     struct ReloadTimelineConfig {
         float dipDuration = 0.35f;
@@ -227,6 +235,17 @@ namespace Lab {
         void setHandsLocked(bool locked) { _weaponGrips[_selectedWeaponIndex].lockHands = locked; }
         void toggleHandsLocked() { _weaponGrips[_selectedWeaponIndex].lockHands = !_weaponGrips[_selectedWeaponIndex].lockHands; }
 
+        // Animation Preview & State Switcher
+        StudioAnimState getStudioAnimState() const { return _activeAnimState; }
+        void setStudioAnimation(StudioAnimState state);
+        void setBotAnimationClip(const std::string& clipName);
+        const std::vector<AnimationClip>& getBotAnimationClips() const { return _botAnimations; }
+        const std::string& getActiveBotClipName() const { return _activeBotClipName; }
+        float getAnimPlaybackSpeed() const { return _animPlaybackSpeed; }
+        void setAnimPlaybackSpeed(float speed) { _animPlaybackSpeed = std::clamp(speed, 0.1f, 3.0f); }
+        bool isAnimPlaying() const { return _animPlaying; }
+        void setAnimPlaying(bool playing) { _animPlaying = playing; }
+
         // Dropdown Menu State
         enum class DropdownMenu : int {
             None = -1,
@@ -333,6 +352,13 @@ namespace Lab {
         std::vector<float> _dialogueWaveform;
         std::vector<float> _speechTrackSamples;
         LipSyncEvaluator _lipSyncEvaluator;
+
+        // Animation State & Playback
+        StudioAnimState _activeAnimState = StudioAnimState::Idle;
+        float _animPlaybackSpeed = 1.0f;
+        bool _animPlaying = true;
+        float _viewmodelWalkSpeed = 0.0f;
+        std::string _activeBotClipName = "Idle";
 
         // Models and Assets
         std::unique_ptr<FacialMesh> _facialHead;

@@ -12,9 +12,53 @@
 
 namespace Lab {
 
+    struct BotWeaponCombatStats {
+        float interval;
+        int clipSize;
+        float reloadTime;
+        SoundID sound;
+        float damage;
+        float range;
+        Vec3 tracerColor;
+        float tracerThickness;
+        float tracerLifetime;
+    };
+
+    static BotWeaponCombatStats getBotWeaponStats(WeaponID wep) {
+        switch (wep) {
+            case WeaponID::Pipe:
+                return { 0.45f, 1, 0.0f, SoundID::PipeSwing, 35.0f, 2.5f, Vec3(1.0f, 1.0f, 1.0f), 0.01f, 0.04f };
+            case WeaponID::Pistol:
+                return { 0.22f, 12, 1.8f, SoundID::PistolShot, 22.0f, 45.0f, Vec3(1.0f, 0.95f, 0.45f), 0.025f, 0.08f };
+            case WeaponID::Shotgun:
+                return { 0.75f, 8, 2.4f, SoundID::ShotgunShot, 14.0f, 30.0f, Vec3(1.0f, 0.7f, 0.2f), 0.035f, 0.09f };
+            case WeaponID::M4A4S:
+                return { 0.11f, 30, 2.2f, SoundID::M4A4SShot, 26.0f, 65.0f, Vec3(0.9f, 0.85f, 0.35f), 0.025f, 0.07f };
+            case WeaponID::SG553:
+                return { 0.13f, 30, 2.5f, SoundID::SG553Shot, 30.0f, 75.0f, Vec3(1.0f, 0.6f, 0.2f), 0.030f, 0.08f };
+            case WeaponID::Minigun:
+                return { 0.065f, 100, 3.5f, SoundID::MinigunShot, 16.0f, 55.0f, Vec3(1.0f, 0.85f, 0.2f), 0.035f, 0.06f };
+            case WeaponID::PlasmaGun:
+                return { 0.16f, 25, 2.0f, SoundID::PlasmaShot, 32.0f, 50.0f, Vec3(0.2f, 0.85f, 1.0f), 0.055f, 0.12f };
+            case WeaponID::Railgun:
+                return { 1.10f, 5, 2.8f, SoundID::RailgunShot, 85.0f, 120.0f, Vec3(0.3f, 0.9f, 1.0f), 0.065f, 0.18f };
+            case WeaponID::RPG:
+                return { 1.40f, 1, 2.6f, SoundID::RPGLaunch, 95.0f, 80.0f, Vec3(1.0f, 0.45f, 0.15f), 0.080f, 0.22f };
+            default:
+                return { 0.20f, 30, 2.0f, SoundID::PistolShot, 20.0f, 50.0f, Vec3(1.0f, 0.9f, 0.4f), 0.03f, 0.08f };
+        }
+    }
+
     CombatBot::CombatBot(int botId, const std::string& botName, const Vec3& spawnPos, const Vec3& pEnd, int botTeam, WeaponID weapon)
         : id(botId), name(botName), position(spawnPos), team(botTeam), equippedWeapon(weapon),
           patrolStart(spawnPos), patrolEnd(pEnd) {
+        auto stats = getBotWeaponStats(equippedWeapon);
+        shootInterval = stats.interval;
+        shootCooldown = shootInterval;
+        maxClipAmmo = stats.clipSize;
+        ammoInClip = maxClipAmmo;
+        reloadTimer = 0.0f;
+        shootAnimTimer = 0.0f;
     }
 
     void CombatBot::getHitboxes(Vec3& headMin, Vec3& headMax, Vec3& bodyMin, Vec3& bodyMax) const {
@@ -65,7 +109,13 @@ namespace Lab {
                 rotation.x = 0.0f;
                 patrolT = 0.0f;
                 patrolDir = 1;
+                auto stats = getBotWeaponStats(equippedWeapon);
+                shootInterval = stats.interval;
                 shootCooldown = shootInterval;
+                maxClipAmmo = stats.clipSize;
+                ammoInClip = maxClipAmmo;
+                reloadTimer = 0.0f;
+                shootAnimTimer = 0.0f;
                 hurtTimer = 0.0f;
                 muzzleFlashTimer = 0.0f;
             }
@@ -74,6 +124,14 @@ namespace Lab {
 
         if (hurtTimer > 0.0f) hurtTimer -= dt;
         if (muzzleFlashTimer > 0.0f) muzzleFlashTimer -= dt;
+        if (shootAnimTimer > 0.0f) shootAnimTimer -= dt;
+
+        if (reloadTimer > 0.0f) {
+            reloadTimer -= dt;
+            if (reloadTimer <= 0.0f) {
+                ammoInClip = maxClipAmmo;
+            }
+        }
 
         Vec3 vecToPlayer = playerPos - position;
         float distToPlayer = vecToPlayer.length();
@@ -117,31 +175,39 @@ namespace Lab {
             position = nextPos;
             walkCycle += dt * 8.0f;
 
-            // Combat weapons firing
+            // Combat weapons firing with weapon cadence, reload, and human recoil arc
             shootCooldown -= dt;
-            if (shootCooldown <= 0.0f) {
-                shootCooldown = shootInterval;
-                muzzleFlashTimer = 0.08f;
-
-                Vec3 gunMuzzle = position + Vec3(0.2f, 1.15f, 0.3f);
-                AudioEngine::playSound3D(SoundID::SG553Shot, gunMuzzle, 0.85f);
-                bool hit = (rand() % 100) < 68;
-                Vec3 tracerEnd = playerTargetPos;
-                if (!hit) {
-                    float missOffset = ((rand() % 100) / 50.0f - 1.0f) * 1.2f;
-                    tracerEnd = tracerEnd + Vec3(missOffset, missOffset * 0.5f, -missOffset);
+            if (shootCooldown <= 0.0f && reloadTimer <= 0.0f) {
+                auto stats = getBotWeaponStats(equippedWeapon);
+                if (ammoInClip <= 0 && stats.reloadTime > 0.0f) {
+                    reloadTimer = stats.reloadTime;
+                    AudioEngine::playSound3D(SoundID::Reload, position + Vec3(0.0f, 1.2f, 0.0f), 0.75f);
                 } else {
-                    outDamageToPlayer += 14.0f;
-                }
+                    if (ammoInClip > 0) ammoInClip--;
+                    shootCooldown = stats.interval;
+                    muzzleFlashTimer = 0.08f;
+                    shootAnimTimer = 0.28f; // Human-like shooting recoil arc
 
-                BulletTracer tr;
-                tr.start = gunMuzzle;
-                tr.end = tracerEnd;
-                tr.color = Vec3(1.0f, 0.35f, 0.2f);
-                tr.lifetime = 0.0f;
-                tr.maxLifetime = 0.09f;
-                tr.thickness = 0.035f;
-                outTracers.push_back(tr);
+                    Vec3 gunMuzzle = position + Vec3(0.2f, 1.15f, 0.3f);
+                    AudioEngine::playSound3D(stats.sound, gunMuzzle, 0.85f);
+                    bool hit = (rand() % 100) < 68;
+                    Vec3 tracerEnd = playerTargetPos;
+                    if (!hit) {
+                        float missOffset = ((rand() % 100) / 50.0f - 1.0f) * 1.2f;
+                        tracerEnd = tracerEnd + Vec3(missOffset, missOffset * 0.5f, -missOffset);
+                    } else {
+                        outDamageToPlayer += stats.damage;
+                    }
+
+                    BulletTracer tr;
+                    tr.start = gunMuzzle;
+                    tr.end = tracerEnd;
+                    tr.color = stats.tracerColor;
+                    tr.lifetime = 0.0f;
+                    tr.maxLifetime = stats.tracerLifetime;
+                    tr.thickness = stats.tracerThickness;
+                    outTracers.push_back(tr);
+                }
             }
         } else {
             // Return to / continue patrol
@@ -164,15 +230,13 @@ namespace Lab {
             }
         }
 
-        // Update glTF 2.0 Skeletal Animator
+        // Update glTF 2.0 Skeletal Animator (Idle, Walk, Shoot recoil, Reload)
         if (animator.getSkeleton()) {
-            if (state == AIState::Attack) {
-                if (muzzleFlashTimer > 0.0f) {
-                    animator.playAnimation("Shoot", false);
-                } else {
-                    animator.playAnimation("Idle", true);
-                }
-            } else if (state == AIState::Chase || state == AIState::Patrol) {
+            if (reloadTimer > 0.0f) {
+                animator.playAnimation("Reload", false);
+            } else if (shootAnimTimer > 0.0f) {
+                animator.playAnimation("Shoot", false);
+            } else if (state == AIState::Chase || state == AIState::Patrol || (state == AIState::Attack && (distToPlayer > 8.0f || distToPlayer < 3.5f))) {
                 animator.playAnimation("Walk", true);
             } else {
                 animator.playAnimation("Idle", true);
@@ -704,7 +768,13 @@ namespace Lab {
 
                     bot.patrolT = 0.0f;
                     bot.patrolDir = 1;
+                    auto stats = getBotWeaponStats(bot.equippedWeapon);
+                    bot.shootInterval = stats.interval;
                     bot.shootCooldown = bot.shootInterval;
+                    bot.maxClipAmmo = stats.clipSize;
+                    bot.ammoInClip = bot.maxClipAmmo;
+                    bot.reloadTimer = 0.0f;
+                    bot.shootAnimTimer = 0.0f;
                     bot.hurtTimer = 0.0f;
                     bot.muzzleFlashTimer = 0.0f;
                 }
@@ -713,6 +783,14 @@ namespace Lab {
 
             if (bot.hurtTimer > 0.0f) bot.hurtTimer -= dt;
             if (bot.muzzleFlashTimer > 0.0f) bot.muzzleFlashTimer -= dt;
+            if (bot.shootAnimTimer > 0.0f) bot.shootAnimTimer -= dt;
+
+            if (bot.reloadTimer > 0.0f) {
+                bot.reloadTimer -= dt;
+                if (bot.reloadTimer <= 0.0f) {
+                    bot.ammoInClip = bot.maxClipAmmo;
+                }
+            }
 
             // ==================== MULTI-TARGET SELECTION ====================
             // Find closest visible enemy (either the player or another enemy bot)
@@ -801,65 +879,75 @@ namespace Lab {
 
                 // ==================== WEAPONS FIRING ====================
                 bot.shootCooldown -= dt;
-                if (bot.shootCooldown <= 0.0f) {
-                    bot.shootCooldown = bot.shootInterval;
-                    bot.muzzleFlashTimer = 0.08f;
-                    Vec3 gunMuzzle = bot.position + Vec3(0.2f, 1.15f, 0.3f);
-                    bool hit = (rand() % 100) < 68;
+                if (bot.shootCooldown <= 0.0f && bot.reloadTimer <= 0.0f) {
+                    auto stats = getBotWeaponStats(bot.equippedWeapon);
+                    if (bot.ammoInClip <= 0 && stats.reloadTime > 0.0f) {
+                        bot.reloadTimer = stats.reloadTime;
+                        AudioEngine::playSound3D(SoundID::Reload, bot.position + Vec3(0.0f, 1.2f, 0.0f), 0.75f);
+                    } else {
+                        if (bot.ammoInClip > 0) bot.ammoInClip--;
+                        bot.shootCooldown = stats.interval;
+                        bot.muzzleFlashTimer = 0.08f;
+                        bot.shootAnimTimer = 0.28f; // Human-like shooting recoil arc
 
-                    if (targetIsPlayer) {
-                        Vec3 targetHitPos = playerPos + Vec3(0.0f, 0.8f, 0.0f);
-                        if (!hit) {
-                            float miss = ((rand() % 100) / 50.0f - 1.0f) * 1.2f;
-                            targetHitPos = targetHitPos + Vec3(miss, miss * 0.5f, -miss);
-                        } else {
-                            outDamageToPlayer += 14.0f;
-                        }
+                        Vec3 gunMuzzle = bot.position + Vec3(0.2f, 1.15f, 0.3f);
+                        AudioEngine::playSound3D(stats.sound, gunMuzzle, 0.85f);
+                        bool hit = (rand() % 100) < 68;
 
-                        BulletTracer tr;
-                        tr.start = gunMuzzle;
-                        tr.end = targetHitPos;
-                        tr.color = Vec3(1.0f, 0.35f, 0.2f);
-                        tr.lifetime = 0.0f;
-                        tr.maxLifetime = 0.09f;
-                        tr.thickness = 0.035f;
-                        outTracers.push_back(tr);
-                    } else if (targetBotIdx >= 0 && targetBotIdx < (int)bots.size()) {
-                        Vec3 targetHitPos = bots[targetBotIdx].position + Vec3(0.0f, 1.1f, 0.0f);
-                        if (!hit) {
-                            float miss = ((rand() % 100) / 50.0f - 1.0f) * 1.2f;
-                            targetHitPos = targetHitPos + Vec3(miss, miss * 0.5f, -miss);
-                        } else {
-                            bool isHeadshot = (rand() % 100) < 25;
-                            float dmg = isHeadshot ? 50.0f : 25.0f;
-                            bool killed = bots[targetBotIdx].takeDamage(dmg, isHeadshot);
+                        if (targetIsPlayer) {
+                            Vec3 targetHitPos = playerPos + Vec3(0.0f, 0.8f, 0.0f);
+                            if (!hit) {
+                                float miss = ((rand() % 100) / 50.0f - 1.0f) * 1.2f;
+                                targetHitPos = targetHitPos + Vec3(miss, miss * 0.5f, -miss);
+                            } else {
+                                outDamageToPlayer += stats.damage;
+                            }
 
-                            if (killed) {
-                                bot.kills++;
-                                if (chat) {
-                                    chat->addMessage("[SERVER]", bot.name + " eliminated " + bots[targetBotIdx].name, Vec3(0.85f, 0.45f, 0.2f));
-                                }
-                                if (pickupMgr) {
-                                    pickupMgr->spawnPickup(PickupType::Ammo, bots[targetBotIdx].position + Vec3(0.0f, 0.35f, 0.0f), 36);
-                                    if ((rand() % 100) < 50) {
-                                        pickupMgr->spawnPickup(PickupType::Medkit, bots[targetBotIdx].position + Vec3(0.3f, 0.35f, -0.3f), 50);
+                            BulletTracer tr;
+                            tr.start = gunMuzzle;
+                            tr.end = targetHitPos;
+                            tr.color = stats.tracerColor;
+                            tr.lifetime = 0.0f;
+                            tr.maxLifetime = stats.tracerLifetime;
+                            tr.thickness = stats.tracerThickness;
+                            outTracers.push_back(tr);
+                        } else if (targetBotIdx >= 0 && targetBotIdx < (int)bots.size()) {
+                            Vec3 targetHitPos = bots[targetBotIdx].position + Vec3(0.0f, 1.1f, 0.0f);
+                            if (!hit) {
+                                float miss = ((rand() % 100) / 50.0f - 1.0f) * 1.2f;
+                                targetHitPos = targetHitPos + Vec3(miss, miss * 0.5f, -miss);
+                            } else {
+                                bool isHeadshot = (rand() % 100) < 25;
+                                float dmg = isHeadshot ? (stats.damage * 2.2f) : stats.damage;
+                                bool killed = bots[targetBotIdx].takeDamage(dmg, isHeadshot);
+
+                                if (killed) {
+                                    bot.kills++;
+                                    if (chat) {
+                                        chat->addMessage("[SERVER]", bot.name + " eliminated " + bots[targetBotIdx].name, Vec3(0.85f, 0.45f, 0.2f));
                                     }
-                                    if ((rand() % 100) < 40) {
-                                        int rWep = static_cast<int>(bots[targetBotIdx].equippedWeapon);
-                                        pickupMgr->spawnPickup(PickupType::WeaponDrop, bots[targetBotIdx].position + Vec3(-0.35f, 0.35f, 0.2f), 30, rWep);
+                                    if (pickupMgr) {
+                                        pickupMgr->spawnPickup(PickupType::Ammo, bots[targetBotIdx].position + Vec3(0.0f, 0.35f, 0.0f), 36);
+                                        if ((rand() % 100) < 50) {
+                                            pickupMgr->spawnPickup(PickupType::Medkit, bots[targetBotIdx].position + Vec3(0.3f, 0.35f, -0.3f), 50);
+                                        }
+                                        if ((rand() % 100) < 40) {
+                                            int rWep = static_cast<int>(bots[targetBotIdx].equippedWeapon);
+                                            pickupMgr->spawnPickup(PickupType::WeaponDrop, bots[targetBotIdx].position + Vec3(-0.35f, 0.35f, 0.2f), 30, rWep);
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        BulletTracer tr;
-                        tr.start = gunMuzzle;
-                        tr.end = targetHitPos;
-                        tr.color = (bot.team == 0) ? Vec3(1.0f, 0.3f, 0.2f) : Vec3(0.2f, 0.6f, 1.0f);
-                        tr.lifetime = 0.0f;
-                        tr.maxLifetime = 0.09f;
-                        tr.thickness = 0.035f;
-                        outTracers.push_back(tr);
+                            BulletTracer tr;
+                            tr.start = gunMuzzle;
+                            tr.end = targetHitPos;
+                            tr.color = (bot.team == 0) ? Vec3(1.0f, 0.3f, 0.2f) : Vec3(0.2f, 0.6f, 1.0f);
+                            tr.lifetime = 0.0f;
+                            tr.maxLifetime = stats.tracerLifetime;
+                            tr.thickness = stats.tracerThickness;
+                            outTracers.push_back(tr);
+                        }
                     }
                 }
             } else {
@@ -889,6 +977,20 @@ namespace Lab {
                     bot.position.z = targetPos.z;
                     bot.walkCycle += dt * 6.0f;
                 }
+            }
+
+            // Update bot skeletal animator (Idle, Walk, Shoot recoil, Reload)
+            if (bot.animator.getSkeleton()) {
+                if (bot.reloadTimer > 0.0f) {
+                    bot.animator.playAnimation("Reload", false);
+                } else if (bot.shootAnimTimer > 0.0f) {
+                    bot.animator.playAnimation("Shoot", false);
+                } else if (bot.state == AIState::Chase || bot.state == AIState::Patrol || (bot.state == AIState::Attack && (bestDist > 8.0f || bestDist < 3.5f || std::abs(bot.strafeDirection) > 0))) {
+                    bot.animator.playAnimation("Walk", true);
+                } else {
+                    bot.animator.playAnimation("Idle", true);
+                }
+                bot.animator.update(dt);
             }
         }
     }
