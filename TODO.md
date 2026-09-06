@@ -118,14 +118,24 @@ Wszystkie systemy tworzone sa w standardzie **C++20**, **OpenGL 4.5+ Core Profil
 
 ---
 
+### 11. Narzedzie Przecinania Bryl CSG (Clip Tool) w Edytorze Hammer & Rekwizyty Fizyczne (Sprint 6 - 100% DONE)
+- [x] Silnik geometrii wypuklej CSG `LabCSG` (`CSGTool::sliceBox`, `CSGTool::sliceConvexMesh`, `computePlanarUV`, `makePlaneFrom2DLine`): wielokatowe przecinanie algorytmem Sutherland-Hodgmana, zamykanie przekroju plaszczyzny (cap triangulation) ze zgodnym zwrotem normalnych i ukladem wierzcholkow CCW.
+- [x] Narzedzie Clip Tool w `LabHammer` (skrot klawiszowy `Shift+X` / `X` do cyklicznego przelaczania trybow `KeepFront`, `KeepBack`, `KeepBoth` oraz `Enter` do zatwierdzenia podzialu).
+- [x] Trojwymiarowa wizualizacja plaszczyzny ciecia w rzucie 3D (punkty A i B, linia prowadzaca, polprzezroczysta kurtyna przekroju oraz wektor normalny kierunku zachowania bryly).
+- [x] Format map `.labmap` z obsluga wypuklych polyhedrow (`poly_brush` / `b.type == "poly"`): bezstratny zapis i odczyt tablicy wierzcholkow (`customVertices`) z pozycjami, normalnymi, koordynatami UV i indeksami trzonu (`customIndices`).
+- [x] Pelna integracja rekwizytow fizycznych (Drewniana Skrzynia `prop_crate` i Czerwona Wybuchowa Beczka `prop_barrel`) w palecie Prebuilts Hammera z dedykowanymi ikonami 2D, podgladem 3D i pelna deserializacja cial sztywnych w grze (`main.cpp`).
+- [x] Zautomatyzowany i wizualny test 28 w `TestVerify.exe` weryfikujacy ciecie bryl CSG, podwojne sekwencyjne ciecie polyhedru, roundtrip serializacji `.labmap` oraz render ze zrzutem klatki (`test_csg_clipping_and_hammer.bmp`).
+
+---
+
 ## II. NAJBLIZSZE SPRINTY (SHORT-TERM / IN PROGRESS)
 
-### Sprint 6: Narzedzie Przecinania Bryl CSG (Clip Tool) w Edytorze Hammer & Wstawianie Propsow Fizycznych
-- [ ] Narzedzie Clip Tool w `LabHammer` (skrot klawiszowy `X` / ikona skalpela na lewym pasku): definiowanie plaszczyzny ciecia za pomoca 2 punktow w rzucie 2D i 3D.
-- [ ] Operacje binarnego podzialu bryly prostopadlosciennej (Brush Splitting / Plane Slicing): podzial na dwie wypukle bryly lub odciecie jednej strony (Keep Front / Keep Back / Keep Both).
-- [ ] Generowanie geometrii i poprawne mapowanie UV po cieciu bez znieksztalcen tekstury.
-- [ ] Pelna integracja stawiania rekwizytow fizycznych (skrzynek, beczek wybuchowych) bezposrednio w edytorze `LabHammer` w zakladce Prebuilts z podgladem 3D i zapisem w `.labmap`.
-- [ ] Zautomatyzowany i wizualny test 28 w `TestVerify.exe` weryfikujacy operacje Clip Tool i podzial bryl.
+### Sprint 7: Dynamiczny System Dekali (Projective Decal System) & Odciski Strzalow na Geometrii CSG
+- [ ] Bufor i rzutnik dekali 3D (`DecalSystem`, OBB Decal Projector): projekcja sladow kul, odpryskow betonu, plam krwi botow i okopcen po wybuchach RPG/beczek bezposrednio na sciany prostopadloscienne oraz skosna geometrie `poly_brush`.
+- [ ] Klipowanie geometrii dekala do bryl swiata z poprawnym offsetem glebokosci (depth bias) eliminujacym z-fighting.
+- [ ] Bufor kolowy instancji dekali z plynna anizotropowa przezroczystoscia zanikania (Alpha Fadeout).
+- [ ] Integracja z systemem trafien hitscan (`WeaponSystem`), kolizjami czasteczek krwi i eksplozjami cial sztywnych.
+- [ ] Zautomatyzowany i wizualny test 29 w `TestVerify.exe` weryfikujacy rzutowanie dekali na geometrie cieta CSG (`test_decals_and_impacts.bmp`).
 
 ---
 

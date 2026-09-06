@@ -2235,6 +2235,232 @@ int main() {
         std::cout << "  [PASS] Saved visual Rigid Body Physics & Destruction verification to 'test_physics_and_destruction.bmp'.\n";
     }
 
+    // ==========================================
+    // TEST 28: CSG Geometry Clipping Tool in Hammer & Physical Props Placement with Serialization
+    // ==========================================
+    {
+        std::cout << "\n[Test 28] Verifying CSG Geometry Clipping & Physical Props Placement..." << std::endl;
+
+        // 1. Verify CSG Box Slicing with arbitrary diagonal plane
+        Lab::Vec3 bMin(-2.0f, 0.0f, -2.0f);
+        Lab::Vec3 bMax( 2.0f, 4.0f,  2.0f);
+        Lab::Vec3 planePt(0.0f, 0.0f, 0.0f);
+        Lab::Vec3 planeNormal = Lab::Vec3(1.0f, 0.0f, 1.0f).normalized();
+
+        Lab::ClipResult clipRes = Lab::CSGTool::sliceBox(bMin, bMax, planePt, planeNormal);
+
+        if (!clipRes.didIntersect) {
+            std::cerr << "Assertion failed: Diagonal plane must intersect cube [-2..2, 0..4, -2..2]!" << std::endl;
+            return 1;
+        }
+        if (!clipRes.frontPiece.isValid() || !clipRes.backPiece.isValid()) {
+            std::cerr << "Assertion failed: Both front and back pieces must be valid convex polyhedra!" << std::endl;
+            return 1;
+        }
+        if (clipRes.frontPiece.triangleCount < 4 || clipRes.backPiece.triangleCount < 4) {
+            std::cerr << "Assertion failed: Sliced pieces must have multiple triangles, got front="
+                      << clipRes.frontPiece.triangleCount << " back=" << clipRes.backPiece.triangleCount << std::endl;
+            return 1;
+        }
+
+        // Check centroids: front piece centroid must be on positive side, back piece on negative side
+        float frontDist = Lab::Vec3::dot(clipRes.frontPiece.centroid - planePt, planeNormal);
+        float backDist  = Lab::Vec3::dot(clipRes.backPiece.centroid - planePt, planeNormal);
+        if (frontDist <= 0.01f || backDist >= -0.01f) {
+            std::cerr << "Assertion failed: Sliced centroids must lie on respective sides of cutting plane!" << std::endl;
+            return 1;
+        }
+        std::cout << "  [PASS] CSG box slicing verified: Front tris=" << clipRes.frontPiece.triangleCount
+                  << " (dist=" << frontDist << "), Back tris=" << clipRes.backPiece.triangleCount
+                  << " (dist=" << backDist << ")" << std::endl;
+
+        // 2. Verify 2D Line to Vertical Cutting Plane
+        Lab::Vec3 linePt, lineNorm;
+        Lab::CSGTool::makePlaneFrom2DLine(Lab::Vec2(-2.0f, 0.0f), Lab::Vec2(2.0f, 4.0f), linePt, lineNorm);
+        float linePerpDot = Lab::Vec2::dot(Lab::Vec2(4.0f, 4.0f), Lab::Vec2(lineNorm.x, lineNorm.z));
+        if (std::abs(linePerpDot) > 1e-4f) {
+            std::cerr << "Assertion failed: Cutting plane normal must be perpendicular to 2D line! Dot=" << linePerpDot << std::endl;
+            return 1;
+        }
+        std::cout << "  [PASS] 2D line to 3D cutting plane verified: normal=("
+                  << lineNorm.x << ", " << lineNorm.y << ", " << lineNorm.z << ")" << std::endl;
+
+        // 3. Verify Slicing Arbitrary Convex Polyhedron (Sequential CSG cut)
+        Lab::Vec3 horizPlanePt(0.0f, 2.0f, 0.0f);
+        Lab::Vec3 horizPlaneNorm(0.0f, 1.0f, 0.0f);
+        Lab::ClipResult subCut = Lab::CSGTool::sliceConvexMesh(
+            clipRes.frontPiece.vertices, clipRes.frontPiece.indices,
+            horizPlanePt, horizPlaneNorm
+        );
+        if (!subCut.didIntersect || !subCut.frontPiece.isValid() || !subCut.backPiece.isValid()) {
+            std::cerr << "Assertion failed: Second CSG cut on convex polyhedron must produce valid sub-polyhedra!" << std::endl;
+            return 1;
+        }
+        std::cout << "  [PASS] Multi-step convex polyhedron CSG clipping verified: Sub-front tris="
+                  << subCut.frontPiece.triangleCount << ", Sub-back tris=" << subCut.backPiece.triangleCount << std::endl;
+
+        // 4. Verify .labmap Roundtrip Serialization for poly_brush and Physical Props
+        std::string testMapPath = "test_csg_props.labmap";
+        {
+            Lab::LabMap saveMap;
+            // Add standard cube brush
+            Lab::MapBrush solidBrush;
+            solidBrush.type = "cube";
+            solidBrush.position = Lab::Vec3(0.0f, 0.5f, 0.0f);
+            solidBrush.size = Lab::Vec3(4.0f, 1.0f, 4.0f);
+            solidBrush.color = Lab::Vec3(0.8f, 0.8f, 0.8f);
+            solidBrush.texturePath = "concrete_wall.bmp";
+            saveMap.brushes.push_back(solidBrush);
+
+            // Add sliced poly_brush
+            Lab::MapBrush bPoly;
+            bPoly.type = "poly";
+            bPoly.position = clipRes.frontPiece.centroid;
+            bPoly.size = clipRes.frontPiece.aabbMax - clipRes.frontPiece.aabbMin;
+            bPoly.color = Lab::Vec3(0.3f, 0.7f, 0.9f);
+            bPoly.texturePath = "hazard_stripes.bmp";
+            bPoly.customVertices = clipRes.frontPiece.vertices;
+            bPoly.customIndices = clipRes.frontPiece.indices;
+            saveMap.brushes.push_back(bPoly);
+
+            // Add Physical Props (prop_crate and prop_barrel)
+            Lab::MapProp pCrate;
+            pCrate.modelPath = "models/props/crate.obj";
+            pCrate.position = Lab::Vec3(-2.0f, 0.45f, 1.0f);
+            pCrate.scale = Lab::Vec3(0.9f, 0.9f, 0.9f);
+            pCrate.texturePath = "crate_wood.png";
+            saveMap.props.push_back(pCrate);
+
+            Lab::MapProp pBarrel;
+            pBarrel.modelPath = "models/props/barrel.obj";
+            pBarrel.position = Lab::Vec3(2.0f, 0.48f, 1.0f);
+            pBarrel.scale = Lab::Vec3(0.64f, 0.96f, 0.64f);
+            pBarrel.texturePath = "barrel_hazard.png";
+            saveMap.props.push_back(pBarrel);
+
+            if (!saveMap.saveToFile(testMapPath)) {
+                std::cerr << "Assertion failed: Failed to save test map to " << testMapPath << std::endl;
+                return 1;
+            }
+        }
+
+        // Reload and assert
+        std::unique_ptr<Lab::LabMap> loadedMap = Lab::LabMap::loadFromFile(testMapPath);
+        if (!loadedMap) {
+            std::cerr << "Assertion failed: Failed to load saved test map from " << testMapPath << std::endl;
+            return 1;
+        }
+
+        if (loadedMap->brushes.size() != 2) {
+            std::cerr << "Assertion failed: Expected 2 brushes, loaded " << loadedMap->brushes.size() << std::endl;
+            return 1;
+        }
+        if (loadedMap->brushes[1].type != "poly" || loadedMap->brushes[1].customVertices.size() != clipRes.frontPiece.vertices.size()) {
+            std::cerr << "Assertion failed: poly_brush geometry vertices mismatch! Loaded="
+                      << loadedMap->brushes[1].customVertices.size() << " Expected=" << clipRes.frontPiece.vertices.size() << std::endl;
+            return 1;
+        }
+        if (loadedMap->props.size() != 2) {
+            std::cerr << "Assertion failed: Expected 2 physical props, loaded " << loadedMap->props.size() << std::endl;
+            return 1;
+        }
+        if (loadedMap->props[0].modelPath.find("crate") == std::string::npos ||
+            loadedMap->props[1].modelPath.find("barrel") == std::string::npos) {
+            std::cerr << "Assertion failed: Physical props paths corrupted during serialization!" << std::endl;
+            return 1;
+        }
+        std::cout << "  [PASS] .labmap poly_brush & physical props serialization roundtrip verified 100%!" << std::endl;
+
+        // Clean up temporary map file
+        std::filesystem::remove(testMapPath);
+
+        // 5. Visual Rendering Verification:
+        // Render 3D CSG Sliced Brushes, Physical Props, Dynamic Shadow Depth Pass, and Hammer Diagnostic Overlay
+        glClearColor(0.12f, 0.14f, 0.18f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // Create Mesh instances for the front and back CSG clipped polyhedra
+        Lab::Mesh frontMesh(clipRes.frontPiece.vertices, clipRes.frontPiece.indices);
+        Lab::Mesh backMesh(clipRes.backPiece.vertices, clipRes.backPiece.indices);
+
+        // Position camera for optimal perspective overlooking the sliced geometry and props
+        Lab::Camera csgCam(60.0f, (float)w / (float)h, 0.01f, 1000.0f);
+        csgCam.setPosition(Lab::Vec3(0.0f, 3.2f, 5.5f));
+        csgCam.update(Lab::Vec2(0.0f, -22.0f));
+
+        Lab::Vec3 sunDir(-0.4f, -0.8f, -0.45f);
+        Lab::Mat4 lightSpaceMatrix = Lab::ShadowMap::computeSunLightSpaceMatrix(sunDir, Lab::Vec3(0, 1.0f, 0), 16.0f);
+        Lab::ShadowMap shadowMap;
+        shadowMap.init(2048, 2048);
+
+        // Pass 1: Shadow Depth Pass
+        shadowMap.beginShadowPass(lightSpaceMatrix);
+        Lab::Renderer::beginShadowDepthPass(lightSpaceMatrix);
+
+        // Ground floor
+        Lab::Renderer::drawShadowCube(Lab::Vec3(0.0f, -0.1f, 0.0f), Lab::Vec3(25.0f, 0.2f, 25.0f));
+        // Back wall
+        Lab::Renderer::drawShadowCube(Lab::Vec3(0.0f, 2.5f, -4.0f), Lab::Vec3(20.0f, 5.0f, 0.4f));
+
+        // Draw CSG clipped meshes into shadow map
+        Lab::Renderer::drawShadowMesh(frontMesh, Lab::Vec3(-1.2f, 0.0f, 0.0f), Lab::Vec3(0, 0, 0), Lab::Vec3(1, 1, 1));
+        Lab::Renderer::drawShadowMesh(backMesh,  Lab::Vec3( 1.2f, 0.0f, 0.0f), Lab::Vec3(0, 0, 0), Lab::Vec3(1, 1, 1));
+
+        // Physics Props in shadow map
+        Lab::Renderer::drawShadowCube(Lab::Vec3(-2.8f, 0.45f, 0.5f), Lab::Vec3(0.9f, 0.9f, 0.9f));
+        Lab::Renderer::drawShadowCube(Lab::Vec3(-2.8f, 1.35f, 0.5f), Lab::Vec3(0.9f, 0.9f, 0.9f));
+        Lab::Renderer::drawShadowCube(Lab::Vec3( 2.8f, 0.48f, 0.5f), Lab::Vec3(0.64f, 0.96f, 0.64f));
+
+        Lab::Renderer::endShadowDepthPass();
+        shadowMap.endShadowPass(w, h);
+
+        // Pass 2: Shaded Lit Pass
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        Lab::Renderer::beginFrame(csgCam);
+        Lab::Renderer::setSunLight(sunDir, Lab::Vec3(1.0f, 0.96f, 0.92f), Lab::Vec3(0.25f, 0.28f, 0.35f));
+        Lab::Renderer::setShadowMap(lightSpaceMatrix, shadowMap.getDepthTexture());
+
+        Lab::Texture floorTex("assets/textures/floor_tiles.bmp");
+        Lab::Texture wallTex("assets/textures/concrete_wall.bmp");
+        Lab::Texture crateTex("crate_wood.png");
+        Lab::Texture barrelTex("barrel_hazard.png");
+
+        // Environment
+        Lab::Renderer::drawCube(Lab::Vec3(0.0f, -0.1f, 0.0f), Lab::Vec3(25.0f, 0.2f, 25.0f), Lab::Vec3(0.75f, 0.75f, 0.75f), &floorTex, true);
+        Lab::Renderer::drawCube(Lab::Vec3(0.0f, 2.5f, -4.0f), Lab::Vec3(20.0f, 5.0f, 0.4f), Lab::Vec3(0.70f, 0.70f, 0.70f), &wallTex, true);
+
+        // Render CSG Clipped Polyhedral Geometry with Concrete Texture and Authentic Accents
+        Lab::Renderer::drawMesh(frontMesh, Lab::Vec3(-1.2f, 0.0f, 0.0f), Lab::Vec3(0, 0, 0), Lab::Vec3(1, 1, 1), Lab::Vec3(0.95f, 0.95f, 1.0f), &wallTex);
+        Lab::Renderer::drawMesh(backMesh,  Lab::Vec3( 1.2f, 0.0f, 0.0f), Lab::Vec3(0, 0, 0), Lab::Vec3(1, 1, 1), Lab::Vec3(1.0f, 0.92f, 0.88f), &wallTex);
+
+        // Render Slicing Plane Cutting Guide Line in 3D
+        for (int s = -8; s <= 8; ++s) {
+            float t = (float)s * 0.35f;
+            Lab::Vec3 pt = Lab::Vec3(-t, 2.0f, t);
+            Lab::Renderer::drawCube(pt, Lab::Vec3(0.06f, 4.2f, 0.06f), Lab::Vec3(1.0f, 0.55f, 0.1f), nullptr, false);
+        }
+
+        // Render Physical Props (Stacked Wooden Crates & Red Explosive Fuel Barrel)
+        Lab::Renderer::drawCube(Lab::Vec3(-2.8f, 0.45f, 0.5f), Lab::Vec3(0.9f, 0.9f, 0.9f), Lab::Vec3(1, 1, 1), &crateTex, true);
+        Lab::Renderer::drawCube(Lab::Vec3(-2.8f, 1.35f, 0.5f), Lab::Vec3(0.9f, 0.9f, 0.9f), Lab::Vec3(1, 1, 1), &crateTex, true);
+        Lab::Renderer::drawCube(Lab::Vec3( 2.8f, 0.48f, 0.5f), Lab::Vec3(0.64f, 0.96f, 0.64f), Lab::Vec3(1, 1, 1), &barrelTex, true);
+
+        Lab::Renderer::disableShadowMap();
+
+        // 6. UI Diagnostic Overlay
+        Lab::Renderer::beginUI(w, h);
+        Lab::Renderer::drawRect(40.0f, 30.0f, 850.0f, 88.0f, Lab::Vec3(0.10f, 0.12f, 0.16f));
+        Lab::Renderer::drawRect(40.0f, 30.0f, 850.0f, 1.0f, Lab::Vec3(1.0f, 0.55f, 0.1f));
+        Lab::LabFont::drawText(56.0f, 44.0f, "CSG GEOMETRY CLIPPING & HAMMER PHYSICAL PROPS (SPRINT 6)", 2.0f, Lab::Vec3(1.0f, 0.60f, 0.15f), Lab::LabFontType::GeoSans);
+        Lab::LabFont::drawText(56.0f, 74.0f, "SUTHERLAND-HODGMAN CSG SLICING | CAP GENERATION | PROP_CRATE & PROP_BARREL", 1.6f, Lab::Vec3(0.90f, 0.92f, 0.95f), Lab::LabFontType::GeoSans);
+        Lab::Renderer::endUI();
+
+        Lab::Renderer::endFrame();
+        glFinish();
+        saveFrameToBMP("test_csg_clipping_and_hammer.bmp", w, h);
+        std::cout << "  [PASS] Saved visual CSG Clipping & Hammer Props verification to 'test_csg_clipping_and_hammer.bmp'.\n";
+    }
+
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();

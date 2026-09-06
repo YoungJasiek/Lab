@@ -1679,7 +1679,12 @@ public:
 
             // Render map brushes into shadow map
             for (const auto& b : _currentMap->brushes) {
-                Renderer::drawShadowCube(b.position, b.size);
+                if (b.type == "poly" && !b.customVertices.empty()) {
+                    if (!b.runtimeMesh) b.runtimeMesh = std::make_shared<Mesh>(b.customVertices, b.customIndices);
+                    Renderer::drawShadowMesh(*b.runtimeMesh, Vec3(0, 0, 0), Vec3(0, 0, 0), Vec3(1, 1, 1));
+                } else {
+                    Renderer::drawShadowCube(b.position, b.size);
+                }
             }
             // Render props into shadow map
             for (const auto& p : _currentMap->props) {
@@ -1728,7 +1733,12 @@ public:
                 if (!_camera.isInFrustum(bMin, bMax)) continue;
 
                 Texture* tex = b.texturePath.empty() ? nullptr : getTexture(b.texturePath);
-                Renderer::drawCube(b.position, b.size, b.color, tex, true, b.uvScale, b.uvMode);
+                if (b.type == "poly" && !b.customVertices.empty()) {
+                    if (!b.runtimeMesh) b.runtimeMesh = std::make_shared<Mesh>(b.customVertices, b.customIndices);
+                    Renderer::drawMesh(*b.runtimeMesh, Vec3(0, 0, 0), Vec3(0, 0, 0), Vec3(1, 1, 1), b.color, tex);
+                } else {
+                    Renderer::drawCube(b.position, b.size, b.color, tex, true, b.uvScale, b.uvMode);
+                }
             }
 
             // Render map props (STL models) with Frustum Culling

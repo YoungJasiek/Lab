@@ -412,6 +412,40 @@ public:
             _ePressed = false;
         }
 
+        // X / Shift+X: Toggle Clip Tool / Cycle Clip Mode
+        if (!ctrlDown && (Input::isKeyPressed('X') || Input::isKeyPressed('x'))) {
+            if (!_xPressed) {
+                if (_activeTool != 6) {
+                    _activeTool = 6;
+                    logMessage("CSG Clip Tool Active (X / Shift+X cycles mode, ENTER to commit)");
+                } else {
+                    _clipMode = (ClipMode)(((int)_clipMode + 1) % 3);
+                    if (_clipMode == ClipMode::KeepFront) {
+                        logMessage("CSG Clip Mode: Keep Front (Positive Side)");
+                    } else if (_clipMode == ClipMode::KeepBack) {
+                        logMessage("CSG Clip Mode: Keep Back (Negative Side)");
+                    } else {
+                        logMessage("CSG Clip Mode: Keep Both (Split into 2 Brushes)");
+                    }
+                }
+                _xPressed = true;
+            }
+        } else {
+            _xPressed = false;
+        }
+
+        // Enter: Commit CSG Clip
+        if (Input::isKeyPressed(257)) { // GLFW_KEY_ENTER
+            if (!_enterPressed) {
+                if (_activeTool == 6) {
+                    commitClip();
+                }
+                _enterPressed = true;
+            }
+        } else {
+            _enterPressed = false;
+        }
+
         // Backspace / Delete: Delete selected object (or last brush if none selected)
         if (Input::isKeyPressed(259) || Input::isKeyPressed(261)) { // Backspace or Del
             if (!_delPressed) {
@@ -626,6 +660,30 @@ public:
             return;
         }
 
+        // Tool 6: CSG Clip Tool
+        if (_activeTool == 6) {
+            if (hitType == SelectionType::Brush) {
+                _selectionType = SelectionType::Brush;
+                _selectedIndex = hitIndex;
+                const auto& b = _map->brushes[hitIndex];
+                Vec3 half = b.size * 0.5f;
+                _clipPointA = b.position + Vec3(-half.x * 1.2f, 0.0f, -half.z * 0.6f);
+                _clipPointB = b.position + Vec3(half.x * 1.2f, 0.0f, half.z * 0.6f);
+                logMessage("Clip Tool: Selected Brush #" + std::to_string(hitIndex) + " for CSG Slicing");
+            } else {
+                if (_clipStep == 0) {
+                    _clipPointA = _cursorPos;
+                    _clipStep = 1;
+                    logMessage("Clip Tool: Set Cut Point A to (" + std::to_string((int)_cursorPos.x) + ", " + std::to_string((int)_cursorPos.z) + ")");
+                } else {
+                    _clipPointB = _cursorPos;
+                    _clipStep = 0;
+                    logMessage("Clip Tool: Set Cut Point B to (" + std::to_string((int)_cursorPos.x) + ", " + std::to_string((int)_cursorPos.z) + ")");
+                }
+            }
+            return;
+        }
+
         // Tool 0: Selection
         if (_activeTool == 0) {
             _selectionType = hitType;
@@ -774,6 +832,149 @@ public:
         logMessage("Focused Camera on selection at (" + std::to_string((int)targetPos.x) + ", " + std::to_string((int)targetPos.y) + ", " + std::to_string((int)targetPos.z) + ")");
     }
 
+    void commitClip() {
+        if (!_map) return;
+        if (_selectionType != SelectionType::Brush || _selectedIndex < 0 || _selectedIndex >= (int)_map->brushes.size()) {
+            logMessage("CSG Clip: Please select a brush to clip first!");
+            return;
+        }
+
+        auto& targetBrush = _map->brushes[_selectedIndex];
+        Vec3 planePt = (_clipPointA + _clipPointB) * 0.5f;
+        Vec3 planeNormal;
+        Vec2 p1(_clipPointA.x, _clipPointA.z);
+        Vec2 p2(_clipPointB.x, _clipPointB.z);
+        CSGTool::makePlaneFrom2DLine(p1, p2, planePt, planeNormal);
+
+        if (planeNormal.lengthSq() < 1e-4f) {
+            planeNormal = Vec3(1.0f, 0.0f, 0.0f);
+            planePt = targetBrush.position;
+        }
+
+        ClipResult res;
+        if (targetBrush.type == "poly" && !targetBrush.customVertices.empty()) {
+            res = CSGTool::sliceConvexMesh(targetBrush.customVertices, targetBrush.customIndices, planePt, planeNormal, targetBrush.uvScale);
+        } else {
+            Vec3 half = targetBrush.size * 0.5f;
+            Vec3 bMin = targetBrush.position - half;
+            Vec3 bMax = targetBrush.position + half;
+            res = CSGTool::sliceBox(bMin, bMax, planePt, planeNormal, targetBrush.uvScale);
+        }
+
+        if (!res.didIntersect) {
+            logMessage("CSG Clip: Plane did not intersect the selected brush.");
+            return;
+        }
+
+        std::string tex = targetBrush.texturePath;
+        Vec2 uvScale = targetBrush.uvScale;
+        Vec3 col = targetBrush.color;
+
+        if (_clipMode == ClipMode::KeepFront) {
+            if (!res.frontPiece.isValid()) {
+                logMessage("CSG Clip: Front piece empty.");
+                return;
+            }
+            targetBrush.type = "poly";
+            targetBrush.position = res.frontPiece.centroid;
+            targetBrush.size = res.frontPiece.aabbMax - res.frontPiece.aabbMin;
+            targetBrush.customVertices = res.frontPiece.vertices;
+            targetBrush.customIndices = res.frontPiece.indices;
+            targetBrush.runtimeMesh = nullptr;
+            logMessage("CSG Clip: Brush clipped (Keep Front, " + std::to_string(res.frontPiece.triangleCount) + " tris)");
+        } else if (_clipMode == ClipMode::KeepBack) {
+            if (!res.backPiece.isValid()) {
+                logMessage("CSG Clip: Back piece empty.");
+                return;
+            }
+            targetBrush.type = "poly";
+            targetBrush.position = res.backPiece.centroid;
+            targetBrush.size = res.backPiece.aabbMax - res.backPiece.aabbMin;
+            targetBrush.customVertices = res.backPiece.vertices;
+            targetBrush.customIndices = res.backPiece.indices;
+            targetBrush.runtimeMesh = nullptr;
+            logMessage("CSG Clip: Brush clipped (Keep Back, " + std::to_string(res.backPiece.triangleCount) + " tris)");
+        } else { // KeepBoth
+            if (!res.frontPiece.isValid() || !res.backPiece.isValid()) {
+                logMessage("CSG Clip: Could not split both pieces.");
+                return;
+            }
+            targetBrush.type = "poly";
+            targetBrush.position = res.frontPiece.centroid;
+            targetBrush.size = res.frontPiece.aabbMax - res.frontPiece.aabbMin;
+            targetBrush.customVertices = res.frontPiece.vertices;
+            targetBrush.customIndices = res.frontPiece.indices;
+            targetBrush.runtimeMesh = nullptr;
+
+            MapBrush backB;
+            backB.type = "poly";
+            backB.position = res.backPiece.centroid;
+            backB.size = res.backPiece.aabbMax - res.backPiece.aabbMin;
+            backB.color = col;
+            backB.texturePath = tex;
+            backB.uvScale = uvScale;
+            backB.uvMode = 1;
+            backB.customVertices = res.backPiece.vertices;
+            backB.customIndices = res.backPiece.indices;
+            _map->brushes.push_back(backB);
+
+            logMessage("CSG Clip: Split brush into 2 convex brushes (Front: " +
+                       std::to_string(res.frontPiece.triangleCount) + " tris, Back: " +
+                       std::to_string(res.backPiece.triangleCount) + " tris)");
+        }
+    }
+
+    void drawClipToolOverlay() {
+        if (!_map) return;
+        Vec3 planePt = (_clipPointA + _clipPointB) * 0.5f;
+        Vec3 planeNormal;
+        Vec2 p1(_clipPointA.x, _clipPointA.z);
+        Vec2 p2(_clipPointB.x, _clipPointB.z);
+        CSGTool::makePlaneFrom2DLine(p1, p2, planePt, planeNormal);
+
+        if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
+            const auto& b = _map->brushes[_selectedIndex];
+            Vec3 half = b.size * 0.5f;
+            if ((_clipPointA - _clipPointB).lengthSq() < 1e-4f) {
+                _clipPointA = b.position + Vec3(-half.x * 1.2f, 0.0f, -half.z * 0.5f);
+                _clipPointB = b.position + Vec3(half.x * 1.2f, 0.0f, half.z * 0.5f);
+                p1 = Vec2(_clipPointA.x, _clipPointA.z);
+                p2 = Vec2(_clipPointB.x, _clipPointB.z);
+                CSGTool::makePlaneFrom2DLine(p1, p2, planePt, planeNormal);
+            }
+
+            Vec3 modeCol = (_clipMode == ClipMode::KeepFront) ? Vec3(0.2f, 0.85f, 1.0f) :
+                           (_clipMode == ClipMode::KeepBack)  ? Vec3(1.0f, 0.45f, 0.2f) :
+                                                                Vec3(1.0f, 0.92f, 0.3f);
+
+            Renderer::drawCube(_clipPointA, Vec3(0.25f, 0.25f, 0.25f), Vec3(0.2f, 0.9f, 1.0f), nullptr, false);
+            Renderer::drawWireCube(_clipPointA, Vec3(0.28f, 0.28f, 0.28f), Vec3(1, 1, 1));
+            Renderer::drawCube(_clipPointB, Vec3(0.25f, 0.25f, 0.25f), Vec3(1.0f, 0.5f, 0.2f), nullptr, false);
+            Renderer::drawWireCube(_clipPointB, Vec3(0.28f, 0.28f, 0.28f), Vec3(1, 1, 1));
+
+            Vec3 diff = _clipPointB - _clipPointA;
+            float len = diff.length();
+            if (len > 0.01f) {
+                float h = std::max(b.size.y * 1.4f, 2.0f);
+                int steps = 14;
+                for (int s = -2; s <= steps + 2; ++s) {
+                    float t = (float)s / (float)steps;
+                    Vec3 pt = _clipPointA + diff * t;
+                    pt.y = b.position.y;
+                    Renderer::drawCube(pt, Vec3(0.08f, h, 0.08f), modeCol * 0.85f, nullptr, false);
+                }
+                Vec3 normStart = planePt;
+                normStart.y = b.position.y;
+                Vec3 normEnd = normStart + planeNormal * 1.5f;
+                Renderer::drawCube((normStart + normEnd) * 0.5f, Vec3(0.08f, 0.08f, 1.5f), modeCol, nullptr, false);
+                Renderer::drawCube(normEnd, Vec3(0.2f, 0.2f, 0.2f), Vec3(1, 1, 1), nullptr, false);
+            }
+        }
+
+        Renderer::drawWireCube(_cursorPos, Vec3(1.0f, 1.0f, 1.0f), Vec3(0.9f, 0.9f, 0.3f));
+        drawGizmo(_cursorPos);
+    }
+
     void placePrebuilt(int prebuiltId) {
         if (!_map) return;
         switch (prebuiltId) {
@@ -888,7 +1089,33 @@ public:
                 logMessage("Placed Prebuilt: Brama Bezpieczenstwa (Drzwi)");
                 break;
             }
-            case 8: { // Spawner: Pipe
+            case 8: { // Prebuilt: Drewniana Skrzynia Fizyczna (prop_crate)
+                MapProp p;
+                p.modelPath = "models/props/crate.obj";
+                p.position = _cursorPos + Vec3(0, 0.45f, 0);
+                p.scale = Vec3(0.9f, 0.9f, 0.9f);
+                p.color = Vec3(0.65f, 0.5f, 0.35f);
+                p.texturePath = "crate_wood.png";
+                _map->props.push_back(p);
+                _selectionType = SelectionType::Prop;
+                _selectedIndex = (int)_map->props.size() - 1;
+                logMessage("Placed Physical Prop: Drewniana Skrzynia (Havok Rigid Body)");
+                break;
+            }
+            case 9: { // Prebuilt: Wybuchowa Beczka Paliwa (prop_barrel)
+                MapProp p;
+                p.modelPath = "models/props/barrel.obj";
+                p.position = _cursorPos + Vec3(0, 0.48f, 0);
+                p.scale = Vec3(0.64f, 0.96f, 0.64f);
+                p.color = Vec3(0.9f, 0.2f, 0.2f);
+                p.texturePath = "barrel_hazard.png";
+                _map->props.push_back(p);
+                _selectionType = SelectionType::Prop;
+                _selectedIndex = (int)_map->props.size() - 1;
+                logMessage("Placed Physical Prop: Wybuchowa Beczka Paliwa (Explosive Hazard)");
+                break;
+            }
+            case 10: { // Spawner: Pipe
                 MapWeaponSpawner ws;
                 ws.weaponId = 0;
                 ws.position = _cursorPos;
@@ -900,7 +1127,7 @@ public:
                 logMessage("Placed Weapon Spawner: Pipe (60s Respawn)");
                 break;
             }
-            case 9: { // Spawner: Pistol
+            case 11: { // Spawner: Pistol
                 MapWeaponSpawner ws;
                 ws.weaponId = 1;
                 ws.position = _cursorPos;
@@ -912,7 +1139,7 @@ public:
                 logMessage("Placed Weapon Spawner: Pistol (60s Respawn)");
                 break;
             }
-            case 10: { // Spawner: Shotgun
+            case 12: { // Spawner: Shotgun
                 MapWeaponSpawner ws;
                 ws.weaponId = 2;
                 ws.position = _cursorPos;
@@ -924,7 +1151,7 @@ public:
                 logMessage("Placed Weapon Spawner: Shotgun (60s Respawn)");
                 break;
             }
-            case 11: { // Spawner: M4A4-S
+            case 13: { // Spawner: M4A4-S
                 MapWeaponSpawner ws;
                 ws.weaponId = 3;
                 ws.position = _cursorPos;
@@ -936,7 +1163,7 @@ public:
                 logMessage("Placed Weapon Spawner: M4A4-S (60s Respawn)");
                 break;
             }
-            case 12: { // Spawner: SG553
+            case 14: { // Spawner: SG553
                 MapWeaponSpawner ws;
                 ws.weaponId = 4;
                 ws.position = _cursorPos;
@@ -948,7 +1175,7 @@ public:
                 logMessage("Placed Weapon Spawner: SG553 (60s Respawn)");
                 break;
             }
-            case 13: { // Spawner: Minigun
+            case 15: { // Spawner: Minigun
                 MapWeaponSpawner ws;
                 ws.weaponId = 5;
                 ws.position = _cursorPos;
@@ -960,7 +1187,7 @@ public:
                 logMessage("Placed Weapon Spawner: Minigun (60s Respawn)");
                 break;
             }
-            case 14: { // Spawner: Plasma Gun
+            case 16: { // Spawner: Plasma Gun
                 MapWeaponSpawner ws;
                 ws.weaponId = 6;
                 ws.position = _cursorPos;
@@ -972,7 +1199,7 @@ public:
                 logMessage("Placed Weapon Spawner: Plasma Gun (60s Respawn)");
                 break;
             }
-            case 15: { // Spawner: Railgun
+            case 17: { // Spawner: Railgun
                 MapWeaponSpawner ws;
                 ws.weaponId = 7;
                 ws.position = _cursorPos;
@@ -984,7 +1211,7 @@ public:
                 logMessage("Placed Weapon Spawner: Railgun (60s Respawn)");
                 break;
             }
-            case 16: { // Spawner: RPG
+            case 18: { // Spawner: RPG
                 MapWeaponSpawner ws;
                 ws.weaponId = 8;
                 ws.position = _cursorPos;
@@ -1252,8 +1479,16 @@ public:
                                 logMessage("Tool 5: Spawn Tool [FFA / DM Neutral] (E to place)");
                             }
                             break;
-                        case 6: // Resize tool
-                            resizeSelection(_gridSnap, _gridSnap, _gridSnap);
+                        case 6: // CSG Clip tool
+                            if (_activeTool != 6) {
+                                _activeTool = 6;
+                                logMessage("Tool 6: CSG Clip Tool (X / Shift+X to cycle mode, ENTER to commit)");
+                            } else {
+                                _clipMode = (ClipMode)(((int)_clipMode + 1) % 3);
+                                if (_clipMode == ClipMode::KeepFront) logMessage("CSG Clip Mode: Keep Front (Positive Side)");
+                                else if (_clipMode == ClipMode::KeepBack) logMessage("CSG Clip Mode: Keep Back (Negative Side)");
+                                else logMessage("CSG Clip Mode: Keep Both (Split into 2 Brushes)");
+                            }
                             break;
                         case 7: // Lighting tool
                             _sunAngle += 30.0f;
@@ -1310,12 +1545,12 @@ public:
                 float startY = catY + 30.0f;
                 float cardH = (_prebuiltCategory == 0) ? 44.0f : 36.0f;
                 float cardSpacing = cardH + 5.0f;
-                int count = (_prebuiltCategory == 0) ? 8 : 9;
+                int count = (_prebuiltCategory == 0) ? 10 : 9;
 
                 for (int i = 0; i < count; ++i) {
                     float cy = startY + i * cardSpacing;
                     if (mx >= l.rightX + 10.0f && mx <= l.rightX + l.rightW - 10.0f && my >= cy && my <= cy + cardH) {
-                        int prebuiltId = (_prebuiltCategory == 0) ? i : (8 + i);
+                        int prebuiltId = (_prebuiltCategory == 0) ? i : (10 + i);
                         placePrebuilt(prebuiltId);
                         return;
                     }
@@ -1605,7 +1840,14 @@ public:
 
                 renderedBrushes++;
                 Texture* tex = b.texturePath.empty() ? nullptr : getTexture(b.texturePath);
-                Renderer::drawCube(b.position, b.size, b.color, tex, true, b.uvScale, b.uvMode);
+                if (b.type == "poly" && !b.customVertices.empty()) {
+                    if (!b.runtimeMesh) {
+                        b.runtimeMesh = std::make_shared<Mesh>(b.customVertices, b.customIndices);
+                    }
+                    Renderer::drawMesh(*b.runtimeMesh, Vec3(0, 0, 0), Vec3(0, 0, 0), Vec3(1, 1, 1), b.color, tex);
+                } else {
+                    Renderer::drawCube(b.position, b.size, b.color, tex, true, b.uvScale, b.uvMode);
+                }
             }
 
             // Render Props (STL models) with Frustum Culling
@@ -1618,6 +1860,13 @@ public:
                 renderedProps++;
                 Mesh* m = getMesh(p.modelPath);
                 Texture* tex = p.texturePath.empty() ? nullptr : getTexture(p.texturePath);
+                if (!tex) {
+                    if (p.modelPath.find("barrel") != std::string::npos) {
+                        tex = getTexture("barrel_hazard.png");
+                    } else if (p.modelPath.find("crate") != std::string::npos) {
+                        tex = getTexture("crate_wood.png");
+                    }
+                }
                 if (m) {
                     Renderer::drawMesh(*m, p.position, p.rotation, p.scale, p.color, tex);
                 } else {
@@ -1728,6 +1977,8 @@ public:
             Renderer::drawWireCube(_cursorPos, Vec3(0.8f, 1.8f, 0.8f), toolCol);
             Renderer::drawCube(_cursorPos + Vec3(0.0f, -0.85f, 0.0f), Vec3(1.2f, 0.1f, 1.2f), toolCol * 0.5f, nullptr, false);
             drawGizmo(_cursorPos);
+        } else if (_activeTool == 6) {
+            drawClipToolOverlay();
         }
 
         // 2. Render 2D Valve Hammer Desktop Interface
@@ -1867,7 +2118,9 @@ public:
                 { "Apteczka Polowa", "Pakiet medyczny (+50 HP zdrowia)", Vec3(0.85f, 0.85f, 0.90f) },
                 { "Barykada Taktyczna", "Mur ochronny ze skrajnia (3x1.2m)", Vec3(0.45f, 0.50f, 0.58f) },
                 { "Filar Betonowy", "Cylinder nosny konstrukcji (1.5x6m)", Vec3(0.55f, 0.58f, 0.65f) },
-                { "Brama Bezpieczenstwa", "Przesuwne pancerne drzwi z czujnikiem", Vec3(0.25f, 0.35f, 0.45f) }
+                { "Brama Bezpieczenstwa", "Przesuwne pancerne drzwi z czujnikiem", Vec3(0.25f, 0.35f, 0.45f) },
+                { "Fizyczna Skrzynia", "Drewniana skrzynia Havok (prop_crate)", Vec3(0.65f, 0.50f, 0.35f) },
+                { "Wybuchowa Beczka", "Czerwona beczka paliwa (prop_barrel)", Vec3(0.90f, 0.20f, 0.20f) }
             };
 
             PrebuiltDesc cat1Items[] = {
@@ -1885,7 +2138,7 @@ public:
             float startY = catY + 30.0f;
             float cardH = isCat0 ? 44.0f : 36.0f;
             float cardSpacing = cardH + 5.0f;
-            int count = isCat0 ? 8 : 9;
+            int count = isCat0 ? 10 : 9;
             const PrebuiltDesc* activeItems = isCat0 ? cat0Items : cat1Items;
 
             for (int i = 0; i < count; ++i) {
@@ -1895,7 +2148,7 @@ public:
                 Renderer::drawRect(l.rightX + 10.0f, cy, 6.0f, cardH, activeItems[i].color);
 
                 // Dedicated entity / weapon icon for each prebuilt item
-                int iconType = isCat0 ? i : 8; // 8 = Weapon Silhouette
+                int iconType = isCat0 ? (i == 8 ? 9 : (i == 9 ? 10 : i)) : 8; // 8 = Weapon Silhouette, 9 = Crate, 10 = Barrel
                 Lab::HammerIcons::drawEntityIcon(iconType, l.rightX + 20.0f, cy + (cardH - 26.0f) * 0.5f, activeItems[i].color, Vec3(0.93f, 0.94f, 0.96f));
 
                 LabFont::drawText(l.rightX + 52.0f, cy + 4.0f, activeItems[i].title, 1.5f, textDark, LabFontType::System);
@@ -2225,12 +2478,29 @@ public:
             LabFont::drawText(conX + 12.0f, conY + 28.0f + i * 14.0f, _consoleMessages[i], 1.5f, Vec3(0.1f, 0.15f, 0.2f), LabFontType::System);
         }
 
+        // CSG Clip Tool HUD Banner when active
+        if (_activeTool == 6) {
+            float bannerW = 660.0f;
+            float bannerH = 34.0f;
+            float bx = (w - bannerW) * 0.5f;
+            float by = 65.0f;
+            Renderer::drawRect(bx, by, bannerW, bannerH, Vec3(0.12f, 0.14f, 0.18f));
+            Renderer::drawRect(bx, by, bannerW, 2.0f, orangeGlow);
+            Renderer::drawRect(bx, by + bannerH - 1.0f, bannerW, 1.0f, winBorder);
+
+            std::string modeStr = (_clipMode == ClipMode::KeepFront) ? "KEEP FRONT (Positive Side)" :
+                                  (_clipMode == ClipMode::KeepBack)  ? "KEEP BACK (Negative Side)" :
+                                                                       "SPLIT & KEEP BOTH BRUSHES";
+            std::string bannerText = "CSG CLIP TOOL | " + modeStr + " [Shift+X / X] | [ENTER] Slice Brush";
+            LabFont::drawText(bx + 14.0f, by + 8.0f, bannerText, 1.5f, Vec3(1.0f, 0.95f, 0.90f), LabFontType::GeoSans);
+        }
+
         // ==================== 6. STATUS BAR ====================
         float sbY = h - 22.0f;
         Renderer::drawRect(0, sbY, w, 22.0f, winBg);
         Renderer::drawRect(0, sbY, w, 1.0f, winBorder);
 
-        std::string sbText = "RMB Fly | LMB Pick/Apply | E Place | F Focus | Ctrl+D Duplicate | Del Delete | " + _cullingStats;
+        std::string sbText = "RMB Fly | LMB Pick/Apply | E Place | X Clip | ENTER Commit | F Focus | Ctrl+D Duplicate | Del Delete | " + _cullingStats;
         LabFont::drawText(10.0f, sbY + 5.0f, sbText, 1.5f, textDark, LabFontType::System);
         std::string gridStr = "Snap: " + std::to_string((int)_gridSnap) + " | F9: Run";
         LabFont::drawText(w - 240.0f, sbY + 5.0f, gridStr, 1.5f, textDark, LabFontType::System);
@@ -2458,6 +2728,12 @@ private:
     float _gridSnap = 1.0f;
     float _sunAngle = 45.0f;
 
+    // CSG Clipping Tool State
+    ClipMode _clipMode = ClipMode::KeepBoth;
+    Vec3 _clipPointA{ 0, 0, 0 };
+    Vec3 _clipPointB{ 0, 0, 0 };
+    int _clipStep = 0;
+
     std::vector<std::string> _consoleMessages;
     std::string _cullingStats = "";
 
@@ -2465,6 +2741,8 @@ private:
     bool _lmbPressed = false;
     bool _rmbPressed = false;
     bool _ePressed = false;
+    bool _xPressed = false;
+    bool _enterPressed = false;
     bool _ctrlSPressed = false;
     bool _ctrlOPressed = false;
     bool _ctrlNPressed = false;

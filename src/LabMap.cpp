@@ -98,6 +98,42 @@ namespace Lab {
                         ss >> b.uvMode;
                     }
                     map->brushes.push_back(b);
+                } else if (token == "poly_brush") {
+                    MapBrush b;
+                    b.type = "poly";
+                    size_t vCount = 0, iCount = 0;
+                    ss >> b.position.x >> b.position.y >> b.position.z
+                       >> b.size.x >> b.size.y >> b.size.z
+                       >> b.color.x >> b.color.y >> b.color.z;
+                    if (ss >> b.texturePath) {
+                        if (b.texturePath == "\"\"") b.texturePath = "";
+                    }
+                    if (ss >> b.uvScale.x >> b.uvScale.y) {
+                        ss >> b.uvMode;
+                    }
+                    if (ss >> vCount >> iCount) {
+                        for (size_t vi = 0; vi < vCount && std::getline(file, line); ++vi) {
+                            std::stringstream vss(line);
+                            std::string vTok;
+                            vss >> vTok;
+                            if (vTok == "v") {
+                                Vec3 vp, vn;
+                                Vec2 vt;
+                                vss >> vp.x >> vp.y >> vp.z >> vn.x >> vn.y >> vn.z >> vt.x >> vt.y;
+                                b.customVertices.push_back(Vertex(vp, vn, vt, b.color));
+                            }
+                        }
+                        if (std::getline(file, line)) {
+                            std::stringstream iss(line);
+                            std::string idxTok;
+                            iss >> idxTok;
+                            for (size_t ii = 0; ii < iCount; ++ii) {
+                                unsigned int idxVal = 0;
+                                if (iss >> idxVal) b.customIndices.push_back(idxVal);
+                            }
+                        }
+                    }
+                    map->brushes.push_back(b);
                 } else if (token == "prop") {
                     MapProp p;
                     ss >> p.modelPath >> p.position.x >> p.position.y >> p.position.z
@@ -260,12 +296,32 @@ namespace Lab {
         }
 
         for (const auto& b : brushes) {
-            file << "    brush " << b.type << " "
-                 << b.position.x << " " << b.position.y << " " << b.position.z << " "
-                 << b.size.x << " " << b.size.y << " " << b.size.z << " "
-                 << b.color.x << " " << b.color.y << " " << b.color.z << " "
-                 << (b.texturePath.empty() ? "\"\"" : b.texturePath) << " "
-                 << b.uvScale.x << " " << b.uvScale.y << " " << b.uvMode << "\n";
+            if (b.type == "poly" && !b.customVertices.empty()) {
+                file << "    poly_brush "
+                     << b.position.x << " " << b.position.y << " " << b.position.z << " "
+                     << b.size.x << " " << b.size.y << " " << b.size.z << " "
+                     << b.color.x << " " << b.color.y << " " << b.color.z << " "
+                     << (b.texturePath.empty() ? "\"\"" : b.texturePath) << " "
+                     << b.uvScale.x << " " << b.uvScale.y << " " << b.uvMode << " "
+                     << b.customVertices.size() << " " << b.customIndices.size() << "\n";
+                for (const auto& v : b.customVertices) {
+                    file << "        v " << v.position.x << " " << v.position.y << " " << v.position.z << " "
+                         << v.normal.x << " " << v.normal.y << " " << v.normal.z << " "
+                         << v.texCoords.x << " " << v.texCoords.y << "\n";
+                }
+                file << "        idx";
+                for (unsigned int idxVal : b.customIndices) {
+                    file << " " << idxVal;
+                }
+                file << "\n";
+            } else {
+                file << "    brush " << b.type << " "
+                     << b.position.x << " " << b.position.y << " " << b.position.z << " "
+                     << b.size.x << " " << b.size.y << " " << b.size.z << " "
+                     << b.color.x << " " << b.color.y << " " << b.color.z << " "
+                     << (b.texturePath.empty() ? "\"\"" : b.texturePath) << " "
+                     << b.uvScale.x << " " << b.uvScale.y << " " << b.uvMode << "\n";
+            }
         }
 
         for (const auto& p : props) {

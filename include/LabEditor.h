@@ -442,10 +442,32 @@ namespace Lab {
                 case 7: // Security Door
                     drawHammerIcon(4, x + 1.0f, y + 1.0f, color, bg);
                     break;
-                default: // Weapon Spawn Silhouette (Gun barrel + grip + magazine)
+                case 8: // Weapon Spawn Silhouette (Gun barrel + grip + magazine)
                     Renderer::drawRect(x + 5.0f, y + 10.0f, 16.0f, 4.0f, color);
                     Renderer::drawRect(x + 7.0f, y + 14.0f, 4.0f, 7.0f, color);
                     Renderer::drawRect(x + 13.0f, y + 14.0f, 3.0f, 5.0f, Vec3(0.2f, 0.2f, 0.2f));
+                    break;
+                case 9: // Wooden Crate (Source Engine cedar box with cross brace)
+                    Renderer::drawRect(x + 4.0f, y + 4.0f, 18.0f, 18.0f, Vec3(0.60f, 0.42f, 0.25f));
+                    Renderer::drawRect(x + 4.0f, y + 4.0f, 18.0f, 2.0f, Vec3(0.25f, 0.26f, 0.28f));
+                    Renderer::drawRect(x + 4.0f, y + 20.0f, 18.0f, 2.0f, Vec3(0.25f, 0.26f, 0.28f));
+                    Renderer::drawRect(x + 4.0f, y + 4.0f, 2.0f, 18.0f, Vec3(0.25f, 0.26f, 0.28f));
+                    Renderer::drawRect(x + 20.0f, y + 4.0f, 2.0f, 18.0f, Vec3(0.25f, 0.26f, 0.28f));
+                    Renderer::drawRect(x + 6.0f, y + 6.0f, 14.0f, 2.0f, Vec3(0.48f, 0.32f, 0.18f));
+                    Renderer::drawRect(x + 8.0f, y + 10.0f, 10.0f, 2.0f, Vec3(0.48f, 0.32f, 0.18f));
+                    Renderer::drawRect(x + 10.0f, y + 14.0f, 6.0f, 2.0f, Vec3(0.48f, 0.32f, 0.18f));
+                    break;
+                case 10: // Red Hazard Fuel Barrel (Crimson with yellow/black hazard band)
+                    Renderer::drawRect(x + 6.0f, y + 4.0f, 14.0f, 18.0f, Vec3(0.85f, 0.15f, 0.15f));
+                    Renderer::drawRect(x + 5.0f, y + 3.0f, 16.0f, 2.0f, Vec3(0.25f, 0.26f, 0.28f));
+                    Renderer::drawRect(x + 5.0f, y + 21.0f, 16.0f, 2.0f, Vec3(0.25f, 0.26f, 0.28f));
+                    // Yellow/black hazard stripe in center
+                    Renderer::drawRect(x + 6.0f, y + 10.0f, 14.0f, 5.0f, Vec3(0.95f, 0.82f, 0.1f));
+                    Renderer::drawRect(x + 8.0f, y + 10.0f, 3.0f, 5.0f, Vec3(0.12f, 0.12f, 0.14f));
+                    Renderer::drawRect(x + 14.0f, y + 10.0f, 3.0f, 5.0f, Vec3(0.12f, 0.12f, 0.14f));
+                    break;
+                default:
+                    Renderer::drawRect(x + 6.0f, y + 6.0f, 14.0f, 14.0f, color);
                     break;
             }
         }

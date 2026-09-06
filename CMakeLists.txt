@@ -50,6 +50,7 @@ set(ENGINE_SOURCES
     src/LabLight.cpp
     src/LabSkeletal.cpp
     src/LabPhysics.cpp
+    src/LabCSG.cpp
     src/glad/src/gl.c
 )
 
@@ -73,6 +74,7 @@ set(ENGINE_HEADERS
     include/LabLight.h
     include/LabSkeletal.h
     include/LabPhysics.h
+    include/LabCSG.h
     include/Lab.h
 )
 

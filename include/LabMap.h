@@ -2,6 +2,7 @@
 
 #include "LabMath.h"
 #include "LabSession.h"
+#include "LabRenderer.h"
 #include <string>
 #include <vector>
 #include <memory>
@@ -24,6 +25,11 @@ namespace Lab {
         std::string texturePath = "";
         Vec2 uvScale = { 0.25f, 0.25f };
         int uvMode = 1;
+
+        // Custom polygon vertices and indices for CSG clipped brushes (type == "poly")
+        std::vector<Vertex> customVertices;
+        std::vector<unsigned int> customIndices;
+        mutable std::shared_ptr<Mesh> runtimeMesh;
     };
 
     struct MapProp {

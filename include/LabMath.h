@@ -7,6 +7,26 @@ namespace Lab {
     struct Vec2 {
         float x, y;
         Vec2(float x = 0.0f, float y = 0.0f) : x(x), y(y) {}
+
+        Vec2 operator+(const Vec2& v) const { return { x + v.x, y + v.y }; }
+        Vec2 operator-(const Vec2& v) const { return { x - v.x, y - v.y }; }
+        Vec2 operator-() const { return { -x, -y }; }
+        Vec2 operator*(float s) const { return { x * s, y * s }; }
+        Vec2 operator/(float s) const { return { x / s, y / s }; }
+
+        Vec2& operator+=(const Vec2& v) { x += v.x; y += v.y; return *this; }
+        Vec2& operator-=(const Vec2& v) { x -= v.x; y -= v.y; return *this; }
+        Vec2& operator*=(float s) { x *= s; y *= s; return *this; }
+
+        float lengthSq() const { return x * x + y * y; }
+        float length() const { return std::sqrt(lengthSq()); }
+
+        Vec2 normalized() const {
+            float len = length();
+            return (len > 0) ? *this / len : Vec2(0, 0);
+        }
+
+        static float dot(const Vec2& a, const Vec2& b) { return a.x * b.x + a.y * b.y; }
     };
 
     struct Vec4 {

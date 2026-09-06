@@ -201,7 +201,7 @@
         <ol id="toc-list" class="toc-list">
           <li><a href="#sec-overview"><span class="tocnumber">1</span> <span class="toctext">Overview &amp; Architecture</span></a></li>
           <li><a href="#sec-navigation"><span class="tocnumber">2</span> <span class="toctext">3D Viewport Navigation &amp; Camera</span></a></li>
-          <li><a href="#sec-tools"><span class="tocnumber">3</span> <span class="toctext">The 6 Core Editing Tools</span></a>
+          <li><a href="#sec-tools"><span class="tocnumber">3</span> <span class="toctext">The 7 Core Editing Tools</span></a>
             <ol style="list-style:none; padding-left:14px; margin-top:2px;">
               <li><a href="#sec-tool-0"><span class="tocnumber">3.1</span> <span class="toctext">Tool 0: Selection Pointer (Raycast Picker)</span></a></li>
               <li><a href="#sec-tool-1"><span class="tocnumber">3.2</span> <span class="toctext">Tool 1: Block / Brush Tool (3D Primitive)</span></a></li>
@@ -209,6 +209,7 @@
               <li><a href="#sec-tool-3"><span class="tocnumber">3.4</span> <span class="toctext">Tool 3: Texture Pipette (LMB / RMB)</span></a></li>
               <li><a href="#sec-tool-4"><span class="tocnumber">3.5</span> <span class="toctext">Tool 4: Dynamic Door Tool (Airlock Sector)</span></a></li>
               <li><a href="#sec-tool-5"><span class="tocnumber">3.6</span> <span class="toctext">Tool 5: Entity Spawn Tool (FFA / Team Spawns)</span></a></li>
+              <li><a href="#sec-tool-6"><span class="tocnumber">3.7</span> <span class="toctext">Tool 6: CSG Clip Tool (Sutherland-Hodgman Polygon Slicing)</span></a></li>
             </ol>
           </li>
           <li><a href="#sec-properties"><span class="tocnumber">4</span> <span class="toctext">Entity Properties Inspector Panel</span></a></li>
@@ -318,6 +319,20 @@
             </div>
             <p>
               Places player spawn entities with team affiliation flags: neutral Deathmatch (<code>info_player_deathmatch</code>), Team Alpha Blue HQ (<code>info_player_team1</code>), and Team Beta Red HQ (<code>info_player_team2</code>).
+            </p>
+          </div>
+
+          <div id="sec-tool-6" class="tool-tile">
+            <div class="tool-tile-header">
+              <h4>Tool 6: CSG Clip Tool</h4>
+              <span class="tool-badge">TOOL 6</span>
+            </div>
+            <p>
+              Full 3D Constructive Solid Geometry (CSG) clipping and polygon slicing tool inspired by Valve Hammer's Clip Tool. Utilizes <strong>Sutherland-Hodgman polygon clipping</strong> and cross-section cap generation to slice solid brushes into watertight convex polyhedra.
+            </p>
+            <p>
+              Press <code>X</code> or <code>Shift+X</code> to cycle clipping modes:
+              <strong>Keep Front</strong> (retains positive half-space), <strong>Keep Back</strong> (retains negative half-space), or <strong>Keep Both</strong> (splits brush into two convex brushes). Press <code>Enter</code> to commit the clip. Preserves planar texture UV mappings and normals.
             </p>
           </div>
 
@@ -527,6 +542,16 @@ END_ENTITIES</code></pre>
                 <td>Create new clean map with default ground brush</td>
                 <td>Level File</td>
               </tr>
+              <tr>
+                <td><code>X</code> / <code>Shift + X</code></td>
+                <td>Activate CSG Clip Tool / Cycle Clip Mode (Keep Front / Keep Back / Keep Both)</td>
+                <td>CSG Geometry</td>
+              </tr>
+              <tr>
+                <td><code>Enter</code></td>
+                <td>Commit CSG Clip (slice selected brush with cutting plane)</td>
+                <td>CSG Geometry</td>
+              </tr>
               <tr style="background: rgba(56, 189, 248, 0.1);">
                 <td><strong style="color:var(--wiki-accent);">F9 / Run in Engine</strong></td>
                 <td><strong style="color:var(--wiki-accent);">Saves map and instantly launches <code>Lab.exe</code> in the game engine!</strong></td>
@@ -548,6 +573,16 @@ END_ENTITIES</code></pre>
 
         <div class="wiki-gallery-grid">
           
+          <div class="thumb">
+            <div class="thumbinner">
+              <img src="assets/img/test_csg_clipping_and_hammer.webp" data-full="assets/img/test_csg_clipping_and_hammer.png" alt="CSG geometry clipping and physical props in Hammer" class="thumbimage">
+              <div class="thumbcaption">
+                <span class="magnify-icon">&#128269;</span>
+                CSG Geometry Clipping &amp; Physical Props: 3D Sutherland-Hodgman plane slicing, cap triangulation, and Havok wooden crates and explosive barrels.
+              </div>
+            </div>
+          </div>
+
           <div class="thumb">
             <div class="thumbinner">
               <img src="assets/img/test_hammer_ui.webp" data-full="assets/img/test_hammer_ui.png" alt="LabHammer editor interface" class="thumbimage">
