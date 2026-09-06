@@ -1615,7 +1615,8 @@ public:
         _weaponSystem.renderViewModel(_camera, _weaponAnimator, tex, stlMesh, _muzzleFlashTime,
                                       &grip.rightSocketPos, &grip.rightSocketRot,
                                       &grip.leftSocketPos, &grip.leftSocketRot,
-                                      &skin.tintColor);
+                                      &skin.tintColor,
+                                      &grip.weaponOffset, &grip.weaponRotation, &grip.weaponScale);
     }
 
     void drawMenu() {

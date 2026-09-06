@@ -3487,7 +3487,71 @@ int main() {
         }
         std::cout << "  [PASS] Undo / Redo history snapshots and socket clipboard validated!\n";
 
-        // 8. Visual Verification 1: Character Studio Stage & Hammer UI (Full responsive layout)
+        // 8. Verify Weapon 3D Model Transforms (Translation, Rotation, Scaling)
+        studio.setSelectedWeapon(3); // M4A4-S
+        studio.getWeaponGripMut(Lab::WeaponID::M4A4S).weaponOffset = Lab::Vec3(0.04f, -0.02f, 0.08f);
+        studio.getWeaponGripMut(Lab::WeaponID::M4A4S).weaponRotation = Lab::Vec3(15.0f, -10.0f, 5.0f);
+        studio.getWeaponGripMut(Lab::WeaponID::M4A4S).weaponScale = Lab::Vec3(1.25f, 1.25f, 1.25f);
+
+        const auto& m4GripCheck = studio.getWeaponGrip(Lab::WeaponID::M4A4S);
+        if (std::abs(m4GripCheck.weaponOffset.x - 0.04f) > 0.001f ||
+            std::abs(m4GripCheck.weaponRotation.x - 15.0f) > 0.001f ||
+            std::abs(m4GripCheck.weaponScale.x - 1.25f) > 0.001f) {
+            std::cerr << "Assertion failed: Weapon transform (offset, rotation, scale) setting failed!\n";
+            return 1;
+        }
+
+        // Test Serialization of weapon transform
+        std::string transformCfg = "build/test_transform.cfg";
+        studio.saveConfig(transformCfg);
+        Lab::CharacterStudio studioTransformLoader;
+        studioTransformLoader.loadConfig(transformCfg);
+        const auto& loadedGrip = studioTransformLoader.getWeaponGrip(Lab::WeaponID::M4A4S);
+        if (std::abs(loadedGrip.weaponOffset.z - 0.08f) > 0.001f ||
+            std::abs(loadedGrip.weaponRotation.y - (-10.0f)) > 0.001f ||
+            std::abs(loadedGrip.weaponScale.z - 1.25f) > 0.001f) {
+            std::cerr << "Assertion failed: Serialization of weapon transform to .cfg failed!\n";
+            return 1;
+        }
+        std::filesystem::remove(transformCfg);
+
+        // Test Reset helpers
+        studio.centerActiveWeapon();
+        if (std::abs(studio.getWeaponGrip(Lab::WeaponID::M4A4S).weaponOffset.x) > 0.001f) {
+            std::cerr << "Assertion failed: centerActiveWeapon failed!\n";
+            return 1;
+        }
+        studio.resetActiveWeaponRotation();
+        if (std::abs(studio.getWeaponGrip(Lab::WeaponID::M4A4S).weaponRotation.x) > 0.001f) {
+            std::cerr << "Assertion failed: resetActiveWeaponRotation failed!\n";
+            return 1;
+        }
+        studio.resetActiveWeaponScale();
+        if (std::abs(studio.getWeaponGrip(Lab::WeaponID::M4A4S).weaponScale.x - 1.0f) > 0.001f) {
+            std::cerr << "Assertion failed: resetActiveWeaponScale failed!\n";
+            return 1;
+        }
+
+        // Test Tool Modes
+        studio.setViewportToolMode(Lab::ViewportToolMode::MoveWeapon);
+        if (studio.getViewportToolMode() != Lab::ViewportToolMode::MoveWeapon) {
+            std::cerr << "Assertion failed: MoveWeapon tool mode setting failed!\n";
+            return 1;
+        }
+        studio.setViewportToolMode(Lab::ViewportToolMode::RotateWeapon);
+        if (studio.getViewportToolMode() != Lab::ViewportToolMode::RotateWeapon) {
+            std::cerr << "Assertion failed: RotateWeapon tool mode setting failed!\n";
+            return 1;
+        }
+        studio.setViewportToolMode(Lab::ViewportToolMode::ScaleWeapon);
+        if (studio.getViewportToolMode() != Lab::ViewportToolMode::ScaleWeapon) {
+            std::cerr << "Assertion failed: ScaleWeapon tool mode setting failed!\n";
+            return 1;
+        }
+        studio.setViewportToolMode(Lab::ViewportToolMode::OrbitCamera);
+        std::cout << "  [PASS] Weapon translation, rotation, scaling, and viewport tools validated!\n";
+
+        // 9. Visual Verification 1: Character Studio Stage & Hammer UI (Full responsive layout)
         glClearColor(0.12f, 0.13f, 0.15f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -3499,11 +3563,12 @@ int main() {
         saveFrameToBMP("test_character_studio.bmp", w, h);
         std::cout << "  [PASS] Saved Character Studio & Outfit visual frame to 'test_character_studio.bmp'.\n";
 
-        // Visual Verification 2: Weapon Grip & FPP Arms Poser
+        // Visual Verification 2: Weapon Grip & FPP Arms Poser with Weapon Transform Sub-Mode
         glClearColor(0.12f, 0.13f, 0.15f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         studio.setActiveTab(Lab::StudioTab::GripPoser);
+        studio.setPoserSubMode(Lab::PoserSubMode::WeaponTransform);
         studio.update(0.016f, 400.0f, 250.0f, false, false, 0.0f);
         studio.render(w, h);
 

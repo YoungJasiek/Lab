@@ -18,11 +18,30 @@ namespace Lab {
 
     // --- Weapon Grip & Socket Configuration ---
     struct WeaponGripConfig {
+        // Hand Sockets
         Vec3 rightSocketPos{-0.015f, -0.065f, -0.04f};
         Vec3 rightSocketRot{8.0f, 0.0f, -4.0f};
         Vec3 leftSocketPos{0.015f, 0.012f, -0.045f};
         Vec3 leftSocketRot{25.0f, 0.0f, -20.0f};
         Vec3 adsOffset{0.0f, -0.05f, 0.12f};
+
+        // Weapon 3D Model Transform (Translation, Rotation, Scale)
+        Vec3 weaponOffset{0.0f, 0.0f, 0.0f};     // Translation (X, Y, Z in meters)
+        Vec3 weaponRotation{0.0f, 0.0f, 0.0f};   // Rotation (Pitch X, Yaw Y, Roll Z in degrees)
+        Vec3 weaponScale{1.0f, 1.0f, 1.0f};      // Scale (Scale X, Y, Z, default 1.0)
+    };
+
+    enum class PoserSubMode : int {
+        WeaponTransform = 0,
+        HandSockets = 1,
+        AdsAlignment = 2
+    };
+
+    enum class ViewportToolMode : int {
+        OrbitCamera = 0,
+        MoveWeapon = 1,
+        RotateWeapon = 2,
+        ScaleWeapon = 3
     };
 
     // --- Reload Animation Timeline Choreography ---
@@ -159,6 +178,18 @@ namespace Lab {
         void copyGrip();
         void pasteGrip();
 
+        // Weapon Transform & Sub-Mode controls
+        PoserSubMode getPoserSubMode() const { return _poserSubMode; }
+        void setPoserSubMode(PoserSubMode mode) { _poserSubMode = mode; }
+
+        ViewportToolMode getViewportToolMode() const { return _viewportToolMode; }
+        void setViewportToolMode(ViewportToolMode mode) { _viewportToolMode = mode; }
+
+        void centerActiveWeapon();
+        void resetActiveWeaponRotation();
+        void resetActiveWeaponScale();
+        void resetActiveWeaponAllTransforms();
+
         // Dropdown Menu State
         enum class DropdownMenu : int {
             None = -1,
@@ -235,6 +266,8 @@ namespace Lab {
         FaceMorphWeights _faceMorphs;
 
         StudioTab _activeTab = StudioTab::GripPoser;
+        PoserSubMode _poserSubMode = PoserSubMode::WeaponTransform;
+        ViewportToolMode _viewportToolMode = ViewportToolMode::OrbitCamera;
         StudioViewMode _viewMode = StudioViewMode::ArmsFPP;
         int _selectedWeaponIndex = 3; // M4A4-S default
         bool _showGrid = true;

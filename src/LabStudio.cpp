@@ -265,6 +265,26 @@ namespace Lab {
                 log(_showGizmos ? "Gizmos ON" : "Gizmos OFF");
                 return;
             }
+            if (key == 87 || key == 'W') {
+                _viewportToolMode = ViewportToolMode::MoveWeapon;
+                log("Tool Mode: Move Weapon [W]");
+                return;
+            }
+            if (key == 69 || key == 'E') {
+                _viewportToolMode = ViewportToolMode::RotateWeapon;
+                log("Tool Mode: Rotate Weapon [E]");
+                return;
+            }
+            if (key == 84 || key == 'T') {
+                _viewportToolMode = ViewportToolMode::ScaleWeapon;
+                log("Tool Mode: Scale Weapon [T]");
+                return;
+            }
+            if (key == 81 || key == 'Q') {
+                _viewportToolMode = ViewportToolMode::OrbitCamera;
+                log("Tool Mode: Camera Orbit 360 [Q]");
+                return;
+            }
             if (key == 82 || key == 'R') {
                 _turntableAutoRotate = !_turntableAutoRotate;
                 return;
@@ -490,6 +510,32 @@ namespace Lab {
         log("Camera reset to optimal view pose.");
     }
 
+    void CharacterStudio::centerActiveWeapon() {
+        pushUndoState();
+        _weaponGrips[_selectedWeaponIndex].weaponOffset = Vec3(0.0f, 0.0f, 0.0f);
+        log("Centered weapon model offset to (0, 0, 0).");
+    }
+
+    void CharacterStudio::resetActiveWeaponRotation() {
+        pushUndoState();
+        _weaponGrips[_selectedWeaponIndex].weaponRotation = Vec3(0.0f, 0.0f, 0.0f);
+        log("Reset weapon model rotation to (0, 0, 0).");
+    }
+
+    void CharacterStudio::resetActiveWeaponScale() {
+        pushUndoState();
+        _weaponGrips[_selectedWeaponIndex].weaponScale = Vec3(1.0f, 1.0f, 1.0f);
+        log("Reset weapon model scale to (1.0, 1.0, 1.0).");
+    }
+
+    void CharacterStudio::resetActiveWeaponAllTransforms() {
+        pushUndoState();
+        _weaponGrips[_selectedWeaponIndex].weaponOffset = Vec3(0.0f, 0.0f, 0.0f);
+        _weaponGrips[_selectedWeaponIndex].weaponRotation = Vec3(0.0f, 0.0f, 0.0f);
+        _weaponGrips[_selectedWeaponIndex].weaponScale = Vec3(1.0f, 1.0f, 1.0f);
+        log("Reset all weapon transforms (offset, rotation, scale) to identity.");
+    }
+
     const WeaponGripConfig& CharacterStudio::getWeaponGrip(WeaponID id) const {
         int idx = std::clamp(static_cast<int>(id), 0, 8);
         return _weaponGrips[idx];
@@ -542,20 +588,67 @@ namespace Lab {
         bool inViewport = (mouseX >= vpX && mouseX <= vpX + vpW && mouseY >= vpY && mouseY <= vpY + vpH);
 
         if (_activeDropdown == DropdownMenu::None && !_isDraggingScrubber && _activeSliderId == -1) {
-            if (lmbPressed && inViewport) {
-                _turntableYaw += dx * 0.4f;
-                _turntablePitch = std::clamp(_turntablePitch + dy * 0.4f, -85.0f, 85.0f);
+            if (_activeTab == StudioTab::GripPoser && inViewport) {
+                auto& grip = _weaponGrips[_selectedWeaponIndex];
+                if (_viewportToolMode == ViewportToolMode::MoveWeapon) {
+                    if (lmbPressed) {
+                        if (_lmbClicked) pushUndoState();
+                        grip.weaponOffset.x += dx * 0.0012f;
+                        grip.weaponOffset.y -= dy * 0.0012f;
+                    }
+                    if (std::abs(scrollDelta) > 0.001f) {
+                        pushUndoState();
+                        grip.weaponOffset.z += scrollDelta * 0.02f;
+                    }
+                } else if (_viewportToolMode == ViewportToolMode::RotateWeapon) {
+                    if (lmbPressed) {
+                        if (_lmbClicked) pushUndoState();
+                        grip.weaponRotation.y += dx * 0.4f;
+                        grip.weaponRotation.x += dy * 0.4f;
+                    }
+                    if (std::abs(scrollDelta) > 0.001f) {
+                        pushUndoState();
+                        grip.weaponRotation.z += scrollDelta * 4.0f;
+                    }
+                } else if (_viewportToolMode == ViewportToolMode::ScaleWeapon) {
+                    if (lmbPressed) {
+                        if (_lmbClicked) pushUndoState();
+                        float sDelta = (dx - dy) * 0.005f;
+                        grip.weaponScale.x = std::clamp(grip.weaponScale.x + sDelta, 0.05f, 5.0f);
+                        grip.weaponScale.y = std::clamp(grip.weaponScale.y + sDelta, 0.05f, 5.0f);
+                        grip.weaponScale.z = std::clamp(grip.weaponScale.z + sDelta, 0.05f, 5.0f);
+                    }
+                    if (std::abs(scrollDelta) > 0.001f) {
+                        pushUndoState();
+                        float sDelta = scrollDelta * 0.05f;
+                        grip.weaponScale.x = std::clamp(grip.weaponScale.x + sDelta, 0.05f, 5.0f);
+                        grip.weaponScale.y = std::clamp(grip.weaponScale.y + sDelta, 0.05f, 5.0f);
+                        grip.weaponScale.z = std::clamp(grip.weaponScale.z + sDelta, 0.05f, 5.0f);
+                    }
+                } else {
+                    // Orbit camera
+                    if (lmbPressed) {
+                        _turntableYaw += dx * 0.4f;
+                        _turntablePitch = std::clamp(_turntablePitch + dy * 0.4f, -85.0f, 85.0f);
+                    }
+                    if (std::abs(scrollDelta) > 0.001f) {
+                        _cameraDist = std::clamp(_cameraDist - scrollDelta * 0.15f, 0.4f, 5.0f);
+                    }
+                }
+            } else {
+                if (lmbPressed && inViewport) {
+                    _turntableYaw += dx * 0.4f;
+                    _turntablePitch = std::clamp(_turntablePitch + dy * 0.4f, -85.0f, 85.0f);
+                }
+                if (std::abs(scrollDelta) > 0.001f && inViewport) {
+                    _cameraDist = std::clamp(_cameraDist - scrollDelta * 0.15f, 0.4f, 5.0f);
+                }
             }
 
-            // RMB Orbit / Zoom inside viewport
+            // RMB Orbit / Zoom inside viewport in any mode
             if (rmbPressed && inViewport) {
                 _cameraDist = std::clamp(_cameraDist + dy * 0.01f, 0.4f, 5.0f);
             }
-        }
-
-        // Scroll wheel zoom inside viewport
-        if (std::abs(scrollDelta) > 0.001f && inViewport && _activeDropdown == DropdownMenu::None) {
-            _cameraDist = std::clamp(_cameraDist - scrollDelta * 0.15f, 0.4f, 5.0f);
         }
 
         // Reload Timeline Scrubber update
@@ -732,17 +825,18 @@ namespace Lab {
         };
         Mesh* weaponMesh = getMesh(stlNames[_selectedWeaponIndex]);
 
-        // Weapon Base Transform
-        Vec3 weaponPos(0.0f, 0.0f, 0.0f);
-        Vec3 weaponRot(0.0f, 0.0f, 0.0f);
+        // Weapon Base Transform (including user offset, rotation and scale!)
+        Vec3 weaponPos = grip.weaponOffset;
+        Vec3 weaponRot = grip.weaponRotation;
+        Vec3 weaponScale = grip.weaponScale;
 
-        // Render Weapon with active skin and tint
+        // Render Weapon with active skin, tint and scale
         if (weaponMesh) {
-            Renderer::drawMesh(*weaponMesh, weaponPos, weaponRot, Vec3(1.0f, 1.0f, 1.0f), skin.tintColor, skinTex);
+            Renderer::drawMesh(*weaponMesh, weaponPos, weaponRot, weaponScale, skin.tintColor, skinTex);
         } else {
             // High-detail procedural weapon fallback
-            Renderer::drawCube(weaponPos, weaponRot, Vec3(0.06f, 0.12f, 0.65f), skin.tintColor, skinTex, true);
-            Renderer::drawCube(weaponPos + Vec3(0.0f, -0.08f, -0.06f), weaponRot + Vec3(-12.0f, 0.0f, 0.0f), Vec3(0.045f, 0.11f, 0.05f), Vec3(0.12f, 0.13f, 0.15f), nullptr, true);
+            Renderer::drawCube(weaponPos, weaponRot, Vec3(0.06f * weaponScale.x, 0.12f * weaponScale.y, 0.65f * weaponScale.z), skin.tintColor, skinTex, true);
+            Renderer::drawCube(weaponPos + Vec3(0.0f, -0.08f * weaponScale.y, -0.06f * weaponScale.z), weaponRot + Vec3(-12.0f, 0.0f, 0.0f), Vec3(0.045f * weaponScale.x, 0.11f * weaponScale.y, 0.05f * weaponScale.z), Vec3(0.12f, 0.13f, 0.15f), nullptr, true);
         }
 
         // Render Tactical Arms aligned to configured sockets!
@@ -752,8 +846,9 @@ namespace Lab {
                           &grip.leftSocketPos, &grip.leftSocketRot);
         }
 
-        // Render Socket Tripod Gizmos
+        // Render Socket & Weapon Origin Tripod Gizmos
         if (_showGizmos) {
+            renderSocketGizmo(weaponPos, weaponRot);
             renderSocketGizmo(weaponPos + grip.rightSocketPos, weaponRot + grip.rightSocketRot);
             renderSocketGizmo(weaponPos + grip.leftSocketPos, weaponRot + grip.leftSocketRot);
         }
@@ -803,13 +898,14 @@ namespace Lab {
             magY = (magP < 0.5f) ? (-magP * 2.0f * 0.25f) : (-(1.0f - magP) * 2.0f * 0.25f);
         }
 
-        Vec3 weaponPos(0.0f, dipY, 0.0f);
-        Vec3 weaponRot(0.0f, 0.0f, tiltRoll);
+        Vec3 weaponPos = grip.weaponOffset + Vec3(0.0f, dipY, 0.0f);
+        Vec3 weaponRot = grip.weaponRotation + Vec3(0.0f, 0.0f, tiltRoll);
+        Vec3 weaponScale = grip.weaponScale;
 
         if (weaponMesh) {
-            Renderer::drawMesh(*weaponMesh, weaponPos, weaponRot, Vec3(1.0f, 1.0f, 1.0f), skin.tintColor, skinTex);
+            Renderer::drawMesh(*weaponMesh, weaponPos, weaponRot, weaponScale, skin.tintColor, skinTex);
         } else {
-            Renderer::drawCube(weaponPos, weaponRot, Vec3(0.06f, 0.12f, 0.65f), skin.tintColor, skinTex, true);
+            Renderer::drawCube(weaponPos, weaponRot, Vec3(0.06f * weaponScale.x, 0.12f * weaponScale.y, 0.65f * weaponScale.z), skin.tintColor, skinTex, true);
         }
 
         // Draw fresh or dropping magazine
@@ -1105,8 +1201,13 @@ namespace Lab {
             items.push_back({ "Undo", "Ctrl+Z", false, false, false, [this]() { undo(); }});
             items.push_back({ "Redo", "Ctrl+Y", false, false, false, [this]() { redo(); }});
             items.push_back({ "", "", true, false, false, nullptr }); // Separator
-            items.push_back({ "Copy Grip Sockets", "Ctrl+C", false, false, false, [this]() { copyGrip(); }});
-            items.push_back({ "Paste Grip Sockets", "Ctrl+V", false, false, false, [this]() { pasteGrip(); }});
+            items.push_back({ "Copy Grip & Transforms", "Ctrl+C", false, false, false, [this]() { copyGrip(); }});
+            items.push_back({ "Paste Grip & Transforms", "Ctrl+V", false, false, false, [this]() { pasteGrip(); }});
+            items.push_back({ "", "", true, false, false, nullptr }); // Separator
+            items.push_back({ "Center Weapon Model", "", false, false, false, [this]() { centerActiveWeapon(); }});
+            items.push_back({ "Reset Weapon Rotation", "", false, false, false, [this]() { resetActiveWeaponRotation(); }});
+            items.push_back({ "Reset Weapon Scale", "", false, false, false, [this]() { resetActiveWeaponScale(); }});
+            items.push_back({ "Reset All Transforms", "", false, false, false, [this]() { resetActiveWeaponAllTransforms(); }});
             items.push_back({ "Reset Active Grip", "", false, false, false, [this]() {
                 pushUndoState();
                 _weaponGrips[_selectedWeaponIndex] = WeaponGripConfig{};
@@ -1144,6 +1245,19 @@ namespace Lab {
             }});
         } else if (_activeDropdown == DropdownMenu::Tools) {
             menuX = 144.0f;
+            items.push_back({ "Tool: Move Weapon", "W", false, _viewportToolMode == ViewportToolMode::MoveWeapon, true, [this]() {
+                _viewportToolMode = ViewportToolMode::MoveWeapon;
+            }});
+            items.push_back({ "Tool: Rotate Weapon", "E", false, _viewportToolMode == ViewportToolMode::RotateWeapon, true, [this]() {
+                _viewportToolMode = ViewportToolMode::RotateWeapon;
+            }});
+            items.push_back({ "Tool: Scale Weapon", "T", false, _viewportToolMode == ViewportToolMode::ScaleWeapon, true, [this]() {
+                _viewportToolMode = ViewportToolMode::ScaleWeapon;
+            }});
+            items.push_back({ "Tool: Orbit Camera", "Q", false, _viewportToolMode == ViewportToolMode::OrbitCamera, true, [this]() {
+                _viewportToolMode = ViewportToolMode::OrbitCamera;
+            }});
+            items.push_back({ "", "", true, false, false, nullptr }); // Separator
             items.push_back({ "Audition Reload SFX", "", false, false, false, [this]() {
                 AudioEngine::playSound(SoundID::Reload, 1.0f, 1.0f);
                 log("Auditioned active reload sound FX.");
@@ -1290,6 +1404,32 @@ namespace Lab {
         if (drawHammerButton(btnX, tbY + 2.0f, 62.0f, 24.0f, "CAMERA")) {
             resetCamera();
         }
+        btnX += 66.0f;
+
+        // Separator
+        Renderer::drawRect(btnX, tbY + 4.0f, 2.0f, 20.0f, Vec3(0.14f, 0.15f, 0.17f));
+        btnX += 8.0f;
+
+        // Viewport Tool Modes (Hammer / 3D Transform Tools)
+        if (drawHammerButton(btnX, tbY + 2.0f, 54.0f, 24.0f, "ORBIT", _viewportToolMode == ViewportToolMode::OrbitCamera)) {
+            _viewportToolMode = ViewportToolMode::OrbitCamera;
+            log("Viewport Mode: Camera Orbit 360 [Q]");
+        }
+        btnX += 58.0f;
+        if (drawHammerButton(btnX, tbY + 2.0f, 52.0f, 24.0f, "MOVE", _viewportToolMode == ViewportToolMode::MoveWeapon)) {
+            _viewportToolMode = ViewportToolMode::MoveWeapon;
+            log("Viewport Mode: Move Weapon [W] (LMB drag X/Y, Wheel Z)");
+        }
+        btnX += 56.0f;
+        if (drawHammerButton(btnX, tbY + 2.0f, 52.0f, 24.0f, "ROT", _viewportToolMode == ViewportToolMode::RotateWeapon)) {
+            _viewportToolMode = ViewportToolMode::RotateWeapon;
+            log("Viewport Mode: Rotate Weapon [E] (LMB drag Pitch/Yaw, Wheel Roll)");
+        }
+        btnX += 56.0f;
+        if (drawHammerButton(btnX, tbY + 2.0f, 56.0f, 24.0f, "SCALE", _viewportToolMode == ViewportToolMode::ScaleWeapon)) {
+            _viewportToolMode = ViewportToolMode::ScaleWeapon;
+            log("Viewport Mode: Scale Weapon [T] (LMB drag / Wheel scale)");
+        }
     }
 
     void CharacterStudio::renderHammerLeftToolPalette(float h) {
@@ -1397,49 +1537,138 @@ namespace Lab {
 
         auto& grip = _weaponGrips[_selectedWeaponIndex];
 
-        // Group Box: Right Hand Socket (Trigger)
-        Renderer::drawRect(x + 8.0f, curY, w - 16.0f, 130.0f, Vec3(0.18f, 0.19f, 0.21f));
-        drawHammerBevel(x + 8.0f, curY, w - 16.0f, 130.0f, true);
-        LabFont::drawText(x + 14.0f, curY + 6.0f, "RIGHT HAND SOCKET (TRIGGER GRIP):", 1.4f, Vec3(0.4f, 0.85f, 1.0f), LabFontType::System);
-
-        drawHammerSlider(x + 14.0f, curY + 26.0f, w - 28.0f, 18.0f, "Pos X (Offset):", grip.rightSocketPos.x, -0.20f, 0.20f);
-        drawHammerSlider(x + 14.0f, curY + 46.0f, w - 28.0f, 18.0f, "Pos Y (Height):", grip.rightSocketPos.y, -0.25f, 0.15f);
-        drawHammerSlider(x + 14.0f, curY + 66.0f, w - 28.0f, 18.0f, "Pos Z (Reach):", grip.rightSocketPos.z, -0.30f, 0.15f);
-        drawHammerSlider(x + 14.0f, curY + 86.0f, w - 28.0f, 18.0f, "Pitch (Rot X):", grip.rightSocketRot.x, -45.0f, 45.0f, "%.1f deg");
-        drawHammerSlider(x + 14.0f, curY + 106.0f, w - 28.0f, 18.0f, "Roll (Rot Z):", grip.rightSocketRot.z, -45.0f, 45.0f, "%.1f deg");
-        curY += 138.0f;
-
-        // Group Box: Left Hand Socket (Support)
-        Renderer::drawRect(x + 8.0f, curY, w - 16.0f, 130.0f, Vec3(0.18f, 0.19f, 0.21f));
-        drawHammerBevel(x + 8.0f, curY, w - 16.0f, 130.0f, true);
-        LabFont::drawText(x + 14.0f, curY + 6.0f, "LEFT HAND SOCKET (FOREGRIP SUPPORT):", 1.4f, Vec3(0.4f, 0.95f, 0.4f), LabFontType::System);
-
-        drawHammerSlider(x + 14.0f, curY + 26.0f, w - 28.0f, 18.0f, "Pos X (Offset):", grip.leftSocketPos.x, -0.25f, 0.20f);
-        drawHammerSlider(x + 14.0f, curY + 46.0f, w - 28.0f, 18.0f, "Pos Y (Height):", grip.leftSocketPos.y, -0.25f, 0.20f);
-        drawHammerSlider(x + 14.0f, curY + 66.0f, w - 28.0f, 18.0f, "Pos Z (Reach):", grip.leftSocketPos.z, -0.60f, 0.05f);
-        drawHammerSlider(x + 14.0f, curY + 86.0f, w - 28.0f, 18.0f, "Pitch (Rot X):", grip.leftSocketRot.x, -60.0f, 60.0f, "%.1f deg");
-        drawHammerSlider(x + 14.0f, curY + 106.0f, w - 28.0f, 18.0f, "Roll (Rot Z):", grip.leftSocketRot.z, -60.0f, 60.0f, "%.1f deg");
-        curY += 138.0f;
-
-        // Group Box: ADS Alignment
-        Renderer::drawRect(x + 8.0f, curY, w - 16.0f, 80.0f, Vec3(0.18f, 0.19f, 0.21f));
-        drawHammerBevel(x + 8.0f, curY, w - 16.0f, 80.0f, true);
-        LabFont::drawText(x + 14.0f, curY + 6.0f, "ADS OPTICAL CENTER ALIGNMENT:", 1.4f, Vec3(0.95f, 0.65f, 0.2f), LabFontType::System);
-
-        drawHammerSlider(x + 14.0f, curY + 26.0f, w - 28.0f, 18.0f, "Sight X Align:", grip.adsOffset.x, -0.10f, 0.10f);
-        drawHammerSlider(x + 14.0f, curY + 46.0f, w - 28.0f, 18.0f, "Sight Y Height:", grip.adsOffset.y, -0.15f, 0.05f);
-        curY += 88.0f;
-
-        // Action Buttons
-        float actW = (w - 32.0f) * 0.5f;
-        if (drawHammerButton(x + 12.0f, curY, actW, 26.0f, "Reset This Grip")) {
-            pushUndoState();
-            resetDefaults();
-            log("Reset weapon grip to default anatomical socket pose.");
+        // Sub-mode selector bar
+        float subPad = 4.0f;
+        float subW = (w - 20.0f - 2.0f * subPad) / 3.0f;
+        if (drawHammerButton(x + 10.0f, curY, subW, 22.0f, "1. TRANSFORM", _poserSubMode == PoserSubMode::WeaponTransform)) {
+            _poserSubMode = PoserSubMode::WeaponTransform;
+            log("Switched to Weapon Model Transform (Translation, Rotation, Scaling).");
         }
-        if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply In-Game", false, true)) {
-            saveConfig("assets/configs/character_studio.cfg");
-            log("Saved and applied custom weapon sockets to active game!");
+        if (drawHammerButton(x + 10.0f + subW + subPad, curY, subW, 22.0f, "2. SOCKETS", _poserSubMode == PoserSubMode::HandSockets)) {
+            _poserSubMode = PoserSubMode::HandSockets;
+            log("Switched to Hand Sockets Poser.");
+        }
+        if (drawHammerButton(x + 10.0f + (subW + subPad) * 2.0f, curY, subW, 22.0f, "3. ADS ALIGN", _poserSubMode == PoserSubMode::AdsAlignment)) {
+            _poserSubMode = PoserSubMode::AdsAlignment;
+            log("Switched to ADS Optical Alignment.");
+        }
+        curY += 28.0f;
+
+        if (_poserSubMode == PoserSubMode::WeaponTransform) {
+            // Group Box 1: Weapon Translation (Przesuwanie)
+            Renderer::drawRect(x + 8.0f, curY, w - 16.0f, 100.0f, Vec3(0.18f, 0.19f, 0.21f));
+            drawHammerBevel(x + 8.0f, curY, w - 16.0f, 100.0f, true);
+            LabFont::drawText(x + 14.0f, curY + 5.0f, "WEAPON TRANSLATION (PRZESUWANIE):", 1.4f, Vec3(0.4f, 0.85f, 1.0f), LabFontType::System);
+
+            drawHammerSlider(x + 14.0f, curY + 22.0f, w - 28.0f, 16.0f, "Offset X (L/R):", grip.weaponOffset.x, -0.50f, 0.50f);
+            drawHammerSlider(x + 14.0f, curY + 40.0f, w - 28.0f, 16.0f, "Offset Y (U/D):", grip.weaponOffset.y, -0.50f, 0.50f);
+            drawHammerSlider(x + 14.0f, curY + 58.0f, w - 28.0f, 16.0f, "Offset Z (F/B):", grip.weaponOffset.z, -0.50f, 0.50f);
+            if (drawHammerButton(x + 14.0f, curY + 76.0f, w - 28.0f, 18.0f, "Center Position (0, 0, 0)")) {
+                centerActiveWeapon();
+            }
+            curY += 106.0f;
+
+            // Group Box 2: Weapon Rotation (Obracanie)
+            Renderer::drawRect(x + 8.0f, curY, w - 16.0f, 100.0f, Vec3(0.18f, 0.19f, 0.21f));
+            drawHammerBevel(x + 8.0f, curY, w - 16.0f, 100.0f, true);
+            LabFont::drawText(x + 14.0f, curY + 5.0f, "WEAPON ROTATION (OBRACANIE):", 1.4f, Vec3(0.4f, 0.95f, 0.4f), LabFontType::System);
+
+            drawHammerSlider(x + 14.0f, curY + 22.0f, w - 28.0f, 16.0f, "Pitch X (Rot X):", grip.weaponRotation.x, -180.0f, 180.0f, "%.1f deg");
+            drawHammerSlider(x + 14.0f, curY + 40.0f, w - 28.0f, 16.0f, "Yaw Y (Rot Y):", grip.weaponRotation.y, -180.0f, 180.0f, "%.1f deg");
+            drawHammerSlider(x + 14.0f, curY + 58.0f, w - 28.0f, 16.0f, "Roll Z (Rot Z):", grip.weaponRotation.z, -180.0f, 180.0f, "%.1f deg");
+            if (drawHammerButton(x + 14.0f, curY + 76.0f, w - 28.0f, 18.0f, "Zero Rotation (0, 0, 0)")) {
+                resetActiveWeaponRotation();
+            }
+            curY += 106.0f;
+
+            // Group Box 3: Weapon Scaling (Skalowanie)
+            Renderer::drawRect(x + 8.0f, curY, w - 16.0f, 118.0f, Vec3(0.18f, 0.19f, 0.21f));
+            drawHammerBevel(x + 8.0f, curY, w - 16.0f, 118.0f, true);
+            LabFont::drawText(x + 14.0f, curY + 5.0f, "WEAPON SCALING (SKALOWANIE):", 1.4f, Vec3(0.95f, 0.65f, 0.2f), LabFontType::System);
+
+            float uniformScale = (grip.weaponScale.x + grip.weaponScale.y + grip.weaponScale.z) / 3.0f;
+            float prevUniform = uniformScale;
+            if (drawHammerSlider(x + 14.0f, curY + 22.0f, w - 28.0f, 16.0f, "Uniform Scale:", uniformScale, 0.10f, 3.00f, "%.2f x")) {
+                float ratio = (prevUniform > 0.001f) ? (uniformScale / prevUniform) : 1.0f;
+                grip.weaponScale.x = std::clamp(grip.weaponScale.x * ratio, 0.05f, 5.0f);
+                grip.weaponScale.y = std::clamp(grip.weaponScale.y * ratio, 0.05f, 5.0f);
+                grip.weaponScale.z = std::clamp(grip.weaponScale.z * ratio, 0.05f, 5.0f);
+            }
+            drawHammerSlider(x + 14.0f, curY + 40.0f, w - 28.0f, 16.0f, "Scale X (Width):", grip.weaponScale.x, 0.10f, 3.00f, "%.2f x");
+            drawHammerSlider(x + 14.0f, curY + 58.0f, w - 28.0f, 16.0f, "Scale Y (Height):", grip.weaponScale.y, 0.10f, 3.00f, "%.2f x");
+            drawHammerSlider(x + 14.0f, curY + 76.0f, w - 28.0f, 16.0f, "Scale Z (Length):", grip.weaponScale.z, 0.10f, 3.00f, "%.2f x");
+            if (drawHammerButton(x + 14.0f, curY + 94.0f, w - 28.0f, 18.0f, "Reset Scale (1.00 x)")) {
+                resetActiveWeaponScale();
+            }
+            curY += 124.0f;
+
+            // Bottom Action Buttons
+            float actW = (w - 32.0f) * 0.5f;
+            if (drawHammerButton(x + 12.0f, curY, actW, 26.0f, "Reset Transforms")) {
+                resetActiveWeaponAllTransforms();
+            }
+            if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply In-Game", false, true)) {
+                saveConfig("assets/configs/character_studio.cfg");
+                log("Saved weapon transforms to active game!");
+            }
+        } else if (_poserSubMode == PoserSubMode::HandSockets) {
+            // Group Box: Right Hand Socket (Trigger)
+            Renderer::drawRect(x + 8.0f, curY, w - 16.0f, 130.0f, Vec3(0.18f, 0.19f, 0.21f));
+            drawHammerBevel(x + 8.0f, curY, w - 16.0f, 130.0f, true);
+            LabFont::drawText(x + 14.0f, curY + 6.0f, "RIGHT HAND SOCKET (TRIGGER GRIP):", 1.4f, Vec3(0.4f, 0.85f, 1.0f), LabFontType::System);
+
+            drawHammerSlider(x + 14.0f, curY + 26.0f, w - 28.0f, 18.0f, "Pos X (Offset):", grip.rightSocketPos.x, -0.20f, 0.20f);
+            drawHammerSlider(x + 14.0f, curY + 46.0f, w - 28.0f, 18.0f, "Pos Y (Height):", grip.rightSocketPos.y, -0.25f, 0.15f);
+            drawHammerSlider(x + 14.0f, curY + 66.0f, w - 28.0f, 18.0f, "Pos Z (Reach):", grip.rightSocketPos.z, -0.30f, 0.15f);
+            drawHammerSlider(x + 14.0f, curY + 86.0f, w - 28.0f, 18.0f, "Pitch (Rot X):", grip.rightSocketRot.x, -45.0f, 45.0f, "%.1f deg");
+            drawHammerSlider(x + 14.0f, curY + 106.0f, w - 28.0f, 18.0f, "Roll (Rot Z):", grip.rightSocketRot.z, -45.0f, 45.0f, "%.1f deg");
+            curY += 138.0f;
+
+            // Group Box: Left Hand Socket (Support)
+            Renderer::drawRect(x + 8.0f, curY, w - 16.0f, 130.0f, Vec3(0.18f, 0.19f, 0.21f));
+            drawHammerBevel(x + 8.0f, curY, w - 16.0f, 130.0f, true);
+            LabFont::drawText(x + 14.0f, curY + 6.0f, "LEFT HAND SOCKET (FOREGRIP SUPPORT):", 1.4f, Vec3(0.4f, 0.95f, 0.4f), LabFontType::System);
+
+            drawHammerSlider(x + 14.0f, curY + 26.0f, w - 28.0f, 18.0f, "Pos X (Offset):", grip.leftSocketPos.x, -0.25f, 0.20f);
+            drawHammerSlider(x + 14.0f, curY + 46.0f, w - 28.0f, 18.0f, "Pos Y (Height):", grip.leftSocketPos.y, -0.25f, 0.20f);
+            drawHammerSlider(x + 14.0f, curY + 66.0f, w - 28.0f, 18.0f, "Pos Z (Reach):", grip.leftSocketPos.z, -0.60f, 0.05f);
+            drawHammerSlider(x + 14.0f, curY + 86.0f, w - 28.0f, 18.0f, "Pitch (Rot X):", grip.leftSocketRot.x, -60.0f, 60.0f, "%.1f deg");
+            drawHammerSlider(x + 14.0f, curY + 106.0f, w - 28.0f, 18.0f, "Roll (Rot Z):", grip.leftSocketRot.z, -60.0f, 60.0f, "%.1f deg");
+            curY += 138.0f;
+
+            // Action Buttons
+            float actW = (w - 32.0f) * 0.5f;
+            if (drawHammerButton(x + 12.0f, curY, actW, 26.0f, "Reset Hand Sockets")) {
+                pushUndoState();
+                resetDefaults();
+                log("Reset weapon hand sockets to defaults.");
+            }
+            if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply In-Game", false, true)) {
+                saveConfig("assets/configs/character_studio.cfg");
+                log("Saved and applied custom weapon sockets to active game!");
+            }
+        } else if (_poserSubMode == PoserSubMode::AdsAlignment) {
+            // Group Box: ADS Alignment
+            Renderer::drawRect(x + 8.0f, curY, w - 16.0f, 100.0f, Vec3(0.18f, 0.19f, 0.21f));
+            drawHammerBevel(x + 8.0f, curY, w - 16.0f, 100.0f, true);
+            LabFont::drawText(x + 14.0f, curY + 6.0f, "ADS OPTICAL CENTER ALIGNMENT:", 1.4f, Vec3(0.95f, 0.65f, 0.2f), LabFontType::System);
+
+            drawHammerSlider(x + 14.0f, curY + 26.0f, w - 28.0f, 18.0f, "Sight X Align:", grip.adsOffset.x, -0.10f, 0.10f);
+            drawHammerSlider(x + 14.0f, curY + 46.0f, w - 28.0f, 18.0f, "Sight Y Height:", grip.adsOffset.y, -0.15f, 0.05f);
+            drawHammerSlider(x + 14.0f, curY + 66.0f, w - 28.0f, 18.0f, "Sight Z Eye Relief:", grip.adsOffset.z, -0.10f, 0.30f);
+            curY += 108.0f;
+
+            // Action Buttons
+            float actW = (w - 32.0f) * 0.5f;
+            if (drawHammerButton(x + 12.0f, curY, actW, 26.0f, "Reset ADS")) {
+                pushUndoState();
+                grip.adsOffset = Vec3(0.0f, -0.05f, 0.12f);
+                log("Reset ADS alignment to default center.");
+            }
+            if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply In-Game", false, true)) {
+                saveConfig("assets/configs/character_studio.cfg");
+                log("Saved and applied custom weapon sockets to active game!");
+            }
         }
     }
 
@@ -1772,9 +2001,19 @@ namespace Lab {
         // 1. Center 3D Viewport Frame Border
         drawHammerBevel(vpX, vpY, vpW, vpH, true);
 
-        // Viewport Header Label (Valve Hammer iconic text)
-        Renderer::drawRect(vpX + 4.0f, vpY + 4.0f, 320.0f, 20.0f, Vec3(0.10f, 0.12f, 0.14f));
-        LabFont::drawText(vpX + 8.0f, vpY + 7.0f, "[camera 3D shaded] | Grid: 16 | Turntable 360", 1.4f, Vec3(0.4f, 0.95f, 0.4f), LabFontType::System);
+        // Viewport Header Label (Valve Hammer iconic text with live tool mode and transform status)
+        float headerBoxW = std::min(540.0f, vpW - 8.0f);
+        Renderer::drawRect(vpX + 4.0f, vpY + 4.0f, headerBoxW, 20.0f, Vec3(0.10f, 0.12f, 0.14f));
+        const char* toolNames[] = { "ORBIT", "MOVE", "ROTATE", "SCALE" };
+        std::string modeStr = toolNames[static_cast<int>(_viewportToolMode)];
+        const auto& grip = _weaponGrips[_selectedWeaponIndex];
+        char headerBuf[256];
+        std::snprintf(headerBuf, sizeof(headerBuf), "[camera 3D] | Tool: %s | Pos: (%.2f, %.2f, %.2f) | Rot: (%.0f, %.0f, %.0f) | Scl: %.2fx",
+                      modeStr.c_str(),
+                      grip.weaponOffset.x, grip.weaponOffset.y, grip.weaponOffset.z,
+                      grip.weaponRotation.x, grip.weaponRotation.y, grip.weaponRotation.z,
+                      (grip.weaponScale.x + grip.weaponScale.y + grip.weaponScale.z) / 3.0f);
+        LabFont::drawText(vpX + 8.0f, vpY + 7.0f, headerBuf, 1.3f, Vec3(0.4f, 0.95f, 0.4f), LabFontType::System);
 
         // 2. Left Tool Palette
         renderHammerLeftToolPalette(h);
@@ -1822,6 +2061,9 @@ namespace Lab {
         // Save all 9 weapon grips and skins
         for (int i = 0; i < 9; ++i) {
             out << "[WeaponGrip_" << i << "]\n";
+            out << "Offset=" << _weaponGrips[i].weaponOffset.x << "," << _weaponGrips[i].weaponOffset.y << "," << _weaponGrips[i].weaponOffset.z << "\n";
+            out << "Rotation=" << _weaponGrips[i].weaponRotation.x << "," << _weaponGrips[i].weaponRotation.y << "," << _weaponGrips[i].weaponRotation.z << "\n";
+            out << "Scale=" << _weaponGrips[i].weaponScale.x << "," << _weaponGrips[i].weaponScale.y << "," << _weaponGrips[i].weaponScale.z << "\n";
             out << "RightPos=" << _weaponGrips[i].rightSocketPos.x << "," << _weaponGrips[i].rightSocketPos.y << "," << _weaponGrips[i].rightSocketPos.z << "\n";
             out << "RightRot=" << _weaponGrips[i].rightSocketRot.x << "," << _weaponGrips[i].rightSocketRot.y << "," << _weaponGrips[i].rightSocketRot.z << "\n";
             out << "LeftPos=" << _weaponGrips[i].leftSocketPos.x << "," << _weaponGrips[i].leftSocketPos.y << "," << _weaponGrips[i].leftSocketPos.z << "\n";
@@ -1894,7 +2136,10 @@ namespace Lab {
             if (currentSection.rfind("WeaponGrip_", 0) == 0) {
                 int id = std::stoi(currentSection.substr(11));
                 if (id >= 0 && id < 9) {
-                    if (key == "RightPos") _weaponGrips[id].rightSocketPos = parseVec3(val, _weaponGrips[id].rightSocketPos);
+                    if (key == "Offset") _weaponGrips[id].weaponOffset = parseVec3(val, _weaponGrips[id].weaponOffset);
+                    else if (key == "Rotation") _weaponGrips[id].weaponRotation = parseVec3(val, _weaponGrips[id].weaponRotation);
+                    else if (key == "Scale") _weaponGrips[id].weaponScale = parseVec3(val, _weaponGrips[id].weaponScale);
+                    else if (key == "RightPos") _weaponGrips[id].rightSocketPos = parseVec3(val, _weaponGrips[id].rightSocketPos);
                     else if (key == "RightRot") _weaponGrips[id].rightSocketRot = parseVec3(val, _weaponGrips[id].rightSocketRot);
                     else if (key == "LeftPos") _weaponGrips[id].leftSocketPos = parseVec3(val, _weaponGrips[id].leftSocketPos);
                     else if (key == "LeftRot") _weaponGrips[id].leftSocketRot = parseVec3(val, _weaponGrips[id].leftSocketRot);

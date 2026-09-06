@@ -146,7 +146,10 @@ namespace Lab {
                              const Vec3* rightSocketRot = nullptr,
                              const Vec3* leftSocketPos = nullptr,
                              const Vec3* leftSocketRot = nullptr,
-                             const Vec3* tintColor = nullptr);
+                             const Vec3* tintColor = nullptr,
+                             const Vec3* weaponOffset = nullptr,
+                             const Vec3* weaponRotation = nullptr,
+                             const Vec3* weaponScale = nullptr);
 
         // Static factory of all 9 weapon definitions
         static std::array<WeaponDef, 9> createWeaponDefinitions();
@@ -162,7 +165,7 @@ namespace Lab {
         float _minigunSpinAngle = 0.0f;
         std::vector<Projectile> _projectiles;
 
-        void drawProceduralWeapon(WeaponID id, const Vec3& basePos, const Vec3& rot, Texture* tex, float muzzleFlash);
+        void drawProceduralWeapon(WeaponID id, const Vec3& basePos, const Vec3& rot, Texture* tex, float muzzleFlash, const Vec3& scale = Vec3(1.0f, 1.0f, 1.0f));
     };
 
 } // namespace Lab

@@ -441,97 +441,103 @@ namespace Lab {
         if (splashRadius > 0.0f) wep.def.splashRadius = splashRadius;
     }
 
-    void WeaponSystem::drawProceduralWeapon(WeaponID id, const Vec3& basePos, const Vec3& rot, Texture* tex, float muzzleFlash) {
+    void WeaponSystem::drawProceduralWeapon(WeaponID id, const Vec3& basePos, const Vec3& rot, Texture* tex, float muzzleFlash, const Vec3& scale) {
+        auto drawCube = [&](const Vec3& pos, const Vec3& r, const Vec3& size, const Vec3& col, Texture* t = nullptr, bool lit = true) {
+            Vec3 rel = pos - basePos;
+            Vec3 scaledPos = basePos + Vec3(rel.x * scale.x, rel.y * scale.y, rel.z * scale.z);
+            Vec3 scaledSize = Vec3(size.x * scale.x, size.y * scale.y, size.z * scale.z);
+            Renderer::drawCube(scaledPos, r, scaledSize, col, t, lit);
+        };
         switch (id) {
             case WeaponID::Pipe: { // 1. PIPE (Steel Pipe)
                 // Main heavy iron pipe angled diagonally
                 Vec3 pRot = rot + Vec3(8.0f, -12.0f, 18.0f);
-                Renderer::drawCube(basePos + Vec3(0.02f, 0.04f, 0.05f), pRot, { 0.065f, 0.065f, 0.82f }, { 0.55f, 0.55f, 0.58f }, tex);
+                drawCube(basePos + Vec3(0.02f, 0.04f, 0.05f), pRot, { 0.065f, 0.065f, 0.82f }, { 0.55f, 0.55f, 0.58f }, tex);
                 // End coupling collar
-                Renderer::drawCube(basePos + Vec3(0.02f, 0.04f, -0.32f), pRot, { 0.082f, 0.082f, 0.08f }, { 0.45f, 0.45f, 0.48f }, tex);
+                drawCube(basePos + Vec3(0.02f, 0.04f, -0.32f), pRot, { 0.082f, 0.082f, 0.08f }, { 0.45f, 0.45f, 0.48f }, tex);
                 // Hand grip tape wrap
-                Renderer::drawCube(basePos + Vec3(0.02f, 0.04f, 0.28f), pRot, { 0.072f, 0.072f, 0.24f }, { 0.25f, 0.22f, 0.20f });
+                drawCube(basePos + Vec3(0.02f, 0.04f, 0.28f), pRot, { 0.072f, 0.072f, 0.24f }, { 0.25f, 0.22f, 0.20f });
                 break;
             }
             case WeaponID::Pistol: { // 2. PISTOLET (Tactical Pistol)
                 Vec3 pRot = rot + Vec3(0.0f, -4.0f, 0.0f);
                 // Slide
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.02f, -0.04f), pRot, { 0.062f, 0.075f, 0.32f }, { 0.22f, 0.24f, 0.28f }, tex);
+                drawCube(basePos + Vec3(0.0f, 0.02f, -0.04f), pRot, { 0.062f, 0.075f, 0.32f }, { 0.22f, 0.24f, 0.28f }, tex);
                 // Front sight blade
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.068f, -0.18f), pRot, { 0.015f, 0.022f, 0.02f }, { 0.9f, 0.2f, 0.2f });
+                drawCube(basePos + Vec3(0.0f, 0.068f, -0.18f), pRot, { 0.015f, 0.022f, 0.02f }, { 0.9f, 0.2f, 0.2f });
                 // Polymer grip handle
-                Renderer::drawCube(basePos + Vec3(0.0f, -0.09f, 0.06f), pRot + Vec3(16.0f, 0.0f, 0.0f), { 0.055f, 0.16f, 0.08f }, { 0.12f, 0.12f, 0.14f });
+                drawCube(basePos + Vec3(0.0f, -0.09f, 0.06f), pRot + Vec3(16.0f, 0.0f, 0.0f), { 0.055f, 0.16f, 0.08f }, { 0.12f, 0.12f, 0.14f });
                 // Trigger guard
-                Renderer::drawCube(basePos + Vec3(0.0f, -0.04f, 0.01f), pRot, { 0.04f, 0.05f, 0.06f }, { 0.18f, 0.18f, 0.20f });
+                drawCube(basePos + Vec3(0.0f, -0.04f, 0.01f), pRot, { 0.04f, 0.05f, 0.06f }, { 0.18f, 0.18f, 0.20f });
                 if (muzzleFlash > 0.0f) {
-                    Renderer::drawCube(basePos + Vec3(0.0f, 0.02f, -0.22f), pRot, { 0.12f, 0.12f, 0.12f }, { 1.0f, 0.9f, 0.3f }, nullptr, false);
+                    drawCube(basePos + Vec3(0.0f, 0.02f, -0.22f), pRot, { 0.12f, 0.12f, 0.12f }, { 1.0f, 0.9f, 0.3f }, nullptr, false);
                 }
                 break;
             }
             case WeaponID::Shotgun: { // 3. STRZELBA (Tactical Shotgun)
                 Vec3 sRot = rot + Vec3(-2.0f, -4.0f, 0.0f);
                 // Main heavy receiver
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.02f, 0.05f), sRot, { 0.095f, 0.13f, 0.38f }, { 0.20f, 0.22f, 0.25f }, tex);
+                drawCube(basePos + Vec3(0.0f, 0.02f, 0.05f), sRot, { 0.095f, 0.13f, 0.38f }, { 0.20f, 0.22f, 0.25f }, tex);
                 // Upper barrel
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.065f, -0.25f), sRot, { 0.065f, 0.065f, 0.52f }, { 0.18f, 0.18f, 0.20f }, tex);
+                drawCube(basePos + Vec3(0.0f, 0.065f, -0.25f), sRot, { 0.065f, 0.065f, 0.52f }, { 0.18f, 0.18f, 0.20f }, tex);
                 // Underbarrel magazine tube
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.0f, -0.20f), sRot, { 0.055f, 0.055f, 0.44f }, { 0.25f, 0.26f, 0.28f });
+                drawCube(basePos + Vec3(0.0f, 0.0f, -0.20f), sRot, { 0.055f, 0.055f, 0.44f }, { 0.25f, 0.26f, 0.28f });
                 // Sliding pump forend
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.0f, -0.16f), sRot, { 0.08f, 0.08f, 0.20f }, { 0.12f, 0.12f, 0.14f }, tex);
+                drawCube(basePos + Vec3(0.0f, 0.0f, -0.16f), sRot, { 0.08f, 0.08f, 0.20f }, { 0.12f, 0.12f, 0.14f }, tex);
                 // Stock / Grip
-                Renderer::drawCube(basePos + Vec3(0.0f, -0.08f, 0.18f), sRot + Vec3(18.0f, 0.0f, 0.0f), { 0.065f, 0.15f, 0.10f }, { 0.10f, 0.10f, 0.12f });
+                drawCube(basePos + Vec3(0.0f, -0.08f, 0.18f), sRot + Vec3(18.0f, 0.0f, 0.0f), { 0.065f, 0.15f, 0.10f }, { 0.10f, 0.10f, 0.12f });
                 if (muzzleFlash > 0.0f) {
-                    Renderer::drawCube(basePos + Vec3(0.0f, 0.065f, -0.54f), sRot, { 0.25f, 0.25f, 0.25f }, { 1.0f, 0.8f, 0.2f }, nullptr, false);
+                    drawCube(basePos + Vec3(0.0f, 0.065f, -0.54f), sRot, { 0.25f, 0.25f, 0.25f }, { 1.0f, 0.8f, 0.2f }, nullptr, false);
                 }
                 break;
             }
             case WeaponID::M4A4S: { // 4. M4A4-S (Silenced Carbine)
                 Vec3 mRot = rot + Vec3(-1.0f, -4.0f, 0.0f);
                 // Main receiver
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.02f, 0.02f), mRot, { 0.085f, 0.12f, 0.42f }, { 0.16f, 0.18f, 0.22f }, tex);
+                drawCube(basePos + Vec3(0.0f, 0.02f, 0.02f), mRot, { 0.085f, 0.12f, 0.42f }, { 0.16f, 0.18f, 0.22f }, tex);
                 // Top carry handle / Picatinny rail
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.09f, -0.04f), mRot, { 0.04f, 0.045f, 0.30f }, { 0.12f, 0.14f, 0.16f });
+                drawCube(basePos + Vec3(0.0f, 0.09f, -0.04f), mRot, { 0.04f, 0.045f, 0.30f }, { 0.12f, 0.14f, 0.16f });
                 // Curved 25-round magazine
-                Renderer::drawCube(basePos + Vec3(0.0f, -0.12f, 0.02f), mRot + Vec3(-12.0f, 0.0f, 0.0f), { 0.05f, 0.18f, 0.10f }, { 0.10f, 0.12f, 0.15f });
+                drawCube(basePos + Vec3(0.0f, -0.12f, 0.02f), mRot + Vec3(-12.0f, 0.0f, 0.0f), { 0.05f, 0.18f, 0.10f }, { 0.10f, 0.12f, 0.15f });
                 // Handguard
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.03f, -0.24f), mRot, { 0.075f, 0.085f, 0.22f }, { 0.18f, 0.20f, 0.22f }, tex);
+                drawCube(basePos + Vec3(0.0f, 0.03f, -0.24f), mRot, { 0.075f, 0.085f, 0.22f }, { 0.18f, 0.20f, 0.22f }, tex);
                 // Prominent cylindrical Silencer Suppressor!
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.03f, -0.46f), mRot, { 0.068f, 0.068f, 0.26f }, { 0.08f, 0.10f, 0.12f }, tex);
+                drawCube(basePos + Vec3(0.0f, 0.03f, -0.46f), mRot, { 0.068f, 0.068f, 0.26f }, { 0.08f, 0.10f, 0.12f }, tex);
                 // Pistol grip
-                Renderer::drawCube(basePos + Vec3(0.0f, -0.10f, 0.16f), mRot + Vec3(18.0f, 0.0f, 0.0f), { 0.055f, 0.16f, 0.08f }, { 0.12f, 0.12f, 0.14f });
+                drawCube(basePos + Vec3(0.0f, -0.10f, 0.16f), mRot + Vec3(18.0f, 0.0f, 0.0f), { 0.055f, 0.16f, 0.08f }, { 0.12f, 0.12f, 0.14f });
                 // Discreet subsonic suppressed muzzle smoke/flash
                 if (muzzleFlash > 0.0f) {
-                    Renderer::drawCube(basePos + Vec3(0.0f, 0.03f, -0.60f), mRot, { 0.08f, 0.08f, 0.08f }, { 0.7f, 0.85f, 1.0f }, nullptr, false);
+                    drawCube(basePos + Vec3(0.0f, 0.03f, -0.60f), mRot, { 0.08f, 0.08f, 0.08f }, { 0.7f, 0.85f, 1.0f }, nullptr, false);
                 }
                 break;
             }
             case WeaponID::SG553: { // 5. SG553 (Scoped Battle Rifle)
                 Vec3 gRot = rot + Vec3(-1.5f, -4.0f, 0.0f);
                 // Military tactical olive receiver
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.02f, 0.02f), gRot, { 0.09f, 0.13f, 0.44f }, { 0.22f, 0.28f, 0.22f }, tex);
+                drawCube(basePos + Vec3(0.0f, 0.02f, 0.02f), gRot, { 0.09f, 0.13f, 0.44f }, { 0.22f, 0.28f, 0.22f }, tex);
                 // Elevated optical ACOG scope tube
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.11f, -0.02f), gRot, { 0.055f, 0.055f, 0.24f }, { 0.14f, 0.15f, 0.16f });
+                drawCube(basePos + Vec3(0.0f, 0.11f, -0.02f), gRot, { 0.055f, 0.055f, 0.24f }, { 0.14f, 0.15f, 0.16f });
                 // Scope amber optic lens
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.11f, 0.10f), gRot, { 0.048f, 0.048f, 0.01f }, { 1.0f, 0.75f, 0.1f }, nullptr, false);
+                drawCube(basePos + Vec3(0.0f, 0.11f, 0.10f), gRot, { 0.048f, 0.048f, 0.01f }, { 1.0f, 0.75f, 0.1f }, nullptr, false);
                 // Handguard with vents
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.03f, -0.26f), gRot, { 0.078f, 0.085f, 0.24f }, { 0.20f, 0.26f, 0.20f }, tex);
+                drawCube(basePos + Vec3(0.0f, 0.03f, -0.26f), gRot, { 0.078f, 0.085f, 0.24f }, { 0.20f, 0.26f, 0.20f }, tex);
                 // Muzzle brake
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.03f, -0.42f), gRot, { 0.05f, 0.05f, 0.08f }, { 0.12f, 0.12f, 0.14f });
+                drawCube(basePos + Vec3(0.0f, 0.03f, -0.42f), gRot, { 0.05f, 0.05f, 0.08f }, { 0.12f, 0.12f, 0.14f });
                 // Translucent angled magazine
-                Renderer::drawCube(basePos + Vec3(0.0f, -0.13f, 0.04f), gRot + Vec3(-16.0f, 0.0f, 0.0f), { 0.052f, 0.19f, 0.10f }, { 0.35f, 0.32f, 0.20f });
+                drawCube(basePos + Vec3(0.0f, -0.13f, 0.04f), gRot + Vec3(-16.0f, 0.0f, 0.0f), { 0.052f, 0.19f, 0.10f }, { 0.35f, 0.32f, 0.20f });
                 if (muzzleFlash > 0.0f) {
-                    Renderer::drawCube(basePos + Vec3(0.0f, 0.03f, -0.48f), gRot, { 0.18f, 0.18f, 0.18f }, { 1.0f, 0.85f, 0.2f }, nullptr, false);
+                    drawCube(basePos + Vec3(0.0f, 0.03f, -0.48f), gRot, { 0.18f, 0.18f, 0.18f }, { 1.0f, 0.85f, 0.2f }, nullptr, false);
                 }
                 break;
             }
             case WeaponID::Minigun: { // 6. MINIGUN (Rotary Chaingun)
                 Vec3 rRot = rot + Vec3(2.0f, -4.0f, 0.0f);
                 // Heavy motor housing body
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.0f, 0.08f), rRot, { 0.18f, 0.18f, 0.36f }, { 0.18f, 0.19f, 0.22f }, tex);
+                drawCube(basePos + Vec3(0.0f, 0.0f, 0.08f), rRot, { 0.18f, 0.18f, 0.36f }, { 0.18f, 0.19f, 0.22f }, tex);
                 // Top spade carry handle
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.14f, 0.08f), rRot, { 0.05f, 0.10f, 0.22f }, { 0.12f, 0.12f, 0.14f });
+                drawCube(basePos + Vec3(0.0f, 0.14f, 0.08f), rRot, { 0.05f, 0.10f, 0.22f }, { 0.12f, 0.12f, 0.14f });
                 // Side ammo feed chute / box
-                Renderer::drawCube(basePos + Vec3(-0.12f, -0.04f, 0.06f), rRot, { 0.10f, 0.12f, 0.18f }, { 0.75f, 0.65f, 0.15f });
+                drawCube(basePos + Vec3(-0.12f, -0.04f, 0.06f), rRot, { 0.10f, 0.12f, 0.18f }, { 0.75f, 0.65f, 0.15f });
 
                 // 6 Rotating Titanium Barrels
                 float spinRad = _minigunSpinAngle * 3.14159265f / 180.0f;
@@ -540,66 +546,66 @@ namespace Lab {
                     float angle = spinRad + (b * 3.14159265f / 3.0f);
                     float bx = std::cos(angle) * barrelRadius;
                     float by = std::sin(angle) * barrelRadius;
-                    Renderer::drawCube(basePos + Vec3(bx, by, -0.30f), rRot, { 0.026f, 0.026f, 0.52f }, { 0.15f, 0.16f, 0.18f });
+                    drawCube(basePos + Vec3(bx, by, -0.30f), rRot, { 0.026f, 0.026f, 0.52f }, { 0.15f, 0.16f, 0.18f });
                 }
                 // Front barrel stabilizer ring
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.0f, -0.52f), rRot, { 0.14f, 0.14f, 0.03f }, { 0.25f, 0.25f, 0.28f });
+                drawCube(basePos + Vec3(0.0f, 0.0f, -0.52f), rRot, { 0.14f, 0.14f, 0.03f }, { 0.25f, 0.25f, 0.28f });
                 if (muzzleFlash > 0.0f) {
-                    Renderer::drawCube(basePos + Vec3(0.0f, 0.0f, -0.62f), rRot, { 0.32f, 0.32f, 0.32f }, { 1.0f, 0.95f, 0.3f }, nullptr, false);
+                    drawCube(basePos + Vec3(0.0f, 0.0f, -0.62f), rRot, { 0.32f, 0.32f, 0.32f }, { 1.0f, 0.95f, 0.3f }, nullptr, false);
                 }
                 break;
             }
             case WeaponID::PlasmaGun: { // 7. PLASMA GUN (Pulse Energy Cannon)
                 Vec3 plRot = rot + Vec3(-1.0f, -4.0f, 0.0f);
                 // Sci-fi angular chassis
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.01f, 0.02f), plRot, { 0.12f, 0.15f, 0.46f }, { 0.16f, 0.18f, 0.24f }, tex);
+                drawCube(basePos + Vec3(0.0f, 0.01f, 0.02f), plRot, { 0.12f, 0.15f, 0.46f }, { 0.16f, 0.18f, 0.24f }, tex);
                 // Central glowing plasma chamber
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.02f, -0.05f), plRot, { 0.09f, 0.09f, 0.20f }, { 0.1f, 0.85f, 1.0f }, nullptr, false);
+                drawCube(basePos + Vec3(0.0f, 0.02f, -0.05f), plRot, { 0.09f, 0.09f, 0.20f }, { 0.1f, 0.85f, 1.0f }, nullptr, false);
                 // Upper & lower cooling radiator fins
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.10f, -0.15f), plRot, { 0.06f, 0.03f, 0.28f }, { 0.2f, 0.7f, 0.95f });
-                Renderer::drawCube(basePos + Vec3(0.0f, -0.07f, -0.15f), plRot, { 0.06f, 0.03f, 0.28f }, { 0.2f, 0.7f, 0.95f });
+                drawCube(basePos + Vec3(0.0f, 0.10f, -0.15f), plRot, { 0.06f, 0.03f, 0.28f }, { 0.2f, 0.7f, 0.95f });
+                drawCube(basePos + Vec3(0.0f, -0.07f, -0.15f), plRot, { 0.06f, 0.03f, 0.28f }, { 0.2f, 0.7f, 0.95f });
                 // Plasma emitter nozzle
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.01f, -0.32f), plRot, { 0.08f, 0.08f, 0.10f }, { 0.15f, 0.9f, 1.0f }, nullptr, false);
+                drawCube(basePos + Vec3(0.0f, 0.01f, -0.32f), plRot, { 0.08f, 0.08f, 0.10f }, { 0.15f, 0.9f, 1.0f }, nullptr, false);
                 if (muzzleFlash > 0.0f) {
-                    Renderer::drawCube(basePos + Vec3(0.0f, 0.01f, -0.42f), plRot, { 0.26f, 0.26f, 0.26f }, { 0.2f, 0.95f, 1.0f }, nullptr, false);
+                    drawCube(basePos + Vec3(0.0f, 0.01f, -0.42f), plRot, { 0.26f, 0.26f, 0.26f }, { 0.2f, 0.95f, 1.0f }, nullptr, false);
                 }
                 break;
             }
             case WeaponID::Railgun: { // 8. RAILGUN (Gauss Kinetic Accelerator)
                 Vec3 rgRot = rot + Vec3(-1.0f, -4.0f, 0.0f);
                 // Heavy scientific frame
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.02f, 0.08f), rgRot, { 0.10f, 0.14f, 0.44f }, { 0.25f, 0.26f, 0.30f }, tex);
+                drawCube(basePos + Vec3(0.0f, 0.02f, 0.08f), rgRot, { 0.10f, 0.14f, 0.44f }, { 0.25f, 0.26f, 0.30f }, tex);
                 // Top and bottom magnetic copper acceleration rails
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.065f, -0.26f), rgRot, { 0.035f, 0.03f, 0.54f }, { 0.85f, 0.45f, 0.18f });
-                Renderer::drawCube(basePos + Vec3(0.0f, -0.025f, -0.26f), rgRot, { 0.035f, 0.03f, 0.54f }, { 0.85f, 0.45f, 0.18f });
+                drawCube(basePos + Vec3(0.0f, 0.065f, -0.26f), rgRot, { 0.035f, 0.03f, 0.54f }, { 0.85f, 0.45f, 0.18f });
+                drawCube(basePos + Vec3(0.0f, -0.025f, -0.26f), rgRot, { 0.035f, 0.03f, 0.54f }, { 0.85f, 0.45f, 0.18f });
                 // Induction coil wraps with glowing electric core
                 for (int c = 0; c < 4; ++c) {
                     float cz = -0.10f - c * 0.12f;
-                    Renderer::drawCube(basePos + Vec3(0.0f, 0.02f, cz), rgRot, { 0.085f, 0.095f, 0.035f }, { 0.3f, 0.7f, 1.0f }, nullptr, false);
+                    drawCube(basePos + Vec3(0.0f, 0.02f, cz), rgRot, { 0.085f, 0.095f, 0.035f }, { 0.3f, 0.7f, 1.0f }, nullptr, false);
                 }
                 // Rear capacitor battery cell
-                Renderer::drawCube(basePos + Vec3(0.0f, -0.08f, 0.18f), rgRot, { 0.07f, 0.12f, 0.14f }, { 0.2f, 0.8f, 0.9f });
+                drawCube(basePos + Vec3(0.0f, -0.08f, 0.18f), rgRot, { 0.07f, 0.12f, 0.14f }, { 0.2f, 0.8f, 0.9f });
                 if (muzzleFlash > 0.0f) {
-                    Renderer::drawCube(basePos + Vec3(0.0f, 0.02f, -0.56f), rgRot, { 0.20f, 0.20f, 0.35f }, { 0.4f, 0.85f, 1.0f }, nullptr, false);
+                    drawCube(basePos + Vec3(0.0f, 0.02f, -0.56f), rgRot, { 0.20f, 0.20f, 0.35f }, { 0.4f, 0.85f, 1.0f }, nullptr, false);
                 }
                 break;
             }
             case WeaponID::RPG: { // 9. RPG (Rocket Propelled Grenade)
                 Vec3 rpgRot = rot + Vec3(-3.0f, -6.0f, 2.0f);
                 // Olive drab launcher tube
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.06f, 0.02f), rpgRot, { 0.09f, 0.09f, 0.72f }, { 0.25f, 0.30f, 0.20f }, tex);
+                drawCube(basePos + Vec3(0.0f, 0.06f, 0.02f), rpgRot, { 0.09f, 0.09f, 0.72f }, { 0.25f, 0.30f, 0.20f }, tex);
                 // Wooden heat protection sleeve
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.06f, 0.06f), rpgRot, { 0.102f, 0.102f, 0.24f }, { 0.45f, 0.28f, 0.14f });
+                drawCube(basePos + Vec3(0.0f, 0.06f, 0.06f), rpgRot, { 0.102f, 0.102f, 0.24f }, { 0.45f, 0.28f, 0.14f });
                 // Rear exhaust venturi cone
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.06f, 0.40f), rpgRot, { 0.12f, 0.12f, 0.08f }, { 0.18f, 0.18f, 0.20f });
+                drawCube(basePos + Vec3(0.0f, 0.06f, 0.40f), rpgRot, { 0.12f, 0.12f, 0.08f }, { 0.18f, 0.18f, 0.20f });
                 // Front PG-7V Rocket Warhead (olive cone + silver detonator tip)
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.06f, -0.38f), rpgRot, { 0.14f, 0.14f, 0.18f }, { 0.30f, 0.38f, 0.22f }, tex);
-                Renderer::drawCube(basePos + Vec3(0.0f, 0.06f, -0.49f), rpgRot, { 0.04f, 0.04f, 0.08f }, { 0.85f, 0.85f, 0.90f });
+                drawCube(basePos + Vec3(0.0f, 0.06f, -0.38f), rpgRot, { 0.14f, 0.14f, 0.18f }, { 0.30f, 0.38f, 0.22f }, tex);
+                drawCube(basePos + Vec3(0.0f, 0.06f, -0.49f), rpgRot, { 0.04f, 0.04f, 0.08f }, { 0.85f, 0.85f, 0.90f });
                 // Trigger and optical sight bracket
-                Renderer::drawCube(basePos + Vec3(0.0f, -0.06f, 0.0f), rpgRot + Vec3(14.0f, 0.0f, 0.0f), { 0.045f, 0.14f, 0.06f }, { 0.15f, 0.15f, 0.17f });
-                Renderer::drawCube(basePos + Vec3(0.06f, 0.12f, -0.08f), rpgRot, { 0.04f, 0.06f, 0.08f }, { 0.2f, 0.2f, 0.22f });
+                drawCube(basePos + Vec3(0.0f, -0.06f, 0.0f), rpgRot + Vec3(14.0f, 0.0f, 0.0f), { 0.045f, 0.14f, 0.06f }, { 0.15f, 0.15f, 0.17f });
+                drawCube(basePos + Vec3(0.06f, 0.12f, -0.08f), rpgRot, { 0.04f, 0.06f, 0.08f }, { 0.2f, 0.2f, 0.22f });
                 if (muzzleFlash > 0.0f) {
-                    Renderer::drawCube(basePos + Vec3(0.0f, 0.06f, -0.58f), rpgRot, { 0.35f, 0.35f, 0.35f }, { 1.0f, 0.5f, 0.1f }, nullptr, false);
+                    drawCube(basePos + Vec3(0.0f, 0.06f, -0.58f), rpgRot, { 0.35f, 0.35f, 0.35f }, { 1.0f, 0.5f, 0.1f }, nullptr, false);
                 }
                 break;
             }
@@ -614,7 +620,10 @@ namespace Lab {
                                        const Vec3* rightSocketRot,
                                        const Vec3* leftSocketPos,
                                        const Vec3* leftSocketRot,
-                                       const Vec3* tintColor) {
+                                       const Vec3* tintColor,
+                                       const Vec3* weaponOffset,
+                                       const Vec3* weaponRotation,
+                                       const Vec3* weaponScale) {
         Renderer::beginViewModel();
 
         // Base idle viewmodel position (lower right screen quadrant, classic FPS framing)
@@ -631,9 +640,14 @@ namespace Lab {
         Vec3 gunBasePos = animator.calculatePositionOffset(defaultPos);
         Vec3 gunRot = animator.calculateRotationOffset(defaultRot);
 
-        // 1. Render First-Person Tactical Arms & Hands (kinematically bound to gunBasePos & gunRot with socket overrides)
+        // Apply weapon translation & rotation offset from studio configuration
+        Vec3 finalPos = gunBasePos + (weaponOffset ? *weaponOffset : Vec3(0.0f, 0.0f, 0.0f));
+        Vec3 finalRot = gunRot + (weaponRotation ? *weaponRotation : Vec3(0.0f, 0.0f, 0.0f));
+        Vec3 userScale = weaponScale ? *weaponScale : Vec3(1.0f, 1.0f, 1.0f);
+
+        // 1. Render First-Person Tactical Arms & Hands (kinematically bound to finalPos & finalRot with socket overrides)
         static ViewModelArms s_viewmodelArms;
-        s_viewmodelArms.render(gunBasePos, gunRot, _currentWeapon, animator, nullptr,
+        s_viewmodelArms.render(finalPos, finalRot, _currentWeapon, animator, nullptr,
                               rightSocketPos, rightSocketRot, leftSocketPos, leftSocketRot);
 
         Vec3 finalTint = tintColor ? *tintColor : Vec3(1.0f, 1.0f, 1.0f);
@@ -641,21 +655,21 @@ namespace Lab {
         // 2. Render Weapon Model (Custom STL or Procedural)
         if (stlMesh) {
             // User provided custom STL model
-            Vec3 stlPos = gunBasePos;
-            Vec3 stlRot = gunRot;
-            Vec3 stlScale = { 0.015f, 0.015f, 0.015f };
+            Vec3 stlPos = finalPos;
+            Vec3 stlRot = finalRot;
+            Vec3 stlScale = { 0.015f * userScale.x, 0.015f * userScale.y, 0.015f * userScale.z };
             if (_currentWeapon == WeaponID::Pipe) {
                 // Diagonally angled melee ready stance
-                stlPos = gunBasePos + Vec3(0.04f, 0.02f, 0.05f);
-                stlRot = gunRot + Vec3(8.0f, -12.0f, 18.0f);
+                stlPos = finalPos + Vec3(0.04f * userScale.x, 0.02f * userScale.y, 0.05f * userScale.z);
+                stlRot = finalRot + Vec3(8.0f, -12.0f, 18.0f);
             }
             Renderer::drawMesh(*stlMesh, stlPos, stlRot, stlScale, finalTint, texture);
             if (muzzleFlash > 0.0f) {
-                Renderer::drawCube(gunBasePos + Vec3(0.0f, 0.05f, -0.45f), gunRot, { 0.18f, 0.18f, 0.18f }, { 1.0f, 0.85f, 0.2f }, nullptr, false);
+                Renderer::drawCube(finalPos + Vec3(0.0f, 0.05f * userScale.y, -0.45f * userScale.z), finalRot, { 0.18f * userScale.x, 0.18f * userScale.y, 0.18f * userScale.z }, { 1.0f, 0.85f, 0.2f }, nullptr, false);
             }
         } else {
-            // Stylized procedural viewmodel with weapon-specific texture
-            drawProceduralWeapon(_currentWeapon, gunBasePos, gunRot, texture, muzzleFlash);
+            // Stylized procedural viewmodel with weapon-specific texture and scale
+            drawProceduralWeapon(_currentWeapon, finalPos, finalRot, texture, muzzleFlash, userScale);
         }
 
         Renderer::endViewModel(camera);
