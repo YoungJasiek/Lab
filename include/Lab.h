@@ -21,3 +21,4 @@
 #include "LabSkeletal.h"
 #include "LabPhysics.h"
 #include "LabCSG.h"
+#include "LabDecals.h"

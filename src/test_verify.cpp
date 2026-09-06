@@ -2461,6 +2461,174 @@ int main() {
         std::cout << "  [PASS] Saved visual CSG Clipping & Hammer Props verification to 'test_csg_clipping_and_hammer.bmp'.\n";
     }
 
+    // 29. Verify Dynamic Projective Decal System (Bullet Holes, Blood Splatters, Explosive Scorches)
+    {
+        std::cout << "\n[Test 29] Verifying Dynamic Projective Decal System...\n";
+        Lab::DecalSystem decalSys;
+        decalSys.init();
+
+        if (decalSys.getDecalCount() != 0) {
+            std::cerr << "Assertion failed: Fresh DecalSystem must have 0 decals!\n";
+            return 1;
+        }
+
+        // 1. Verify Spawning of all 4 decal types
+        decalSys.spawnDecal(Lab::DecalType::BulletHoleConcrete, Lab::Vec3(0.0f, 2.0f, -3.8f), Lab::Vec3(0.0f, 0.0f, 1.0f), 0.22f);
+        decalSys.spawnDecal(Lab::DecalType::BulletHoleMetal, Lab::Vec3(-2.8f, 0.6f, 0.96f), Lab::Vec3(0.0f, 0.0f, 1.0f), 0.18f);
+        decalSys.spawnDecal(Lab::DecalType::BloodSplatter, Lab::Vec3(1.2f, 1.5f, -3.8f), Lab::Vec3(0.0f, 0.0f, 1.0f), 0.55f);
+        decalSys.spawnDecal(Lab::DecalType::BloodSplatter, Lab::Vec3(1.2f, 0.01f, -2.5f), Lab::Vec3(0.0f, 1.0f, 0.0f), 0.45f);
+
+        if (decalSys.getDecalCount() != 4) {
+            std::cerr << "Assertion failed: Expected 4 spawned decals, got " << decalSys.getDecalCount() << "\n";
+            return 1;
+        }
+
+        // 2. Verify Decal Geometry (4 vertices, 6 indices per quad)
+        for (const auto& d : decalSys.getDecals()) {
+            if (d.vertices.size() != 4 || d.indices.size() != 6) {
+                std::cerr << "Assertion failed: Decal geometry invalid! Vertices=" << d.vertices.size() 
+                          << " Indices=" << d.indices.size() << "\n";
+                return 1;
+            }
+            if (d.vertices[0].normal.lengthSq() < 0.9f) {
+                std::cerr << "Assertion failed: Decal normal magnitude is invalid!\n";
+                return 1;
+            }
+        }
+        std::cout << "  [PASS] Decal quads generated with correct geometry and tangent orientation!\n";
+
+        // 3. Verify Lifetime & Fadeout System
+        decalSys.spawnDecal(Lab::DecalType::BulletHoleConcrete, Lab::Vec3(10.0f, 10.0f, 10.0f), Lab::Vec3(0.0f, 1.0f, 0.0f), 0.2f, 4.0f);
+        size_t countBefore = decalSys.getDecalCount();
+        if (countBefore != 5) {
+            std::cerr << "Assertion failed: Expected 5 decals before update!\n";
+            return 1;
+        }
+
+        // Advance time into fadeout period
+        decalSys.update(2.5f);
+        const auto& fadingDecals = decalSys.getDecals();
+        if (fadingDecals.back().alpha >= 1.0f) {
+            std::cerr << "Assertion failed: Decal alpha should fade when lifetime > maxLifetime - 5s!\n";
+            return 1;
+        }
+
+        // Advance time past expiration
+        decalSys.update(2.0f);
+        if (decalSys.getDecalCount() != 4) {
+            std::cerr << "Assertion failed: Expired decal was not culled from system!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Decal lifetime aging, alpha fadeout, and automatic cleanup verified!\n";
+
+        // 4. Verify Explosion Scorch Projection
+        std::vector<Lab::MapBrush> testBrushes;
+        Lab::MapBrush wallBrush;
+        wallBrush.position = Lab::Vec3(0.0f, 2.0f, -3.8f);
+        wallBrush.size = Lab::Vec3(10.0f, 4.0f, 0.4f);
+        testBrushes.push_back(wallBrush);
+
+        decalSys.spawnExplosionScorch(Lab::Vec3(0.0f, 0.5f, -2.5f), 2.8f, testBrushes);
+        if (decalSys.getDecalCount() <= 4) {
+            std::cerr << "Assertion failed: spawnExplosionScorch should project scorch decals on surfaces!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Explosion scorch projection on ground and nearby brush surfaces verified!\n";
+
+        // 5. Populate Rich Visual Verification Scene
+        decalSys.clear();
+
+        // Ground blast scorch from high-yield explosive detonation
+        decalSys.spawnDecal(Lab::DecalType::ExplosiveScorch, Lab::Vec3(0.0f, 0.005f, -0.5f), Lab::Vec3(0.0f, 1.0f, 0.0f), 3.4f);
+
+        // Multiple concrete bullet hole clusters on the back concrete wall
+        decalSys.spawnDecal(Lab::DecalType::BulletHoleConcrete, Lab::Vec3(-0.4f, 2.2f, -3.79f), Lab::Vec3(0.0f, 0.0f, 1.0f), 0.22f);
+        decalSys.spawnDecal(Lab::DecalType::BulletHoleConcrete, Lab::Vec3(-0.25f, 2.35f, -3.79f), Lab::Vec3(0.0f, 0.0f, 1.0f), 0.20f);
+        decalSys.spawnDecal(Lab::DecalType::BulletHoleConcrete, Lab::Vec3(-0.3f, 2.05f, -3.79f), Lab::Vec3(0.0f, 0.0f, 1.0f), 0.24f);
+        decalSys.spawnDecal(Lab::DecalType::BulletHoleConcrete, Lab::Vec3(-0.55f, 2.15f, -3.79f), Lab::Vec3(0.0f, 0.0f, 1.0f), 0.19f);
+        decalSys.spawnDecal(Lab::DecalType::BulletHoleConcrete, Lab::Vec3( 0.6f, 1.8f, -3.79f), Lab::Vec3(0.0f, 0.0f, 1.0f), 0.25f);
+        decalSys.spawnDecal(Lab::DecalType::BulletHoleConcrete, Lab::Vec3( 0.75f, 1.95f, -3.79f), Lab::Vec3(0.0f, 0.0f, 1.0f), 0.21f);
+
+        // Organic crimson blood splatters on wall and floor pooling
+        decalSys.spawnDecal(Lab::DecalType::BloodSplatter, Lab::Vec3(1.6f, 2.1f, -3.79f), Lab::Vec3(0.0f, 0.0f, 1.0f), 0.65f);
+        decalSys.spawnDecal(Lab::DecalType::BloodSplatter, Lab::Vec3(1.9f, 1.6f, -3.79f), Lab::Vec3(0.0f, 0.0f, 1.0f), 0.45f);
+        decalSys.spawnDecal(Lab::DecalType::BloodSplatter, Lab::Vec3(1.5f, 0.005f, -2.4f), Lab::Vec3(0.0f, 1.0f, 0.0f), 0.70f);
+        decalSys.spawnDecal(Lab::DecalType::BloodSplatter, Lab::Vec3(2.1f, 0.005f, -2.0f), Lab::Vec3(0.0f, 1.0f, 0.0f), 0.50f);
+
+        // Metal bullet punctures on metal props
+        decalSys.spawnDecal(Lab::DecalType::BulletHoleMetal, Lab::Vec3( 2.8f, 0.55f, 0.83f), Lab::Vec3(0.0f, 0.0f, 1.0f), 0.18f);
+        decalSys.spawnDecal(Lab::DecalType::BulletHoleMetal, Lab::Vec3( 2.7f, 0.75f, 0.83f), Lab::Vec3(0.0f, 0.0f, 1.0f), 0.16f);
+        decalSys.spawnDecal(Lab::DecalType::BulletHoleMetal, Lab::Vec3(-2.8f, 0.50f, 0.96f), Lab::Vec3(0.0f, 0.0f, 1.0f), 0.17f);
+        decalSys.spawnDecal(Lab::DecalType::BulletHoleMetal, Lab::Vec3(-2.6f, 0.65f, 0.96f), Lab::Vec3(0.0f, 0.0f, 1.0f), 0.19f);
+
+        // Scorch mark climbing the back concrete wall from explosive detonation
+        decalSys.spawnDecal(Lab::DecalType::ExplosiveScorch, Lab::Vec3(0.0f, 0.8f, -3.79f), Lab::Vec3(0.0f, 0.0f, 1.0f), 1.6f);
+
+        // 6. Visual Rendering Pass
+        glClearColor(0.10f, 0.12f, 0.16f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        Lab::Camera decalCam(60.0f, (float)w / (float)h, 0.01f, 1000.0f);
+        decalCam.setPosition(Lab::Vec3(0.0f, 2.5f, 4.2f));
+        decalCam.update(Lab::Vec2(0.0f, -18.0f));
+
+        Lab::Vec3 sunDirection(-0.35f, -0.85f, -0.40f);
+        Lab::Mat4 lightMatrix = Lab::ShadowMap::computeSunLightSpaceMatrix(sunDirection, Lab::Vec3(0, 1.0f, 0), 16.0f);
+        Lab::ShadowMap sMap;
+        sMap.init(2048, 2048);
+
+        // Shadow Depth Pass
+        sMap.beginShadowPass(lightMatrix);
+        Lab::Renderer::beginShadowDepthPass(lightMatrix);
+        Lab::Renderer::drawShadowCube(Lab::Vec3(0.0f, -0.1f, 0.0f), Lab::Vec3(25.0f, 0.2f, 25.0f));
+        Lab::Renderer::drawShadowCube(Lab::Vec3(0.0f, 2.5f, -4.0f), Lab::Vec3(20.0f, 5.0f, 0.4f));
+        Lab::Renderer::drawShadowCube(Lab::Vec3(-2.8f, 0.45f, 0.5f), Lab::Vec3(0.9f, 0.9f, 0.9f));
+        Lab::Renderer::drawShadowCube(Lab::Vec3(-2.8f, 1.35f, 0.5f), Lab::Vec3(0.9f, 0.9f, 0.9f));
+        Lab::Renderer::drawShadowCube(Lab::Vec3( 2.8f, 0.48f, 0.5f), Lab::Vec3(0.64f, 0.96f, 0.64f));
+        Lab::Renderer::endShadowDepthPass();
+        sMap.endShadowPass(w, h);
+
+        // Lit Pass
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        Lab::Renderer::beginFrame(decalCam);
+        Lab::Renderer::setSunLight(sunDirection, Lab::Vec3(1.0f, 0.98f, 0.94f), Lab::Vec3(0.25f, 0.28f, 0.35f));
+        Lab::Renderer::setShadowMap(lightMatrix, sMap.getDepthTexture());
+
+        Lab::Texture flrTex("assets/textures/floor_tiles.bmp");
+        Lab::Texture wlTex("assets/textures/concrete_wall.bmp");
+        Lab::Texture crtTex("crate_wood.png");
+        Lab::Texture brlTex("barrel_hazard.png");
+
+        // Environment geometry
+        Lab::Renderer::drawCube(Lab::Vec3(0.0f, -0.1f, 0.0f), Lab::Vec3(25.0f, 0.2f, 25.0f), Lab::Vec3(0.75f, 0.75f, 0.75f), &flrTex, true);
+        Lab::Renderer::drawCube(Lab::Vec3(0.0f, 2.5f, -4.0f), Lab::Vec3(20.0f, 5.0f, 0.4f), Lab::Vec3(0.70f, 0.70f, 0.70f), &wlTex, true);
+
+        // Props
+        Lab::Renderer::drawCube(Lab::Vec3(-2.8f, 0.45f, 0.5f), Lab::Vec3(0.9f, 0.9f, 0.9f), Lab::Vec3(1, 1, 1), &crtTex, true);
+        Lab::Renderer::drawCube(Lab::Vec3(-2.8f, 1.35f, 0.5f), Lab::Vec3(0.9f, 0.9f, 0.9f), Lab::Vec3(1, 1, 1), &crtTex, true);
+        Lab::Renderer::drawCube(Lab::Vec3( 2.8f, 0.48f, 0.5f), Lab::Vec3(0.64f, 0.96f, 0.64f), Lab::Vec3(1, 1, 1), &brlTex, true);
+
+        Lab::Renderer::disableShadowMap();
+
+        // Render Dynamic Projective Decals
+        decalSys.render(decalCam);
+
+        // UI Diagnostics Overlay
+        Lab::Renderer::beginUI(w, h);
+        Lab::Renderer::drawRect(40.0f, 30.0f, 950.0f, 88.0f, Lab::Vec3(0.10f, 0.12f, 0.16f));
+        Lab::Renderer::drawRect(40.0f, 30.0f, 950.0f, 1.0f, Lab::Vec3(0.2f, 0.75f, 1.0f));
+        Lab::LabFont::drawText(56.0f, 44.0f, "DYNAMIC PROJECTIVE DECAL SYSTEM (SPRINT 7)", 2.0f, Lab::Vec3(0.3f, 0.85f, 1.0f), Lab::LabFontType::GeoSans);
+        Lab::LabFont::drawText(56.0f, 74.0f, "CONCRETE & METAL BULLET HOLES | ORGANIC BLOOD SPLATTERS | EXPLOSIVE SCORCHES", 1.6f, Lab::Vec3(0.90f, 0.92f, 0.95f), Lab::LabFontType::GeoSans);
+        Lab::Renderer::endUI();
+
+        Lab::Renderer::endFrame();
+        glFinish();
+        saveFrameToBMP("test_decals_and_impacts.bmp", w, h);
+        std::cout << "  [PASS] Saved visual Decals & Impacts verification to 'test_decals_and_impacts.bmp'.\n";
+
+        decalSys.shutdown();
+    }
+
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();

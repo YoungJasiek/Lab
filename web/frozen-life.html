@@ -308,6 +308,8 @@
           <li><strong>Dynamic Shadow Mapping (2048x2048 FBO + 3x3 PCF):</strong> Real-time depth buffer pass via OpenGL 4.5 Direct State Access (DSA) with slope-scaled normal bias and Percentage-Closer Filtering for soft, penumbral shadows.</li>
           <li><strong>glTF 2.0 Skeletal Animation &amp; GPU Vertex Skinning:</strong> 20-joint skeletal hierarchy, quaternion spherical linear interpolation (SLERP), cross-fade animation blending (Idle, Walk, Shoot, Melee), and Bone Socket Attachment linking rigid STL weapons directly to animated characters with dynamic shadow casting.</li>
           <li><strong>Rigid Body Dynamics, Destructible Crates &amp; Explosive Fuel Barrels:</strong> Newtonian 3D physics engine (mass, moments of inertia tensor, semi-implicit Euler integration, friction and restitution), destructible wooden crates that shatter into dynamic tumbling debris planks, and red hazard fuel barrels with radial blast shockwaves, cascading chain reactions, and kinetic ragdoll momentum flinging bots upon death.</li>
+          <li><strong>CSG Geometry Clipping &amp; Level Editor Props:</strong> Real-time 3D Sutherland-Hodgman convex polyhedron plane slicing, cap triangulation with planar UV mapping, interactive cutting plane guide in Hammer, and complete serialization of CSG polyhedra and physical props into <code>.labmap</code>.</li>
+          <li><strong>Dynamic Projective Decal System:</strong> Real-time projective decals with depth bias and polygon offset eliminating z-fighting, rendering concrete impact craters with fracture lines, metal bullet punctures with silver rims, organic bot blood splatters dripping on walls and pooling on floors, and charred explosive scorch marks with radial blast tendrils.</li>
         </ul>
       </section>
 
@@ -593,6 +595,16 @@
               <div class="thumbcaption">
                 <span class="magnify-icon">&#128269;</span>
                 CSG Geometry Clipping &amp; Level Editor Props: 3D Sutherland-Hodgman plane slicing, polygon cap triangulation, and full serialization of Havok props into .labmap.
+              </div>
+            </div>
+          </div>
+
+          <div class="thumb">
+            <div class="thumbinner">
+              <img src="assets/img/test_decals_and_impacts.webp" data-full="assets/img/test_decals_and_impacts.png" alt="Dynamic Projective Decal System &amp; Surface Impacts" class="thumbimage">
+              <div class="thumbcaption">
+                <span class="magnify-icon">&#128269;</span>
+                Dynamic Projective Decal System: Concrete impact craters with radial fractures, metal bullet punctures with silver rim burrs, organic bot blood splatters, and charred explosive scorches.
               </div>
             </div>
           </div>

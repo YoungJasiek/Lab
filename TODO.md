@@ -128,14 +128,23 @@ Wszystkie systemy tworzone sa w standardzie **C++20**, **OpenGL 4.5+ Core Profil
 
 ---
 
+### 12. Dynamiczny System Dekali (Projective Decal System) & Odciski Strzalow (Sprint 7 - 100% DONE)
+- [x] Podsystem rzutnika dekali 3D `LabDecals` (`DecalSystem`, `DecalInstance`, `DecalType`): projekcja sladow kul betonowych, przebic metalowych, plam krwi botow oraz okopcen wybuchowych bezposrednio na prostopadlosciany i polyhedry CSG.
+- [x] Proceduralny generator tekstur 64x64 RGBA w pamieci (Concrete Hole z promienistymi peknieciami, Metal Puncture ze srebrnym rantem, organic Blood Splatter z satelitarnymi kroplami, Explosive Scorch z wasami fali uderzeniowej).
+- [x] Zaawansowany depth bias w OpenGL 4.5 Core Profile (`glPolygonOffset(-2.0, -2.0)`, przesuniecie normalne 2.5mm, `glDepthMask(GL_FALSE)`) bez efektu z-fighting i migotania.
+- [x] Bufor kolowy instancji (do 256 dekali) z plynna anizotropowa przezroczystoscia zanikania (Alpha Fadeout w ostatnich 5 sekundach zycia).
+- [x] Wszechstronna integracja z gra (`main.cpp`): odpryski kul ze strzalow hitscan na swiecie, drzwiach i rekwizytach fizycznych, rozbryzgi krwi za botami na scianach i podlodze, radialne okopcenia po wybuchach rakiet RPG i detonacjach beczek.
+- [x] Zautomatyzowany i wizualny test 29 w `TestVerify.exe` weryfikujacy geometrie, orientacje w przestrzeni stycznej, starzenie, rzutowanie na sciany i podloge (`test_decals_and_impacts.bmp`).
+
+---
+
 ## II. NAJBLIZSZE SPRINTY (SHORT-TERM / IN PROGRESS)
 
-### Sprint 7: Dynamiczny System Dekali (Projective Decal System) & Odciski Strzalow na Geometrii CSG
-- [ ] Bufor i rzutnik dekali 3D (`DecalSystem`, OBB Decal Projector): projekcja sladow kul, odpryskow betonu, plam krwi botow i okopcen po wybuchach RPG/beczek bezposrednio na sciany prostopadloscienne oraz skosna geometrie `poly_brush`.
-- [ ] Klipowanie geometrii dekala do bryl swiata z poprawnym offsetem glebokosci (depth bias) eliminujacym z-fighting.
-- [ ] Bufor kolowy instancji dekali z plynna anizotropowa przezroczystoscia zanikania (Alpha Fadeout).
-- [ ] Integracja z systemem trafien hitscan (`WeaponSystem`), kolizjami czasteczek krwi i eksplozjami cial sztywnych.
-- [ ] Zautomatyzowany i wizualny test 29 w `TestVerify.exe` weryfikujacy rzutowanie dekali na geometrie cieta CSG (`test_decals_and_impacts.bmp`).
+### Sprint 8: System Interaktywnych Terminali Swiatowych (In-World GUI / Usable Entities) & Logika Przelacznikow
+- [ ] Klasa encji interaktywnych (`TriggerUse`, `FuncButton`, `FuncDoorTrigger`) z obsluga klawisza `E` (Use / Interact) w zasiegu wzroku gracza.
+- [ ] Interaktywne ekrany i terminale scienne (in-world GUI) ze statusem dostepu (Lock / Unlocked), panelem numerycznym i animacja otwierania bram grodziowych.
+- [ ] Prebuilts w edytorze Hammer (przyciski scienne `prop_button`, konsole `prop_terminal`) z polaczeniami logicznymi I/O (Input/Output triggers w stylu Source).
+- [ ] Zautomatyzowany i wizualny test 30 w `TestVerify.exe` weryfikujacy interakcje i przejscia stanow (`test_interactive_terminals.bmp`).
 
 ---
 

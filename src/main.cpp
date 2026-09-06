@@ -55,6 +55,7 @@ public:
         _weaponSystem.init();
         _particleSystem.init();
         _physicsWorld.init();
+        _decalSystem.init();
 
         // Check ONCE at startup which weapons have custom STL models and textures
         _cachedWeaponMeshes.resize(9, nullptr);
@@ -261,6 +262,7 @@ public:
         _weaponSystem.reset();
         syncHudWeapon();
         _particleSystem.clear();
+        _decalSystem.clear();
         _tracers.clear();
         _pickups.clear();
         _chat.history.clear();
@@ -547,6 +549,9 @@ public:
             _particleSystem.update(time.delta, nullptr);
         }
 
+        // Update Decal System lifetimes & alpha fadeouts
+        _decalSystem.update(time.delta);
+
         // Ambient drifting weather (Snow/Frost for Cryo maps, subtle industrial dust for others)
         if (!_inMenu && !_hammerEditor.active && !_isPlayerDead) {
             bool isCryo = (_currentMap && _currentMap->metadata.name.find("Cryo") != std::string::npos);
@@ -624,6 +629,26 @@ public:
 
                                     // Melee blood impact
                                     _particleSystem.spawnBlood(hit.point, -forward, hit.isHeadshot);
+                                    if (_currentMap) {
+                                        Vec3 bNorm;
+                                        float bestT = 4.0f;
+                                        bool foundWall = false;
+                                        for (const auto& b : _currentMap->brushes) {
+                                            Vec3 half = b.size * 0.5f;
+                                            float t = 0.0f;
+                                            if (Raycast::rayIntersectAABB(hit.point + forward * 0.05f, forward, b.position - half, b.position + half, t, &bNorm)) {
+                                                if (t < bestT) {
+                                                    bestT = t;
+                                                    foundWall = true;
+                                                }
+                                            }
+                                        }
+                                        if (foundWall) {
+                                            Vec3 bloodPos = hit.point + forward * bestT;
+                                            _decalSystem.spawnDecal(DecalType::BloodSplatter, bloodPos, bNorm, 0.45f);
+                                        }
+                                    }
+                                    _decalSystem.spawnDecal(DecalType::BloodSplatter, Vec3(hit.point.x, 0.02f, hit.point.z), Vec3(0, 1, 0), 0.35f);
 
                                     if (killed) {
                                         _playerKills++;
@@ -726,6 +751,26 @@ public:
                             if (hit.tag == EntityTag::Bot) {
                                 // Crimson blood splatter spray & mist
                                 _particleSystem.spawnBlood(hit.point, -spreadDir, hit.isHeadshot);
+                                if (_currentMap) {
+                                    Vec3 bNorm;
+                                    float bestT = 5.0f;
+                                    bool foundWall = false;
+                                    for (const auto& b : _currentMap->brushes) {
+                                        Vec3 half = b.size * 0.5f;
+                                        float t = 0.0f;
+                                        if (Raycast::rayIntersectAABB(hit.point + spreadDir * 0.05f, spreadDir, b.position - half, b.position + half, t, &bNorm)) {
+                                            if (t < bestT) {
+                                                bestT = t;
+                                                foundWall = true;
+                                            }
+                                        }
+                                    }
+                                    if (foundWall) {
+                                        Vec3 bloodPos = hit.point + spreadDir * bestT;
+                                        _decalSystem.spawnDecal(DecalType::BloodSplatter, bloodPos, bNorm, 0.40f + (float)(rand() % 20) * 0.01f);
+                                    }
+                                }
+                                _decalSystem.spawnDecal(DecalType::BloodSplatter, Vec3(hit.point.x, 0.02f, hit.point.z), Vec3(0, 1, 0), 0.32f);
 
                                 for (auto& bot : _aiManager.bots) {
                                     if (bot.id == hit.entityIndex && bot.isAlive()) {
@@ -756,13 +801,16 @@ public:
                             } else if (hit.tag == EntityTag::RigidProp) {
                                 _physicsWorld.takeDamage(hit.entityIndex, def.damage, hit.point, spreadDir);
                                 _particleSystem.spawnImpact(hit.point, hit.normal, SurfaceType::Wood);
+                                _decalSystem.spawnDecal(DecalType::BulletHoleMetal, hit.point, hit.normal, 0.15f);
                                 _hud.triggerHitmarker(false);
                             } else if (hit.tag == EntityTag::World) {
                                 // Concrete dust puff + spark spray + debris
                                 _particleSystem.spawnImpact(hit.point, hit.normal, SurfaceType::Concrete);
+                                _decalSystem.spawnDecal(DecalType::BulletHoleConcrete, hit.point, hit.normal, 0.18f + (float)(rand() % 8) * 0.01f);
                             } else if (hit.tag == EntityTag::Door) {
                                 // Metal ricochet spark spray + metallic shrapnel
                                 _particleSystem.spawnImpact(hit.point, hit.normal, SurfaceType::Metal);
+                                _decalSystem.spawnDecal(DecalType::BulletHoleMetal, hit.point, hit.normal, 0.16f + (float)(rand() % 6) * 0.01f);
                             }
                         }
                     }
@@ -817,6 +865,7 @@ public:
             if (hitAnything) {
                 proj.active = false;
                 _particleSystem.spawnExplosion(hitPos, proj.splashRadius, proj.color);
+                _decalSystem.spawnExplosionScorch(hitPos, proj.splashRadius * 0.75f, _currentMap ? _currentMap->brushes : std::vector<MapBrush>{});
                 AudioEngine::playSound3D(SoundID::RPGExplosion, hitPos);
                 _physicsWorld.applyExplosionImpulse(hitPos, proj.splashRadius, 420.0f, proj.damage + proj.splashDamage);
                 float radiusSq = proj.splashRadius * proj.splashRadius;
@@ -876,6 +925,7 @@ public:
             // Process barrel detonations & shockwaves
             for (const auto& exp : _physicsWorld.pendingExplosions) {
                 _particleSystem.spawnExplosion(exp.position, exp.radius, Vec3(1.0f, 0.45f, 0.1f));
+                _decalSystem.spawnExplosionScorch(exp.position, exp.radius * 0.75f, _currentMap ? _currentMap->brushes : std::vector<MapBrush>{});
                 AudioEngine::playSound3D(SoundID::RPGExplosion, exp.position, 1.0f, 1.0f);
 
                 // Affect player if in blast radius
@@ -925,6 +975,8 @@ public:
         if (botDamageToPlayer > 0.0f) {
             AudioEngine::playSound(SoundID::PlayerHurt);
             _hud.triggerDamageFlash();
+            _particleSystem.spawnBlood(_camera.getPosition() - Vec3(0, 0.2f, 0), Vec3(0, 1, 0), false);
+            _decalSystem.spawnDecal(DecalType::BloodSplatter, Vec3(_camera.getPosition().x, 0.02f, _camera.getPosition().z), Vec3(0, 1, 0), 0.35f);
             if (_hud.suitArmor > 0.0f) {
                 float absorb = std::min(_hud.suitArmor, botDamageToPlayer * 0.7f);
                 _hud.suitArmor -= absorb;
@@ -1793,6 +1845,9 @@ public:
             Renderer::drawCube(proj.position, Vec3(0, 0, 0), Vec3(pSize, pSize, pSize * 2.0f), proj.color, nullptr, false);
         }
 
+        // Render Dynamic Projective Decals (Bullet holes, blood splatters, scorch marks)
+        _decalSystem.render(_camera);
+
         // Render 3D Particle System (Sparks, blood, smoke, fire, frost)
         _particleSystem.render(_camera);
 
@@ -1816,12 +1871,14 @@ public:
         _shadowMap.shutdown();
         AudioEngine::shutdown();
         _particleSystem.shutdown();
+        _decalSystem.shutdown();
         Renderer::shutdown();
     }
 
 private:
     Camera _camera;
     ParticleSystem _particleSystem;
+    DecalSystem _decalSystem;
     std::unique_ptr<LabMap> _currentMap;
     std::unordered_map<std::string, std::unique_ptr<Texture>> _textures;
     std::unordered_map<std::string, std::unique_ptr<Mesh>> _meshes;
