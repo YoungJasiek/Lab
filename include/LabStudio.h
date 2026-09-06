@@ -30,6 +30,9 @@ namespace Lab {
         Vec3 weaponOffset{0.0f, 0.0f, 0.0f};     // Translation (X, Y, Z in meters)
         Vec3 weaponRotation{0.0f, 0.0f, 0.0f};   // Rotation (Pitch X, Yaw Y, Roll Z in degrees)
         Vec3 weaponScale{1.0f, 1.0f, 1.0f};      // Scale (Scale X, Y, Z, default 1.0)
+
+        // Hand Locking: if true, weapon offset and rotation move ONLY the weapon model without moving hands/arms
+        bool lockHands = false;
     };
 
     enum class PoserSubMode : int {
@@ -191,6 +194,10 @@ namespace Lab {
         void resetActiveWeaponRotation();
         void resetActiveWeaponScale();
         void resetActiveWeaponAllTransforms();
+
+        bool isHandsLocked() const { return _weaponGrips[_selectedWeaponIndex].lockHands; }
+        void setHandsLocked(bool locked) { _weaponGrips[_selectedWeaponIndex].lockHands = locked; }
+        void toggleHandsLocked() { _weaponGrips[_selectedWeaponIndex].lockHands = !_weaponGrips[_selectedWeaponIndex].lockHands; }
 
         // Dropdown Menu State
         enum class DropdownMenu : int {

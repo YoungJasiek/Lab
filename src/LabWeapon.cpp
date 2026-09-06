@@ -624,7 +624,8 @@ namespace Lab {
                                        const Vec3* weaponOffset,
                                        const Vec3* weaponRotation,
                                        const Vec3* weaponScale,
-                                       float uvScale) {
+                                       float uvScale,
+                                       bool lockHands) {
         Renderer::beginViewModel();
 
         // Base idle viewmodel position (lower right screen quadrant, classic FPS framing)
@@ -646,9 +647,13 @@ namespace Lab {
         Vec3 finalRot = gunRot + (weaponRotation ? *weaponRotation : Vec3(0.0f, 0.0f, 0.0f));
         Vec3 userScale = weaponScale ? *weaponScale : Vec3(1.0f, 1.0f, 1.0f);
 
-        // 1. Render First-Person Tactical Arms & Hands (kinematically bound to finalPos & finalRot with socket overrides)
+        // If lockHands is enabled, hands remain anchored to base posture (only weapon model translates/rotates)
+        Vec3 armsPos = lockHands ? gunBasePos : finalPos;
+        Vec3 armsRot = lockHands ? gunRot : finalRot;
+
+        // 1. Render First-Person Tactical Arms & Hands (kinematically bound to armsPos & armsRot with socket overrides)
         static ViewModelArms s_viewmodelArms;
-        s_viewmodelArms.render(finalPos, finalRot, _currentWeapon, animator, nullptr,
+        s_viewmodelArms.render(armsPos, armsRot, _currentWeapon, animator, nullptr,
                               rightSocketPos, rightSocketRot, leftSocketPos, leftSocketRot);
 
         Vec3 finalTint = tintColor ? *tintColor : Vec3(1.0f, 1.0f, 1.0f);

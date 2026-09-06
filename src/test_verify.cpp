@@ -3501,7 +3501,9 @@ int main() {
             return 1;
         }
 
-        // Test Serialization of weapon transform
+        studio.getWeaponGripMut(Lab::WeaponID::M4A4S).lockHands = true;
+
+        // Test Serialization of weapon transform & LockHands
         std::string transformCfg = "build/test_transform.cfg";
         studio.saveConfig(transformCfg);
         Lab::CharacterStudio studioTransformLoader;
@@ -3509,8 +3511,9 @@ int main() {
         const auto& loadedGrip = studioTransformLoader.getWeaponGrip(Lab::WeaponID::M4A4S);
         if (std::abs(loadedGrip.weaponOffset.z - 0.08f) > 0.001f ||
             std::abs(loadedGrip.weaponRotation.y - (-10.0f)) > 0.001f ||
-            std::abs(loadedGrip.weaponScale.z - 1.25f) > 0.001f) {
-            std::cerr << "Assertion failed: Serialization of weapon transform to .cfg failed!\n";
+            std::abs(loadedGrip.weaponScale.z - 1.25f) > 0.001f ||
+            !loadedGrip.lockHands) {
+            std::cerr << "Assertion failed: Serialization of weapon transform (and LockHands) to .cfg failed!\n";
             return 1;
         }
         std::filesystem::remove(transformCfg);
@@ -3655,6 +3658,32 @@ int main() {
             glFinish();
             saveFrameToBMP("test_pipe_textured_viewmodel.bmp", w, h);
             std::cout << "  [PASS] Saved Pipe STL with High-Res PNG Texture to 'test_pipe_textured_viewmodel.bmp'.\n";
+
+            // Visual Verification 5: Independent Weapon Transform (lockHands = true)
+            // Weapon offset/rotated without moving hands
+            glClearColor(0.08f, 0.09f, 0.11f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+            Lab::Camera lockHandsCam(70.0f, (float)w / (float)h, 0.01f, 100.0f);
+            Lab::Renderer::beginFrame(lockHandsCam);
+            Lab::WeaponSystem lockWs;
+            lockWs.init();
+            lockWs.switchWeapon(Lab::WeaponID::Pipe);
+            Lab::WeaponAnimator lockAnim;
+            Lab::Vec3 customWeaponOffset(0.02f, -0.01f, 0.04f);
+            Lab::Vec3 customWeaponRot(5.0f, -8.0f, 3.0f);
+            Lab::Vec3 customWeaponScale(1.0f, 1.0f, 1.0f);
+            Lab::Vec3 defaultWhite(1.0f, 1.0f, 1.0f);
+            // Render with lockHands = true: arms stay in base stance, weapon translates & rotates independently
+            lockWs.renderViewModel(lockHandsCam, lockAnim, pipePng.get(), pipeMesh.get(), 0.0f,
+                                   nullptr, nullptr, nullptr, nullptr,
+                                   &defaultWhite, &customWeaponOffset, &customWeaponRot, &customWeaponScale,
+                                   0.25f, true);
+            Lab::Renderer::endFrame();
+
+            glFinish();
+            saveFrameToBMP("test_weapon_only_transform.bmp", w, h);
+            std::cout << "  [PASS] Saved Independent Weapon Transform (lockHands = true) to 'test_weapon_only_transform.bmp'.\n";
         }
     }
 

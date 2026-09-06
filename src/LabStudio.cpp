@@ -289,6 +289,15 @@ namespace Lab {
                 _turntableAutoRotate = !_turntableAutoRotate;
                 return;
             }
+            if (key == 76 || key == 'L') {
+                pushUndoState();
+                auto& curGrip = _weaponGrips[_selectedWeaponIndex];
+                curGrip.lockHands = !curGrip.lockHands;
+                log(curGrip.lockHands 
+                    ? "Lock Hands ON [L]: Moving/rotating weapon will NOT move character hands."
+                    : "Lock Hands OFF [L]: Weapon and hands move together.");
+                return;
+            }
             if (key == 49 || key == '1') {
                 _activeTab = StudioTab::GripPoser;
                 resetCamera();
@@ -871,16 +880,20 @@ namespace Lab {
 
         // Render Tactical Arms aligned to configured sockets!
         if (_arms && _animator) {
-            _arms->render(weaponPos, weaponRot, wid, *_animator, nullptr,
+            Vec3 armsPos = grip.lockHands ? Vec3(0.0f, 0.0f, 0.0f) : weaponPos;
+            Vec3 armsRot = grip.lockHands ? Vec3(0.0f, 0.0f, 0.0f) : weaponRot;
+            _arms->render(armsPos, armsRot, wid, *_animator, nullptr,
                           &grip.rightSocketPos, &grip.rightSocketRot,
                           &grip.leftSocketPos, &grip.leftSocketRot);
         }
 
         // Render Socket & Weapon Origin Tripod Gizmos
         if (_showGizmos) {
+            Vec3 armsPos = grip.lockHands ? Vec3(0.0f, 0.0f, 0.0f) : weaponPos;
+            Vec3 armsRot = grip.lockHands ? Vec3(0.0f, 0.0f, 0.0f) : weaponRot;
             renderSocketGizmo(weaponPos, weaponRot);
-            renderSocketGizmo(weaponPos + grip.rightSocketPos, weaponRot + grip.rightSocketRot);
-            renderSocketGizmo(weaponPos + grip.leftSocketPos, weaponRot + grip.leftSocketRot);
+            renderSocketGizmo(armsPos + grip.rightSocketPos, armsRot + grip.rightSocketRot);
+            renderSocketGizmo(armsPos + grip.leftSocketPos, armsRot + grip.leftSocketRot);
         }
     }
 
@@ -956,7 +969,9 @@ namespace Lab {
         // Arms following reload kinematics
         if (_arms && _animator) {
             Vec3 leftHandOffset = grip.leftSocketPos + Vec3(0.0f, magY * 0.7f, 0.0f);
-            _arms->render(weaponPos, weaponRot, wid, *_animator, nullptr,
+            Vec3 armsPos = grip.lockHands ? Vec3(0.0f, dipY, 0.0f) : weaponPos;
+            Vec3 armsRot = grip.lockHands ? Vec3(0.0f, 0.0f, tiltRoll) : weaponRot;
+            _arms->render(armsPos, armsRot, wid, *_animator, nullptr,
                           &grip.rightSocketPos, &grip.rightSocketRot,
                           &leftHandOffset, &grip.leftSocketRot);
         }
@@ -1469,6 +1484,17 @@ namespace Lab {
             _viewportToolMode = ViewportToolMode::ScaleWeapon;
             log("Viewport Mode: Scale Weapon [T] (LMB drag / Wheel scale)");
         }
+        btnX += 62.0f;
+
+        auto& curGrip = _weaponGrips[_selectedWeaponIndex];
+        std::string lockLabel = curGrip.lockHands ? "HANDS: LOCKED [L]" : "HANDS: FREE [L]";
+        if (drawHammerButton(btnX, tbY + 2.0f, 116.0f, 24.0f, lockLabel, curGrip.lockHands)) {
+            pushUndoState();
+            curGrip.lockHands = !curGrip.lockHands;
+            log(curGrip.lockHands 
+                ? "Lock Hands ON: Moving weapon will NOT move character hands." 
+                : "Lock Hands OFF: Weapon and hands move together.");
+        }
     }
 
     void CharacterStudio::renderHammerLeftToolPalette(float h) {
@@ -1536,10 +1562,12 @@ namespace Lab {
 
         char statusBuf[256];
         snprintf(statusBuf, sizeof(statusBuf),
-                 "Weapon: %s | Right Socket: (%.2f, %.2f, %.2f) | Left Socket: (%.2f, %.2f, %.2f) | Style: Valve Hammer",
+                 "Weapon: %s | Hands: %s | Offset: (%.2f, %.2f, %.2f) | Right: (%.2f, %.2f) | Left: (%.2f, %.2f)",
                  weaponNames[_selectedWeaponIndex],
-                 grip.rightSocketPos.x, grip.rightSocketPos.y, grip.rightSocketPos.z,
-                 grip.leftSocketPos.x, grip.leftSocketPos.y, grip.leftSocketPos.z);
+                 grip.lockHands ? "LOCKED [L]" : "LINKED [L]",
+                 grip.weaponOffset.x, grip.weaponOffset.y, grip.weaponOffset.z,
+                 grip.rightSocketPos.x, grip.rightSocketPos.y,
+                 grip.leftSocketPos.x, grip.leftSocketPos.y);
 
         LabFont::drawText(10.0f, sbY + 5.0f, statusBuf, 1.4f, Vec3(0.85f, 0.88f, 0.92f), LabFontType::System);
         LabFont::drawText(w - 180.0f, sbY + 5.0f, "OpenGL 4.5 Core | PASS", 1.4f, Vec3(0.35f, 0.90f, 0.45f), LabFontType::System);
@@ -1594,10 +1622,26 @@ namespace Lab {
         curY += 28.0f;
 
         if (_poserSubMode == PoserSubMode::WeaponTransform) {
+            // Mode Toggle: Move Weapon Only (Hands Fixed) vs Move Together
+            float toggleH = 24.0f;
+            std::string modeLabel = grip.lockHands 
+                ? "[X] MOVE WEAPON ONLY (HANDS FIXED)" 
+                : "[ ] MOVE BOTH (WEAPON + HANDS)";
+            if (drawHammerButton(x + 8.0f, curY, w - 16.0f, toggleH, modeLabel, grip.lockHands)) {
+                pushUndoState();
+                grip.lockHands = !grip.lockHands;
+                log(grip.lockHands 
+                    ? "Lock Hands ON: Weapon transforms independently without moving hands."
+                    : "Lock Hands OFF: Weapon and hands move together.");
+            }
+            curY += toggleH + 6.0f;
+
             // Group Box 1: Weapon Translation (Przesuwanie)
             Renderer::drawRect(x + 8.0f, curY, w - 16.0f, 100.0f, Vec3(0.18f, 0.19f, 0.21f));
             drawHammerBevel(x + 8.0f, curY, w - 16.0f, 100.0f, true);
-            LabFont::drawText(x + 14.0f, curY + 5.0f, "WEAPON TRANSLATION (PRZESUWANIE):", 1.4f, Vec3(0.4f, 0.85f, 1.0f), LabFontType::System);
+            LabFont::drawText(x + 14.0f, curY + 5.0f, 
+                grip.lockHands ? "WEAPON TRANSLATION (SAMODZIELNA BRON):" : "WEAPON TRANSLATION (PRZESUWANIE):", 
+                1.4f, Vec3(0.4f, 0.85f, 1.0f), LabFontType::System);
 
             drawHammerSlider(x + 14.0f, curY + 22.0f, w - 28.0f, 16.0f, "Offset X (L/R):", grip.weaponOffset.x, -0.50f, 0.50f);
             drawHammerSlider(x + 14.0f, curY + 40.0f, w - 28.0f, 16.0f, "Offset Y (U/D):", grip.weaponOffset.y, -0.50f, 0.50f);
@@ -2197,7 +2241,8 @@ namespace Lab {
             out << "RightRot=" << _weaponGrips[i].rightSocketRot.x << "," << _weaponGrips[i].rightSocketRot.y << "," << _weaponGrips[i].rightSocketRot.z << "\n";
             out << "LeftPos=" << _weaponGrips[i].leftSocketPos.x << "," << _weaponGrips[i].leftSocketPos.y << "," << _weaponGrips[i].leftSocketPos.z << "\n";
             out << "LeftRot=" << _weaponGrips[i].leftSocketRot.x << "," << _weaponGrips[i].leftSocketRot.y << "," << _weaponGrips[i].leftSocketRot.z << "\n";
-            out << "AdsOffset=" << _weaponGrips[i].adsOffset.x << "," << _weaponGrips[i].adsOffset.y << "," << _weaponGrips[i].adsOffset.z << "\n\n";
+            out << "AdsOffset=" << _weaponGrips[i].adsOffset.x << "," << _weaponGrips[i].adsOffset.y << "," << _weaponGrips[i].adsOffset.z << "\n";
+            out << "LockHands=" << (_weaponGrips[i].lockHands ? "1" : "0") << "\n\n";
 
             out << "[WeaponSkin_" << i << "]\n";
             out << "Model=" << _weaponSkins[i].modelFile << "\n";
@@ -2336,6 +2381,7 @@ namespace Lab {
                     else if (key == "LeftPos") _weaponGrips[id].leftSocketPos = parseVec3(val, _weaponGrips[id].leftSocketPos);
                     else if (key == "LeftRot") _weaponGrips[id].leftSocketRot = parseVec3(val, _weaponGrips[id].leftSocketRot);
                     else if (key == "AdsOffset") _weaponGrips[id].adsOffset = parseVec3(val, _weaponGrips[id].adsOffset);
+                    else if (key == "LockHands") _weaponGrips[id].lockHands = (val == "1" || val == "true" || val == "True");
                     else if (key == "Model" || key == "ModelFile") _weaponSkins[id].modelFile = val;
                 }
             } else if (currentSection.rfind("WeaponSkin_", 0) == 0) {

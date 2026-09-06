@@ -1680,7 +1680,8 @@ public:
                                       &grip.leftSocketPos, &grip.leftSocketRot,
                                       &skin.tintColor,
                                       &grip.weaponOffset, &grip.weaponRotation, &grip.weaponScale,
-                                      skin.uvScale);
+                                      skin.uvScale,
+                                      grip.lockHands);
     }
 
     void drawMenu() {
