@@ -27,7 +27,7 @@
     <div class="vdc-header-left">
       <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
       <a href="index.html" class="vdc-brand">
-        <img src="assets/img/LabLogo.png" alt="Lab Engine Logo" class="vdc-logo-img">
+        <img src="assets/img/LabLogo.webp" alt="Lab Engine Logo" class="vdc-logo-img">
         <div class="vdc-brand-text">
           <span class="vdc-brand-title"><span class="accent">Lab</span> Developer Community</span>
           <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LABHAMMER</span>
@@ -78,6 +78,12 @@
           <li><a href="#sec-memory">Memory Model &amp; RAII</a></li>
           <li><a href="#sec-combat">Combat Subsystem &amp; AI</a></li>
           <li><a href="#sec-collision">Slab Ray-AABB Math</a></li>
+          <li><a href="#sec-physics-engine">LabPhysics Dynamics</a></li>
+          <li><a href="#sec-audio-engine">LabAudio 3D Spatial</a></li>
+          <li><a href="#sec-interactive-engine">LabInteractive System</a></li>
+          <li><a href="#sec-csg-engine">LabCSG Clip Geometry</a></li>
+          <li><a href="#sec-decals-engine">LabDecals Projective</a></li>
+          <li><a href="#sec-skeletal-engine">LabSkeletal &amp; Skinning</a></li>
           <li><a href="#sec-source-code">C++ Source Inspector</a></li>
         </ul>
       </div>
@@ -133,7 +139,7 @@
           <span class="infobox-subtitle">CORE SUBSYSTEM ARCHITECTURE</span>
         </div>
         <div class="infobox-image">
-          <img src="assets/img/LabLogo.png" alt="Lab Engine Core Architecture" style="max-height:120px;">
+          <img src="assets/img/LabLogo.webp" alt="Lab Engine Core Architecture" style="max-height:120px;">
           <div class="infobox-caption">Modern C++20 Real-Time FPS Engine</div>
         </div>
         <table class="infobox-table">
@@ -199,7 +205,13 @@
           <li><a href="#sec-memory"><span class="tocnumber">3</span> <span class="toctext">Memory Safety &amp; Zero Runtime Allocations</span></a></li>
           <li><a href="#sec-combat"><span class="tocnumber">4</span> <span class="toctext">Combat Subsystem &amp; Bot AI Finite State Machine</span></a></li>
           <li><a href="#sec-collision"><span class="tocnumber">5</span> <span class="toctext">Spatial Physics &amp; Branchless Ray-AABB Intersection</span></a></li>
-          <li><a href="#sec-source-code"><span class="tocnumber">6</span> <span class="toctext">Interactive C++ Source Code Inspector</span></a></li>
+          <li><a href="#sec-physics-engine"><span class="tocnumber">6</span> <span class="toctext">LabPhysics: 3D Rigid Body Dynamics &amp; Destruction</span></a></li>
+          <li><a href="#sec-audio-engine"><span class="tocnumber">7</span> <span class="toctext">LabAudio: 3D Spatial Audio &amp; Synthesizers (miniaudio)</span></a></li>
+          <li><a href="#sec-interactive-engine"><span class="tocnumber">8</span> <span class="toctext">LabInteractive: In-World Terminals &amp; Trigger Logic</span></a></li>
+          <li><a href="#sec-csg-engine"><span class="tocnumber">9</span> <span class="toctext">LabCSG: Sutherland-Hodgman Polygon Clipping</span></a></li>
+          <li><a href="#sec-decals-engine"><span class="tocnumber">10</span> <span class="toctext">LabDecals: Projective Decals with Depth Bias</span></a></li>
+          <li><a href="#sec-skeletal-engine"><span class="tocnumber">11</span> <span class="toctext">LabSkeletal: glTF 2.0 Rig &amp; GPU Vertex Skinning</span></a></li>
+          <li><a href="#sec-source-code"><span class="tocnumber">12</span> <span class="toctext">Interactive C++ Source Code Inspector</span></a></li>
         </ol>
       </nav>
 
@@ -307,11 +319,104 @@ tFar  = min(max(t0.x, t1.x), max(t0.y, t1.y), max(t0.z, t1.z));</code></pre>
       </section>
 
       <!-- ================================================================
-           SECTION 6: C++ SOURCE INSPECTOR
+           SECTION 6: LABPHYSICS DYNAMICS & DESTRUCTION
+           ================================================================ -->
+      <section id="sec-physics-engine" class="wiki-section-container">
+        <h2><span class="mw-headline">6. LabPhysics: 3D Rigid Body Dynamics &amp; Destruction</span></h2>
+        <p>
+          Introduced in Sprint 5, <code>LabPhysics</code> implements full 3D Newtonian dynamics:
+        </p>
+        <ul>
+          <li><strong>RigidBody Mechanics:</strong> Integration via semi-implicit Euler, diagonalized local moment of inertia tensor for arbitrary box extents, linear and angular velocity damping, and dynamic resting sleep thresholding to minimize CPU cycles.</li>
+          <li><strong>OBB/AABB Contact Manifolds:</strong> Robust collision queries between physical props and world static brushes with normal impulse resolution, elastic restitution, and kinetic/static friction coefficients.</li>
+          <li><strong>Destructible Props (<code>PropType::Crate</code>):</strong> Wooden crates with 40 HP health pool that shatter on destruction into 7 discrete physical wooden planks, each receiving kinetic blast impulses and tumbling with independent angular velocities.</li>
+          <li><strong>Explosive Fuel Barrels (<code>PropType::ExplosiveBarrel</code>):</strong> Volatile red cylinders detonating from bullet impacts, melee strikes, or shockwaves. Produces a 6.5m radial explosion dealing up to 130 damage, triggering cascading chain reactions among adjacent barrels and flinging enemy bots into ragdoll flight.</li>
+        </ul>
+      </section>
+
+      <!-- ================================================================
+           SECTION 7: LABAUDIO 3D SPATIAL
+           ================================================================ -->
+      <section id="sec-audio-engine" class="wiki-section-container">
+        <h2><span class="mw-headline">7. LabAudio: 3D Spatial Audio &amp; Synthesizers (miniaudio)</span></h2>
+        <p>
+          The audio engine links the modern, zero-dependency <code>miniaudio</code> v0.11.25 library:
+        </p>
+        <ul>
+          <li><strong>Procedural 16-Bit PCM WAV Synthesizers:</strong> Self-contained in-memory generators producing all 26 game audio effects (FM synthesis, filtered pink/white noise, ADSR envelope shaping) with zero external audio asset dependencies.</li>
+          <li><strong>Complete Weapon &amp; World Foley:</strong> 9 unique firearm blasts, dry-fire clicks, magazine drops, shell casing tumbles, pipe swings, footstep variations (concrete, metal grating, snow/ice), medkits, ammo pickups, and barrel detonations.</li>
+          <li><strong>3D Spatial Attenuation:</strong> Real-time distance inverse-square falloff, stereo panning, and Doppler directional vectors calculated from the player's camera orientation.</li>
+          <li><strong>Thread-Safe Voice Pool:</strong> Fixed 64-voice memory-safe sound pool operating without heap allocations during active firefights.</li>
+        </ul>
+      </section>
+
+      <!-- ================================================================
+           SECTION 8: LABINTERACTIVE TERMINALS
+           ================================================================ -->
+      <section id="sec-interactive-engine" class="wiki-section-container">
+        <h2><span class="mw-headline">8. LabInteractive: In-World Terminals &amp; Trigger Logic</span></h2>
+        <p>
+          The interactive entity system in <code>src/LabInteractive.cpp</code> brings tactical world interactions:
+        </p>
+        <ul>
+          <li><strong>Raycast Picking (+use):</strong> Continuous 2.8-meter view frustum raycast picking allowing players to operate in-world consoles, keypads, and industrial breaker switches by pressing <code>E</code>.</li>
+          <li><strong>Security Clearance Logic:</strong> State machine managing <code>Locked</code>, <code>Unlocked</code>, and <code>Active</code> states with visual LED indicators (red, green, cyan) and procedural audio feedback (Access Granted chime, Access Denied buzz).</li>
+          <li><strong>3D CRT Screens &amp; Logic I/O:</strong> Procedural raster scanlines, telemetry status bars, and dispatch of activation signals directly to target sliding airlocks and bunker blast doors.</li>
+        </ul>
+      </section>
+
+      <!-- ================================================================
+           SECTION 9: LABCSG CLIP GEOMETRY
+           ================================================================ -->
+      <section id="sec-csg-engine" class="wiki-section-container">
+        <h2><span class="mw-headline">9. LabCSG: Sutherland-Hodgman Polygon Clipping</span></h2>
+        <p>
+          The CSG geometry engine in <code>src/LabCSG.cpp</code> powers real-time constructive solid geometry:
+        </p>
+        <ul>
+          <li><strong>Convex Polyhedron Slicing:</strong> Multi-pass Sutherland-Hodgman polygon clipping against an arbitrary 3D cutting plane defined by user vectors in LabHammer.</li>
+          <li><strong>Cap Triangulation:</strong> Automatic fan triangulation of the cross-section plane with unified outward surface normals and counter-clockwise vertex winding (CCW).</li>
+          <li><strong>Planar UV Mapping:</strong> Seamless generation of Source-style texture projection coordinates across sliced faces without texture stretching or warping.</li>
+        </ul>
+      </section>
+
+      <!-- ================================================================
+           SECTION 10: LABDECALS PROJECTIVE
+           ================================================================ -->
+      <section id="sec-decals-engine" class="wiki-section-container">
+        <h2><span class="mw-headline">10. LabDecals: Projective Decals with Depth Bias</span></h2>
+        <p>
+          The decal projection subsystem in <code>src/LabDecals.cpp</code> generates persistent surface impacts:
+        </p>
+        <ul>
+          <li><strong>Surface Projection:</strong> Projects tangent-space decals directly onto brushes, polyhedra, doors, and static geometry based on raycast collision normal vectors.</li>
+          <li><strong>Depth Bias without Z-Fighting:</strong> Employs <code>glPolygonOffset(-2.0f, -2.0f)</code> combined with a 2.5mm surface normal push and <code>glDepthMask(GL_FALSE)</code> to eliminate surface flickering.</li>
+          <li><strong>Procedural Decal Atlas:</strong> 64x64 RGBA impact craters for concrete, metal bullet punctures with silver burrs, organic blood splatters, and charred explosion scorch marks.</li>
+          <li><strong>Circular Instance Buffer:</strong> Manages up to 256 active decals with smooth alpha fadeout during the final 5 seconds of their lifetime.</li>
+        </ul>
+      </section>
+
+      <!-- ================================================================
+           SECTION 11: LABSKELETAL ANIMATION
+           ================================================================ -->
+      <section id="sec-skeletal-engine" class="wiki-section-container">
+        <h2><span class="mw-headline">11. LabSkeletal: glTF 2.0 Rig &amp; GPU Vertex Skinning</span></h2>
+        <p>
+          The skeletal animation subsystem in <code>src/LabSkeletal.cpp</code> delivers character articulation:
+        </p>
+        <ul>
+          <li><strong>glTF 2.0 Rigging:</strong> 20-bone humanoid skeleton hierarchy (Root, Pelvis, Spine, Torso, Neck, Head, Clavicles, Arms, Hands, Legs, Feet).</li>
+          <li><strong>Quaternion Math &amp; SLERP:</strong> Custom <code>Quat</code> implementation providing smooth spherical linear interpolation between animation keyframes (Idle, Walk, Run, Shoot, Melee).</li>
+          <li><strong>Bone Socket Attachment:</strong> Hybrid glTF + STL architecture dynamically binding rigid 3D weapon meshes (e.g. <code>pipe.stl</code>, <code>weapon_pistol</code>) to hand joint sockets with animated position and rotation matrices.</li>
+        </ul>
+      </section>
+
+      <!-- ================================================================
+           SECTION 12: C++ SOURCE INSPECTOR
            ================================================================ -->
       <section id="sec-source-code" class="wiki-section-container">
         <a id="source-code" style="position:relative; top:-60px; display:block; visibility:hidden;"></a>
-        <h2><span class="mw-headline">6. Interactive C++ Source Code Inspector</span></h2>
+        <h2><span class="mw-headline">12. Interactive C++ Source Code Inspector</span></h2>
         <p>
           Inspect core implementation headers and algorithms directly from the Lab codebase:
         </p>

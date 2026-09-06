@@ -10,7 +10,7 @@
   <title>Lab Developer Community – Lab Engine, LabHammer &amp; Frozen-Life</title>
 
   <!-- Favicon -->
-  <link rel="icon" type="image/png" href="assets/img/LabLogo.png">
+  <link rel="icon" type="image/webp" href="assets/img/LabLogo.webp">
 
   <!-- Core Stylesheet (Clean Slate & Precision Cyan) -->
   <link rel="stylesheet" href="css/style.css">
@@ -27,7 +27,7 @@
     <div class="vdc-header-left">
       <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
       <a href="index.html" class="vdc-brand">
-        <img src="assets/img/LabLogo.png" alt="Lab Engine Logo" class="vdc-logo-img">
+        <img src="assets/img/LabLogo.webp" alt="Lab Engine Logo" class="vdc-logo-img">
         <div class="vdc-brand-text">
           <span class="vdc-brand-title"><span class="accent">Lab</span> Developer Community</span>
           <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LABHAMMER</span>
@@ -128,11 +128,13 @@
         </p>
         <div class="vdc-banner-badges">
           <span class="vdc-badge accent">Game: Lab.exe (Frozen-Life FPS)</span>
-          <span class="vdc-badge accent">Editor: LabHammer.exe (3D CAD Suite)</span>
+          <span class="vdc-badge accent">Editor: LabHammer.exe (CSG &amp; CAD)</span>
           <span class="vdc-badge">Language: ISO C++20 / C++23</span>
           <span class="vdc-badge">Renderer: OpenGL 4.5+ DSA</span>
-          <span class="vdc-badge">Format: .labmap (Plain-Text)</span>
-          <span class="vdc-badge accent">Discipline: 100% RAII &bull; Zero Raw Pointers</span>
+          <span class="vdc-badge">Physics: 3D Rigid Body Dynamics</span>
+          <span class="vdc-badge">Audio: miniaudio 3D Synthesizers</span>
+          <span class="vdc-badge">Animation: glTF 2.0 GPU Skinning</span>
+          <span class="vdc-badge accent">Format: .labmap (Plain-Text Polyhedra)</span>
         </div>
       </div>
 
@@ -343,7 +345,17 @@
               <img src="assets/img/test_hammer_ui.webp" data-full="assets/img/test_hammer_ui.png" alt="LabHammer level editor" class="thumbimage">
               <div class="thumbcaption">
                 <span class="magnify-icon">&#128269;</span>
-                <a href="labhammer.html">LabHammer 3D Level Editor</a>: 3D viewport, brush tools, and properties.
+                <a href="labhammer.html">LabHammer 3D Editor</a>: 3D viewport, brush tools, and properties inspector.
+              </div>
+            </div>
+          </div>
+
+          <div class="thumb">
+            <div class="thumbinner">
+              <img src="assets/img/test_csg_clipping_and_hammer.webp" data-full="assets/img/test_csg_clipping_and_hammer.png" alt="CSG Clipping in LabHammer" class="thumbimage">
+              <div class="thumbcaption">
+                <span class="magnify-icon">&#128269;</span>
+                <a href="labhammer.html#sec-csg">CSG Clip Plane Tool</a>: Sutherland-Hodgman convex polyhedron carving.
               </div>
             </div>
           </div>
@@ -353,27 +365,57 @@
               <img src="assets/img/test_combat_shooting.webp" data-full="assets/img/test_combat_shooting.png" alt="Frozen-Life combat shooting" class="thumbimage">
               <div class="thumbcaption">
                 <span class="magnify-icon">&#128269;</span>
-                <a href="frozen-life.html">Frozen-Life Live Combat</a>: viewmodel recoil, bullet tracers, hitscan.
+                <a href="frozen-life.html">Frozen-Life Live Combat</a>: viewmodel recoil, bullet tracers, and hitscan.
               </div>
             </div>
           </div>
 
           <div class="thumb">
             <div class="thumbinner">
-              <img src="assets/img/test_3d_textured.webp" data-full="assets/img/test_3d_textured.png" alt="OpenGL DSA rendering" class="thumbimage">
+              <img src="assets/img/test_flashlight_and_shadows.webp" data-full="assets/img/test_flashlight_and_shadows.png" alt="Flashlight and Dynamic Shadows" class="thumbimage">
               <div class="thumbcaption">
                 <span class="magnify-icon">&#128269;</span>
-                <a href="opengl-dsa.html">OpenGL 4.5+ DSA Pipeline</a>: Blinn-Phong lighting and normal mapping.
+                <a href="opengl-dsa.html#sec-shadows">Dynamic Shadow Mapping</a>: 2048x2048 DSA depth FBO and 3x3 PCF filter.
               </div>
             </div>
           </div>
 
           <div class="thumb">
             <div class="thumbinner">
-              <img src="assets/img/test_scoreboard_tab.webp" data-full="assets/img/test_scoreboard_tab.png" alt="Scoreboard overlay" class="thumbimage">
+              <img src="assets/img/test_physics_and_destruction.webp" data-full="assets/img/test_physics_and_destruction.png" alt="Physics and Destruction" class="thumbimage">
               <div class="thumbcaption">
                 <span class="magnify-icon">&#128269;</span>
-                <a href="frozen-life.html#sec-systems">TAB Scoreboard</a>: live match tracking with team rosters and frags.
+                <a href="architecture.html#sec-physics">Rigid Body Physics</a>: dynamic prop stacking, crate destruction, and red explosive barrels.
+              </div>
+            </div>
+          </div>
+
+          <div class="thumb">
+            <div class="thumbinner">
+              <img src="assets/img/test_interactive_terminals.webp" data-full="assets/img/test_interactive_terminals.png" alt="Interactive Terminals" class="thumbimage">
+              <div class="thumbcaption">
+                <span class="magnify-icon">&#128269;</span>
+                <a href="architecture.html#sec-interactive">In-World Terminals</a>: 3D CRT scanlines, raycast picking, and door unlock I/O.
+              </div>
+            </div>
+          </div>
+
+          <div class="thumb">
+            <div class="thumbinner">
+              <img src="assets/img/test_skeletal_animation.webp" data-full="assets/img/test_skeletal_animation.png" alt="glTF 2.0 Skeletal Animation" class="thumbimage">
+              <div class="thumbcaption">
+                <span class="magnify-icon">&#128269;</span>
+                <a href="opengl-dsa.html#sec-skinning">GPU Vertex Skinning</a>: 20-bone rig, quaternion SLERP, and weapon socket binding.
+              </div>
+            </div>
+          </div>
+
+          <div class="thumb">
+            <div class="thumbinner">
+              <img src="assets/img/test_decals_and_impacts.webp" data-full="assets/img/test_decals_and_impacts.png" alt="Projective Decals and Impacts" class="thumbimage">
+              <div class="thumbcaption">
+                <span class="magnify-icon">&#128269;</span>
+                <a href="architecture.html#sec-decals">Projective Decals</a>: surface bullet impact decals with depth bias and alpha fade.
               </div>
             </div>
           </div>

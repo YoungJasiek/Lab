@@ -27,7 +27,7 @@
     <div class="vdc-header-left">
       <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
       <a href="index.html" class="vdc-brand">
-        <img src="assets/img/LabLogo.png" alt="Lab Engine Logo" class="vdc-logo-img">
+        <img src="assets/img/LabLogo.webp" alt="Lab Engine Logo" class="vdc-logo-img">
         <div class="vdc-brand-text">
           <span class="vdc-brand-title"><span class="accent">Lab</span> Developer Community</span>
           <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LABHAMMER</span>
@@ -200,9 +200,11 @@
           <li><a href="#sec-textures"><span class="tocnumber">3</span> <span class="toctext">Texture Allocation &amp; Immutable Storage</span></a></li>
           <li><a href="#sec-buffers"><span class="tocnumber">4</span> <span class="toctext">Vertex Arrays &amp; Named Buffer Binding</span></a></li>
           <li><a href="#sec-viewmodel"><span class="tocnumber">5</span> <span class="toctext">First-Person Viewmodel Rendering (Dual Projection)</span></a></li>
-          <li><a href="#sec-aesthetics"><span class="tocnumber">6</span> <span class="toctext">Visual Aesthetic Philosophy: Source Engine Feel</span></a></li>
-          <li><a href="#sec-performance"><span class="tocnumber">7</span> <span class="toctext">Driver Overhead &amp; Performance Impact</span></a></li>
-          <li><a href="#sec-gallery"><span class="tocnumber">8</span> <span class="toctext">Rendering Verification Gallery</span></a></li>
+          <li><a href="#sec-shadows"><span class="tocnumber">6</span> <span class="toctext">Dynamic Shadow Mapping (DSA Depth FBO &amp; PCF)</span></a></li>
+          <li><a href="#sec-skinning"><span class="tocnumber">7</span> <span class="toctext">GPU Vertex Skinning (glTF 2.0 DSA Pipeline)</span></a></li>
+          <li><a href="#sec-aesthetics"><span class="tocnumber">8</span> <span class="toctext">Visual Aesthetic Philosophy: Source Engine Feel</span></a></li>
+          <li><a href="#sec-performance"><span class="tocnumber">9</span> <span class="toctext">Driver Overhead &amp; Performance Impact</span></a></li>
+          <li><a href="#sec-gallery"><span class="tocnumber">10</span> <span class="toctext">Rendering Verification Gallery</span></a></li>
         </ol>
       </nav>
 
@@ -334,10 +336,41 @@ glVertexArrayAttribBinding(m_vao, 1, 0);</code></pre>
       </section>
 
       <!-- ================================================================
-           SECTION 6: SOURCE AESTHETIC
+           SECTION 6: DYNAMIC SHADOW MAPPING
+           ================================================================ -->
+      <section id="sec-shadows" class="wiki-section-container">
+        <h2><span class="mw-headline">6. Dynamic Shadow Mapping (DSA Depth FBO &amp; PCF)</span></h2>
+        <p>
+          Engineered in Sprint 3 for dynamic flashlight projection (toggled via <code>F</code>) and directional sunlight shadow cascades, the shadow pipeline operates entirely through DSA depth framebuffer objects:
+        </p>
+        <ul>
+          <li><strong>Immutable Depth Target:</strong> Framebuffer created with <code>glCreateFramebuffers()</code> and allocated with <code>glTextureStorage2D(tex, 1, GL_DEPTH_COMPONENT32F, 2048, 2048)</code>. Attached directly via <code>glNamedFramebufferTexture(fbo, GL_DEPTH_ATTACHMENT, tex, 0)</code> with <code>glNamedFramebufferDrawBuffer(fbo, GL_NONE)</code>.</li>
+          <li><strong>Hardware Depth Comparison:</strong> Sampler configured with <code>glTextureParameteri(tex, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE)</code> and <code>GL_COMPARE_FUNC, GL_LEQUAL</code> for native 1-tap Percentage Closer Filtering hardware acceleration.</li>
+          <li><strong>Soft Shadows via 3x3 PCF Kernel:</strong> The fragment shader samples a 9-tap kernel around the projected light-space coordinates with slope-scaled normal bias, completely eliminating shadow acne on flat brushes while rendering soft penumbras.</li>
+        </ul>
+      </section>
+
+      <!-- ================================================================
+           SECTION 7: GPU VERTEX SKINNING
+           ================================================================ -->
+      <section id="sec-skinning" class="wiki-section-container">
+        <h2><span class="mw-headline">7. GPU Vertex Skinning (glTF 2.0 DSA Pipeline)</span></h2>
+        <p>
+          Introduced in Sprint 4 to power animated character models, articulated first-person arms, and zombie ragdoll transforms:
+        </p>
+        <ul>
+          <li><strong>20-Bone Rig Transformation:</strong> Skeletal hierarchies evaluate bone transformations on the CPU using SIMD quaternions (<code>Quat</code>) with spherical linear interpolation (SLERP) for smooth blended transitions.</li>
+          <li><strong>Uniform Matrix Array:</strong> Up to 64 bone matrices (<code>mat4 uBoneMatrices[64]</code>) uploaded directly to uniform buffers or program locations each frame.</li>
+          <li><strong>DSA Vertex Array Setup:</strong> Dual 4-component vertex attributes configured via <code>glVertexArrayAttribIFormat(vao, 4, 4, GL_INT, offsetof(SkinVertex, boneIDs))</code> for joint indices and <code>glVertexArrayAttribFormat(vao, 5, 4, GL_FLOAT, GL_FALSE, offsetof(SkinVertex, weights))</code> for normalized blending weights.</li>
+          <li><strong>Attachment Sockets:</strong> Direct matrix calculation for <code>Socket_Weapon</code>, allowing viewmodel attachments, muzzle flash emitters, and laser sights to track animated hand bones with zero jitter.</li>
+        </ul>
+      </section>
+
+      <!-- ================================================================
+           SECTION 8: SOURCE AESTHETIC
            ================================================================ -->
       <section id="sec-aesthetics" class="wiki-section-container">
-        <h2><span class="mw-headline">6. Visual Aesthetic Philosophy: Source Engine Feel</span></h2>
+        <h2><span class="mw-headline">8. Visual Aesthetic Philosophy: Source Engine Feel</span></h2>
         <p>
           The rendering pipeline targets a crisp, high-readability tactical look inspired by the legendary <strong>Source Engine (Half-Life 2 / Counter-Strike: Source)</strong>:
         </p>
@@ -350,10 +383,10 @@ glVertexArrayAttribBinding(m_vao, 1, 0);</code></pre>
       </section>
 
       <!-- ================================================================
-           SECTION 7: BENCHMARKS
+           SECTION 9: BENCHMARKS
            ================================================================ -->
       <section id="sec-performance" class="wiki-section-container">
-        <h2><span class="mw-headline">7. Driver Overhead &amp; Performance Impact</span></h2>
+        <h2><span class="mw-headline">9. Driver Overhead &amp; Performance Impact</span></h2>
         <p>
           By removing redundant context binding calls, the OpenGL graphics driver avoids maintaining and verifying massive global state tables on every draw call. This achieves:
         </p>
@@ -365,10 +398,10 @@ glVertexArrayAttribBinding(m_vao, 1, 0);</code></pre>
       </section>
 
       <!-- ================================================================
-           SECTION 8: GALLERY
+           SECTION 10: GALLERY
            ================================================================ -->
       <section id="sec-gallery" class="wiki-section-container">
-        <h2><span class="mw-headline">8. Rendering Verification Gallery</span></h2>
+        <h2><span class="mw-headline">10. Rendering Verification Gallery</span></h2>
         <p>
           Visual captures demonstrating DSA material rendering, particles, and weapon geometry:
         </p>
@@ -401,6 +434,26 @@ glVertexArrayAttribBinding(m_vao, 1, 0);</code></pre>
               <div class="thumbcaption">
                 <span class="magnify-icon">&#128269;</span>
                 In-Engine Weapon Geometry and Textures: 3D models and materials rendering verification.
+              </div>
+            </div>
+          </div>
+
+          <div class="thumb">
+            <div class="thumbinner">
+              <img src="assets/img/test_flashlight_and_shadows.webp" data-full="assets/img/test_flashlight_and_shadows.png" alt="Dynamic Shadow Mapping" class="thumbimage">
+              <div class="thumbcaption">
+                <span class="magnify-icon">&#128269;</span>
+                Dynamic Shadow Mapping: 2048x2048 FBO with DSA, slope-scaled normal bias, and 3x3 PCF filter.
+              </div>
+            </div>
+          </div>
+
+          <div class="thumb">
+            <div class="thumbinner">
+              <img src="assets/img/test_skeletal_animation.webp" data-full="assets/img/test_skeletal_animation.png" alt="GPU Vertex Skinning" class="thumbimage">
+              <div class="thumbcaption">
+                <span class="magnify-icon">&#128269;</span>
+                GPU Vertex Skinning: glTF 2.0 20-bone rig, quaternion SLERP blending, and bone sockets.
               </div>
             </div>
           </div>
