@@ -1644,9 +1644,9 @@ int main() {
         }
         std::cout << "  [PASS] AudioEngine initialized successfully in headless mode.\n";
 
-        // 2. Verify all 23 sound definitions and generated WAV files on disk
+        // 2. Verify all 26 sound definitions and generated WAV files on disk
         constexpr size_t soundCount = (size_t)Lab::SoundID::Count;
-        static_assert(soundCount == 23, "Expected 23 sounds in SoundID enum");
+        static_assert(soundCount == 26, "Expected 26 sounds in SoundID enum");
 
         for (size_t i = 0; i < soundCount; ++i) {
             const auto& def = Lab::AudioEngine::getSoundDef((Lab::SoundID)i);
@@ -1674,9 +1674,9 @@ int main() {
                 std::cerr << "Assertion failed: Audio file contains no PCM sample data: " << filePath << "\n";
                 return 1;
             }
-            std::cout << "  Verified WAV [" << (i + 1) << "/20]: " << def.displayName << " (" << def.filename << ", " << fileSize << " bytes)\n";
+            std::cout << "  Verified WAV [" << (i + 1) << "/" << soundCount << "]: " << def.displayName << " (" << def.filename << ", " << fileSize << " bytes)\n";
         }
-        std::cout << "  [PASS] All 20 procedural sound assets verified with valid RIFF 16-bit PCM WAVE headers.\n";
+        std::cout << "  [PASS] All " << soundCount << " procedural sound assets verified with valid RIFF 16-bit PCM WAVE headers.\n";
 
         // 3. Verify Master Volume controls and bounds
         Lab::AudioEngine::setMasterVolume(0.75f);
@@ -2627,6 +2627,186 @@ int main() {
         std::cout << "  [PASS] Saved visual Decals & Impacts verification to 'test_decals_and_impacts.bmp'.\n";
 
         decalSys.shutdown();
+    }
+
+    // 30. Verify Interactive In-World Terminals, Consoles & Use Triggers (Sprint 8)
+    {
+        std::cout << "\n[Test 30] Verifying Interactive In-World Terminals, Consoles & Use Triggers...\n";
+        Lab::InteractiveSystem isys;
+        isys.init();
+
+        if (!isys.getEntities().empty()) {
+            std::cerr << "Assertion failed: Fresh InteractiveSystem must have 0 entities!\n";
+            return 1;
+        }
+
+        // 1. Add interactive entities
+        Lab::InteractiveEntity term;
+        term.id = 1;
+        term.type = Lab::InteractiveType::Terminal;
+        term.title = "PRIMARY AIRLOCK OVERRIDE";
+        term.subtitle = "SECTOR 4 ACCESS CONTROL";
+        term.statusText = "STANDBY - READY";
+        term.position = Lab::Vec3(0.0f, 1.6f, -3.85f);
+        term.size = Lab::Vec3(1.1f, 0.75f, 0.14f);
+        term.normal = Lab::Vec3(0.0f, 0.0f, 1.0f);
+        term.themeColor = Lab::Vec3(0.2f, 0.85f, 1.0f);
+        term.isLocked = false;
+        term.targetDoorIndex = 0;
+        isys.addEntity(term);
+
+        Lab::InteractiveEntity keypad;
+        keypad.id = 2;
+        keypad.type = Lab::InteractiveType::Keypad;
+        keypad.title = "SECURITY KEYPAD";
+        keypad.subtitle = "RESTRICTED VAULT";
+        keypad.statusText = "LOCKED - CLEARANCE 4 REQUIRED";
+        keypad.position = Lab::Vec3(-2.6f, 1.5f, -3.85f);
+        keypad.size = Lab::Vec3(0.45f, 0.65f, 0.12f);
+        keypad.normal = Lab::Vec3(0.0f, 0.0f, 1.0f);
+        keypad.themeColor = Lab::Vec3(1.0f, 0.25f, 0.2f);
+        keypad.isLocked = true;
+        isys.addEntity(keypad);
+
+        Lab::InteractiveEntity wallSwitch;
+        wallSwitch.id = 3;
+        wallSwitch.type = Lab::InteractiveType::WallSwitch;
+        wallSwitch.title = "AUXILIARY POWER BREAKER";
+        wallSwitch.subtitle = "TURBINE GENERATOR";
+        wallSwitch.statusText = "OFFLINE";
+        wallSwitch.position = Lab::Vec3(2.6f, 1.5f, -3.85f);
+        wallSwitch.size = Lab::Vec3(0.40f, 0.55f, 0.12f);
+        wallSwitch.normal = Lab::Vec3(0.0f, 0.0f, 1.0f);
+        wallSwitch.themeColor = Lab::Vec3(1.0f, 0.65f, 0.15f);
+        wallSwitch.isLocked = false;
+        isys.addEntity(wallSwitch);
+
+        if (isys.getEntities().size() != 3) {
+            std::cerr << "Assertion failed: Expected 3 registered interactive entities, got " << isys.getEntities().size() << "\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Interactive entity registration and property initialization verified!\n";
+
+        // 2. Test raycast picking and distance threshold
+        // Player standing far away (3.8m distance -> exceeds 2.8m limit)
+        isys.update(0.016f, Lab::Vec3(0.0f, 1.6f, 0.0f), Lab::Vec3(0.0f, 0.0f, -1.0f), false);
+        if (isys.getHoveredEntity() != nullptr) {
+            std::cerr << "Assertion failed: Terminal should not be hovered beyond 2.8m range!\n";
+            return 1;
+        }
+
+        // Player standing in range (1.85m distance -> within 2.8m limit)
+        isys.update(0.016f, Lab::Vec3(0.0f, 1.6f, -2.0f), Lab::Vec3(0.0f, 0.0f, -1.0f), false);
+        if (isys.getHoveredEntity() == nullptr || isys.getHoveredEntity()->id != 1) {
+            std::cerr << "Assertion failed: Player looking at Terminal #1 should pick it up!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Raycast picking and interaction distance limits verified!\n";
+
+        // 3. Test locked entity interaction
+        // Look at Keypad #2 and press [E]
+        isys.update(0.016f, Lab::Vec3(-2.6f, 1.5f, -2.0f), Lab::Vec3(0.0f, 0.0f, -1.0f), true);
+        if (isys.getHoveredEntity() == nullptr || isys.getHoveredEntity()->id != 2) {
+            std::cerr << "Assertion failed: Player should be looking at Keypad #2!\n";
+            return 1;
+        }
+        if (isys.getHoveredEntity()->isActivated) {
+            std::cerr << "Assertion failed: Locked entity should NOT activate upon use!\n";
+            return 1;
+        }
+        if (isys.getLastNotice().find("ACCESS DENIED") == std::string::npos) {
+            std::cerr << "Assertion failed: Locked entity must display ACCESS DENIED notice!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Security lockout and access denied logic verified!\n";
+
+        // 4. Test unlocked entity interaction and linked door trigger
+        Lab::LabMap testMap;
+        Lab::MapDoor testDoor;
+        testDoor.name = "Sector 4 Heavy Blast Door";
+        testDoor.position = Lab::Vec3(0.0f, 1.5f, -3.8f);
+        testDoor.isOpen = false;
+        testMap.doors.push_back(testDoor);
+
+        // Look at Terminal #1 and press [E]
+        isys.update(0.016f, Lab::Vec3(0.0f, 1.6f, -2.0f), Lab::Vec3(0.0f, 0.0f, -1.0f), true, &testMap);
+        if (isys.getHoveredEntity() == nullptr || isys.getHoveredEntity()->id != 1) {
+            std::cerr << "Assertion failed: Hovered entity should be Terminal #1!\n";
+            return 1;
+        }
+        if (!isys.getHoveredEntity()->isActivated) {
+            std::cerr << "Assertion failed: Unlocked terminal should activate upon use!\n";
+            return 1;
+        }
+        if (!testMap.doors[0].isOpen) {
+            std::cerr << "Assertion failed: Linked target door was not triggered by terminal!\n";
+            return 1;
+        }
+        if (isys.getHoveredEntity()->statusText.find("ACCESS GRANTED") == std::string::npos) {
+            std::cerr << "Assertion failed: Terminal status text was not updated to ACCESS GRANTED!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Terminal activation, state transitions, and door linkage verified!\n";
+
+        // 5. Visual Rendering Verification:
+        glClearColor(0.10f, 0.12f, 0.16f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        Lab::Camera termCam(60.0f, (float)w / (float)h, 0.01f, 1000.0f);
+        termCam.setPosition(Lab::Vec3(0.0f, 1.6f, -0.6f));
+        termCam.update(Lab::Vec2(0.0f, -4.0f));
+
+        Lab::Vec3 sunDir(-0.35f, -0.85f, -0.40f);
+        Lab::Mat4 lightMat = Lab::ShadowMap::computeSunLightSpaceMatrix(sunDir, Lab::Vec3(0, 1.0f, 0), 16.0f);
+        Lab::ShadowMap sMap;
+        sMap.init(2048, 2048);
+
+        // Shadow Pass
+        sMap.beginShadowPass(lightMat);
+        Lab::Renderer::beginShadowDepthPass(lightMat);
+        Lab::Renderer::drawShadowCube(Lab::Vec3(0.0f, -0.1f, 0.0f), Lab::Vec3(25.0f, 0.2f, 25.0f));
+        Lab::Renderer::drawShadowCube(Lab::Vec3(0.0f, 2.5f, -4.0f), Lab::Vec3(20.0f, 5.0f, 0.4f));
+        Lab::Renderer::drawShadowCube(Lab::Vec3(0.0f, 1.6f, -3.85f), Lab::Vec3(1.1f, 0.75f, 0.14f));
+        Lab::Renderer::drawShadowCube(Lab::Vec3(-2.6f, 1.5f, -3.85f), Lab::Vec3(0.45f, 0.65f, 0.12f));
+        Lab::Renderer::drawShadowCube(Lab::Vec3(2.6f, 1.5f, -3.85f), Lab::Vec3(0.40f, 0.55f, 0.12f));
+        Lab::Renderer::endShadowDepthPass();
+        sMap.endShadowPass(w, h);
+
+        // Shaded Lit Pass
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        Lab::Renderer::beginFrame(termCam);
+        Lab::Renderer::setSunLight(sunDir, Lab::Vec3(1.0f, 0.98f, 0.94f), Lab::Vec3(0.25f, 0.28f, 0.35f));
+        Lab::Renderer::setShadowMap(lightMat, sMap.getDepthTexture());
+
+        Lab::Texture flrTex("assets/textures/floor_tiles.bmp");
+        Lab::Texture wlTex("assets/textures/concrete_wall.bmp");
+
+        // Environment
+        Lab::Renderer::drawCube(Lab::Vec3(0.0f, -0.1f, 0.0f), Lab::Vec3(25.0f, 0.2f, 25.0f), Lab::Vec3(0.75f, 0.75f, 0.75f), &flrTex, true);
+        Lab::Renderer::drawCube(Lab::Vec3(0.0f, 2.5f, -4.0f), Lab::Vec3(20.0f, 5.0f, 0.4f), Lab::Vec3(0.70f, 0.70f, 0.70f), &wlTex, true);
+
+        // Render In-World 3D Terminals & Consoles
+        isys.render(termCam);
+
+        Lab::Renderer::disableShadowMap();
+
+        // 6. UI Diagnostics & Interaction HUD Overlay
+        Lab::Renderer::beginUI(w, h);
+        Lab::Renderer::drawRect(40.0f, 30.0f, 960.0f, 88.0f, Lab::Vec3(0.10f, 0.12f, 0.16f));
+        Lab::Renderer::drawRect(40.0f, 30.0f, 960.0f, 1.0f, Lab::Vec3(0.2f, 0.85f, 0.4f));
+        Lab::LabFont::drawText(56.0f, 44.0f, "INTERACTIVE IN-WORLD TERMINALS & USABLE ENTITIES (SPRINT 8)", 2.0f, Lab::Vec3(0.25f, 0.95f, 0.45f), Lab::LabFontType::GeoSans);
+        Lab::LabFont::drawText(56.0f, 74.0f, "CRT SCANLINE SCREENS | ACCESS LOGIC | LOGIC I/O DOOR TRIGGERS | USE PROMPTS", 1.6f, Lab::Vec3(0.90f, 0.92f, 0.95f), Lab::LabFontType::GeoSans);
+        
+        // Render in-game interaction prompt
+        isys.renderHUD(w, h);
+        Lab::Renderer::endUI();
+
+        Lab::Renderer::endFrame();
+        glFinish();
+        saveFrameToBMP("test_interactive_terminals.bmp", w, h);
+        std::cout << "  [PASS] Saved visual Interactive Terminals verification to 'test_interactive_terminals.bmp'.\n";
+
+        isys.shutdown();
     }
 
     Lab::Renderer::shutdown();

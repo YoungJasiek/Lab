@@ -56,6 +56,7 @@ public:
         _particleSystem.init();
         _physicsWorld.init();
         _decalSystem.init();
+        _interactiveSystem.init();
 
         // Check ONCE at startup which weapons have custom STL models and textures
         _cachedWeaponMeshes.resize(9, nullptr);
@@ -263,6 +264,7 @@ public:
         syncHudWeapon();
         _particleSystem.clear();
         _decalSystem.clear();
+        _interactiveSystem.clear();
         _tracers.clear();
         _pickups.clear();
         _chat.history.clear();
@@ -270,6 +272,21 @@ public:
         _playerDeaths = 0;
         _isPlayerDead = false;
         _playerRespawnTimer = 0.0f;
+
+        if (_currentMap && !_currentMap->doors.empty()) {
+            InteractiveEntity term;
+            term.id = 1;
+            term.type = InteractiveType::Terminal;
+            term.title = "AIRLOCK CONSOLE";
+            term.subtitle = "DOOR ACTUATOR 01";
+            term.statusText = "READY - ACCESS GRANTED";
+            term.targetDoorIndex = 0;
+            const auto& d0 = _currentMap->doors[0];
+            term.position = d0.position + Vec3(-d0.size.x * 0.7f - 0.4f, 0.0f, 0.35f);
+            term.normal = Vec3(0, 0, 1);
+            term.themeColor = Vec3(0.2f, 0.85f, 1.0f);
+            _interactiveSystem.addEntity(term);
+        }
 
         _chat.addMessage("[SERVER]", "Welcome to Frozen-Life :: " + (_currentMap ? _currentMap->metadata.name : "Sector"), Vec3(0.3f, 0.8f, 1.0f));
         _chat.addMessage("[SERVER]", "Mode: " + _sessionConfig.getModeString() + " | Frag Limit: " + std::to_string(_sessionConfig.fragLimit), Vec3(0.3f, 0.8f, 1.0f));
@@ -1161,6 +1178,21 @@ public:
             _f3PressedLast = false;
         }
 
+        // Interactive In-World Systems & Usable Entities ([E] Key)
+        if (!_hammerEditor.active && !_inMenu && !_isPlayerDead) {
+            bool useKey = (Input::isKeyPressed('E') || Input::isKeyPressed('e'));
+            bool useJustPressed = false;
+            if (useKey) {
+                if (!_ePressedLast) {
+                    useJustPressed = true;
+                    _ePressedLast = true;
+                }
+            } else {
+                _ePressedLast = false;
+            }
+            _interactiveSystem.update(time.delta, _camera.getPosition(), _camera.getFront(), useJustPressed, _currentMap.get());
+        }
+
         // F1 Wireframe Toggle
         if (Input::isKeyPressed(290)) { // GLFW_KEY_F1
             if (!_f1PressedLast) {
@@ -1657,6 +1689,7 @@ public:
                 _hud.renderDeathScreen(w, h, _playerRespawnTimer);
             } else {
                 _hud.render(w, h);
+                _interactiveSystem.renderHUD(w, h);
             }
             _chat.render(w, h);
 
@@ -1848,6 +1881,9 @@ public:
         // Render Dynamic Projective Decals (Bullet holes, blood splatters, scorch marks)
         _decalSystem.render(_camera);
 
+        // Render In-World Interactive Terminals & Consoles (Sprint 8)
+        _interactiveSystem.render(_camera);
+
         // Render 3D Particle System (Sparks, blood, smoke, fire, frost)
         _particleSystem.render(_camera);
 
@@ -1872,6 +1908,7 @@ public:
         AudioEngine::shutdown();
         _particleSystem.shutdown();
         _decalSystem.shutdown();
+        _interactiveSystem.shutdown();
         Renderer::shutdown();
     }
 
@@ -1879,6 +1916,7 @@ private:
     Camera _camera;
     ParticleSystem _particleSystem;
     DecalSystem _decalSystem;
+    InteractiveSystem _interactiveSystem;
     std::unique_ptr<LabMap> _currentMap;
     std::unordered_map<std::string, std::unique_ptr<Texture>> _textures;
     std::unordered_map<std::string, std::unique_ptr<Mesh>> _meshes;

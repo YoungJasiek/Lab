@@ -22,3 +22,4 @@
 #include "LabPhysics.h"
 #include "LabCSG.h"
 #include "LabDecals.h"
+#include "LabInteractive.h"

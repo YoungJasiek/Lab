@@ -310,6 +310,7 @@
           <li><strong>Rigid Body Dynamics, Destructible Crates &amp; Explosive Fuel Barrels:</strong> Newtonian 3D physics engine (mass, moments of inertia tensor, semi-implicit Euler integration, friction and restitution), destructible wooden crates that shatter into dynamic tumbling debris planks, and red hazard fuel barrels with radial blast shockwaves, cascading chain reactions, and kinetic ragdoll momentum flinging bots upon death.</li>
           <li><strong>CSG Geometry Clipping &amp; Level Editor Props:</strong> Real-time 3D Sutherland-Hodgman convex polyhedron plane slicing, cap triangulation with planar UV mapping, interactive cutting plane guide in Hammer, and complete serialization of CSG polyhedra and physical props into <code>.labmap</code>.</li>
           <li><strong>Dynamic Projective Decal System:</strong> Real-time projective decals with depth bias and polygon offset eliminating z-fighting, rendering concrete impact craters with fracture lines, metal bullet punctures with silver rims, organic bot blood splatters dripping on walls and pooling on floors, and charred explosive scorch marks with radial blast tendrils.</li>
+          <li><strong>Interactive In-World Terminals, Consoles &amp; Use Triggers:</strong> Usable environmental entities (security terminals, numeric keypads, industrial breaker switches) with crosshair raycast picking (2.8m range), player interaction key <code>E</code> (+use), CRT scanline screen textures, clearance authorization logic, procedural audio cues (Terminal Beep, Access Granted chime, Access Denied buzz), and logic I/O triggering of sliding airlock doors.</li>
         </ul>
       </section>
 
@@ -376,6 +377,12 @@
                 <td><code>V</code></td>
                 <td><code>WeaponAnimator::onInspect</code></td>
                 <td>Tactical first-person viewmodel inspection displaying receiver angles &amp; cyber-gauntlet</td>
+              </tr>
+              <tr>
+                <td><strong>Interact / Use</strong></td>
+                <td><code>E</code></td>
+                <td><code>InteractiveSystem::update</code></td>
+                <td>Operates in-world security terminals, airlock override consoles, and switches within 2.8m</td>
               </tr>
               <tr>
                 <td><strong>Weapon Selection</strong></td>
@@ -605,6 +612,16 @@
               <div class="thumbcaption">
                 <span class="magnify-icon">&#128269;</span>
                 Dynamic Projective Decal System: Concrete impact craters with radial fractures, metal bullet punctures with silver rim burrs, organic bot blood splatters, and charred explosive scorches.
+              </div>
+            </div>
+          </div>
+
+          <div class="thumb">
+            <div class="thumbinner">
+              <img src="assets/img/test_interactive_terminals.webp" data-full="assets/img/test_interactive_terminals.png" alt="Interactive In-World Terminals, Consoles &amp; Use Triggers" class="thumbimage">
+              <div class="thumbcaption">
+                <span class="magnify-icon">&#128269;</span>
+                Interactive In-World Terminals: CRT scanline screen textures, security access logic (Access Granted / Denied), environmental switches, and logic I/O door actuators triggered by [E] key.
               </div>
             </div>
           </div>

@@ -31,6 +31,9 @@ namespace Lab {
         FlashlightToggle,
         CrateBreak,
         BarrelImpact,
+        TerminalBeep,
+        AccessGranted,
+        AccessDenied,
         Count
     };
 

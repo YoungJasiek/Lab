@@ -138,13 +138,23 @@ Wszystkie systemy tworzone sa w standardzie **C++20**, **OpenGL 4.5+ Core Profil
 
 ---
 
+### 13. System Interaktywnych Terminali Swiatowych & Logika Przelacznikow (Sprint 8 - 100% DONE)
+- [x] Podsystem encji interaktywnych `LabInteractive` (`InteractiveSystem`, `InteractiveEntity`, `InteractiveType`): terminale bezpieczenstwa, klawiatury numeryczne, przelaczniki szynowe i konsole sluzowe z raycast pickingiem (zasieg 2.8m).
+- [x] Interakcja gracza pod klawiszem `E` (+use) z debouncem, logika autoryzacji dostepu (Locked / Unlocked / Active) oraz sterowaniem logicznym celami I/O (otwieranie bram grodziowych i sluz w `LabMap`).
+- [x] Trojwymiarowe ekrany CRT z proceduralna tekstura linii rastrowych (scanlines), ramka obudowy, iluminacja LED stanu (czerwona, zielona, cyjanowa) oraz wskaznikami slupkowymi telemetrycznymi w przestrzeni 3D.
+- [x] Rozszerzenie silnika dzwiekowego `LabAudio` o 3 nowe syntetyzatory proceduralne WAV (`SoundID::TerminalBeep`, `SoundID::AccessGranted`, `SoundID::AccessDenied`) z pelna weryfikacja RIFF 16-bit PCM w `TestVerify.exe` (lacznie 26 przetestowanych dzwiekow).
+- [x] Autentyczny interfejs HUD w stylu Source Engine: banner u dolu ekranu z ikona klawisza `[E]` i etykieta akcji oraz gorny banner ostrzegawczy / diagnostyczny.
+- [x] Zautomatyzowany i wizualny test 30 w `TestVerify.exe` weryfikujacy rejestracje encji, progi odleglosci raycastu, blokade dostepu, aktywacje i wyzwalanie bram (`test_interactive_terminals.bmp`).
+
+---
+
 ## II. NAJBLIZSZE SPRINTY (SHORT-TERM / IN PROGRESS)
 
-### Sprint 8: System Interaktywnych Terminali Swiatowych (In-World GUI / Usable Entities) & Logika Przelacznikow
-- [ ] Klasa encji interaktywnych (`TriggerUse`, `FuncButton`, `FuncDoorTrigger`) z obsluga klawisza `E` (Use / Interact) w zasiegu wzroku gracza.
-- [ ] Interaktywne ekrany i terminale scienne (in-world GUI) ze statusem dostepu (Lock / Unlocked), panelem numerycznym i animacja otwierania bram grodziowych.
-- [ ] Prebuilts w edytorze Hammer (przyciski scienne `prop_button`, konsole `prop_terminal`) z polaczeniami logicznymi I/O (Input/Output triggers w stylu Source).
-- [ ] Zautomatyzowany i wizualny test 30 w `TestVerify.exe` weryfikujacy interakcje i przejscia stanow (`test_interactive_terminals.bmp`).
+### Sprint 9: Zaawansowany Post-Processing, HDR Tonemapping & Szron Wizjera (Cryo HUD Frost)
+- [ ] Bufor post-processingu HDR (FBO `GL_RGBA16F` / `GL_RGB16F`) z dynamicznym tone-mappingiem Reinhard / ACES Filmic.
+- [ ] Efekt szronu i zamarzania krawedzi wizjera gracza (`Cryo Frost Vignette`) narastajacy przy niskim poziomie zdrowia oraz w arktycznych sektorach `cryo_outpost`.
+- [ ] Rozmycie jasnych obszarow (Screen-Space Bloom / HDR Glow) dla pociskow plazmowych, rozblyskow lufy i neonowych spawnerow broni.
+- [ ] Zautomatyzowany i wizualny test 31 w `TestVerify.exe` (`test_postprocess_and_frost.bmp`).
 
 ---
 

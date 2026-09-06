@@ -56,7 +56,10 @@ namespace Lab {
         { SoundID::PlayerHurt,       "player_hurt.wav",       "Player Hurt",       0.85f, 1.0f, 1.5f, 25.0f },
         { SoundID::FlashlightToggle, "flashlight_toggle.wav", "Flashlight Toggle", 0.90f, 1.0f, 1.0f, 15.0f },
         { SoundID::CrateBreak,       "crate_break.wav",       "Crate Break",       0.95f, 1.0f, 2.0f, 35.0f },
-        { SoundID::BarrelImpact,     "barrel_impact.wav",     "Barrel Impact",     0.90f, 1.0f, 1.5f, 30.0f }
+        { SoundID::BarrelImpact,     "barrel_impact.wav",     "Barrel Impact",     0.90f, 1.0f, 1.5f, 30.0f },
+        { SoundID::TerminalBeep,     "terminal_beep.wav",     "Terminal Beep",     0.85f, 1.0f, 1.5f, 25.0f },
+        { SoundID::AccessGranted,    "access_granted.wav",    "Access Granted",    0.90f, 1.0f, 1.5f, 30.0f },
+        { SoundID::AccessDenied,     "access_denied.wav",     "Access Denied",     0.90f, 1.0f, 1.5f, 30.0f }
     }};
 
     struct ActiveSpatialSound {
@@ -126,6 +129,9 @@ namespace Lab {
             case SoundID::FlashlightToggle: duration = 0.08f; break;
             case SoundID::CrateBreak:       duration = 0.35f; break;
             case SoundID::BarrelImpact:     duration = 0.28f; break;
+            case SoundID::TerminalBeep:     duration = 0.12f; break;
+            case SoundID::AccessGranted:    duration = 0.42f; break;
+            case SoundID::AccessDenied:     duration = 0.36f; break;
             default:                        duration = 0.25f; break;
         }
 
@@ -323,6 +329,50 @@ namespace Lab {
                     float lowDrum = std::sin(2.0f * PI * 120.0f * t) * 0.6f;
                     float ping = nextNoise() * 0.25f * std::exp(-t * 45.0f);
                     out = (metalClang + lowDrum + ping) * env;
+                    break;
+                }
+                case SoundID::TerminalBeep: {
+                    // Crisp digital interface beep (1800Hz + 2400Hz overtone)
+                    float env = (t < 0.015f) ? (t / 0.015f) : std::exp(-(t - 0.015f) * 35.0f);
+                    float tone1 = std::sin(2.0f * PI * 1800.0f * t) * 0.7f;
+                    float tone2 = std::sin(2.0f * PI * 2400.0f * t) * 0.3f;
+                    out = (tone1 + tone2) * env;
+                    break;
+                }
+                case SoundID::AccessGranted: {
+                    // 3-note ascending electronic chime (C5 -> E5 -> G5)
+                    float noteEnv = 0.0f;
+                    float freq = 523.25f; // C5
+                    if (t < 0.12f) {
+                        float nt = t;
+                        noteEnv = (nt < 0.01f) ? (nt / 0.01f) : std::exp(-(nt - 0.01f) * 15.0f);
+                        freq = 523.25f;
+                    } else if (t < 0.24f) {
+                        float nt = t - 0.12f;
+                        noteEnv = (nt < 0.01f) ? (nt / 0.01f) : std::exp(-(nt - 0.01f) * 15.0f);
+                        freq = 659.25f; // E5
+                    } else {
+                        float nt = t - 0.24f;
+                        noteEnv = (nt < 0.01f) ? (nt / 0.01f) : std::exp(-(nt - 0.01f) * 12.0f);
+                        freq = 783.99f; // G5
+                    }
+                    float sine = std::sin(2.0f * PI * freq * t);
+                    float harm = std::sin(2.0f * PI * freq * 2.0f * t) * 0.25f;
+                    out = (sine + harm) * noteEnv * 0.85f;
+                    break;
+                }
+                case SoundID::AccessDenied: {
+                    // Low dual-pulse security lockout buzz (Two pulses with silent gap)
+                    bool activePulse = (t < 0.13f) || (t > 0.17f && t < 0.30f);
+                    if (activePulse) {
+                        float pt = (t < 0.13f) ? t : (t - 0.17f);
+                        float env = std::exp(-pt * 12.0f);
+                        float fundamental = (std::sin(2.0f * PI * 140.0f * t) >= 0.0f) ? 0.7f : -0.7f;
+                        float sub = std::sin(2.0f * PI * 70.0f * t) * 0.3f;
+                        out = (fundamental + sub) * env;
+                    } else {
+                        out = 0.0f;
+                    }
                     break;
                 }
                 default:

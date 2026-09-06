@@ -52,6 +52,7 @@ set(ENGINE_SOURCES
     src/LabPhysics.cpp
     src/LabCSG.cpp
     src/LabDecals.cpp
+    src/LabInteractive.cpp
     src/glad/src/gl.c
 )
 
@@ -77,6 +78,7 @@ set(ENGINE_HEADERS
     include/LabPhysics.h
     include/LabCSG.h
     include/LabDecals.h
+    include/LabInteractive.h
     include/Lab.h
 )
 
