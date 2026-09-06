@@ -7,6 +7,8 @@
 #include "LabSession.h"
 #include "LabSkeletal.h"
 #include "LabRenderer.h"
+#include "LabWeapon.h"
+#include "LabStudio.h"
 
 namespace Lab {
 
@@ -29,6 +31,7 @@ namespace Lab {
         float maxHealth = 100.0f;
         int team = -1; // -1 = FFA, 0 = Red Team, 1 = Blue Team
         AIState state = AIState::Patrol;
+        WeaponID equippedWeapon = WeaponID::Pipe;
 
         // Patrol waypoints
         Vec3 patrolStart{ 0.0f, 0.0f, 0.0f };
@@ -61,7 +64,7 @@ namespace Lab {
         void applyImpulse(const Vec3& impulse) { velocity += impulse; }
 
         CombatBot() = default;
-        CombatBot(int botId, const std::string& botName, const Vec3& spawnPos, const Vec3& pEnd, int botTeam = -1);
+        CombatBot(int botId, const std::string& botName, const Vec3& spawnPos, const Vec3& pEnd, int botTeam = -1, WeaponID weapon = WeaponID::Pipe);
 
         void initAnimation(std::shared_ptr<Skeleton> skel, const std::vector<AnimationClip>& clips);
         bool isAlive() const { return health > 0.0f && state != AIState::Dead; }
@@ -74,8 +77,10 @@ namespace Lab {
 
         void update(float dt, const Vec3& playerPos, const LabMap& map, std::vector<BulletTracer>& outTracers, float& outDamageToPlayer);
         bool takeDamage(float damage, bool isHeadshot, const Vec3& knockback = Vec3(0.0f, 0.0f, 0.0f));
-        void render(const SkinnedMesh* mesh = nullptr, const Mesh* weaponMesh = nullptr) const;
-        void renderShadow(const SkinnedMesh* mesh = nullptr, const Mesh* weaponMesh = nullptr) const;
+        void render(const SkinnedMesh* mesh = nullptr, const Mesh* weaponMesh = nullptr,
+                    const BotWeaponConfig* botWepCfg = nullptr, const Texture* weaponTex = nullptr) const;
+        void renderShadow(const SkinnedMesh* mesh = nullptr, const Mesh* weaponMesh = nullptr,
+                          const BotWeaponConfig* botWepCfg = nullptr) const;
     };
 
     class PickupManager;
@@ -88,8 +93,15 @@ namespace Lab {
         std::vector<AnimationClip> animations;
         std::unique_ptr<SkinnedMesh> skinnedMesh;
         std::unique_ptr<Mesh> weaponMesh;
+        std::array<std::unique_ptr<Mesh>, 9> weaponMeshes;
+        std::array<std::unique_ptr<Texture>, 9> weaponTextures;
+        std::array<BotWeaponConfig, 9> botWeaponConfigs;
 
         void initAssets();
+        void loadConfig(const std::string& path = "assets/configs/character_studio.cfg");
+        void setBotWeaponConfig(WeaponID id, const BotWeaponConfig& cfg);
+        const BotWeaponConfig& getBotWeaponConfig(WeaponID id) const;
+
         void clear() { bots.clear(); }
         void spawnBotsForMap(const LabMap* map, int count, GameMode mode);
         void spawnBotsForMap(const std::string& mapName, int count, GameMode mode);

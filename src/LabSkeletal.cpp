@@ -204,6 +204,18 @@ namespace Lab {
                                       const std::vector<Mat4>& globalTransforms,
                                       const Mat4& socketOffset) const {
         int idx = findBoneIndex(boneName);
+        if (idx < 0 && (boneName == "Socket_Weapon" || boneName == "WeaponSocket" || boneName == "RightHand")) {
+            for (size_t b = 0; b < _bones.size(); ++b) {
+                const std::string& n = _bones[b].name;
+                if (n.find("RightHand") != std::string::npos ||
+                    n.find("RightForeArm") != std::string::npos ||
+                    n.find("Hand_R") != std::string::npos ||
+                    n.find("Gun") != std::string::npos) {
+                    idx = static_cast<int>(b);
+                    break;
+                }
+            }
+        }
         return getSocketTransform(idx, modelTransform, globalTransforms, socketOffset);
     }
 
@@ -1313,8 +1325,8 @@ namespace Lab {
             outAnimations.push_back(clip);
         }
 
-        // Standard state machine aliases for AI combat controller (Idle, Walk, Shoot)
-        if (!outAnimations.empty()) {
+        // Build distinct Walk, Shoot, and Idle animations for bot skeletal controller
+        if (outSkeleton && outSkeleton->getBoneCount() > 0 && !outAnimations.empty()) {
             bool hasIdle = false, hasWalk = false, hasShoot = false;
             for (const auto& c : outAnimations) {
                 if (c.name == "Idle") hasIdle = true;
@@ -1322,20 +1334,159 @@ namespace Lab {
                 if (c.name == "Shoot") hasShoot = true;
             }
 
-            AnimationClip primaryClip = outAnimations[0];
+            const AnimationClip primaryClip = outAnimations[0];
+
+            auto findBoneFuzzy = [&](const std::vector<std::string>& candidates) -> int {
+                for (const auto& c : candidates) {
+                    for (size_t b = 0; b < outSkeleton->getBoneCount(); ++b) {
+                        const Bone* bone = outSkeleton->getBone(static_cast<int>(b));
+                        if (bone && bone->name.find(c) != std::string::npos) {
+                            return static_cast<int>(b);
+                        }
+                    }
+                }
+                return -1;
+            };
+
+            int bHips = findBoneFuzzy({ "mixamorig_Hips", "Hips", "Pelvis", "Root" });
+            int bChest = findBoneFuzzy({ "mixamorig_Spine2", "Spine2", "Spine1_03", "Chest" });
+            int bHead = findBoneFuzzy({ "mixamorig_Head", "Head" });
+            int bArmR = findBoneFuzzy({ "mixamorig_RightArm", "RightArm" });
+            int bForeR = findBoneFuzzy({ "mixamorig_RightForeArm", "RightForeArm" });
+
+            // 1. "Walk" animation (1.2s looping locomotion cycle with root translation clamped to in-place)
             if (!hasWalk) {
                 AnimationClip walkClip = primaryClip;
                 walkClip.name = "Walk";
+                walkClip.duration = std::min(primaryClip.duration, 1.25f);
+                for (auto& track : walkClip.tracks) {
+                    std::vector<KeyframeVec3> tKeys;
+                    std::vector<KeyframeQuat> rKeys;
+                    std::vector<KeyframeVec3> sKeys;
+                    for (const auto& k : track.translationKeys) {
+                        if (k.time <= walkClip.duration) tKeys.push_back(k);
+                    }
+                    for (const auto& k : track.rotationKeys) {
+                        if (k.time <= walkClip.duration) rKeys.push_back(k);
+                    }
+                    for (const auto& k : track.scaleKeys) {
+                        if (k.time <= walkClip.duration) sKeys.push_back(k);
+                    }
+                    track.translationKeys = tKeys;
+                    track.rotationKeys = rKeys;
+                    track.scaleKeys = sKeys;
+
+                    if (track.boneIndex == bHips && !track.translationKeys.empty()) {
+                        Vec3 baseRoot = track.translationKeys[0].value;
+                        for (auto& k : track.translationKeys) {
+                            k.value.x = baseRoot.x;
+                            k.value.z = baseRoot.z;
+                        }
+                    }
+                }
                 outAnimations.push_back(walkClip);
             }
+
+            // 2. "Idle" animation (calm ready stance sampled from base pose with subtle breathing)
             if (!hasIdle) {
-                AnimationClip idleClip = primaryClip;
+                AnimationClip idleClip;
                 idleClip.name = "Idle";
+                idleClip.duration = 2.4f;
+
+                for (const auto& track : primaryClip.tracks) {
+                    BoneAnimationTrack idleTrack;
+                    idleTrack.boneIndex = track.boneIndex;
+                    idleTrack.boneName = track.boneName;
+
+                    Quat baseRot = track.rotationKeys.empty() ? Quat::identity() : track.rotationKeys[0].value;
+                    Vec3 basePos = track.translationKeys.empty() ? Vec3(0, 0, 0) : track.translationKeys[0].value;
+
+                    if (track.boneIndex == bChest) {
+                        idleTrack.rotationKeys = {
+                            { 0.0f, baseRot },
+                            { 1.2f, baseRot * Quat::fromEuler(-0.04f, 0.0f, 0.0f) },
+                            { 2.4f, baseRot }
+                        };
+                    } else if (track.boneIndex == bHead) {
+                        idleTrack.rotationKeys = {
+                            { 0.0f, baseRot },
+                            { 0.7f, baseRot * Quat::fromEuler(0.0f, 0.06f, 0.0f) },
+                            { 1.7f, baseRot * Quat::fromEuler(0.0f, -0.06f, 0.0f) },
+                            { 2.4f, baseRot }
+                        };
+                    } else {
+                        idleTrack.rotationKeys = {
+                            { 0.0f, baseRot },
+                            { 2.4f, baseRot }
+                        };
+                    }
+
+                    if (!track.translationKeys.empty()) {
+                        idleTrack.translationKeys = {
+                            { 0.0f, basePos },
+                            { 2.4f, basePos }
+                        };
+                    }
+                    idleClip.tracks.push_back(idleTrack);
+                }
                 outAnimations.push_back(idleClip);
             }
+
+            // 3. "Shoot" animation (snappy recoil muzzle rise and recovery)
             if (!hasShoot) {
-                AnimationClip shootClip = primaryClip;
+                AnimationClip shootClip;
                 shootClip.name = "Shoot";
+                shootClip.duration = 0.32f;
+
+                for (const auto& track : primaryClip.tracks) {
+                    BoneAnimationTrack sTrack;
+                    sTrack.boneIndex = track.boneIndex;
+                    sTrack.boneName = track.boneName;
+
+                    Quat baseRot = track.rotationKeys.empty() ? Quat::identity() : track.rotationKeys[0].value;
+                    Vec3 basePos = track.translationKeys.empty() ? Vec3(0, 0, 0) : track.translationKeys[0].value;
+
+                    if (track.boneIndex == bArmR) {
+                        sTrack.rotationKeys = {
+                            { 0.0f, baseRot },
+                            { 0.04f, baseRot * Quat::fromEuler(0.35f, -0.04f, 0.0f) },
+                            { 0.14f, baseRot * Quat::fromEuler(0.12f, -0.01f, 0.0f) },
+                            { 0.32f, baseRot }
+                        };
+                    } else if (track.boneIndex == bForeR) {
+                        sTrack.rotationKeys = {
+                            { 0.0f, baseRot },
+                            { 0.04f, baseRot * Quat::fromEuler(0.22f, 0.0f, 0.0f) },
+                            { 0.32f, baseRot }
+                        };
+                    } else if (track.boneIndex == bChest) {
+                        sTrack.rotationKeys = {
+                            { 0.0f, baseRot },
+                            { 0.04f, baseRot * Quat::fromEuler(-0.10f, 0.0f, 0.0f) },
+                            { 0.18f, baseRot * Quat::fromEuler(-0.02f, 0.0f, 0.0f) },
+                            { 0.32f, baseRot }
+                        };
+                    } else if (track.boneIndex == bHead) {
+                        sTrack.rotationKeys = {
+                            { 0.0f, baseRot },
+                            { 0.05f, baseRot * Quat::fromEuler(0.06f, 0.0f, 0.0f) },
+                            { 0.32f, baseRot }
+                        };
+                    } else {
+                        sTrack.rotationKeys = {
+                            { 0.0f, baseRot },
+                            { 0.32f, baseRot }
+                        };
+                    }
+
+                    if (!track.translationKeys.empty()) {
+                        sTrack.translationKeys = {
+                            { 0.0f, basePos },
+                            { 0.32f, basePos }
+                        };
+                    }
+                    shootClip.tracks.push_back(sTrack);
+                }
                 outAnimations.push_back(shootClip);
             }
         }

@@ -134,6 +134,11 @@ namespace Lab {
 
         // Face morph defaults
         _faceMorphs = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+
+        // Bot weapon socket defaults
+        for (int i = 0; i < 9; ++i) {
+            _weaponGrips[i].botSocket = { Vec3(0.0f, -0.05f, 0.02f), Vec3(5.73f, -11.46f, 0.0f), Vec3(1.0f, 1.0f, 1.0f) };
+        }
     }
 
     void CharacterStudio::pushUndoState() {
@@ -424,6 +429,22 @@ namespace Lab {
         getTexture("hazard_stripes.bmp");
         getTexture("snow_frost.bmp");
 
+        // Load Bot Skeletal Assets for Bot Socket 3D Preview
+        bool loadedBot = GLTFLoader::load("assets/models/t-800_run.glb", _botSkeleton, _botAnimations, _botMesh);
+        if (!loadedBot || !_botMesh) {
+            loadedBot = GLTFLoader::load("assets/inwork/t-800_run.glb", _botSkeleton, _botAnimations, _botMesh);
+        }
+        if (!loadedBot || !_botMesh) {
+            GLTFLoader::createProceduralCombatBot(_botSkeleton, _botAnimations, _botMesh);
+        }
+        if (_botSkeleton && _botMesh) {
+            _botAnimator.setSkeleton(_botSkeleton);
+            for (const auto& c : _botAnimations) {
+                _botAnimator.addClip(c);
+            }
+            _botAnimator.playAnimation("Idle", true);
+        }
+
         // Try load saved config
         loadConfig("assets/configs/character_studio.cfg");
 
@@ -445,6 +466,9 @@ namespace Lab {
         _facialHead.reset();
         _arms.reset();
         _animator.reset();
+        _botMesh.reset();
+        _botSkeleton.reset();
+        _botAnimations.clear();
     }
 
     Texture* CharacterStudio::getTexture(const std::string& filename) {
@@ -566,6 +590,12 @@ namespace Lab {
         log("Reset all weapon transforms (offset, rotation, scale) to identity.");
     }
 
+    void CharacterStudio::resetBotWeaponSocket() {
+        pushUndoState();
+        _weaponGrips[_selectedWeaponIndex].botSocket = { Vec3(0.0f, -0.05f, 0.02f), Vec3(5.73f, -11.46f, 0.0f), Vec3(1.0f, 1.0f, 1.0f) };
+        log("Reset bot weapon socket to default hand grip.");
+    }
+
     const WeaponGripConfig& CharacterStudio::getWeaponGrip(WeaponID id) const {
         int idx = std::clamp(static_cast<int>(id), 0, 8);
         return _weaponGrips[idx];
@@ -620,7 +650,53 @@ namespace Lab {
         if (_activeDropdown == DropdownMenu::None && !_isDraggingScrubber && _activeSliderId == -1) {
             if (_activeTab == StudioTab::GripPoser && inViewport) {
                 auto& grip = _weaponGrips[_selectedWeaponIndex];
-                if (_viewportToolMode == ViewportToolMode::MoveWeapon) {
+                if (_poserSubMode == PoserSubMode::BotWeaponSocket) {
+                    if (_viewportToolMode == ViewportToolMode::MoveWeapon) {
+                        if (lmbPressed) {
+                            if (_lmbClicked) pushUndoState();
+                            grip.botSocket.offset.x += dx * 0.0012f;
+                            grip.botSocket.offset.y -= dy * 0.0012f;
+                        }
+                        if (std::abs(scrollDelta) > 0.001f) {
+                            pushUndoState();
+                            grip.botSocket.offset.z += scrollDelta * 0.02f;
+                        }
+                    } else if (_viewportToolMode == ViewportToolMode::RotateWeapon) {
+                        if (lmbPressed) {
+                            if (_lmbClicked) pushUndoState();
+                            grip.botSocket.rotation.y += dx * 0.4f;
+                            grip.botSocket.rotation.x += dy * 0.4f;
+                        }
+                        if (std::abs(scrollDelta) > 0.001f) {
+                            pushUndoState();
+                            grip.botSocket.rotation.z += scrollDelta * 4.0f;
+                        }
+                    } else if (_viewportToolMode == ViewportToolMode::ScaleWeapon) {
+                        if (lmbPressed) {
+                            if (_lmbClicked) pushUndoState();
+                            float sDelta = (dx - dy) * 0.005f;
+                            grip.botSocket.scale.x = std::clamp(grip.botSocket.scale.x + sDelta, 0.05f, 5.0f);
+                            grip.botSocket.scale.y = std::clamp(grip.botSocket.scale.y + sDelta, 0.05f, 5.0f);
+                            grip.botSocket.scale.z = std::clamp(grip.botSocket.scale.z + sDelta, 0.05f, 5.0f);
+                        }
+                        if (std::abs(scrollDelta) > 0.001f) {
+                            pushUndoState();
+                            float sDelta = scrollDelta * 0.05f;
+                            grip.botSocket.scale.x = std::clamp(grip.botSocket.scale.x + sDelta, 0.05f, 5.0f);
+                            grip.botSocket.scale.y = std::clamp(grip.botSocket.scale.y + sDelta, 0.05f, 5.0f);
+                            grip.botSocket.scale.z = std::clamp(grip.botSocket.scale.z + sDelta, 0.05f, 5.0f);
+                        }
+                    } else {
+                        // Orbit camera
+                        if (lmbPressed) {
+                            _turntableYaw += dx * 0.4f;
+                            _turntablePitch = std::clamp(_turntablePitch + dy * 0.4f, -85.0f, 85.0f);
+                        }
+                        if (std::abs(scrollDelta) > 0.001f) {
+                            _cameraDist = std::clamp(_cameraDist - scrollDelta * 0.15f, 0.4f, 5.0f);
+                        }
+                    }
+                } else if (_viewportToolMode == ViewportToolMode::MoveWeapon) {
                     if (lmbPressed) {
                         if (_lmbClicked) pushUndoState();
                         grip.weaponOffset.x += dx * 0.0012f;
@@ -727,6 +803,10 @@ namespace Lab {
             _facialHead->setWeight("Eyes_Squint", _faceMorphs.eyesSquint);
             _facialHead->setWeight("Mouth_Frown", _faceMorphs.mouthFrown);
             _facialHead->evaluate();
+        }
+
+        if (_botAnimator.getSkeleton()) {
+            _botAnimator.update(dt);
         }
 
         _lastMouseX = mouseX;
@@ -860,6 +940,55 @@ namespace Lab {
                 "plasma.stl", "railgun.stl", "rpg.stl"
             };
             weaponMesh = getMesh(stlNames[_selectedWeaponIndex]);
+        }
+
+        // Render Bot in Bot Weapon Socket mode
+        if (_poserSubMode == PoserSubMode::BotWeaponSocket) {
+            Vec3 botPos(0.0f, 0.0f, 0.0f);
+            if (_botMesh && _botAnimator.getSkeleton()) {
+                float botScale = _botMesh->getBaseScale(1.85f);
+                float yOffset = -_botMesh->getMinBounds().y * botScale;
+                Mat4 botModel = Mat4::translate(botPos + Vec3(0.0f, yOffset, 0.0f)) *
+                                Mat4::scale(Vec3(botScale, botScale, botScale));
+                Renderer::drawSkinnedMesh(*_botMesh, botModel, _botAnimator.getSkinMatrices(), Vec3(0.32f, 0.35f, 0.40f), nullptr, true);
+
+                float invBotScale = (botScale > 0.00001f) ? (1.0f / botScale) : 1.0f;
+                Vec3 sPos = grip.botSocket.offset * invBotScale;
+                Quat sRot = Quat::fromEuler(grip.botSocket.rotation.x * PI / 180.0f,
+                                            grip.botSocket.rotation.y * PI / 180.0f,
+                                            grip.botSocket.rotation.z * PI / 180.0f);
+                Vec3 sScale = Vec3(0.016f * grip.botSocket.scale.x * invBotScale,
+                                   0.016f * grip.botSocket.scale.y * invBotScale,
+                                   0.016f * grip.botSocket.scale.z * invBotScale);
+                Mat4 weaponSocket = _botAnimator.getSocketTransform("Socket_Weapon", botModel,
+                    makeTransform(sPos, sRot, sScale));
+
+                if (weaponMesh) {
+                    Renderer::drawMesh(*weaponMesh, weaponSocket, skin.tintColor, skinTex, true);
+                } else {
+                    Renderer::drawCube(Vec3(weaponSocket.m[12], weaponSocket.m[13], weaponSocket.m[14]),
+                                       grip.botSocket.rotation, Vec3(0.06f, 0.12f, 0.55f), skin.tintColor, skinTex, true);
+                }
+
+                if (_showGizmos) {
+                    Vec3 gizmoPos(weaponSocket.m[12], weaponSocket.m[13], weaponSocket.m[14]);
+                    renderSocketGizmo(gizmoPos, grip.botSocket.rotation);
+                }
+            } else {
+                renderCharacterBody();
+                Vec3 rHandPos(0.28f, 0.88f, 0.0f);
+                Vec3 finalWepPos = rHandPos + grip.botSocket.offset;
+                Vec3 renderScale = { 0.45f * grip.botSocket.scale.x, 0.45f * grip.botSocket.scale.y, 0.45f * grip.botSocket.scale.z };
+                if (weaponMesh) {
+                    Renderer::drawMesh(*weaponMesh, finalWepPos, grip.botSocket.rotation, renderScale, skin.tintColor, skinTex, true);
+                } else {
+                    Renderer::drawCube(finalWepPos, grip.botSocket.rotation, Vec3(0.06f, 0.12f, 0.55f), skin.tintColor, skinTex, true);
+                }
+                if (_showGizmos) {
+                    renderSocketGizmo(finalWepPos, grip.botSocket.rotation);
+                }
+            }
+            return;
         }
 
         // Weapon Base Transform (including user offset, rotation and scale!)
@@ -1605,19 +1734,23 @@ namespace Lab {
         auto& grip = _weaponGrips[_selectedWeaponIndex];
 
         // Sub-mode selector bar
-        float subPad = 4.0f;
-        float subW = (w - 20.0f - 2.0f * subPad) / 3.0f;
-        if (drawHammerButton(x + 10.0f, curY, subW, 22.0f, "1. TRANSFORM", _poserSubMode == PoserSubMode::WeaponTransform)) {
+        float subPad = 3.0f;
+        float subW = (w - 20.0f - 3.0f * subPad) / 4.0f;
+        if (drawHammerButton(x + 10.0f, curY, subW, 22.0f, "1. TRNS", _poserSubMode == PoserSubMode::WeaponTransform)) {
             _poserSubMode = PoserSubMode::WeaponTransform;
             log("Switched to Weapon Model Transform (Translation, Rotation, Scaling).");
         }
-        if (drawHammerButton(x + 10.0f + subW + subPad, curY, subW, 22.0f, "2. SOCKETS", _poserSubMode == PoserSubMode::HandSockets)) {
+        if (drawHammerButton(x + 10.0f + (subW + subPad) * 1.0f, curY, subW, 22.0f, "2. SCKT", _poserSubMode == PoserSubMode::HandSockets)) {
             _poserSubMode = PoserSubMode::HandSockets;
             log("Switched to Hand Sockets Poser.");
         }
-        if (drawHammerButton(x + 10.0f + (subW + subPad) * 2.0f, curY, subW, 22.0f, "3. ADS ALIGN", _poserSubMode == PoserSubMode::AdsAlignment)) {
+        if (drawHammerButton(x + 10.0f + (subW + subPad) * 2.0f, curY, subW, 22.0f, "3. ADS", _poserSubMode == PoserSubMode::AdsAlignment)) {
             _poserSubMode = PoserSubMode::AdsAlignment;
             log("Switched to ADS Optical Alignment.");
+        }
+        if (drawHammerButton(x + 10.0f + (subW + subPad) * 3.0f, curY, subW, 22.0f, "4. BOT", _poserSubMode == PoserSubMode::BotWeaponSocket)) {
+            _poserSubMode = PoserSubMode::BotWeaponSocket;
+            log("Switched to Bot Weapon Socket Alignment & Scaling.");
         }
         curY += 28.0f;
 
@@ -1754,6 +1887,65 @@ namespace Lab {
                 saveConfig("assets/configs/character_studio.cfg");
                 if (_onApplyInGame) _onApplyInGame();
                 log("Saved and applied custom weapon sockets to active game!");
+            }
+        }
+
+        if (_poserSubMode == PoserSubMode::BotWeaponSocket) {
+            // Group Box 1: Bot Weapon Translation & Offset
+            Renderer::drawRect(x + 8.0f, curY, w - 16.0f, 100.0f, Vec3(0.18f, 0.19f, 0.21f));
+            drawHammerBevel(x + 8.0f, curY, w - 16.0f, 100.0f, true);
+            LabFont::drawText(x + 14.0f, curY + 5.0f, "BOT WEAPON SOCKET OFFSET (PRZESUNIECIE):", 1.4f, Vec3(0.4f, 0.85f, 1.0f), LabFontType::System);
+
+            drawHammerSlider(x + 14.0f, curY + 22.0f, w - 28.0f, 16.0f, "Bot Offset X (L/R):", grip.botSocket.offset.x, -0.60f, 0.60f);
+            drawHammerSlider(x + 14.0f, curY + 40.0f, w - 28.0f, 16.0f, "Bot Offset Y (U/D):", grip.botSocket.offset.y, -0.60f, 0.60f);
+            drawHammerSlider(x + 14.0f, curY + 58.0f, w - 28.0f, 16.0f, "Bot Offset Z (F/B):", grip.botSocket.offset.z, -0.60f, 0.60f);
+            if (drawHammerButton(x + 14.0f, curY + 76.0f, w - 28.0f, 18.0f, "Default Bot Offset (0.00, -0.05, 0.02)")) {
+                pushUndoState();
+                grip.botSocket.offset = Vec3(0.0f, -0.05f, 0.02f);
+                log("Reset bot weapon offset to default.");
+            }
+            curY += 106.0f;
+
+            // Group Box 2: Bot Weapon Rotation
+            Renderer::drawRect(x + 8.0f, curY, w - 16.0f, 100.0f, Vec3(0.18f, 0.19f, 0.21f));
+            drawHammerBevel(x + 8.0f, curY, w - 16.0f, 100.0f, true);
+            LabFont::drawText(x + 14.0f, curY + 5.0f, "BOT WEAPON ROTATION (KAT NACHYLENIA):", 1.4f, Vec3(1.0f, 0.75f, 0.3f), LabFontType::System);
+
+            drawHammerSlider(x + 14.0f, curY + 22.0f, w - 28.0f, 16.0f, "Bot Pitch (X deg):", grip.botSocket.rotation.x, -180.0f, 180.0f);
+            drawHammerSlider(x + 14.0f, curY + 40.0f, w - 28.0f, 16.0f, "Bot Yaw (Y deg):",   grip.botSocket.rotation.y, -180.0f, 180.0f);
+            drawHammerSlider(x + 14.0f, curY + 58.0f, w - 28.0f, 16.0f, "Bot Roll (Z deg):",  grip.botSocket.rotation.z, -180.0f, 180.0f);
+            if (drawHammerButton(x + 14.0f, curY + 76.0f, w - 28.0f, 18.0f, "Zero Bot Rotation (0, 0, 0)")) {
+                pushUndoState();
+                grip.botSocket.rotation = Vec3(0.0f, 0.0f, 0.0f);
+                log("Zeroed bot weapon rotation.");
+            }
+            curY += 106.0f;
+
+            // Group Box 3: Bot Weapon Scale
+            Renderer::drawRect(x + 8.0f, curY, w - 16.0f, 76.0f, Vec3(0.18f, 0.19f, 0.21f));
+            drawHammerBevel(x + 8.0f, curY, w - 16.0f, 76.0f, true);
+            LabFont::drawText(x + 14.0f, curY + 5.0f, "BOT WEAPON SCALE (SKALA BRONI BOTA):", 1.4f, Vec3(0.5f, 1.0f, 0.5f), LabFontType::System);
+
+            drawHammerSlider(x + 14.0f, curY + 22.0f, w - 28.0f, 16.0f, "Scale Multiplier:", grip.botSocket.scale.x, 0.2f, 3.0f);
+            grip.botSocket.scale.y = grip.botSocket.scale.x;
+            grip.botSocket.scale.z = grip.botSocket.scale.x;
+            if (drawHammerButton(x + 14.0f, curY + 44.0f, w - 28.0f, 20.0f, "Reset Scale to 1.0")) {
+                pushUndoState();
+                grip.botSocket.scale = Vec3(1.0f, 1.0f, 1.0f);
+                log("Reset bot weapon scale to 1.0.");
+            }
+            curY += 82.0f;
+
+            // Action Buttons
+            float actW = (w - 32.0f) * 0.5f;
+            if (drawHammerButton(x + 12.0f, curY, actW, 26.0f, "Reset Bot Socket")) {
+                pushUndoState();
+                resetBotWeaponSocket();
+            }
+            if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply In-Game", false, true)) {
+                saveConfig("assets/configs/character_studio.cfg");
+                if (_onApplyInGame) _onApplyInGame();
+                log("Saved and applied custom bot weapon sockets to active game!");
             }
         }
     }
@@ -2242,7 +2434,10 @@ namespace Lab {
             out << "LeftPos=" << _weaponGrips[i].leftSocketPos.x << "," << _weaponGrips[i].leftSocketPos.y << "," << _weaponGrips[i].leftSocketPos.z << "\n";
             out << "LeftRot=" << _weaponGrips[i].leftSocketRot.x << "," << _weaponGrips[i].leftSocketRot.y << "," << _weaponGrips[i].leftSocketRot.z << "\n";
             out << "AdsOffset=" << _weaponGrips[i].adsOffset.x << "," << _weaponGrips[i].adsOffset.y << "," << _weaponGrips[i].adsOffset.z << "\n";
-            out << "LockHands=" << (_weaponGrips[i].lockHands ? "1" : "0") << "\n\n";
+            out << "LockHands=" << (_weaponGrips[i].lockHands ? "1" : "0") << "\n";
+            out << "BotOffset=" << _weaponGrips[i].botSocket.offset.x << "," << _weaponGrips[i].botSocket.offset.y << "," << _weaponGrips[i].botSocket.offset.z << "\n";
+            out << "BotRotation=" << _weaponGrips[i].botSocket.rotation.x << "," << _weaponGrips[i].botSocket.rotation.y << "," << _weaponGrips[i].botSocket.rotation.z << "\n";
+            out << "BotScale=" << _weaponGrips[i].botSocket.scale.x << "," << _weaponGrips[i].botSocket.scale.y << "," << _weaponGrips[i].botSocket.scale.z << "\n\n";
 
             out << "[WeaponSkin_" << i << "]\n";
             out << "Model=" << _weaponSkins[i].modelFile << "\n";
@@ -2382,7 +2577,16 @@ namespace Lab {
                     else if (key == "LeftRot") _weaponGrips[id].leftSocketRot = parseVec3(val, _weaponGrips[id].leftSocketRot);
                     else if (key == "AdsOffset") _weaponGrips[id].adsOffset = parseVec3(val, _weaponGrips[id].adsOffset);
                     else if (key == "LockHands") _weaponGrips[id].lockHands = (val == "1" || val == "true" || val == "True");
+                    else if (key == "BotOffset") _weaponGrips[id].botSocket.offset = parseVec3(val, _weaponGrips[id].botSocket.offset);
+                    else if (key == "BotRotation") _weaponGrips[id].botSocket.rotation = parseVec3(val, _weaponGrips[id].botSocket.rotation);
+                    else if (key == "BotScale") _weaponGrips[id].botSocket.scale = parseVec3(val, _weaponGrips[id].botSocket.scale);
                     else if (key == "Model" || key == "ModelFile") _weaponSkins[id].modelFile = val;
+                }
+            } else if (currentSection == "BotWeapon") {
+                for (int i = 0; i < 9; ++i) {
+                    if (key == "Offset") _weaponGrips[i].botSocket.offset = parseVec3(val, _weaponGrips[i].botSocket.offset);
+                    else if (key == "Rotation") _weaponGrips[i].botSocket.rotation = parseVec3(val, _weaponGrips[i].botSocket.rotation);
+                    else if (key == "Scale") _weaponGrips[i].botSocket.scale = parseVec3(val, _weaponGrips[i].botSocket.scale);
                 }
             } else if (currentSection.rfind("WeaponSkin_", 0) == 0) {
                 int id = std::stoi(currentSection.substr(11));

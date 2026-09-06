@@ -12,10 +12,18 @@
 #include "LabArms.h"
 #include "LabFace.h"
 #include "LabWeapon.h"
+#include "LabSkeletal.h"
 
 struct GLFWwindow;
 
 namespace Lab {
+
+    // --- Bot Weapon Socket Configuration ---
+    struct BotWeaponConfig {
+        Vec3 offset{ 0.0f, -0.05f, 0.02f };     // Translation in meters relative to wrist socket
+        Vec3 rotation{ 5.73f, -11.46f, 0.0f };  // Rotation (Pitch X, Yaw Y, Roll Z in degrees)
+        Vec3 scale{ 1.0f, 1.0f, 1.0f };         // Scale multiplier
+    };
 
     // --- Weapon Grip & Socket Configuration ---
     struct WeaponGripConfig {
@@ -33,12 +41,16 @@ namespace Lab {
 
         // Hand Locking: if true, weapon offset and rotation move ONLY the weapon model without moving hands/arms
         bool lockHands = false;
+
+        // Bot Weapon Socket Transform
+        BotWeaponConfig botSocket;
     };
 
     enum class PoserSubMode : int {
         WeaponTransform = 0,
         HandSockets = 1,
-        AdsAlignment = 2
+        AdsAlignment = 2,
+        BotWeaponSocket = 3
     };
 
     enum class ViewportToolMode : int {
@@ -195,6 +207,22 @@ namespace Lab {
         void resetActiveWeaponScale();
         void resetActiveWeaponAllTransforms();
 
+        const BotWeaponConfig& getBotWeaponConfig(int weaponIndex = -1) const {
+            int idx = (weaponIndex >= 0 && weaponIndex < 9) ? weaponIndex : _selectedWeaponIndex;
+            return _weaponGrips[idx].botSocket;
+        }
+        BotWeaponConfig& getBotWeaponConfig(int weaponIndex = -1) {
+            int idx = (weaponIndex >= 0 && weaponIndex < 9) ? weaponIndex : _selectedWeaponIndex;
+            return _weaponGrips[idx].botSocket;
+        }
+        const BotWeaponConfig& getBotWeaponConfig(WeaponID id) const {
+            return getBotWeaponConfig(static_cast<int>(id));
+        }
+        BotWeaponConfig& getBotWeaponConfig(WeaponID id) {
+            return getBotWeaponConfig(static_cast<int>(id));
+        }
+        void resetBotWeaponSocket();
+
         bool isHandsLocked() const { return _weaponGrips[_selectedWeaponIndex].lockHands; }
         void setHandsLocked(bool locked) { _weaponGrips[_selectedWeaponIndex].lockHands = locked; }
         void toggleHandsLocked() { _weaponGrips[_selectedWeaponIndex].lockHands = !_weaponGrips[_selectedWeaponIndex].lockHands; }
@@ -310,6 +338,10 @@ namespace Lab {
         std::unique_ptr<FacialMesh> _facialHead;
         std::unique_ptr<ViewModelArms> _arms;
         std::unique_ptr<WeaponAnimator> _animator;
+        std::shared_ptr<Skeleton> _botSkeleton;
+        std::vector<AnimationClip> _botAnimations;
+        std::unique_ptr<SkinnedMesh> _botMesh;
+        Animator _botAnimator;
         std::unordered_map<std::string, std::unique_ptr<Texture>> _textures;
         std::unordered_map<std::string, std::unique_ptr<Mesh>> _meshes;
 

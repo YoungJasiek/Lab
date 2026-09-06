@@ -905,7 +905,7 @@ public:
                                         if ((rand() % 100) < 65) {
                                             _pickups.spawnPickup(PickupType::Medkit, bot.position + Vec3(0.4f, 0.35f, -0.3f), 50);
                                         }
-                                        WeaponID dropWep = (WeaponID)(2 + (rand() % 7));
+                                        WeaponID dropWep = bot.equippedWeapon;
                                         _pickups.spawnPickup(PickupType::WeaponDrop, bot.position + Vec3(-0.35f, 0.35f, 0.2f), 30, (int)dropWep);
                                     }
                                     break;
@@ -1034,7 +1034,7 @@ public:
                                             if ((rand() % 100) < 65) {
                                                 _pickups.spawnPickup(PickupType::Medkit, bot.position + Vec3(0.4f, 0.35f, -0.3f), 50);
                                             }
-                                            WeaponID dropWep = (WeaponID)(2 + (rand() % 7));
+                                            WeaponID dropWep = bot.equippedWeapon;
                                             _pickups.spawnPickup(PickupType::WeaponDrop, bot.position + Vec3(-0.35f, 0.35f, 0.2f), 30, (int)dropWep);
                                             _chat.addMessage(bot.name, "Critical damage! Unit offline...", Vec3(0.9f, 0.45f, 0.45f));
                                         }
@@ -1147,7 +1147,7 @@ public:
                             if ((rand() % 100) < 65) {
                                 _pickups.spawnPickup(PickupType::Medkit, bot.position + Vec3(0.4f, 0.35f, -0.3f), 50);
                             }
-                            WeaponID dropWep = (WeaponID)(2 + (rand() % 7));
+                            WeaponID dropWep = bot.equippedWeapon;
                             _pickups.spawnPickup(PickupType::WeaponDrop, bot.position + Vec3(-0.35f, 0.35f, 0.2f), 30, (int)dropWep);
                         }
                     }

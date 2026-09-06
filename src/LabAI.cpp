@@ -6,11 +6,14 @@
 #include "LabAudio.h"
 #include <cmath>
 #include <algorithm>
+#include <fstream>
+#include <sstream>
+#include <filesystem>
 
 namespace Lab {
 
-    CombatBot::CombatBot(int botId, const std::string& botName, const Vec3& spawnPos, const Vec3& pEnd, int botTeam)
-        : id(botId), name(botName), position(spawnPos), team(botTeam),
+    CombatBot::CombatBot(int botId, const std::string& botName, const Vec3& spawnPos, const Vec3& pEnd, int botTeam, WeaponID weapon)
+        : id(botId), name(botName), position(spawnPos), team(botTeam), equippedWeapon(weapon),
           patrolStart(spawnPos), patrolEnd(pEnd) {
     }
 
@@ -215,7 +218,8 @@ namespace Lab {
         return false;
     }
 
-    void CombatBot::render(const SkinnedMesh* mesh, const Mesh* weaponMesh) const {
+    void CombatBot::render(const SkinnedMesh* mesh, const Mesh* weaponMesh,
+                           const BotWeaponConfig* botWepCfg, const Texture* weaponTex) const {
         if (state == AIState::Dead) {
             // Render defeated bot on floor
             Renderer::drawCube(position + Vec3(0.0f, 0.15f, 0.0f), Vec3(80.0f, rotation.y, 0.0f),
@@ -257,11 +261,24 @@ namespace Lab {
 
             if (weaponMesh) {
                 float invBotScale = (botScale > 0.00001f) ? (1.0f / botScale) : 1.0f;
-                float weaponScale = 0.016f * invBotScale;
-                Vec3 socketPos = Vec3(0.0f, -0.05f, 0.02f) * invBotScale;
+                Vec3 offset(0.0f, -0.05f, 0.02f);
+                Vec3 rot(5.73f, -11.46f, 0.0f);
+                Vec3 scale(1.0f, 1.0f, 1.0f);
+                if (botWepCfg) {
+                    offset = botWepCfg->offset;
+                    rot = botWepCfg->rotation;
+                    scale = botWepCfg->scale;
+                }
+                Vec3 socketPos = offset * invBotScale;
+                Quat socketRot = Quat::fromEuler(rot.x * 3.14159265f / 180.0f,
+                                                 rot.y * 3.14159265f / 180.0f,
+                                                 rot.z * 3.14159265f / 180.0f);
+                Vec3 weaponScale = Vec3(0.016f * scale.x * invBotScale,
+                                        0.016f * scale.y * invBotScale,
+                                        0.016f * scale.z * invBotScale);
                 Mat4 weaponSocket = animator.getSocketTransform("Socket_Weapon", botModel,
-                    makeTransform(socketPos, Quat::fromEuler(0.1f, -0.2f, 0.0f), Vec3(weaponScale, weaponScale, weaponScale)));
-                Renderer::drawMesh(*weaponMesh, weaponSocket, Vec3(0.85f, 0.85f, 0.88f), nullptr, true);
+                    makeTransform(socketPos, socketRot, weaponScale));
+                Renderer::drawMesh(*weaponMesh, weaponSocket, Vec3(0.92f, 0.92f, 0.95f), weaponTex, true);
             }
         } else {
             float legSwing = std::sin(walkCycle) * 0.28f;
@@ -276,9 +293,22 @@ namespace Lab {
             Renderer::drawCube(bPos + Vec3(-0.16f, 0.45f, legSwing), rotation, Vec3(0.13f, 0.8f, 0.15f), Vec3(0.15f, 0.15f, 0.17f));
             Renderer::drawCube(bPos + Vec3(0.16f, 0.45f, -legSwing), rotation, Vec3(0.13f, 0.8f, 0.15f), Vec3(0.15f, 0.15f, 0.17f));
 
-            // 5. Combat Assault Rifle
-            Vec3 gunPos = bPos + Vec3(0.24f, 1.15f, 0.25f);
-            Renderer::drawCube(gunPos, rotation, Vec3(0.08f, 0.12f, 0.55f), Vec3(0.09f, 0.09f, 0.11f));
+            // 5. Bot Held Weapon
+            if (weaponMesh) {
+                Vec3 gunPos = bPos + Vec3(0.24f, 1.15f, 0.25f);
+                Vec3 offset(0.0f, 0.0f, 0.0f);
+                Vec3 rot(0.0f, 0.0f, 0.0f);
+                Vec3 scale(1.0f, 1.0f, 1.0f);
+                if (botWepCfg) {
+                    offset = botWepCfg->offset;
+                    rot = botWepCfg->rotation;
+                    scale = botWepCfg->scale;
+                }
+                Renderer::drawMesh(*weaponMesh, gunPos + offset, rotation + rot, Vec3(0.45f * scale.x, 0.45f * scale.y, 0.45f * scale.z), Vec3(0.92f, 0.92f, 0.95f), weaponTex, true);
+            } else {
+                Vec3 gunPos = bPos + Vec3(0.24f, 1.15f, 0.25f);
+                Renderer::drawCube(gunPos, rotation, Vec3(0.08f, 0.12f, 0.55f), Vec3(0.09f, 0.09f, 0.11f));
+            }
         }
 
         if (muzzleFlashTimer > 0.0f) {
@@ -293,7 +323,8 @@ namespace Lab {
         Renderer::drawCube(bPos + Vec3(0.0f, 2.05f, 0.01f), Vec3(0.0f, rotation.y, 0.0f), Vec3(0.68f * hpRatio, 0.05f, 0.03f), hpColor, nullptr, false);
     }
 
-    void CombatBot::renderShadow(const SkinnedMesh* mesh, const Mesh* weaponMesh) const {
+    void CombatBot::renderShadow(const SkinnedMesh* mesh, const Mesh* weaponMesh,
+                                 const BotWeaponConfig* botWepCfg) const {
         if (!isAlive()) return;
         float bodyBob = std::abs(std::sin(walkCycle * 2.0f)) * 0.04f;
         Vec3 bPos = position + Vec3(0.0f, bodyBob, 0.0f);
@@ -310,15 +341,200 @@ namespace Lab {
             Renderer::drawShadowSkinnedMesh(*mesh, botModel, animator.getSkinMatrices());
             if (weaponMesh) {
                 float invBotScale = (botScale > 0.00001f) ? (1.0f / botScale) : 1.0f;
-                float weaponScale = 0.016f * invBotScale;
-                Vec3 socketPos = Vec3(0.0f, -0.05f, 0.02f) * invBotScale;
+                Vec3 offset(0.0f, -0.05f, 0.02f);
+                Vec3 rot(5.73f, -11.46f, 0.0f);
+                Vec3 scale(1.0f, 1.0f, 1.0f);
+                if (botWepCfg) {
+                    offset = botWepCfg->offset;
+                    rot = botWepCfg->rotation;
+                    scale = botWepCfg->scale;
+                }
+                Vec3 socketPos = offset * invBotScale;
+                Quat socketRot = Quat::fromEuler(rot.x * 3.14159265f / 180.0f,
+                                                 rot.y * 3.14159265f / 180.0f,
+                                                 rot.z * 3.14159265f / 180.0f);
+                Vec3 weaponScale = Vec3(0.016f * scale.x * invBotScale,
+                                        0.016f * scale.y * invBotScale,
+                                        0.016f * scale.z * invBotScale);
                 Mat4 weaponSocket = animator.getSocketTransform("Socket_Weapon", botModel,
-                    makeTransform(socketPos, Quat::fromEuler(0.1f, -0.2f, 0.0f), Vec3(weaponScale, weaponScale, weaponScale)));
+                    makeTransform(socketPos, socketRot, weaponScale));
                 Renderer::drawShadowMesh(*weaponMesh, weaponSocket);
             }
         } else {
             Renderer::drawShadowCube(bPos + Vec3(0.0f, 1.0f, 0.0f), Vec3(0.6f, 1.8f, 0.6f));
         }
+    }
+
+    namespace {
+        void addBoxToMesh(std::vector<Vertex>& verts, std::vector<unsigned int>& idxs,
+                          const Vec3& center, const Vec3& size, const Vec3& color = Vec3(1, 1, 1)) {
+            Vec3 half = size * 0.5f;
+            static const Vec3 normals[6] = {
+                {  0,  0,  1 }, {  0,  0, -1 },
+                { -1,  0,  0 }, {  1,  0,  0 },
+                {  0,  1,  0 }, {  0, -1,  0 }
+            };
+            static const float faceVerts[6][4][3] = {
+                // Front (+Z)
+                { { -1, -1,  1 }, {  1, -1,  1 }, {  1,  1,  1 }, { -1,  1,  1 } },
+                // Back (-Z)
+                { {  1, -1, -1 }, { -1, -1, -1 }, { -1,  1, -1 }, {  1,  1, -1 } },
+                // Left (-X)
+                { { -1, -1, -1 }, { -1, -1,  1 }, { -1,  1,  1 }, { -1,  1, -1 } },
+                // Right (+X)
+                { {  1, -1,  1 }, {  1, -1, -1 }, {  1,  1, -1 }, {  1,  1,  1 } },
+                // Top (+Y)
+                { { -1,  1,  1 }, {  1,  1,  1 }, {  1,  1, -1 }, { -1,  1, -1 } },
+                // Bottom (-Y)
+                { { -1, -1, -1 }, {  1, -1, -1 }, {  1, -1,  1 }, { -1, -1,  1 } }
+            };
+            static const Vec2 uvs[4] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } };
+
+            for (int f = 0; f < 6; ++f) {
+                unsigned int startIdx = static_cast<unsigned int>(verts.size());
+                for (int v = 0; v < 4; ++v) {
+                    Vertex vert;
+                    vert.position = {
+                        center.x + faceVerts[f][v][0] * half.x,
+                        center.y + faceVerts[f][v][1] * half.y,
+                        center.z + faceVerts[f][v][2] * half.z
+                    };
+                    vert.normal = normals[f];
+                    vert.texCoords = uvs[v];
+                    vert.color = color;
+                    verts.push_back(vert);
+                }
+                idxs.push_back(startIdx + 0);
+                idxs.push_back(startIdx + 1);
+                idxs.push_back(startIdx + 2);
+                idxs.push_back(startIdx + 0);
+                idxs.push_back(startIdx + 2);
+                idxs.push_back(startIdx + 3);
+            }
+        }
+
+        std::unique_ptr<Mesh> createProceduralWeaponMesh(WeaponID id) {
+            std::vector<Vertex> verts;
+            std::vector<unsigned int> idxs;
+
+            switch (id) {
+                case WeaponID::Pistol:
+                    addBoxToMesh(verts, idxs, { 0.0f, 0.02f, -0.06f }, { 0.038f, 0.052f, 0.18f }, { 0.22f, 0.24f, 0.27f });
+                    addBoxToMesh(verts, idxs, { 0.0f, -0.06f, 0.01f }, { 0.032f, 0.11f, 0.048f }, { 0.14f, 0.15f, 0.17f });
+                    addBoxToMesh(verts, idxs, { 0.0f, -0.025f, -0.02f }, { 0.022f, 0.035f, 0.035f }, { 0.35f, 0.35f, 0.38f });
+                    break;
+                case WeaponID::Shotgun:
+                    addBoxToMesh(verts, idxs, { 0.0f, 0.01f, 0.04f }, { 0.055f, 0.082f, 0.26f }, { 0.24f, 0.26f, 0.30f });
+                    addBoxToMesh(verts, idxs, { 0.0f, 0.025f, -0.28f }, { 0.048f, 0.038f, 0.42f }, { 0.18f, 0.19f, 0.22f });
+                    addBoxToMesh(verts, idxs, { 0.0f, -0.02f, -0.24f }, { 0.042f, 0.032f, 0.36f }, { 0.30f, 0.32f, 0.36f });
+                    addBoxToMesh(verts, idxs, { 0.0f, -0.02f, -0.18f }, { 0.060f, 0.050f, 0.14f }, { 0.45f, 0.28f, 0.15f });
+                    addBoxToMesh(verts, idxs, { 0.0f, -0.035f, 0.24f }, { 0.045f, 0.095f, 0.22f }, { 0.45f, 0.28f, 0.15f });
+                    break;
+                case WeaponID::SG553:
+                    addBoxToMesh(verts, idxs, { 0.0f, 0.01f, 0.02f }, { 0.050f, 0.088f, 0.36f }, { 0.26f, 0.30f, 0.26f });
+                    addBoxToMesh(verts, idxs, { 0.0f, 0.025f, -0.32f }, { 0.030f, 0.030f, 0.36f }, { 0.18f, 0.19f, 0.21f });
+                    addBoxToMesh(verts, idxs, { 0.0f, 0.075f, -0.02f }, { 0.038f, 0.042f, 0.16f }, { 0.15f, 0.16f, 0.18f });
+                    addBoxToMesh(verts, idxs, { 0.0f, -0.095f, -0.03f }, { 0.032f, 0.13f, 0.075f }, { 0.18f, 0.19f, 0.21f });
+                    addBoxToMesh(verts, idxs, { 0.0f, -0.02f, 0.26f }, { 0.042f, 0.080f, 0.18f }, { 0.22f, 0.25f, 0.23f });
+                    break;
+                case WeaponID::Minigun:
+                    addBoxToMesh(verts, idxs, { 0.0f, 0.0f, 0.08f }, { 0.14f, 0.15f, 0.30f }, { 0.22f, 0.23f, 0.26f });
+                    addBoxToMesh(verts, idxs, { 0.0f, 0.0f, -0.28f }, { 0.12f, 0.12f, 0.48f }, { 0.32f, 0.34f, 0.38f });
+                    addBoxToMesh(verts, idxs, { 0.0f, 0.11f, 0.02f }, { 0.038f, 0.075f, 0.26f }, { 0.15f, 0.16f, 0.18f });
+                    addBoxToMesh(verts, idxs, { -0.075f, -0.05f, 0.08f }, { 0.075f, 0.11f, 0.16f }, { 0.40f, 0.35f, 0.18f });
+                    break;
+                case WeaponID::PlasmaGun:
+                    addBoxToMesh(verts, idxs, { 0.0f, 0.01f, 0.02f }, { 0.085f, 0.11f, 0.40f }, { 0.20f, 0.25f, 0.32f });
+                    addBoxToMesh(verts, idxs, { 0.0f, 0.025f, -0.10f }, { 0.105f, 0.075f, 0.16f }, { 0.20f, 0.85f, 1.00f });
+                    addBoxToMesh(verts, idxs, { 0.0f, 0.015f, -0.32f }, { 0.075f, 0.055f, 0.26f }, { 0.30f, 0.35f, 0.42f });
+                    addBoxToMesh(verts, idxs, { 0.0f, -0.075f, 0.10f }, { 0.065f, 0.095f, 0.11f }, { 0.15f, 0.18f, 0.22f });
+                    break;
+                case WeaponID::RPG:
+                    addBoxToMesh(verts, idxs, { 0.0f, 0.03f, 0.02f }, { 0.078f, 0.078f, 0.72f }, { 0.24f, 0.28f, 0.20f });
+                    addBoxToMesh(verts, idxs, { 0.0f, 0.03f, -0.38f }, { 0.125f, 0.125f, 0.20f }, { 0.28f, 0.34f, 0.22f });
+                    addBoxToMesh(verts, idxs, { 0.0f, 0.03f, -0.50f }, { 0.038f, 0.038f, 0.07f }, { 0.82f, 0.82f, 0.86f });
+                    addBoxToMesh(verts, idxs, { 0.0f, 0.03f, 0.40f }, { 0.110f, 0.110f, 0.08f }, { 0.18f, 0.18f, 0.20f });
+                    addBoxToMesh(verts, idxs, { 0.0f, -0.07f, 0.02f }, { 0.038f, 0.12f, 0.055f }, { 0.15f, 0.15f, 0.17f });
+                    break;
+                default:
+                    addBoxToMesh(verts, idxs, { 0.0f, 0.0f, 0.0f }, { 0.05f, 0.08f, 0.50f }, { 0.35f, 0.35f, 0.38f });
+                    break;
+            }
+
+            return std::make_unique<Mesh>(verts, idxs);
+        }
+    }
+
+    void AIManager::loadConfig(const std::string& path) {
+        std::vector<std::string> candidates = {
+            path,
+            "assets/configs/character_studio.cfg",
+            "build/Release/assets/configs/character_studio.cfg",
+            "../assets/configs/character_studio.cfg",
+            "../../assets/configs/character_studio.cfg"
+        };
+        std::string actualPath;
+        for (const auto& c : candidates) {
+            try {
+                if (std::filesystem::exists(c)) {
+                    actualPath = c;
+                    break;
+                }
+            } catch (...) {}
+        }
+        if (actualPath.empty()) return;
+
+        std::ifstream in(actualPath);
+        if (!in.is_open()) return;
+
+        std::string line;
+        std::string currentSection;
+        auto parseVec3 = [](const std::string& s, const Vec3& def) -> Vec3 {
+            std::stringstream ss(s);
+            std::string p;
+            Vec3 v = def;
+            if (std::getline(ss, p, ',')) v.x = std::stof(p);
+            if (std::getline(ss, p, ',')) v.y = std::stof(p);
+            if (std::getline(ss, p, ',')) v.z = std::stof(p);
+            return v;
+        };
+
+        while (std::getline(in, line)) {
+            if (line.empty() || line[0] == '#' || line[0] == ';') continue;
+            if (line.front() == '[' && line.back() == ']') {
+                currentSection = line.substr(1, line.size() - 2);
+                continue;
+            }
+            size_t eqPos = line.find('=');
+            if (eqPos == std::string::npos) continue;
+            std::string key = line.substr(0, eqPos);
+            std::string val = line.substr(eqPos + 1);
+
+            if (currentSection.rfind("WeaponGrip_", 0) == 0) {
+                int id = std::stoi(currentSection.substr(11));
+                if (id >= 0 && id < 9) {
+                    if (key == "BotOffset") botWeaponConfigs[id].offset = parseVec3(val, botWeaponConfigs[id].offset);
+                    else if (key == "BotRotation") botWeaponConfigs[id].rotation = parseVec3(val, botWeaponConfigs[id].rotation);
+                    else if (key == "BotScale") botWeaponConfigs[id].scale = parseVec3(val, botWeaponConfigs[id].scale);
+                }
+            } else if (currentSection == "BotWeapon") {
+                for (int i = 0; i < 9; ++i) {
+                    if (key == "Offset") botWeaponConfigs[i].offset = parseVec3(val, botWeaponConfigs[i].offset);
+                    else if (key == "Rotation") botWeaponConfigs[i].rotation = parseVec3(val, botWeaponConfigs[i].rotation);
+                    else if (key == "Scale") botWeaponConfigs[i].scale = parseVec3(val, botWeaponConfigs[i].scale);
+                }
+            }
+        }
+    }
+
+    void AIManager::setBotWeaponConfig(WeaponID id, const BotWeaponConfig& cfg) {
+        int idx = std::clamp(static_cast<int>(id), 0, 8);
+        botWeaponConfigs[idx] = cfg;
+    }
+
+    const BotWeaponConfig& AIManager::getBotWeaponConfig(WeaponID id) const {
+        int idx = std::clamp(static_cast<int>(id), 0, 8);
+        return botWeaponConfigs[idx];
     }
 
     void AIManager::initAssets() {
@@ -328,8 +544,52 @@ namespace Lab {
                 loaded = GLTFLoader::load("assets/inwork/t-800_run.glb", skeleton, animations, skinnedMesh);
             }
             if (!loaded || !skinnedMesh) {
-                GLTFLoader::load("assets/animations/bot_walk.gltf", skeleton, animations, skinnedMesh);
+                GLTFLoader::createProceduralCombatBot(skeleton, animations, skinnedMesh);
             }
+
+            // Load bot weapon configuration from studio profile
+            loadConfig("assets/configs/character_studio.cfg");
+
+            // Weapon 0: Pipe (STL)
+            weaponMeshes[0] = std::unique_ptr<Mesh>(Mesh::loadSTL("assets/models/pipe.stl"));
+            weaponTextures[0] = std::make_unique<Texture>("weapon_pipe.bmp");
+
+            // Weapon 1: Pistol (Procedural 3D Mesh)
+            weaponMeshes[1] = createProceduralWeaponMesh(WeaponID::Pistol);
+            weaponTextures[1] = std::make_unique<Texture>("weapon_pistol.bmp");
+
+            // Weapon 2: Shotgun (Procedural 3D Mesh)
+            weaponMeshes[2] = createProceduralWeaponMesh(WeaponID::Shotgun);
+            weaponTextures[2] = std::make_unique<Texture>("weapon_shotgun.bmp");
+
+            // Weapon 3: M4A4-S Tactical Carbine (STL)
+            Mesh* m4Mesh = Mesh::loadSTL("assets/models/Model.stl");
+            if (!m4Mesh) m4Mesh = Mesh::loadSTL("assets/models/m4a4s.stl");
+            weaponMeshes[3] = m4Mesh ? std::unique_ptr<Mesh>(m4Mesh) : createProceduralWeaponMesh(WeaponID::M4A4S);
+            weaponTextures[3] = std::make_unique<Texture>("weapon_m4a4s.bmp");
+
+            // Weapon 4: SG553 Scoped Rifle (Procedural 3D Mesh)
+            weaponMeshes[4] = createProceduralWeaponMesh(WeaponID::SG553);
+            weaponTextures[4] = std::make_unique<Texture>("weapon_sg553.bmp");
+
+            // Weapon 5: Rotary Minigun (Procedural 3D Mesh)
+            weaponMeshes[5] = createProceduralWeaponMesh(WeaponID::Minigun);
+            weaponTextures[5] = std::make_unique<Texture>("weapon_minigun.bmp");
+
+            // Weapon 6: Plasma Gun (Procedural 3D Mesh)
+            weaponMeshes[6] = createProceduralWeaponMesh(WeaponID::PlasmaGun);
+            weaponTextures[6] = std::make_unique<Texture>("weapon_plasma.bmp");
+
+            // Weapon 7: Railgun (STL)
+            Mesh* rgMesh = Mesh::loadSTL("assets/models/railgun.stl");
+            weaponMeshes[7] = rgMesh ? std::unique_ptr<Mesh>(rgMesh) : createProceduralWeaponMesh(WeaponID::Railgun);
+            weaponTextures[7] = std::make_unique<Texture>("weapon_railgun.bmp");
+
+            // Weapon 8: RPG Rocket Launcher (Procedural 3D Mesh)
+            weaponMeshes[8] = createProceduralWeaponMesh(WeaponID::RPG);
+            weaponTextures[8] = std::make_unique<Texture>("weapon_rpg.bmp");
+
+            // Backwards compatibility pointer
             weaponMesh = std::unique_ptr<Mesh>(Mesh::loadSTL("assets/models/pipe.stl"));
         }
     }
@@ -370,7 +630,9 @@ namespace Lab {
             if (forward.lengthSq() < 0.01f) forward = Vec3(0, 0, 1);
             Vec3 patrolEnd = botSpawnPos + forward * 8.0f;
 
-            bots.emplace_back(i, bName, botSpawnPos, patrolEnd, botTeam);
+            // Distribute diverse arsenal across bots: Shotgun, M4A4S, SG553, Minigun, Plasma, Railgun, RPG, Pipe, Pistol
+            WeaponID assignedWep = static_cast<WeaponID>((i + 2) % 9);
+            bots.emplace_back(i, bName, botSpawnPos, patrolEnd, botTeam, assignedWep);
             bots.back().rotation.y = sp.yaw;
             if (skeleton) {
                 bots.back().initAnimation(skeleton, animations);
@@ -583,7 +845,7 @@ namespace Lab {
                                         pickupMgr->spawnPickup(PickupType::Medkit, bots[targetBotIdx].position + Vec3(0.3f, 0.35f, -0.3f), 50);
                                     }
                                     if ((rand() % 100) < 40) {
-                                        int rWep = 2 + (rand() % 7);
+                                        int rWep = static_cast<int>(bots[targetBotIdx].equippedWeapon);
                                         pickupMgr->spawnPickup(PickupType::WeaponDrop, bots[targetBotIdx].position + Vec3(-0.35f, 0.35f, 0.2f), 30, rWep);
                                     }
                                 }
@@ -675,7 +937,10 @@ namespace Lab {
     void AIManager::renderShadowPass() const {
         for (const auto& bot : bots) {
             if (bot.isAlive()) {
-                bot.renderShadow(skinnedMesh.get(), weaponMesh.get());
+                int wIdx = std::clamp(static_cast<int>(bot.equippedWeapon), 0, 8);
+                const Mesh* wMesh = weaponMeshes[wIdx] ? weaponMeshes[wIdx].get() : weaponMesh.get();
+                const BotWeaponConfig* bCfg = &botWeaponConfigs[wIdx];
+                bot.renderShadow(skinnedMesh.get(), wMesh, bCfg);
             }
         }
     }
@@ -683,7 +948,11 @@ namespace Lab {
     void AIManager::render() const {
         for (const auto& bot : bots) {
             if (bot.isAlive()) {
-                bot.render(skinnedMesh.get(), weaponMesh.get());
+                int wIdx = std::clamp(static_cast<int>(bot.equippedWeapon), 0, 8);
+                const Mesh* wMesh = weaponMeshes[wIdx] ? weaponMeshes[wIdx].get() : weaponMesh.get();
+                const Texture* wTex = weaponTextures[wIdx].get();
+                const BotWeaponConfig* bCfg = &botWeaponConfigs[wIdx];
+                bot.render(skinnedMesh.get(), wMesh, bCfg, wTex);
             }
         }
     }
