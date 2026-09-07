@@ -412,6 +412,7 @@ public:
         }
 
         _inMenu = false;
+        _fireLmbLast = true;
         glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     }
 
@@ -1429,6 +1430,7 @@ public:
                     _menuScreen = MenuScreen::Main;
                 } else if (_menuScreen == MenuScreen::Main && _currentMap) {
                     _inMenu = false;
+                    _fireLmbLast = true;
                     glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
                 }
                 _escPressedLast = true;
@@ -1461,6 +1463,7 @@ public:
                 // Button 3: Resume Mission (x: 120..420, y: 365..413)
                 if (_currentMap && mx >= 120.0f && mx <= 420.0f && my >= 365.0f && my <= 413.0f) {
                     _inMenu = false;
+                    _fireLmbLast = true;
                     glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
                     return;
                 }

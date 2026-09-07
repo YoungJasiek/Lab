@@ -141,8 +141,20 @@ namespace Lab {
             if (p != std::string::npos) s.erase(p, 10);
             p = s.find("mixamorig_");
             if (p != std::string::npos) s.erase(p, 10);
-            while (!s.empty() && (s.back() >= '0' && s.back() <= '9')) s.pop_back();
-            if (!s.empty() && s.back() == '_') s.pop_back();
+
+            // Strip Cinema 4D joint index suffix ONLY: e.g. "_01", "_02", "_012", "_024"
+            // That is, an underscore followed by digits at the very end of the string.
+            // Crucially, preserve bone identity numbers like Spine1, Spine2, HandIndex1!
+            size_t lastUnderscore = s.rfind('_');
+            if (lastUnderscore != std::string::npos && lastUnderscore + 1 < s.size()) {
+                bool allDigits = true;
+                for (size_t i = lastUnderscore + 1; i < s.size(); ++i) {
+                    if (s[i] < '0' || s[i] > '9') { allDigits = false; break; }
+                }
+                if (allDigits) {
+                    s.erase(lastUnderscore);
+                }
+            }
             return s;
         };
 
@@ -371,7 +383,9 @@ namespace Lab {
     void Animator::playAnimation(const std::string& name, bool loop, float blendDuration) {
         std::string target = name;
         // Prioritize full Mixamo FBX animations over placeholder clips
-        if (target == "Walk" && hasClip("Walking")) {
+        if ((target == "Idle" || target == "Pistol Idle" || target == "Stand") && hasClip("Pistol Idle")) {
+            target = "Pistol Idle";
+        } else if (target == "Walk" && hasClip("Walking")) {
             target = "Walking";
         } else if ((target == "Shoot" || target == "Fire") && hasClip("Firing Rifle")) {
             target = "Firing Rifle";
@@ -385,7 +399,7 @@ namespace Lab {
                 if (hasClip("Run Forward")) target = "Run Forward";
                 else if (hasClip("Walking")) target = "Walking";
                 else if (hasClip("Walk")) target = "Walk";
-            } else if (target == "Idle" || target == "Pistol Idle") {
+            } else if (target == "Idle" || target == "Pistol Idle" || target == "Stand") {
                 if (hasClip("Pistol Idle")) target = "Pistol Idle";
                 else if (hasClip("Idle")) target = "Idle";
             } else if (target == "Death" || target == "Dead" || target == "Death From Front Headshot" || target == "Death From The Back" || target == "Rifle Death") {

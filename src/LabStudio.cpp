@@ -872,15 +872,16 @@ namespace Lab {
             float effDt = dt * _animPlaybackSpeed;
             if (_animator) {
                 _animator->update(effDt, Vec2(0.0f, 0.0f), _viewmodelWalkSpeed);
-                // Continuous loop for shoot preview mode
+                // Return to Idle once single shot recoil animation finishes
                 if (_activeAnimState == StudioAnimState::Shoot && _animator->state == WeaponAnimState::Idle) {
-                    _animator->onFire();
+                    _activeAnimState = StudioAnimState::Idle;
                 }
             }
             if (_botAnimator.getSkeleton()) {
                 _botAnimator.update(effDt);
                 if (_activeAnimState == StudioAnimState::Shoot && !_botAnimator.isPlaying()) {
-                    _botAnimator.playAnimation("Shoot", false);
+                    _botAnimator.playAnimation("Idle", true, 0.15f);
+                    _activeAnimState = StudioAnimState::Idle;
                 }
             }
         }

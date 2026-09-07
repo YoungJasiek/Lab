@@ -123,6 +123,9 @@ namespace Lab {
             Input::mouseDelta = { 0, 0 };
             Input::scrollDelta = 0.0f;
             glfwPollEvents();
+            for (int b = 0; b < 8; ++b) {
+                Input::mouseButtons[b] = (glfwGetMouseButton(_window, b) == GLFW_PRESS);
+            }
         }
 
         onShutdown();
