@@ -18,6 +18,11 @@ namespace Lab {
         CharacterStudio
     };
 
+    enum class HostType {
+        DedicatedLabServer = 0, // Spawns LabServer.exe (external dedicated process)
+        ListenLAN = 1          // In-process LAN / P2P Listen Server
+    };
+
     struct GameSessionConfig {
         std::string mapPath = "assets/maps/facility_alpha.labmap";
         GameMode mode = GameMode::FFA;
@@ -26,6 +31,10 @@ namespace Lab {
         int fragLimit = 25;
         int timeLimitMinutes = 10;
         int botDifficulty = 1; // 0 = Easy, 1 = Normal, 2 = Hard
+        HostType hostType = HostType::DedicatedLabServer;
+        uint16_t port = 27015;
+        std::string serverName = "Lab Dedicated Arena [LAN]";
+        std::string configPath = "server.cfg";
 
         std::string getModeString() const {
             switch (mode) {

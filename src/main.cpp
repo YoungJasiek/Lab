@@ -9,6 +9,9 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <cmath>
+#include <thread>
+#include <chrono>
+#include <fstream>
 
 using namespace Lab;
 
@@ -1527,43 +1530,91 @@ public:
                     return;
                 }
 
-                // Game Mode buttons: FFA (580..740), DM (760..920), TDM (940..1100) at y: 190..232
-                if (my >= 190.0f && my <= 232.0f) {
-                    if (mx >= 580.0f && mx <= 740.0f) { _sessionConfig.mode = GameMode::FFA; return; }
-                    if (mx >= 760.0f && mx <= 920.0f) { _sessionConfig.mode = GameMode::DM; return; }
-                    if (mx >= 940.0f && mx <= 1100.0f) { _sessionConfig.mode = GameMode::TDM; return; }
+                // 1. Server Architecture toggle: Dedicated (580..855) vs LAN/P2P (870..1160) at y: 155..192
+                if (my >= 155.0f && my <= 192.0f) {
+                    if (mx >= 580.0f && mx <= 855.0f) { _sessionConfig.hostType = HostType::DedicatedLabServer; return; }
+                    if (mx >= 870.0f && mx <= 1160.0f) { _sessionConfig.hostType = HostType::ListenLAN; return; }
                 }
 
-                // Bots toggle button (x: 580..920, y: 280..322)
-                if (mx >= 580.0f && mx <= 920.0f && my >= 280.0f && my <= 322.0f) {
+                // 2. Game Mode buttons: FFA (580..760), DM (770..950), TDM (960..1160) at y: 222..258
+                if (my >= 222.0f && my <= 258.0f) {
+                    if (mx >= 580.0f && mx <= 760.0f) { _sessionConfig.mode = GameMode::FFA; return; }
+                    if (mx >= 770.0f && mx <= 950.0f) { _sessionConfig.mode = GameMode::DM; return; }
+                    if (mx >= 960.0f && mx <= 1160.0f) { _sessionConfig.mode = GameMode::TDM; return; }
+                }
+
+                // 3. Combat AI Bots toggle (x: 580..855, y: 290..326)
+                if (mx >= 580.0f && mx <= 855.0f && my >= 290.0f && my <= 326.0f) {
                     _sessionConfig.enableBots = !_sessionConfig.enableBots;
                     return;
                 }
 
-                // Bot count [-] (580..625) and [+] (785..830) at y: 370..412
-                if (my >= 370.0f && my <= 412.0f) {
-                    if (mx >= 580.0f && mx <= 625.0f) { _sessionConfig.botCount = std::max(0, _sessionConfig.botCount - 1); return; }
-                    if (mx >= 785.0f && mx <= 830.0f) { _sessionConfig.botCount = std::min(8, _sessionConfig.botCount + 1); return; }
+                // Bot count [-] (875..920) and [+] (1066..1111) at y: 290..326
+                if (my >= 290.0f && my <= 326.0f) {
+                    if (mx >= 875.0f && mx <= 920.0f) { _sessionConfig.botCount = std::max(0, _sessionConfig.botCount - 1); return; }
+                    if (mx >= 1066.0f && mx <= 1111.0f) { _sessionConfig.botCount = std::min(8, _sessionConfig.botCount + 1); return; }
                 }
 
-                // Frag Limit [-] (580..625) and [+] (785..830) at y: 460..502
-                if (my >= 460.0f && my <= 502.0f) {
+                // 4. Frag Limit [-] (580..625) and [+] (771..816) at y: 358..394
+                if (my >= 358.0f && my <= 394.0f) {
                     if (mx >= 580.0f && mx <= 625.0f) { _sessionConfig.fragLimit = std::max(5, _sessionConfig.fragLimit - 5); return; }
-                    if (mx >= 785.0f && mx <= 830.0f) { _sessionConfig.fragLimit = std::min(100, _sessionConfig.fragLimit + 5); return; }
+                    if (mx >= 771.0f && mx <= 816.0f) { _sessionConfig.fragLimit = std::min(100, _sessionConfig.fragLimit + 5); return; }
                 }
 
-                // Bottom Back button (x: 100..280, y: 570..618)
+                // 5. Bottom Back button (x: 100..280, y: 570..618)
                 if (mx >= 100.0f && mx <= 280.0f && my >= 570.0f && my <= 618.0f) {
                     _menuScreen = MenuScreen::MultiSelect;
                     return;
                 }
 
-                // Bottom Start Server button (x: 820..1180, y: 570..618)
-                if (mx >= 820.0f && mx <= 1180.0f && my >= 570.0f && my <= 618.0f) {
-                    _localServer.start(27015, _sessionConfig.mapPath);
-                    _netClient.connect("127.0.0.1", 27015, "HostPlayer");
-                    startSession(_sessionConfig);
-                    _chat.addMessage("[SERVER]", "Local Authoritative Server started on port 27015", Vec3(0.3f, 0.85f, 1.0f));
+                // 6. Bottom Start Server button (x: 740..1180, y: 570..618)
+                if (mx >= 740.0f && mx <= 1180.0f && my >= 570.0f && my <= 618.0f) {
+                    ServerConfig srvCfg;
+                    srvCfg.port = _sessionConfig.port;
+                    srvCfg.serverName = (_sessionConfig.hostType == HostType::DedicatedLabServer)
+                        ? "Lab Dedicated Arena [LabServer]"
+                        : "Lab LAN Arena [HostPlayer]";
+                    srvCfg.mapName = _sessionConfig.mapPath;
+                    srvCfg.gameMode = (_sessionConfig.mode == GameMode::FFA ? "FFA" : (_sessionConfig.mode == GameMode::DM ? "DM" : "TDM"));
+                    srvCfg.enableBots = _sessionConfig.enableBots;
+                    srvCfg.botCount = _sessionConfig.botCount;
+                    srvCfg.fragLimit = _sessionConfig.fragLimit;
+                    srvCfg.maxPlayers = 16;
+                    srvCfg.tickrate = 64;
+                    srvCfg.lanMode = true;
+                    srvCfg.hostType = (_sessionConfig.hostType == HostType::DedicatedLabServer)
+                        ? HostArchitecture::Dedicated
+                        : HostArchitecture::ListenLAN;
+
+                    // Always export the user configuration to server.cfg
+                    srvCfg.saveToFile("server.cfg");
+                    srvCfg.saveToFile("assets/configs/server.cfg");
+
+                    if (_sessionConfig.hostType == HostType::DedicatedLabServer) {
+                        _localServer.stop();
+                        std::string spawnErr;
+                        bool ok = launchDedicatedServer(srvCfg, spawnErr);
+                        if (ok) {
+                            std::this_thread::sleep_for(std::chrono::milliseconds(250));
+                            _netClient.connect("127.0.0.1", srvCfg.port, "HostPlayer");
+                            startSession(_sessionConfig);
+                            _chat.addMessage("[SERVER]", "Started LabServer.exe using server.cfg on port " + std::to_string(srvCfg.port), Vec3(0.2f, 0.9f, 0.35f));
+                            _chat.addMessage("[CONFIG]", "Loaded user match config from server.cfg (64Hz tickrate)", Vec3(0.3f, 0.85f, 1.0f));
+                        } else {
+                            _chat.addMessage("[SERVER]", "LabServer spawn failed (" + spawnErr + "). Fallback to LAN Listen Server.", Vec3(0.95f, 0.75f, 0.2f));
+                            _localServer.start(srvCfg);
+                            _netClient.connect("127.0.0.1", srvCfg.port, "HostPlayer");
+                            startSession(_sessionConfig);
+                        }
+                    } else {
+                        // LAN / P2P Listen Server
+                        _localServer.stop();
+                        _localServer.start(srvCfg);
+                        _netClient.connect("127.0.0.1", srvCfg.port, "HostPlayer");
+                        startSession(_sessionConfig);
+                        _chat.addMessage("[SERVER]", "LAN / P2P Listen Server started on port " + std::to_string(srvCfg.port), Vec3(0.3f, 0.85f, 1.0f));
+                        _chat.addMessage("[CONFIG]", "Using server.cfg (LAN Broadcast active)", Vec3(0.3f, 0.85f, 1.0f));
+                    }
                     return;
                 }
             }
@@ -1823,62 +1874,92 @@ public:
             Renderer::drawRect(560.0f, 120.0f, 620.0f, 32.0f, Vec3(0.18f, 0.35f, 0.55f));
             LabFont::drawText(580.0f, 128.0f, "2. SERVER & MATCH RULES", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
 
-            // Game Mode Buttons
-            LabFont::drawText(580.0f, 165.0f, "GAME MODE:", 1.8f, Vec3(0.85f, 0.88f, 0.95f), LabFontType::GeoSans);
+            // 1. Server Architecture / Hosting Mode
+            LabFont::drawText(580.0f, 160.0f, "SERVER TYPE / HOST ARCHITECTURE:", 1.7f, Vec3(0.85f, 0.88f, 0.95f), LabFontType::GeoSans);
+            bool isDedicated = (_sessionConfig.hostType == HostType::DedicatedLabServer);
+            bool isLAN = (_sessionConfig.hostType == HostType::ListenLAN);
+
+            Renderer::drawRect(580.0f, 182.0f, 275.0f, 38.0f, isDedicated ? Vec3(0.18f, 0.65f, 0.45f) : Vec3(0.14f, 0.18f, 0.24f));
+            if (isDedicated) Renderer::drawRect(580.0f, 182.0f, 275.0f, 2.0f, Vec3(0.98f, 0.78f, 0.08f));
+            LabFont::drawText(600.0f, 194.0f, "DEDICATED (LabServer.exe)", 1.6f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            Renderer::drawRect(870.0f, 182.0f, 290.0f, 38.0f, isLAN ? Vec3(0.20f, 0.55f, 0.75f) : Vec3(0.14f, 0.18f, 0.24f));
+            if (isLAN) Renderer::drawRect(870.0f, 182.0f, 290.0f, 2.0f, Vec3(0.2f, 0.85f, 1.0f));
+            LabFont::drawText(890.0f, 194.0f, "LAN / P2P (LISTEN SERVER)", 1.6f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            // 2. Game Mode Buttons
+            LabFont::drawText(580.0f, 228.0f, "GAME MODE:", 1.7f, Vec3(0.85f, 0.88f, 0.95f), LabFontType::GeoSans);
             bool isFFA = (_sessionConfig.mode == GameMode::FFA);
             bool isDM  = (_sessionConfig.mode == GameMode::DM);
             bool isTDM = (_sessionConfig.mode == GameMode::TDM);
 
-            Renderer::drawRect(580.0f, 190.0f, 160.0f, 42.0f, isFFA ? Vec3(0.18f, 0.65f, 0.45f) : Vec3(0.14f, 0.18f, 0.24f));
-            if (isFFA) Renderer::drawRect(580.0f, 190.0f, 160.0f, 2.0f, Vec3(0.98f, 0.78f, 0.08f));
-            LabFont::drawText(620.0f, 202.0f, "FFA (All)", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            Renderer::drawRect(580.0f, 248.0f, 180.0f, 36.0f, isFFA ? Vec3(0.18f, 0.65f, 0.45f) : Vec3(0.14f, 0.18f, 0.24f));
+            if (isFFA) Renderer::drawRect(580.0f, 248.0f, 180.0f, 2.0f, Vec3(0.98f, 0.78f, 0.08f));
+            LabFont::drawText(620.0f, 258.0f, "FFA (All)", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
 
-            Renderer::drawRect(760.0f, 190.0f, 160.0f, 42.0f, isDM ? Vec3(0.18f, 0.65f, 0.45f) : Vec3(0.14f, 0.18f, 0.24f));
-            if (isDM) Renderer::drawRect(760.0f, 190.0f, 160.0f, 2.0f, Vec3(0.98f, 0.78f, 0.08f));
-            LabFont::drawText(800.0f, 202.0f, "Deathmatch", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            Renderer::drawRect(770.0f, 248.0f, 180.0f, 36.0f, isDM ? Vec3(0.18f, 0.65f, 0.45f) : Vec3(0.14f, 0.18f, 0.24f));
+            if (isDM) Renderer::drawRect(770.0f, 248.0f, 180.0f, 2.0f, Vec3(0.98f, 0.78f, 0.08f));
+            LabFont::drawText(800.0f, 258.0f, "Deathmatch", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
 
-            Renderer::drawRect(940.0f, 190.0f, 160.0f, 42.0f, isTDM ? Vec3(0.18f, 0.65f, 0.45f) : Vec3(0.14f, 0.18f, 0.24f));
-            if (isTDM) Renderer::drawRect(940.0f, 190.0f, 160.0f, 2.0f, Vec3(0.98f, 0.78f, 0.08f));
-            LabFont::drawText(980.0f, 202.0f, "Team DM", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            Renderer::drawRect(960.0f, 248.0f, 200.0f, 36.0f, isTDM ? Vec3(0.18f, 0.65f, 0.45f) : Vec3(0.14f, 0.18f, 0.24f));
+            if (isTDM) Renderer::drawRect(960.0f, 248.0f, 200.0f, 2.0f, Vec3(0.98f, 0.78f, 0.08f));
+            LabFont::drawText(1010.0f, 258.0f, "Team DM", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
 
-            // Bots Toggle Button
-            LabFont::drawText(580.0f, 255.0f, "COMBAT AI BOTS:", 1.8f, Vec3(0.85f, 0.88f, 0.95f), LabFontType::GeoSans);
+            // 3. Bots Toggle & Count
+            LabFont::drawText(580.0f, 294.0f, "COMBAT AI BOTS:", 1.7f, Vec3(0.85f, 0.88f, 0.95f), LabFontType::GeoSans);
             Vec3 botBtnBg = _sessionConfig.enableBots ? Vec3(0.18f, 0.65f, 0.35f) : Vec3(0.24f, 0.26f, 0.30f);
             std::string botBtnText = _sessionConfig.enableBots ? "BOTS: ENABLED (ON)" : "BOTS: DISABLED (OFF)";
-            Renderer::drawRect(580.0f, 280.0f, 340.0f, 42.0f, botBtnBg);
-            LabFont::drawText(620.0f, 292.0f, botBtnText, 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            Renderer::drawRect(580.0f, 314.0f, 275.0f, 36.0f, botBtnBg);
+            LabFont::drawText(610.0f, 324.0f, botBtnText, 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
 
-            // Bot Count Adjuster
-            LabFont::drawText(580.0f, 345.0f, "BOT COUNT (0 - 8):", 1.8f, Vec3(0.85f, 0.88f, 0.95f), LabFontType::GeoSans);
-            Renderer::drawRect(580.0f, 370.0f, 45.0f, 42.0f, Vec3(0.22f, 0.28f, 0.38f));
-            LabFont::drawText(598.0f, 380.0f, "-", 2.4f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            Renderer::drawRect(875.0f, 314.0f, 45.0f, 36.0f, Vec3(0.22f, 0.28f, 0.38f));
+            LabFont::drawText(892.0f, 323.0f, "-", 2.2f, Vec3(1, 1, 1), LabFontType::GeoSans);
 
-            Renderer::drawRect(635.0f, 370.0f, 140.0f, 42.0f, Vec3(0.12f, 0.15f, 0.20f));
+            Renderer::drawRect(928.0f, 314.0f, 130.0f, 36.0f, Vec3(0.12f, 0.15f, 0.20f));
             std::string botCountStr = std::to_string(_sessionConfig.botCount) + " BOTS";
-            LabFont::drawText(660.0f, 382.0f, botCountStr, 2.0f, Vec3(0.95f, 0.85f, 0.2f), LabFontType::GeoSans);
+            LabFont::drawText(950.0f, 324.0f, botCountStr, 1.8f, Vec3(0.95f, 0.85f, 0.2f), LabFontType::GeoSans);
 
-            Renderer::drawRect(785.0f, 370.0f, 45.0f, 42.0f, Vec3(0.22f, 0.28f, 0.38f));
-            LabFont::drawText(802.0f, 380.0f, "+", 2.4f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            Renderer::drawRect(1066.0f, 314.0f, 45.0f, 36.0f, Vec3(0.22f, 0.28f, 0.38f));
+            LabFont::drawText(1082.0f, 323.0f, "+", 2.2f, Vec3(1, 1, 1), LabFontType::GeoSans);
 
-            // Frag Limit Adjuster
-            LabFont::drawText(580.0f, 435.0f, "FRAG LIMIT:", 1.8f, Vec3(0.85f, 0.88f, 0.95f), LabFontType::GeoSans);
-            Renderer::drawRect(580.0f, 460.0f, 45.0f, 42.0f, Vec3(0.22f, 0.28f, 0.38f));
-            LabFont::drawText(598.0f, 470.0f, "-", 2.4f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            // 4. Frag Limit & Port Badge
+            LabFont::drawText(580.0f, 360.0f, "FRAG LIMIT & SERVER CONFIG:", 1.7f, Vec3(0.85f, 0.88f, 0.95f), LabFontType::GeoSans);
+            Renderer::drawRect(580.0f, 380.0f, 45.0f, 36.0f, Vec3(0.22f, 0.28f, 0.38f));
+            LabFont::drawText(598.0f, 389.0f, "-", 2.2f, Vec3(1, 1, 1), LabFontType::GeoSans);
 
-            Renderer::drawRect(635.0f, 460.0f, 140.0f, 42.0f, Vec3(0.12f, 0.15f, 0.20f));
+            Renderer::drawRect(633.0f, 380.0f, 130.0f, 36.0f, Vec3(0.12f, 0.15f, 0.20f));
             std::string fragLimitStr = std::to_string(_sessionConfig.fragLimit) + " KILLS";
-            LabFont::drawText(660.0f, 472.0f, fragLimitStr, 2.0f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::GeoSans);
+            LabFont::drawText(652.0f, 390.0f, fragLimitStr, 1.8f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::GeoSans);
 
-            Renderer::drawRect(785.0f, 460.0f, 45.0f, 42.0f, Vec3(0.22f, 0.28f, 0.38f));
-            LabFont::drawText(802.0f, 470.0f, "+", 2.4f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            Renderer::drawRect(771.0f, 380.0f, 45.0f, 36.0f, Vec3(0.22f, 0.28f, 0.38f));
+            LabFont::drawText(787.0f, 389.0f, "+", 2.2f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            Renderer::drawRect(830.0f, 380.0f, 330.0f, 36.0f, Vec3(0.10f, 0.14f, 0.20f));
+            Renderer::drawRect(830.0f, 380.0f, 330.0f, 1.0f, Vec3(0.2f, 0.75f, 0.95f));
+            LabFont::drawText(850.0f, 391.0f, "PORT: 27015  |  CFG: server.cfg", 1.6f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::GeoSans);
+
+            // 5. Descriptive Info Box
+            Renderer::drawRect(580.0f, 430.0f, 580.0f, 54.0f, Vec3(0.06f, 0.08f, 0.12f));
+            Renderer::drawRect(580.0f, 430.0f, 4.0f, 54.0f, isDedicated ? Vec3(0.2f, 0.85f, 0.4f) : Vec3(0.2f, 0.75f, 1.0f));
+            if (isDedicated) {
+                LabFont::drawText(595.0f, 442.0f, "Dedicated mode spawns standalone 'LabServer.exe' console with 'server.cfg'.", 1.4f, Vec3(0.85f, 0.9f, 0.95f), LabFontType::System);
+                LabFont::drawText(595.0f, 462.0f, "Optimized for high-performance authoritative hosting & Linux server parity.", 1.4f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::System);
+            } else {
+                LabFont::drawText(595.0f, 442.0f, "LAN / P2P mode hosts internal UDP listen server directly in Lab.exe.", 1.4f, Vec3(0.85f, 0.9f, 0.95f), LabFontType::System);
+                LabFont::drawText(595.0f, 462.0f, "Broadcasts across local network so nearby friends can discover & join.", 1.4f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::System);
+            }
 
             // Bottom Buttons: Back and Launch
             Renderer::drawRect(100.0f, 570.0f, 200.0f, 48.0f, Vec3(0.20f, 0.25f, 0.35f));
             LabFont::drawText(150.0f, 586.0f, "< BACK", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
 
-            Renderer::drawRect(820.0f, 570.0f, 360.0f, 48.0f, Vec3(0.18f, 0.65f, 0.35f));
-            Renderer::drawRect(820.0f, 570.0f, 360.0f, 2.0f, Vec3(0.98f, 0.78f, 0.08f));
-            LabFont::drawText(860.0f, 586.0f, "START SERVER / LAUNCH MATCH", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            std::string launchBtnText = isDedicated
+                ? "START LABSERVER & LAUNCH MATCH"
+                : "HOST LAN / P2P LISTEN MATCH";
+            Vec3 launchBtnBg = isDedicated ? Vec3(0.18f, 0.65f, 0.35f) : Vec3(0.20f, 0.55f, 0.75f);
+            Renderer::drawRect(740.0f, 570.0f, 440.0f, 48.0f, launchBtnBg);
+            Renderer::drawRect(740.0f, 570.0f, 440.0f, 2.0f, Vec3(0.98f, 0.78f, 0.08f));
+            LabFont::drawText(760.0f, 586.0f, launchBtnText, 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
         }
         else if (_menuScreen == MenuScreen::JoinGame) {
             // Server Browser Frame
@@ -2260,6 +2341,14 @@ public:
     void onShutdown() override {
         _netClient.disconnect();
         _localServer.stop();
+#ifdef _WIN32
+        if (_hasSpawnedServer && _dedicatedServerPI.hProcess) {
+            TerminateProcess(_dedicatedServerPI.hProcess, 0);
+            CloseHandle(_dedicatedServerPI.hProcess);
+            CloseHandle(_dedicatedServerPI.hThread);
+            _hasSpawnedServer = false;
+        }
+#endif
         NetworkSystem::shutdown();
         _shadowMap.shutdown();
         AudioEngine::shutdown();
@@ -2269,6 +2358,66 @@ public:
         _scriptEngine.shutdown();
         _postProcess.shutdown();
         Renderer::shutdown();
+    }
+
+    bool launchDedicatedServer(const ServerConfig& cfg, std::string& outError) {
+#ifdef _WIN32
+        if (_hasSpawnedServer && _dedicatedServerPI.hProcess) {
+            DWORD exitCode = 0;
+            if (GetExitCodeProcess(_dedicatedServerPI.hProcess, &exitCode) && exitCode == STILL_ACTIVE) {
+                return true;
+            }
+            CloseHandle(_dedicatedServerPI.hProcess);
+            CloseHandle(_dedicatedServerPI.hThread);
+            _hasSpawnedServer = false;
+        }
+
+        const std::vector<std::string> searchPaths = {
+            "LabServer.exe",
+            "build\\Release\\LabServer.exe",
+            "Release\\LabServer.exe",
+            "bin\\LabServer.exe",
+            "..\\build\\Release\\LabServer.exe"
+        };
+        std::string foundExe;
+        for (const auto& p : searchPaths) {
+            std::ifstream test(p);
+            if (test.good()) {
+                foundExe = p;
+                break;
+            }
+        }
+        if (foundExe.empty()) {
+            outError = "LabServer.exe not found in working directory or build/Release";
+            return false;
+        }
+
+        std::string cmd = foundExe + " -config server.cfg -port " + std::to_string(cfg.port);
+        STARTUPINFOA si;
+        ZeroMemory(&si, sizeof(si));
+        si.cb = sizeof(si);
+        ZeroMemory(&_dedicatedServerPI, sizeof(_dedicatedServerPI));
+
+        char cmdBuffer[512];
+        strncpy_s(cmdBuffer, cmd.c_str(), sizeof(cmdBuffer));
+
+        if (CreateProcessA(NULL, cmdBuffer, NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &si, &_dedicatedServerPI)) {
+            _hasSpawnedServer = true;
+            return true;
+        } else {
+            outError = "Failed to launch process: " + std::to_string(GetLastError());
+            return false;
+        }
+#else
+        std::string cmd = "./LabServer -config server.cfg -port " + std::to_string(cfg.port) + " &";
+        int res = system(cmd.c_str());
+        if (res == 0) {
+            _hasSpawnedServer = true;
+            return true;
+        }
+        outError = "POSIX system() failed";
+        return false;
+#endif
     }
 
 private:
@@ -2282,6 +2431,10 @@ private:
     NetworkClient _netClient;
     ServerBrowser _serverBrowser;
     int _selectedServerIndex = 0;
+#ifdef _WIN32
+    PROCESS_INFORMATION _dedicatedServerPI{ 0 };
+#endif
+    bool _hasSpawnedServer = false;
     std::unique_ptr<LabMap> _currentMap;
     std::unordered_map<std::string, std::unique_ptr<Texture>> _textures;
     std::unordered_map<std::string, std::unique_ptr<Mesh>> _meshes;

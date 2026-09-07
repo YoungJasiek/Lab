@@ -205,6 +205,32 @@ namespace Lab {
         uint32_t _nextCmdNumber = 1;
     };
 
+    // --- Server Architecture & Configuration ---
+    enum class HostArchitecture : uint8_t {
+        Dedicated = 0,
+        ListenLAN = 1
+    };
+
+    struct ServerConfig {
+        uint16_t port = DEFAULT_SERVER_PORT;
+        std::string serverName = "Lab Dedicated Arena [LAN]";
+        std::string mapName = "facility_alpha.labmap";
+        std::string gameMode = "FFA";
+        uint16_t maxPlayers = 16;
+        uint16_t tickrate = 64;
+        int fragLimit = 25;
+        int timeLimitMinutes = 10;
+        bool enableBots = true;
+        int botCount = 4;
+        int botDifficulty = 1;
+        bool lanMode = true;
+        std::string password = "";
+        HostArchitecture hostType = HostArchitecture::Dedicated;
+
+        bool loadFromFile(const std::string& filepath = "server.cfg");
+        bool saveToFile(const std::string& filepath = "server.cfg") const;
+    };
+
     // --- Dedicated Headless & Listen Server Engine ---
     struct ConnectedClient {
         uint32_t clientId = 0;
@@ -222,6 +248,7 @@ namespace Lab {
         DedicatedServer();
         ~DedicatedServer();
 
+        bool start(const ServerConfig& config);
         bool start(uint16_t port = DEFAULT_SERVER_PORT, const std::string& mapName = "facility_alpha.labmap");
         void stop();
         void tick(float dt);
@@ -231,16 +258,20 @@ namespace Lab {
         size_t getClientCount() const { return _clients.size(); }
         uint32_t getServerTick() const { return _serverTick; }
         const std::string& getServerName() const { return _serverName; }
-        void setServerName(const std::string& name) { _serverName = name; }
+        void setServerName(const std::string& name) { _serverName = name; _config.serverName = name; }
         const std::string& getMapName() const { return _mapName; }
         const std::string& getGameMode() const { return _gameMode; }
-        void setGameMode(const std::string& mode) { _gameMode = mode; }
+        void setGameMode(const std::string& mode) { _gameMode = mode; _config.gameMode = mode; }
+        const ServerConfig& getConfig() const { return _config; }
+        void setConfig(const ServerConfig& cfg) { _config = cfg; }
+        uint16_t getTickrate() const { return _config.tickrate > 0 ? _config.tickrate : 64; }
 
         // Send a chat message to all connected clients
         void broadcastChatMessage(const std::string& sender, const std::string& text);
 
     private:
         UDPSocket _socket;
+        ServerConfig _config;
         uint16_t _port = DEFAULT_SERVER_PORT;
         std::string _serverName = "Lab Dedicated Arena [LAN]";
         std::string _gameMode = "FFA";

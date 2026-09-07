@@ -4619,6 +4619,76 @@ int main() {
         std::cout << "  [PASS] Saved visual FBX Combat Animations verification to 'test_bot_fbx_combat_animations.bmp'.\n";
     }
 
+    // =========================================================================
+    // TEST 45: MULTIPLAYER SERVER CONFIGURATION (.CFG) & ARCHITECTURE
+    // =========================================================================
+    {
+        std::cout << "\n[Test 45] Verifying Server Configuration File (.cfg), Linux Parity & LAN Architecture...\n";
+
+        // 1. Test ServerConfig serialization
+        Lab::ServerConfig testCfg;
+        testCfg.port = 27035;
+        testCfg.serverName = "Arctic Research Outpost [Linux/Win]";
+        testCfg.mapName = "assets/maps/cryo_complex.labmap";
+        testCfg.gameMode = "TDM";
+        testCfg.maxPlayers = 24;
+        testCfg.tickrate = 128;
+        testCfg.fragLimit = 50;
+        testCfg.timeLimitMinutes = 15;
+        testCfg.enableBots = true;
+        testCfg.botCount = 6;
+        testCfg.lanMode = true;
+        testCfg.hostType = Lab::HostArchitecture::Dedicated;
+
+        std::string cfgPath = "assets/configs/test_generated_server.cfg";
+        if (!testCfg.saveToFile(cfgPath)) {
+            std::cerr << "Assertion failed: ServerConfig::saveToFile failed for " << cfgPath << "\n";
+            return 1;
+        }
+        std::cout << "  [PASS] ServerConfig successfully serialized to '" << cfgPath << "'.\n";
+
+        // 2. Test ServerConfig deserialization
+        Lab::ServerConfig loadedCfg;
+        if (!loadedCfg.loadFromFile(cfgPath)) {
+            std::cerr << "Assertion failed: ServerConfig::loadFromFile failed for " << cfgPath << "\n";
+            return 1;
+        }
+
+        if (loadedCfg.port != 27035 ||
+            loadedCfg.serverName != "Arctic Research Outpost [Linux/Win]" ||
+            loadedCfg.mapName != "assets/maps/cryo_complex.labmap" ||
+            loadedCfg.gameMode != "TDM" ||
+            loadedCfg.maxPlayers != 24 ||
+            loadedCfg.tickrate != 128 ||
+            loadedCfg.fragLimit != 50 ||
+            loadedCfg.timeLimitMinutes != 15 ||
+            loadedCfg.enableBots != true ||
+            loadedCfg.botCount != 6 ||
+            loadedCfg.lanMode != true ||
+            loadedCfg.hostType != Lab::HostArchitecture::Dedicated) {
+            std::cerr << "Assertion failed: Loaded ServerConfig does not match saved values!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] ServerConfig values verified: Port=27035, Tickrate=128Hz, MaxPlayers=24, FragLimit=50!\n";
+
+        // 3. Test DedicatedServer initialization with ServerConfig
+        Lab::DedicatedServer srv;
+        if (!srv.start(loadedCfg)) {
+            std::cerr << "Assertion failed: DedicatedServer failed to start with ServerConfig\n";
+            return 1;
+        }
+
+        if (srv.getPort() != 27035 || srv.getServerName() != loadedCfg.serverName || srv.getGameMode() != "TDM" || srv.getTickrate() != 128) {
+            std::cerr << "Assertion failed: DedicatedServer getters do not reflect loaded ServerConfig\n";
+            return 1;
+        }
+        std::cout << "  [PASS] DedicatedServer initialized with ServerConfig: Port=" << srv.getPort() 
+                  << ", Name=" << srv.getServerName() << ", Tickrate=" << srv.getTickrate() << "Hz!\n";
+
+        srv.stop();
+        std::cout << "  [PASS] DedicatedServer clean shutdown verified.\n";
+    }
+
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();

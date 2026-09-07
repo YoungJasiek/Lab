@@ -3,6 +3,8 @@
 #include <cstring>
 #include <cmath>
 #include <algorithm>
+#include <fstream>
+#include <sstream>
 
 #ifdef _WIN32
     #define WIN32_LEAN_AND_MEAN
@@ -94,6 +96,10 @@ namespace Lab {
             addr->sin_addr.s_addr = INADDR_ANY;
             return true;
         }
+        if (ip == "255.255.255.255" || ip == "broadcast") {
+            addr->sin_addr.s_addr = INADDR_BROADCAST;
+            return true;
+        }
 
         int res = inet_pton(AF_INET, ip.c_str(), &addr->sin_addr);
         return res == 1;
@@ -175,6 +181,10 @@ namespace Lab {
         // Allow fast port reuse
         int opt = 1;
         setsockopt(static_cast<SOCKET>(s), SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&opt), sizeof(opt));
+
+        // Allow broadcast for LAN discovery
+        int bcast = 1;
+        setsockopt(static_cast<SOCKET>(s), SOL_SOCKET, SO_BROADCAST, reinterpret_cast<const char*>(&bcast), sizeof(bcast));
 
         sockaddr_in bindAddr{};
         bindAddr.sin_family = AF_INET;
@@ -340,6 +350,143 @@ namespace Lab {
     }
 
     // =========================================================================
+    // ServerConfig Implementation
+    // =========================================================================
+
+    static inline std::string trimString(const std::string& str) {
+        size_t first = str.find_first_not_of(" \t\r\n");
+        if (first == std::string::npos) return "";
+        size_t last = str.find_last_not_of(" \t\r\n");
+        return str.substr(first, (last - first + 1));
+    }
+
+    static inline std::string toLowerString(std::string s) {
+        for (char& c : s) {
+            if (c >= 'A' && c <= 'Z') c = static_cast<char>(c + 32);
+        }
+        return s;
+    }
+
+    bool ServerConfig::loadFromFile(const std::string& filepath) {
+        std::string resolved = filepath;
+        std::ifstream test(resolved);
+        if (!test.good()) {
+            const std::vector<std::string> searchPaths = {
+                filepath,
+                "assets/configs/" + filepath,
+                "../" + filepath,
+                "../assets/configs/" + filepath,
+                "../../assets/configs/" + filepath,
+                "build/Release/assets/configs/" + filepath,
+                "Release/" + filepath,
+                "build/Release/" + filepath
+            };
+            for (const auto& p : searchPaths) {
+                std::ifstream f(p);
+                if (f.good()) {
+                    resolved = p;
+                    break;
+                }
+            }
+        }
+
+        std::ifstream in(resolved);
+        if (!in.is_open()) return false;
+
+        std::string line;
+        while (std::getline(in, line)) {
+            // Strip comments (# or ;)
+            size_t commentPos = line.find_first_of("#;");
+            if (commentPos != std::string::npos) {
+                line = line.substr(0, commentPos);
+            }
+            line = trimString(line);
+            if (line.empty() || line.front() == '[') continue;
+
+            size_t eqPos = line.find('=');
+            if (eqPos == std::string::npos) continue;
+
+            std::string key = toLowerString(trimString(line.substr(0, eqPos)));
+            std::string val = trimString(line.substr(eqPos + 1));
+            // Remove optional quotes
+            if (val.size() >= 2 && ((val.front() == '"' && val.back() == '"') || (val.front() == '\'' && val.back() == '\''))) {
+                val = val.substr(1, val.size() - 2);
+            }
+
+            if (key == "port") {
+                try { port = static_cast<uint16_t>(std::stoi(val)); } catch (...) {}
+            } else if (key == "server_name" || key == "servername" || key == "name") {
+                serverName = val;
+            } else if (key == "map" || key == "map_name" || key == "mapname") {
+                mapName = val;
+            } else if (key == "game_mode" || key == "gamemode" || key == "mode") {
+                gameMode = val;
+            } else if (key == "max_players" || key == "maxplayers") {
+                try { maxPlayers = static_cast<uint16_t>(std::stoi(val)); } catch (...) {}
+            } else if (key == "tickrate") {
+                try { tickrate = static_cast<uint16_t>(std::stoi(val)); } catch (...) {}
+            } else if (key == "frag_limit" || key == "fraglimit") {
+                try { fragLimit = std::stoi(val); } catch (...) {}
+            } else if (key == "time_limit" || key == "timelimit") {
+                try { timeLimitMinutes = std::stoi(val); } catch (...) {}
+            } else if (key == "enable_bots" || key == "bots") {
+                std::string lval = toLowerString(val);
+                enableBots = (lval == "1" || lval == "true" || lval == "yes" || lval == "on");
+            } else if (key == "bot_count" || key == "botcount") {
+                try { botCount = std::stoi(val); } catch (...) {}
+            } else if (key == "bot_difficulty") {
+                try { botDifficulty = std::stoi(val); } catch (...) {}
+            } else if (key == "lan_mode" || key == "lan" || key == "p2p") {
+                std::string lval = toLowerString(val);
+                lanMode = (lval == "1" || lval == "true" || lval == "yes" || lval == "on");
+            } else if (key == "host_type" || key == "host_mode") {
+                std::string lval = toLowerString(val);
+                if (lval == "lan" || lval == "p2p" || lval == "listen") {
+                    hostType = HostArchitecture::ListenLAN;
+                } else {
+                    hostType = HostArchitecture::Dedicated;
+                }
+            } else if (key == "password") {
+                password = val;
+            }
+        }
+        return true;
+    }
+
+    bool ServerConfig::saveToFile(const std::string& filepath) const {
+        std::ofstream out(filepath);
+        if (!out.is_open()) return false;
+
+        out << "# ===================================================================\n";
+        out << "# FROZEN-LIFE : LAB MULTIPLAYER SERVER CONFIGURATION\n";
+        out << "# Auto-generated by Lab Engine & LabServer\n";
+        out << "# Compatible with Linux Headless and Windows Dedicated Servers\n";
+        out << "# ===================================================================\n\n";
+
+        out << "[Server]\n";
+        out << "port = " << port << "\n";
+        out << "server_name = " << serverName << "\n";
+        out << "map = " << mapName << "\n";
+        out << "game_mode = " << gameMode << "\n";
+        out << "max_players = " << maxPlayers << "\n";
+        out << "tickrate = " << tickrate << "\n\n";
+
+        out << "[Match]\n";
+        out << "frag_limit = " << fragLimit << "\n";
+        out << "time_limit = " << timeLimitMinutes << "\n";
+        out << "enable_bots = " << (enableBots ? "1" : "0") << "\n";
+        out << "bot_count = " << botCount << "\n";
+        out << "bot_difficulty = " << botDifficulty << "\n\n";
+
+        out << "[Network]\n";
+        out << "lan_mode = " << (lanMode ? "1" : "0") << "\n";
+        out << "host_type = " << (hostType == HostArchitecture::ListenLAN ? "lan" : "dedicated") << "\n";
+        out << "password = " << password << "\n";
+
+        return true;
+    }
+
+    // =========================================================================
     // DedicatedServer Implementation
     // =========================================================================
 
@@ -349,10 +496,21 @@ namespace Lab {
         stop();
     }
 
+    bool DedicatedServer::start(const ServerConfig& config) {
+        _config = config;
+        _serverName = config.serverName;
+        _gameMode = config.gameMode;
+        return start(config.port, config.mapName);
+    }
+
     bool DedicatedServer::start(uint16_t port, const std::string& mapName) {
         stop();
         _port = port;
         _mapName = mapName;
+        _config.port = port;
+        _config.mapName = mapName;
+        _config.serverName = _serverName;
+        _config.gameMode = _gameMode;
         _serverTick = 0;
         _serverTime = 0.0f;
         _timeAccumulator = 0.0f;
@@ -382,8 +540,10 @@ namespace Lab {
         }
 
         _running = true;
+        uint16_t hz = _config.tickrate > 0 ? _config.tickrate : 64;
         std::cout << "[Server] Dedicated Authoritative Server started on port " << _port 
-                  << " (Map: " << _mapName << ", Solid Boxes: " << _solidBoxes.size() << ", Tickrate: 64Hz).\n";
+                  << " (Map: " << _mapName << ", Solid Boxes: " << _solidBoxes.size() 
+                  << ", Tickrate: " << hz << "Hz, Mode: " << _gameMode << ").\n";
         return true;
     }
 
@@ -402,8 +562,9 @@ namespace Lab {
         _serverTime += dt;
         processIncomingPackets();
 
-        // Fixed 64 Hz tickrate (15.625 ms per tick)
-        const float tickInterval = 1.0f / 64.0f;
+        // Fixed tickrate based on config (default 64 Hz)
+        uint16_t hz = _config.tickrate > 0 ? _config.tickrate : 64;
+        const float tickInterval = 1.0f / static_cast<float>(hz);
         _timeAccumulator += dt;
 
         while (_timeAccumulator >= tickInterval) {
@@ -461,7 +622,7 @@ namespace Lab {
                         NetMsgConnectResponse resp;
                         resp.header.type = static_cast<uint8_t>(NetMsgType::ConnectResponse);
                         resp.assignedClientId = client->clientId;
-                        resp.tickrate = 64;
+                        resp.tickrate = _config.tickrate > 0 ? _config.tickrate : 64;
                         safeStrCopy(resp.mapName, sizeof(resp.mapName), _mapName.c_str());
                         _socket.sendTo(&resp, sizeof(resp), sender);
                     }
@@ -530,7 +691,7 @@ namespace Lab {
                 safeStrCopy(info.mapName, sizeof(info.mapName), _mapName.c_str());
                 safeStrCopy(info.gameMode, sizeof(info.gameMode), _gameMode.c_str());
                 info.playerCount = static_cast<uint16_t>(_clients.size());
-                info.maxPlayers = static_cast<uint16_t>(MAX_NETWORK_PLAYERS);
+                info.maxPlayers = static_cast<uint16_t>(_config.maxPlayers > 0 ? _config.maxPlayers : MAX_NETWORK_PLAYERS);
                 info.pingMs = 0;
                 _socket.sendTo(&info, sizeof(info), sender);
             } else if (msgType == NetMsgType::Disconnect) {
@@ -782,6 +943,8 @@ namespace Lab {
             _queryTimer = 0.0f;
             sendQueryTo("127.0.0.1", DEFAULT_SERVER_PORT);
             sendQueryTo("127.0.0.1", 27016);
+            sendQueryTo("255.255.255.255", DEFAULT_SERVER_PORT);
+            sendQueryTo("255.255.255.255", 27016);
         }
 
         // Process incoming query responses
