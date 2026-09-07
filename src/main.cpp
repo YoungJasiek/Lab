@@ -527,6 +527,27 @@ public:
         }
         _camera.setPosition(pos);
 
+        // Network command generation synchronized with fixed physics rate (64 Hz)
+        if (_netClient.isConnected()) {
+            uint32_t netButtons = 0;
+            if (Input::isKeyPressed(32)) netButtons |= NetButton_Jump;
+            if (Input::isMouseButtonPressed(0)) netButtons |= NetButton_Fire;
+            if (Input::isKeyPressed('R') || Input::isKeyPressed('r')) netButtons |= NetButton_Reload;
+            if (isSprinting) netButtons |= NetButton_Sprint;
+            if (_flashlight.enabled) netButtons |= NetButton_Flashlight;
+
+            float netForward = 0.0f;
+            float netSide = 0.0f;
+            if (!_chat.isOpen && !_isPlayerDead && !_inMenu) {
+                if (Input::isKeyPressed('W') || Input::isKeyPressed('w')) netForward += 1.0f;
+                if (Input::isKeyPressed('S') || Input::isKeyPressed('s')) netForward -= 1.0f;
+                if (Input::isKeyPressed('A') || Input::isKeyPressed('a')) netSide -= 1.0f;
+                if (Input::isKeyPressed('D') || Input::isKeyPressed('d')) netSide += 1.0f;
+            }
+
+            _netClient.update(fixedDelta, pos, _velocity, _camera.getYaw(), _camera.getPitch(), netButtons, netForward, netSide);
+        }
+
         // Procedural Door animations and distance triggers
         if (_currentMap) {
             for (auto& door : _currentMap->doors) {
@@ -680,29 +701,13 @@ public:
             _localServer.tick(time.delta);
         }
         if (_netClient.isConnected()) {
-            uint32_t netButtons = 0;
-            if (Input::isKeyPressed(32)) netButtons |= NetButton_Jump;
-            if (Input::isMouseButtonPressed(0)) netButtons |= NetButton_Fire;
-            if (Input::isKeyPressed('R') || Input::isKeyPressed('r')) netButtons |= NetButton_Reload;
-            if (Input::isKeyPressed(340)) netButtons |= NetButton_Sprint;
-            if (_flashlight.enabled) netButtons |= NetButton_Flashlight;
-
-            float netForward = 0.0f;
-            float netSide = 0.0f;
-            if (!_chat.isOpen && !_isPlayerDead && !_inMenu) {
-                if (Input::isKeyPressed('W') || Input::isKeyPressed('w')) netForward += 1.0f;
-                if (Input::isKeyPressed('S') || Input::isKeyPressed('s')) netForward -= 1.0f;
-                if (Input::isKeyPressed('A') || Input::isKeyPressed('a')) netSide -= 1.0f;
-                if (Input::isKeyPressed('D') || Input::isKeyPressed('d')) netSide += 1.0f;
-            }
-
-            _netClient.update(time.delta, _camera.getPosition(), _velocity, _camera.getYaw(), _camera.getPitch(), netButtons, netForward, netSide);
             if (_netClient.hasNewSnapshot()) {
                 const auto& snap = _netClient.getLatestSnapshot();
                 for (uint16_t i = 0; i < snap.playerCount; ++i) {
                     if (snap.players[i].clientId == _netClient.getClientId()) {
+                        float errorThreshold = _isLocalHost ? 2.5f : 0.45f;
                         Vec3 correctedPos, correctedVel;
-                        if (_netClient.getPrediction().reconcile(snap.lastProcessedCmd, snap.players[i].position, snap.players[i].velocity, correctedPos, correctedVel)) {
+                        if (_netClient.getPrediction().reconcile(snap.lastProcessedCmd, snap.players[i].position, snap.players[i].velocity, correctedPos, correctedVel, errorThreshold)) {
                             _camera.setPosition(correctedPos);
                             _velocity = correctedVel;
                         }
@@ -1530,10 +1535,10 @@ public:
                     return;
                 }
 
-                // 1. Server Architecture toggle: Dedicated (580..855) vs LAN/P2P (870..1160) at y: 155..192
+                // 1. Network Mode toggle: LAN (580..855) vs P2P (870..1160) at y: 155..192
                 if (my >= 155.0f && my <= 192.0f) {
-                    if (mx >= 580.0f && mx <= 855.0f) { _sessionConfig.hostType = HostType::DedicatedLabServer; return; }
-                    if (mx >= 870.0f && mx <= 1160.0f) { _sessionConfig.hostType = HostType::ListenLAN; return; }
+                    if (mx >= 580.0f && mx <= 855.0f) { _sessionConfig.networkMode = NetworkMode::LAN; return; }
+                    if (mx >= 870.0f && mx <= 1160.0f) { _sessionConfig.networkMode = NetworkMode::P2P; return; }
                 }
 
                 // 2. Game Mode buttons: FFA (580..760), DM (770..950), TDM (960..1160) at y: 222..258
@@ -1571,9 +1576,9 @@ public:
                 if (mx >= 740.0f && mx <= 1180.0f && my >= 570.0f && my <= 618.0f) {
                     ServerConfig srvCfg;
                     srvCfg.port = _sessionConfig.port;
-                    srvCfg.serverName = (_sessionConfig.hostType == HostType::DedicatedLabServer)
-                        ? "Lab Dedicated Arena [LabServer]"
-                        : "Lab LAN Arena [HostPlayer]";
+                    srvCfg.serverName = (_sessionConfig.networkMode == NetworkMode::LAN)
+                        ? "Lab LAN Dedicated Arena"
+                        : "Lab P2P Dedicated Arena";
                     srvCfg.mapName = _sessionConfig.mapPath;
                     srvCfg.gameMode = (_sessionConfig.mode == GameMode::FFA ? "FFA" : (_sessionConfig.mode == GameMode::DM ? "DM" : "TDM"));
                     srvCfg.enableBots = _sessionConfig.enableBots;
@@ -1581,39 +1586,28 @@ public:
                     srvCfg.fragLimit = _sessionConfig.fragLimit;
                     srvCfg.maxPlayers = 16;
                     srvCfg.tickrate = 64;
-                    srvCfg.lanMode = true;
-                    srvCfg.hostType = (_sessionConfig.hostType == HostType::DedicatedLabServer)
-                        ? HostArchitecture::Dedicated
-                        : HostArchitecture::ListenLAN;
+                    srvCfg.networkMode = (_sessionConfig.networkMode == NetworkMode::LAN) ? NetMatchMode::LAN : NetMatchMode::P2P;
+                    srvCfg.lanMode = (_sessionConfig.networkMode == NetworkMode::LAN);
 
-                    // Always export the user configuration to server.cfg
-                    srvCfg.saveToFile("server.cfg");
+                    // Strictly save to assets/configs/server.cfg
                     srvCfg.saveToFile("assets/configs/server.cfg");
 
-                    if (_sessionConfig.hostType == HostType::DedicatedLabServer) {
-                        _localServer.stop();
-                        std::string spawnErr;
-                        bool ok = launchDedicatedServer(srvCfg, spawnErr);
-                        if (ok) {
-                            std::this_thread::sleep_for(std::chrono::milliseconds(250));
-                            _netClient.connect("127.0.0.1", srvCfg.port, "HostPlayer");
-                            startSession(_sessionConfig);
-                            _chat.addMessage("[SERVER]", "Started LabServer.exe using server.cfg on port " + std::to_string(srvCfg.port), Vec3(0.2f, 0.9f, 0.35f));
-                            _chat.addMessage("[CONFIG]", "Loaded user match config from server.cfg (64Hz tickrate)", Vec3(0.3f, 0.85f, 1.0f));
-                        } else {
-                            _chat.addMessage("[SERVER]", "LabServer spawn failed (" + spawnErr + "). Fallback to LAN Listen Server.", Vec3(0.95f, 0.75f, 0.2f));
-                            _localServer.start(srvCfg);
-                            _netClient.connect("127.0.0.1", srvCfg.port, "HostPlayer");
-                            startSession(_sessionConfig);
-                        }
+                    _localServer.stop();
+                    _isLocalHost = true;
+
+                    std::string spawnErr;
+                    bool ok = launchDedicatedServer(srvCfg, spawnErr);
+                    if (ok) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(250));
+                        _netClient.connect("127.0.0.1", srvCfg.port, "HostPlayer");
+                        startSession(_sessionConfig);
+                        _chat.addMessage("[SERVER]", "Started LabServer.exe using assets/configs/server.cfg (Port " + std::to_string(srvCfg.port) + ")", Vec3(0.2f, 0.9f, 0.35f));
+                        _chat.addMessage("[CONFIG]", std::string("Network Mode: ") + (_sessionConfig.networkMode == NetworkMode::LAN ? "LAN (Broadcast)" : "P2P (Direct/Relay)"), Vec3(0.3f, 0.85f, 1.0f));
                     } else {
-                        // LAN / P2P Listen Server
-                        _localServer.stop();
+                        _chat.addMessage("[SERVER]", "LabServer spawn failed (" + spawnErr + "). Running internal server.", Vec3(0.95f, 0.75f, 0.2f));
                         _localServer.start(srvCfg);
                         _netClient.connect("127.0.0.1", srvCfg.port, "HostPlayer");
                         startSession(_sessionConfig);
-                        _chat.addMessage("[SERVER]", "LAN / P2P Listen Server started on port " + std::to_string(srvCfg.port), Vec3(0.3f, 0.85f, 1.0f));
-                        _chat.addMessage("[CONFIG]", "Using server.cfg (LAN Broadcast active)", Vec3(0.3f, 0.85f, 1.0f));
                     }
                     return;
                 }
@@ -1640,6 +1634,7 @@ public:
 
                 // 3. Connect to Server button (x: 830..1170, y: 560..608)
                 if (mx >= 830.0f && mx <= 1170.0f && my >= 560.0f && my <= 608.0f) {
+                    _isLocalHost = false;
                     if (!servers.empty() && _selectedServerIndex >= 0 && _selectedServerIndex < (int)servers.size()) {
                         const auto& s = servers[_selectedServerIndex];
                         _sessionConfig.mapPath = "assets/maps/" + s.map;
@@ -1874,18 +1869,18 @@ public:
             Renderer::drawRect(560.0f, 120.0f, 620.0f, 32.0f, Vec3(0.18f, 0.35f, 0.55f));
             LabFont::drawText(580.0f, 128.0f, "2. SERVER & MATCH RULES", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
 
-            // 1. Server Architecture / Hosting Mode
-            LabFont::drawText(580.0f, 160.0f, "SERVER TYPE / HOST ARCHITECTURE:", 1.7f, Vec3(0.85f, 0.88f, 0.95f), LabFontType::GeoSans);
-            bool isDedicated = (_sessionConfig.hostType == HostType::DedicatedLabServer);
-            bool isLAN = (_sessionConfig.hostType == HostType::ListenLAN);
+            // 1. Network Mode: LAN vs P2P
+            LabFont::drawText(580.0f, 160.0f, "NETWORK MODE:", 1.7f, Vec3(0.85f, 0.88f, 0.95f), LabFontType::GeoSans);
+            bool isLAN = (_sessionConfig.networkMode == NetworkMode::LAN);
+            bool isP2P = (_sessionConfig.networkMode == NetworkMode::P2P);
 
-            Renderer::drawRect(580.0f, 182.0f, 275.0f, 38.0f, isDedicated ? Vec3(0.18f, 0.65f, 0.45f) : Vec3(0.14f, 0.18f, 0.24f));
-            if (isDedicated) Renderer::drawRect(580.0f, 182.0f, 275.0f, 2.0f, Vec3(0.98f, 0.78f, 0.08f));
-            LabFont::drawText(600.0f, 194.0f, "DEDICATED (LabServer.exe)", 1.6f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            Renderer::drawRect(580.0f, 182.0f, 275.0f, 38.0f, isLAN ? Vec3(0.18f, 0.65f, 0.45f) : Vec3(0.14f, 0.18f, 0.24f));
+            if (isLAN) Renderer::drawRect(580.0f, 182.0f, 275.0f, 2.0f, Vec3(0.98f, 0.78f, 0.08f));
+            LabFont::drawText(660.0f, 194.0f, "[ LAN ]", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
 
-            Renderer::drawRect(870.0f, 182.0f, 290.0f, 38.0f, isLAN ? Vec3(0.20f, 0.55f, 0.75f) : Vec3(0.14f, 0.18f, 0.24f));
-            if (isLAN) Renderer::drawRect(870.0f, 182.0f, 290.0f, 2.0f, Vec3(0.2f, 0.85f, 1.0f));
-            LabFont::drawText(890.0f, 194.0f, "LAN / P2P (LISTEN SERVER)", 1.6f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            Renderer::drawRect(870.0f, 182.0f, 290.0f, 38.0f, isP2P ? Vec3(0.20f, 0.55f, 0.75f) : Vec3(0.14f, 0.18f, 0.24f));
+            if (isP2P) Renderer::drawRect(870.0f, 182.0f, 290.0f, 2.0f, Vec3(0.2f, 0.85f, 1.0f));
+            LabFont::drawText(960.0f, 194.0f, "[ P2P ]", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
 
             // 2. Game Mode Buttons
             LabFont::drawText(580.0f, 228.0f, "GAME MODE:", 1.7f, Vec3(0.85f, 0.88f, 0.95f), LabFontType::GeoSans);
@@ -1936,30 +1931,28 @@ public:
 
             Renderer::drawRect(830.0f, 380.0f, 330.0f, 36.0f, Vec3(0.10f, 0.14f, 0.20f));
             Renderer::drawRect(830.0f, 380.0f, 330.0f, 1.0f, Vec3(0.2f, 0.75f, 0.95f));
-            LabFont::drawText(850.0f, 391.0f, "PORT: 27015  |  CFG: server.cfg", 1.6f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::GeoSans);
+            LabFont::drawText(845.0f, 391.0f, "PORT: 27015 | assets/configs/server.cfg", 1.4f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::GeoSans);
 
             // 5. Descriptive Info Box
             Renderer::drawRect(580.0f, 430.0f, 580.0f, 54.0f, Vec3(0.06f, 0.08f, 0.12f));
-            Renderer::drawRect(580.0f, 430.0f, 4.0f, 54.0f, isDedicated ? Vec3(0.2f, 0.85f, 0.4f) : Vec3(0.2f, 0.75f, 1.0f));
-            if (isDedicated) {
-                LabFont::drawText(595.0f, 442.0f, "Dedicated mode spawns standalone 'LabServer.exe' console with 'server.cfg'.", 1.4f, Vec3(0.85f, 0.9f, 0.95f), LabFontType::System);
-                LabFont::drawText(595.0f, 462.0f, "Optimized for high-performance authoritative hosting & Linux server parity.", 1.4f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::System);
+            Renderer::drawRect(580.0f, 430.0f, 4.0f, 54.0f, isLAN ? Vec3(0.2f, 0.85f, 0.4f) : Vec3(0.2f, 0.75f, 1.0f));
+            if (isLAN) {
+                LabFont::drawText(595.0f, 442.0f, "LAN Mode: Broadcasts UDP discovery on local network so nearby players find server.", 1.35f, Vec3(0.85f, 0.9f, 0.95f), LabFontType::System);
+                LabFont::drawText(595.0f, 462.0f, "Runs LabServer.exe console with match configuration from assets/configs/server.cfg.", 1.35f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::System);
             } else {
-                LabFont::drawText(595.0f, 442.0f, "LAN / P2P mode hosts internal UDP listen server directly in Lab.exe.", 1.4f, Vec3(0.85f, 0.9f, 0.95f), LabFontType::System);
-                LabFont::drawText(595.0f, 462.0f, "Broadcasts across local network so nearby friends can discover & join.", 1.4f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::System);
+                LabFont::drawText(595.0f, 442.0f, "P2P Mode: Direct IP / peer relay match without local network broadcast beaconing.", 1.35f, Vec3(0.85f, 0.9f, 0.95f), LabFontType::System);
+                LabFont::drawText(595.0f, 462.0f, "Runs LabServer.exe console with match configuration from assets/configs/server.cfg.", 1.35f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::System);
             }
 
             // Bottom Buttons: Back and Launch
             Renderer::drawRect(100.0f, 570.0f, 200.0f, 48.0f, Vec3(0.20f, 0.25f, 0.35f));
             LabFont::drawText(150.0f, 586.0f, "< BACK", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
 
-            std::string launchBtnText = isDedicated
-                ? "START LABSERVER & LAUNCH MATCH"
-                : "HOST LAN / P2P LISTEN MATCH";
-            Vec3 launchBtnBg = isDedicated ? Vec3(0.18f, 0.65f, 0.35f) : Vec3(0.20f, 0.55f, 0.75f);
+            std::string launchBtnText = "START SERVER & LAUNCH MATCH";
+            Vec3 launchBtnBg = isLAN ? Vec3(0.18f, 0.65f, 0.35f) : Vec3(0.20f, 0.55f, 0.75f);
             Renderer::drawRect(740.0f, 570.0f, 440.0f, 48.0f, launchBtnBg);
             Renderer::drawRect(740.0f, 570.0f, 440.0f, 2.0f, Vec3(0.98f, 0.78f, 0.08f));
-            LabFont::drawText(760.0f, 586.0f, launchBtnText, 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            LabFont::drawText(770.0f, 586.0f, launchBtnText, 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
         }
         else if (_menuScreen == MenuScreen::JoinGame) {
             // Server Browser Frame
@@ -2392,7 +2385,8 @@ public:
             return false;
         }
 
-        std::string cmd = foundExe + " -config server.cfg -port " + std::to_string(cfg.port);
+        std::string modeFlag = (cfg.networkMode == NetMatchMode::P2P) ? " -p2p" : " -lan";
+        std::string cmd = foundExe + " -config assets/configs/server.cfg -port " + std::to_string(cfg.port) + modeFlag;
         STARTUPINFOA si;
         ZeroMemory(&si, sizeof(si));
         si.cb = sizeof(si);
@@ -2409,7 +2403,8 @@ public:
             return false;
         }
 #else
-        std::string cmd = "./LabServer -config server.cfg -port " + std::to_string(cfg.port) + " &";
+        std::string modeFlag = (cfg.networkMode == NetMatchMode::P2P) ? " -p2p" : " -lan";
+        std::string cmd = "./LabServer -config assets/configs/server.cfg -port " + std::to_string(cfg.port) + modeFlag + " &";
         int res = system(cmd.c_str());
         if (res == 0) {
             _hasSpawnedServer = true;
@@ -2435,6 +2430,7 @@ private:
     PROCESS_INFORMATION _dedicatedServerPI{ 0 };
 #endif
     bool _hasSpawnedServer = false;
+    bool _isLocalHost = false;
     std::unique_ptr<LabMap> _currentMap;
     std::unordered_map<std::string, std::unique_ptr<Texture>> _textures;
     std::unordered_map<std::string, std::unique_ptr<Mesh>> _meshes;

@@ -283,64 +283,26 @@ namespace Lab {
             return false;
         }
 
-        bool needReplay = false;
+        bool needCorrection = false;
         if (_history.front().cmd.cmdNumber == lastProcessedCmd) {
             Vec3 diff = _history.front().predictedPosition - serverPos;
             float distSq = diff.lengthSq();
-            if (distSq > errorThreshold * errorThreshold) {
-                needReplay = true;
+            // Use 0.45m threshold (~player radius) to prevent false-positive micro-corrections during normal walking
+            float effectiveThreshold = std::max(errorThreshold, 0.45f);
+            if (distSq > effectiveThreshold * effectiveThreshold) {
+                needCorrection = true;
             }
             _history.pop_front();
         }
 
-        if (!needReplay) {
+        if (!needCorrection) {
             return false;
         }
 
-        // Re-simulate pending unacknowledged commands from authoritative server point
-        Vec3 simPos = serverPos;
-        Vec3 simVel = serverVel;
-        bool isGrounded = (std::abs(simVel.y) < 0.1f);
-
-        for (auto& entry : _history) {
-            float speed = (entry.cmd.buttons & NetButton_Sprint) ? 8.5f : 4.5f;
-            float dt = std::clamp(entry.cmd.deltaTime, 0.001f, 0.050f);
-
-            // Reconstruct forward and right vectors matching Camera orientation
-            float radYaw = entry.cmd.yaw * 3.14159265f / 180.0f;
-            Vec3 fwd(std::cos(radYaw), 0.0f, std::sin(radYaw));
-            Vec3 right(-std::sin(radYaw), 0.0f, std::cos(radYaw));
-
-            Vec3 moveDir = fwd * entry.cmd.forwardMove + right * entry.cmd.sideMove;
-            if (moveDir.lengthSq() > 0.001f) {
-                moveDir = moveDir.normalized();
-                simVel.x = moveDir.x * speed;
-                simVel.z = moveDir.z * speed;
-            } else {
-                simVel.x *= 0.85f;
-                simVel.z *= 0.85f;
-            }
-
-            // Jump & gravity
-            if ((entry.cmd.buttons & NetButton_Jump) && isGrounded) {
-                simVel.y = 5.0f;
-                isGrounded = false;
-            }
-            simVel.y -= 12.0f * dt;
-
-            simPos = simPos + simVel * dt;
-            if (simPos.y < 1.70f) {
-                simPos.y = 1.70f;
-                simVel.y = 0.0f;
-                isGrounded = true;
-            }
-
-            entry.predictedPosition = simPos;
-            entry.predictedVelocity = simVel;
-        }
-
-        outCorrectedPos = simPos;
-        outCorrectedVel = simVel;
+        // Authoritative server state correction for true physical divergences
+        outCorrectedPos = serverPos;
+        outCorrectedVel = serverVel;
+        _history.clear();
         return true;
     }
 
@@ -368,18 +330,16 @@ namespace Lab {
     }
 
     bool ServerConfig::loadFromFile(const std::string& filepath) {
-        std::string resolved = filepath;
+        std::string resolved = filepath.empty() ? "assets/configs/server.cfg" : filepath;
         std::ifstream test(resolved);
         if (!test.good()) {
             const std::vector<std::string> searchPaths = {
-                filepath,
-                "assets/configs/" + filepath,
-                "../" + filepath,
-                "../assets/configs/" + filepath,
-                "../../assets/configs/" + filepath,
-                "build/Release/assets/configs/" + filepath,
-                "Release/" + filepath,
-                "build/Release/" + filepath
+                resolved,
+                "assets/configs/server.cfg",
+                "assets/configs/" + resolved,
+                "../assets/configs/server.cfg",
+                "../../assets/configs/server.cfg",
+                "build/Release/assets/configs/server.cfg"
             };
             for (const auto& p : searchPaths) {
                 std::ifstream f(p);
@@ -436,15 +396,14 @@ namespace Lab {
                 try { botCount = std::stoi(val); } catch (...) {}
             } else if (key == "bot_difficulty") {
                 try { botDifficulty = std::stoi(val); } catch (...) {}
-            } else if (key == "lan_mode" || key == "lan" || key == "p2p") {
+            } else if (key == "network_mode" || key == "lan_mode" || key == "lan" || key == "p2p") {
                 std::string lval = toLowerString(val);
-                lanMode = (lval == "1" || lval == "true" || lval == "yes" || lval == "on");
-            } else if (key == "host_type" || key == "host_mode") {
-                std::string lval = toLowerString(val);
-                if (lval == "lan" || lval == "p2p" || lval == "listen") {
-                    hostType = HostArchitecture::ListenLAN;
+                if (lval == "p2p" || lval == "0" || lval == "peer") {
+                    networkMode = NetMatchMode::P2P;
+                    lanMode = false;
                 } else {
-                    hostType = HostArchitecture::Dedicated;
+                    networkMode = NetMatchMode::LAN;
+                    lanMode = true;
                 }
             } else if (key == "password") {
                 password = val;
@@ -454,12 +413,12 @@ namespace Lab {
     }
 
     bool ServerConfig::saveToFile(const std::string& filepath) const {
-        std::ofstream out(filepath);
+        std::string target = filepath.empty() ? "assets/configs/server.cfg" : filepath;
+        std::ofstream out(target);
         if (!out.is_open()) return false;
 
         out << "# ===================================================================\n";
-        out << "# FROZEN-LIFE : LAB MULTIPLAYER SERVER CONFIGURATION\n";
-        out << "# Auto-generated by Lab Engine & LabServer\n";
+        out << "# FROZEN-LIFE : LAB MULTIPLAYER SERVER CONFIGURATION (assets/configs/server.cfg)\n";
         out << "# Compatible with Linux Headless and Windows Dedicated Servers\n";
         out << "# ===================================================================\n\n";
 
@@ -479,8 +438,8 @@ namespace Lab {
         out << "bot_difficulty = " << botDifficulty << "\n\n";
 
         out << "[Network]\n";
-        out << "lan_mode = " << (lanMode ? "1" : "0") << "\n";
-        out << "host_type = " << (hostType == HostArchitecture::ListenLAN ? "lan" : "dedicated") << "\n";
+        out << "network_mode = " << (networkMode == NetMatchMode::LAN ? "LAN" : "P2P") << "\n";
+        out << "lan_mode = " << (networkMode == NetMatchMode::LAN ? "1" : "0") << "\n";
         out << "password = " << password << "\n";
 
         return true;

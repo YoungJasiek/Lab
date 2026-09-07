@@ -18,9 +18,9 @@ namespace Lab {
         CharacterStudio
     };
 
-    enum class HostType {
-        DedicatedLabServer = 0, // Spawns LabServer.exe (external dedicated process)
-        ListenLAN = 1          // In-process LAN / P2P Listen Server
+    enum class NetworkMode {
+        LAN = 0,    // Local Area Network broadcast & discovery
+        P2P = 1     // Peer-to-Peer / Direct IP connection
     };
 
     struct GameSessionConfig {
@@ -31,10 +31,10 @@ namespace Lab {
         int fragLimit = 25;
         int timeLimitMinutes = 10;
         int botDifficulty = 1; // 0 = Easy, 1 = Normal, 2 = Hard
-        HostType hostType = HostType::DedicatedLabServer;
+        NetworkMode networkMode = NetworkMode::LAN;
         uint16_t port = 27015;
-        std::string serverName = "Lab Dedicated Arena [LAN]";
-        std::string configPath = "server.cfg";
+        std::string serverName = "Lab Arena [LAN]";
+        std::string configPath = "assets/configs/server.cfg";
 
         std::string getModeString() const {
             switch (mode) {

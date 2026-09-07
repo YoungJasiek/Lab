@@ -4637,8 +4637,8 @@ int main() {
         testCfg.timeLimitMinutes = 15;
         testCfg.enableBots = true;
         testCfg.botCount = 6;
+        testCfg.networkMode = Lab::NetMatchMode::LAN;
         testCfg.lanMode = true;
-        testCfg.hostType = Lab::HostArchitecture::Dedicated;
 
         std::string cfgPath = "assets/configs/test_generated_server.cfg";
         if (!testCfg.saveToFile(cfgPath)) {
@@ -4665,11 +4665,11 @@ int main() {
             loadedCfg.enableBots != true ||
             loadedCfg.botCount != 6 ||
             loadedCfg.lanMode != true ||
-            loadedCfg.hostType != Lab::HostArchitecture::Dedicated) {
+            loadedCfg.networkMode != Lab::NetMatchMode::LAN) {
             std::cerr << "Assertion failed: Loaded ServerConfig does not match saved values!\n";
             return 1;
         }
-        std::cout << "  [PASS] ServerConfig values verified: Port=27035, Tickrate=128Hz, MaxPlayers=24, FragLimit=50!\n";
+        std::cout << "  [PASS] ServerConfig values verified: Port=27035, Tickrate=128Hz, MaxPlayers=24, FragLimit=50, NetMode=LAN!\n";
 
         // 3. Test DedicatedServer initialization with ServerConfig
         Lab::DedicatedServer srv;

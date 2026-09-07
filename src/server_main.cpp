@@ -20,7 +20,7 @@ int main(int argc, char* argv[]) {
     Lab::ServerConfig config;
 
     // 1. Locate config file from arguments or defaults
-    std::string configPath = "server.cfg";
+    std::string configPath = "assets/configs/server.cfg";
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if ((arg == "-config" || arg == "--config" || arg == "-c") && i + 1 < argc) {
@@ -30,10 +30,8 @@ int main(int argc, char* argv[]) {
 
     // 2. Load configuration file
     if (!config.loadFromFile(configPath)) {
-        if (!config.loadFromFile("assets/configs/server.cfg")) {
-            std::cout << "[Server] No existing configuration found. Generating default '" << configPath << "'...\n";
-            config.saveToFile(configPath);
-        }
+        std::cout << "[Server] No existing configuration found. Generating default '" << configPath << "'...\n";
+        config.saveToFile(configPath);
     }
 
     // 3. Command-line parameters override config file values
@@ -55,9 +53,13 @@ int main(int argc, char* argv[]) {
             config.botCount = std::stoi(argv[++i]);
             config.enableBots = (config.botCount > 0);
         } else if (arg == "-lan" || arg == "--lan") {
+            config.networkMode = Lab::NetMatchMode::LAN;
             config.lanMode = true;
+        } else if (arg == "-p2p" || arg == "--p2p") {
+            config.networkMode = Lab::NetMatchMode::P2P;
+            config.lanMode = false;
         } else if (arg == "-help" || arg == "--help" || arg == "/?") {
-            std::cout << "Usage: LabServer.exe [-config <file.cfg>] [-port <27015>] [-map <map_name>] [-mode <FFA|DM|TDM>] [-bots <count>] [-lan]\n";
+            std::cout << "Usage: LabServer.exe [-config <assets/configs/server.cfg>] [-port <27015>] [-map <map_name>] [-mode <FFA|DM|TDM>] [-bots <count>] [-lan|-p2p]\n";
             return 0;
         }
     }
@@ -89,6 +91,7 @@ int main(int argc, char* argv[]) {
     std::cout << "  - Target Tickrate:" << config.tickrate << " Hz\n";
     std::cout << "  - AI Bots:        " << config.botCount << " (" << (config.enableBots ? "Enabled" : "Disabled") << ")\n";
     std::cout << "  - Frag Limit:     " << config.fragLimit << " kills\n";
+    std::cout << "  - Network Mode:   " << (config.networkMode == Lab::NetMatchMode::P2P ? "P2P (Direct/Relay)" : "LAN (Broadcast Discovery)") << "\n";
     std::cout << "  - LAN Broadcast:  " << (config.lanMode ? "Active" : "Disabled") << "\n";
     std::cout << "=======================================================\n";
     std::cout << "[Server] Ready. Listening on UDP 0.0.0.0:" << config.port << ".\n";

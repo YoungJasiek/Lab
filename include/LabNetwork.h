@@ -205,16 +205,16 @@ namespace Lab {
         uint32_t _nextCmdNumber = 1;
     };
 
-    // --- Server Architecture & Configuration ---
-    enum class HostArchitecture : uint8_t {
-        Dedicated = 0,
-        ListenLAN = 1
+    // --- Server Network Mode & Configuration ---
+    enum class NetMatchMode : uint8_t {
+        LAN = 0,    // Local Area Network broadcast discovery
+        P2P = 1     // Peer-to-Peer / Direct IP connection
     };
 
     struct ServerConfig {
         uint16_t port = DEFAULT_SERVER_PORT;
         std::string serverName = "Lab Dedicated Arena [LAN]";
-        std::string mapName = "facility_alpha.labmap";
+        std::string mapName = "assets/maps/facility_alpha.labmap";
         std::string gameMode = "FFA";
         uint16_t maxPlayers = 16;
         uint16_t tickrate = 64;
@@ -223,12 +223,12 @@ namespace Lab {
         bool enableBots = true;
         int botCount = 4;
         int botDifficulty = 1;
+        NetMatchMode networkMode = NetMatchMode::LAN;
         bool lanMode = true;
         std::string password = "";
-        HostArchitecture hostType = HostArchitecture::Dedicated;
 
-        bool loadFromFile(const std::string& filepath = "server.cfg");
-        bool saveToFile(const std::string& filepath = "server.cfg") const;
+        bool loadFromFile(const std::string& filepath = "assets/configs/server.cfg");
+        bool saveToFile(const std::string& filepath = "assets/configs/server.cfg") const;
     };
 
     // --- Dedicated Headless & Listen Server Engine ---
