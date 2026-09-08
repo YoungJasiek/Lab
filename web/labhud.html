@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Lab HUD (2D / HUD / GUI Editor) – Technical documentation for canvas layout authoring, widget palette, transparency, custom assets, Lua logic, and .labhud serialization.">
+  <meta name="keywords" content="LabHUD, LabStudio, HUD Editor, GUI Editor, 2D Canvas, Lua Scripting, Alpha Transparency, Frozen-Life, Valve Hammer, C++20, OpenGL 4.5+">
+  <meta name="author" content="YoungJasiek">
+
+  <title>Lab HUD (2D / HUD / GUI Editor) – Lab Developer Community</title>
+  <link rel="icon" type="image/webp" href="assets/img/LabLogo.webp">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <a href="#content" class="skip-link">Skip to main content</a>
+
+  <header class="vdc-top-header" role="banner">
+    <div class="vdc-header-left">
+      <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
+      <a href="index.html" class="vdc-brand">
+        <img src="assets/img/LabLogo.webp" alt="Lab Engine Logo" class="vdc-logo-img">
+        <div class="vdc-brand-text">
+          <span class="vdc-brand-title"><span class="accent">Lab</span> Developer Community</span>
+          <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LAB HUD</span>
+        </div>
+      </a>
+    </div>
+
+    <div class="vdc-search-bar" role="search">
+      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search documentation..." aria-label="Search wiki documentation">
+      <span class="vdc-search-icon" aria-hidden="true">&#128269;</span>
+    </div>
+
+    <div class="vdc-header-right">
+      <button id="theme-toggle-btn" class="theme-toggle-btn" aria-label="Toggle theme">&#9728;&#65039; Light Mode</button>
+      <a href="https://github.com/YoungJasiek/Lab-HUD" target="_blank" rel="noopener noreferrer" class="github-badge-btn" aria-label="GitHub repository">
+        <span>GitHub</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <div class="vdc-page-container">
+    <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
+      <div class="sidebar-block">
+        <div class="sidebar-title">Documentation</div>
+        <ul class="sidebar-links">
+          <li><a href="index.html">Main Page (Portal)</a></li>
+          <li><a href="labhud.html" class="active">LabHUD 2D Editor</a></li>
+          <li><a href="labhammer.html">LabHammer Editor</a></li>
+          <li><a href="character-studio.html">Character & Weapon Studio</a></li>
+          <li><a href="modules.html">Subsystem Modules (.dll)</a></li>
+          <li><a href="lua-scripting.html">Lua 5.4 Scripting</a></li>
+          <li><a href="frozen-life.html">Frozen-Life Build</a></li>
+          <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="building.html">Building from Source</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">LabHUD Sections</div>
+        <ul class="sidebar-links">
+          <li><a href="#sec-overview">Overview & Workflow</a></li>
+          <li><a href="#sec-canvas">Canvas & Manipulations</a></li>
+          <li><a href="#sec-widgets">Widget Library</a></li>
+          <li><a href="#sec-lua">Lua Scripting & Logic</a></li>
+          <li><a href="#sec-assets">Custom Asset Browser</a></li>
+          <li><a href="#sec-format">.labhud File Format</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <main id="content" class="vdc-main-content" role="main">
+      <div class="wiki-breadcrumbs">
+        <a href="index.html">Lab</a> &raquo; <a href="index.html#tools">SDK Tools</a> &raquo; <span>Lab HUD Editor</span>
+      </div>
+
+      <h1 class="wiki-title">Lab HUD (2D / HUD / GUI Editor)</h1>
+
+      <div class="article-meta-banner">
+        <span class="meta-tag">Application: <strong>apps/labhud</strong></span>
+        <span class="meta-tag">Engine Subsystem: <strong>LabHUDEditorCore.dll</strong></span>
+        <span class="meta-tag">UI Style: <strong>LabStudio / Valve Hammer</strong></span>
+        <span class="meta-tag">Scripting: <strong>Lua 5.4</strong></span>
+      </div>
+
+      <section id="sec-overview" class="wiki-section">
+        <h2>1. Overview & Project Workflow</h2>
+        <p>
+          <strong>Lab HUD</strong> is a standalone visual 2D / HUD / GUI layout authoring tool for the <strong>Lab Engine</strong>.
+          It allows designers to visually create, arrange, style, and script in-game HUD elements, tactical overlays, death screens, scoreboards, and interactive menus.
+        </p>
+        <p>
+          The editor follows the <strong>LabStudio</strong> dark industrial aesthetic (beveled panels, tactile buttons, sunken numeric sliders, and Valve Hammer toolbar icons).
+        </p>
+        <div class="wiki-callout info">
+          <strong>Workflow:</strong> Startup Project Switcher (select <em>Frozen-Life HUD</em> or create a new project) &rarr; Interactive 2D Canvas Workspace &rarr; Save to human-readable <code>.labhud</code> format.
+        </div>
+      </section>
+
+      <section id="sec-canvas" class="wiki-section">
+        <h2>2. Canvas & Hierarchical Manipulation</h2>
+        <ul>
+          <li><strong>Hierarchical Transforms:</strong> Root elements support 9-point responsive anchoring (<code>TopLeft</code>, <code>Center</code>, <code>BottomRight</code>, etc.) relative to the game viewport (e.g. 1920&times;1080). Child elements inherit their parent's coordinate space.</li>
+          <li><strong>Smooth Dragging & Snapping:</strong> Move elements with grid snapping (10px default) or free precision movement.</li>
+          <li><strong>8-Point Bounding Box Resizing:</strong> Interactive resize handles on corners and edges for pixel-perfect adjustments.</li>
+          <li><strong>Right-Click Context Menu:</strong> Fast actions at cursor position: Cut, Copy, Paste, Duplicate, Delete, Add Child Widget, Bring to Front, Send to Back, Edit Text, and Edit Lua.</li>
+        </ul>
+      </section>
+
+      <section id="sec-widgets" class="wiki-section">
+        <h2>3. Widget Library & Typography</h2>
+        <table class="wiki-table">
+          <thead>
+            <tr>
+              <th>Widget Type</th>
+              <th>Category</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>Card</code></td><td>Primitives</td><td>Beveled translucent container card with customizable edge borders.</td></tr>
+            <tr><td><code>Panel</code></td><td>Primitives</td><td>Hammer-style sunken or raised surface panel.</td></tr>
+            <tr><td><code>Label</code></td><td>Typography</td><td>High-readability text with live editing and font choice (<em>GeoSans</em>, <em>System</em>, <em>DotMatrix</em>).</td></tr>
+            <tr><td><code>HealthBar</code></td><td>Game HUD</td><td>Smooth horizontal progress bar with background channel and status fill.</td></tr>
+            <tr><td><code>AmmoCounter</code></td><td>Game HUD</td><td>Tactical ammo clip/reserve counter with weapon designation tags.</td></tr>
+            <tr><td><code>Crosshair</code></td><td>Game HUD</td><td>Vector dynamic reticle with center dot and precision cross lines.</td></tr>
+            <tr><td><code>Image</code></td><td>Graphics</td><td>Custom textured bitmap sprite supporting alpha transparency.</td></tr>
+            <tr><td><code>Button</code></td><td>UI</td><td>Clickable tactical button with hover highlight and Lua click bindings.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="sec-lua" class="wiki-section">
+        <h2>4. Lua 5.4 Scripting & Data Binding</h2>
+        <p>
+          Every HUD element can be dynamically driven by <strong>Lua 5.4</strong> game engine scripts.
+        </p>
+        <ul>
+          <li><strong>Update Hook (<code>luaOnUpdate</code>):</strong> Executed every tick to synchronize values, colors, or visibility with the player state.</li>
+          <li><strong>Click Hook (<code>luaOnClick</code>):</strong> Executed when the player clicks on an interactive HUD button or terminal widget.</li>
+          <li><strong>Presets:</strong> Fast insertion of common game bindings:
+            <ul>
+              <li><code>Player:getHealth()</code> &bull; <code>Player:getArmor()</code></li>
+              <li><code>Weapon:getAmmo()</code> &bull; <code>Match:getTimer()</code></li>
+              <li><code>Player:respawn()</code></li>
+            </ul>
+          </li>
+        </ul>
+      </section>
+
+      <section id="sec-assets" class="wiki-section">
+        <h2>5. Custom Asset Browser & Import</h2>
+        <p>
+          Import custom bitmaps directly from disk using the built-in <strong>+ IMPORT ASSET FROM DISK...</strong> dialog.
+          Files are automatically copied into <code>assets/hud_assets/</code>, loaded into the OpenGL texture pipeline, and rendered as live thumbnails in the sidebar.
+        </p>
+      </section>
+
+      <section id="sec-format" class="wiki-section">
+        <h2>6. Plain-Text .labhud Serialization</h2>
+        <p>
+          Layouts are saved in a section-based human-readable token format identical to <code>.labmap</code>:
+        </p>
+        <pre class="wiki-code"><code>LABHUD_VERSION 1
+
+METADATA
+    name "Frozen-Life HUD"
+    author "Lab Team"
+    resolution 1920 1080
+END_METADATA
+
+ASSETS
+    asset custom_crosshair.bmp
+END_ASSETS
+
+ELEMENTS
+    element health_card Card 40 -108 255 68 0.16 0.17 0.19 0.90 BottomLeft 0
+        text ""
+        font 2.0 0
+        border 0.23 0.24 0.27 1.0 1.0
+        texture ""
+        binding ""
+        lua_update ""
+        lua_click ""
+        children 2
+        ...
+END_ELEMENTS</code></pre>
+      </section>
+    </main>
+  </div>
+
+  <footer class="vdc-footer">
+    <p>&copy; 2026 Lab Developer Community &bull; Architect: <strong>YoungJasiek</strong> &bull; Inspired by Valve Source Engine SDK & Hammer</p>
+  </footer>
+</body>
+</html>
