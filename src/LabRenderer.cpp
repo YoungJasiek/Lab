@@ -1421,8 +1421,8 @@ namespace Lab {
         int fbW = windowWidth;
         int fbH = windowHeight;
         Engine* eng = Engine::get();
-        if (eng && eng->getWindow()) {
-            glfwGetFramebufferSize(eng->getWindow(), &fbW, &fbH);
+        if (eng) {
+            eng->getFramebufferSize(fbW, fbH);
         }
         if (fbW <= 0) fbW = windowWidth;
         if (fbH <= 0) fbH = windowHeight;

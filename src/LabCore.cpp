@@ -155,16 +155,21 @@ namespace Lab {
 
             glfwPollEvents();
 
-            // Synchronize cursor position directly from GLFW
+            // Synchronize cursor position directly from GLFW if valid; preserve callback coordinates otherwise
             double curX = 0, curY = 0;
             glfwGetCursorPos(_window, &curX, &curY);
-            Input::mousePos.x = (float)curX;
-            Input::mousePos.y = (float)curY;
+            if (curX != 0.0 || curY != 0.0 || (Input::mousePos.x == 0.0f && Input::mousePos.y == 0.0f)) {
+                Input::mousePos.x = (float)curX;
+                Input::mousePos.y = (float)curY;
+            }
 
-            // Maintain continuous hold state for pressed buttons
+            // Maintain continuous hold/release state for pressed buttons
             for (int b = 0; b < 8; ++b) {
-                if (glfwGetMouseButton(_window, b) == GLFW_PRESS) {
+                int state = glfwGetMouseButton(_window, b);
+                if (state == GLFW_PRESS) {
                     Input::mouseButtons[b] = true;
+                } else if (state == GLFW_RELEASE) {
+                    Input::mouseButtons[b] = false;
                 }
             }
 
@@ -278,5 +283,72 @@ namespace Lab {
             _instance->_height = height;
             glViewport(0, 0, width, height);
         }
+    }
+
+    Engine* Engine::get() {
+        return _instance;
+    }
+
+    GLFWwindow* Engine::getWindow() const {
+        return _window;
+    }
+
+    int Engine::getWidth() const {
+        return _width;
+    }
+
+    int Engine::getHeight() const {
+        return _height;
+    }
+
+    void Engine::getWindowSize(int& width, int& height) const {
+        if (_window) {
+            glfwGetWindowSize(_window, &width, &height);
+        } else {
+            width = _width;
+            height = _height;
+        }
+    }
+
+    void Engine::getFramebufferSize(int& width, int& height) const {
+        if (_window) {
+            glfwGetFramebufferSize(_window, &width, &height);
+        } else {
+            width = _width;
+            height = _height;
+        }
+    }
+
+    void Engine::getCursorPos(double& xpos, double& ypos) const {
+        if (_window) {
+            glfwGetCursorPos(_window, &xpos, &ypos);
+            if (xpos == 0.0 && ypos == 0.0 && (Input::mousePos.x != 0.0f || Input::mousePos.y != 0.0f)) {
+                xpos = (double)Input::mousePos.x;
+                ypos = (double)Input::mousePos.y;
+            }
+        } else {
+            xpos = (double)Input::mousePos.x;
+            ypos = (double)Input::mousePos.y;
+        }
+    }
+
+    bool Engine::isCursorCaptured() const {
+        return _cursorCaptured;
+    }
+
+    Vec2 Input::getMousePos() {
+        return mousePos;
+    }
+
+    float Input::getMouseX() {
+        return mousePos.x;
+    }
+
+    float Input::getMouseY() {
+        return mousePos.y;
+    }
+
+    Vec2 Input::getMouseDelta() {
+        return mouseDelta;
     }
 }

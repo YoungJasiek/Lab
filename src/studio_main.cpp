@@ -21,7 +21,7 @@ public:
         Renderer::init();
         _studio.init();
         _studio.setWindow(getWindow());
-        glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        setCursorCaptured(false);
     }
 
     void onFixedUpdate(float fixedDelta) override {
@@ -29,13 +29,17 @@ public:
     }
 
     void onUpdate(const Time& time) override {
-        int winW = 0, winH = 0;
-        glfwGetWindowSize(getWindow(), &winW, &winH);
-        int fbW = 0, fbH = 0;
-        glfwGetFramebufferSize(getWindow(), &fbW, &fbH);
+        int winW = 1600, winH = 900;
+        getWindowSize(winW, winH);
+        int fbW = 1600, fbH = 900;
+        getFramebufferSize(fbW, fbH);
 
         double mx = 0, my = 0;
-        glfwGetCursorPos(getWindow(), &mx, &my);
+        getCursorPos(mx, my);
+        if (mx == 0.0 && my == 0.0) {
+            mx = (double)Input::getMouseX();
+            my = (double)Input::getMouseY();
+        }
 
         float scaleX = (winW > 0 && fbW > 0) ? (static_cast<float>(fbW) / static_cast<float>(winW)) : 1.0f;
         float scaleY = (winH > 0 && fbH > 0) ? (static_cast<float>(fbH) / static_cast<float>(winH)) : 1.0f;
@@ -70,7 +74,7 @@ public:
 
     void onRender() override {
         int fbW = 0, fbH = 0;
-        glfwGetFramebufferSize(getWindow(), &fbW, &fbH);
+        getFramebufferSize(fbW, fbH);
         int w = (fbW > 0) ? fbW : getWidth();
         int h = (fbH > 0) ? fbH : getHeight();
 

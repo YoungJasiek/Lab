@@ -568,16 +568,16 @@ public:
 
     void onUpdate(const Time& time) override {
         if (_inMenu) {
-            int winW = 0, winH = 0;
-            glfwGetWindowSize(getWindow(), &winW, &winH);
-            int fbW = 0, fbH = 0;
-            glfwGetFramebufferSize(getWindow(), &fbW, &fbH);
+            int winW = 1280, winH = 720;
+            getWindowSize(winW, winH);
+            int fbW = 1280, fbH = 720;
+            getFramebufferSize(fbW, fbH);
 
             if (_menuScreen == MenuScreen::CharacterStudio) {
                 float scaleX = (winW > 0 && fbW > 0) ? (static_cast<float>(fbW) / static_cast<float>(winW)) : 1.0f;
                 float scaleY = (winH > 0 && fbH > 0) ? (static_cast<float>(fbH) / static_cast<float>(winH)) : 1.0f;
-                float studioMx = Input::mousePos.x * scaleX;
-                float studioMy = Input::mousePos.y * scaleY;
+                float studioMx = Input::getMouseX() * scaleX;
+                float studioMy = Input::getMouseY() * scaleY;
                 bool rmb = Input::isMouseButtonPressed(1);
 
                 // Keyboard shortcuts for studio
@@ -603,7 +603,11 @@ public:
             }
 
             double curX = 0.0, curY = 0.0;
-            glfwGetCursorPos(getWindow(), &curX, &curY);
+            getCursorPos(curX, curY);
+            if (curX == 0.0 && curY == 0.0) {
+                curX = (double)Input::getMouseX();
+                curY = (double)Input::getMouseY();
+            }
             float mx = (winW > 0) ? ((float)curX * 1280.0f / (float)winW) : (float)curX;
             float my = (winH > 0) ? ((float)curY * 720.0f / (float)winH) : (float)curY;
             _menuMouseX = mx;
@@ -1761,7 +1765,7 @@ public:
 
     void drawMenu() {
         int fbW = 0, fbH = 0;
-        glfwGetFramebufferSize(getWindow(), &fbW, &fbH);
+        getFramebufferSize(fbW, fbH);
         int curW = (fbW > 0) ? fbW : getWidth();
         int curH = (fbH > 0) ? fbH : getHeight();
 

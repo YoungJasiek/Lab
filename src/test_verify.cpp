@@ -4793,7 +4793,23 @@ int main() {
         std::memset(Lab::Input::mouseButtonsJustPressed, 0, sizeof(Lab::Input::mouseButtonsJustPressed));
         std::memset(Lab::Input::mouseButtonsJustReleased, 0, sizeof(Lab::Input::mouseButtonsJustReleased));
 
-        // 4. Verify Menu Hitbox Bounds
+        // 4. Verify Exported Mouse Position Getters
+        Lab::Input::mousePos = { 246.0f, 193.0f };
+        Lab::Input::mouseDelta = { 5.0f, -2.0f };
+        if (Lab::Input::getMousePos().x != 246.0f || Lab::Input::getMousePos().y != 193.0f) {
+            std::cerr << "Assertion failed: Input::getMousePos() failed!\n";
+            return 1;
+        }
+        if (Lab::Input::getMouseX() != 246.0f || Lab::Input::getMouseY() != 193.0f) {
+            std::cerr << "Assertion failed: Input::getMouseX/Y() failed!\n";
+            return 1;
+        }
+        if (Lab::Input::getMouseDelta().x != 5.0f || Lab::Input::getMouseDelta().y != -2.0f) {
+            std::cerr << "Assertion failed: Input::getMouseDelta() failed!\n";
+            return 1;
+        }
+
+        // 5. Verify Menu Hitbox Bounds
         // Main menu buttons: x in [120, 500] (width 380)
         auto testMenuHit = [](float x, float y) -> int {
             float itemYs[5] = { 185.0f, 245.0f, 305.0f, 365.0f, 425.0f };
@@ -4807,12 +4823,14 @@ int main() {
 
         if (testMenuHit(130.0f, 200.0f) != 0) { std::cerr << "Assertion failed: Campaign button hit test failed!\n"; return 1; }
         if (testMenuHit(480.0f, 200.0f) != 0) { std::cerr << "Assertion failed: Campaign right side hit test failed!\n"; return 1; }
+        if (testMenuHit(246.0f, 193.0f) != 0) { std::cerr << "Assertion failed: Campaign (246, 193) click hit test failed!\n"; return 1; }
         if (testMenuHit(300.0f, 260.0f) != 1) { std::cerr << "Assertion failed: Multiplayer button hit test failed!\n"; return 1; }
         if (testMenuHit(300.0f, 320.0f) != 2) { std::cerr << "Assertion failed: Studio button hit test failed!\n"; return 1; }
         if (testMenuHit(300.0f, 440.0f) != 4) { std::cerr << "Assertion failed: Quit button hit test failed!\n"; return 1; }
         if (testMenuHit(510.0f, 200.0f) != -1) { std::cerr << "Assertion failed: Out of bounds x should be -1!\n"; return 1; }
 
         std::cout << "  [PASS] Non-inline DLL-exported input query functions validated!\n";
+        std::cout << "  [PASS] Exported mouse coordinate getters (getMousePos, getMouseX, getMouseY) validated!\n";
         std::cout << "  [PASS] Multi-frame press, hold, and release state transitions validated!\n";
         std::cout << "  [PASS] Full 380px wide UI hitbox alignment validated!\n";
     }

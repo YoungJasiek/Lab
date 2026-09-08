@@ -41,6 +41,11 @@ namespace Lab {
         static bool isMouseButtonPressed(int button);
         static bool isMouseButtonJustPressed(int button);
         static bool isMouseButtonJustReleased(int button);
+
+        static Vec2 getMousePos();
+        static float getMouseX();
+        static float getMouseY();
+        static Vec2 getMouseDelta();
     };
 
     class LAB_CORE_API Engine {
@@ -57,13 +62,17 @@ namespace Lab {
         virtual void onRender() {}
         virtual void onShutdown() {}
 
-        static Engine* get() { return _instance; }
-        GLFWwindow* getWindow() const { return _window; }
-        int getWidth() const { return _width; }
-        int getHeight() const { return _height; }
+        static Engine* get();
+        GLFWwindow* getWindow() const;
+        int getWidth() const;
+        int getHeight() const;
+
+        void getWindowSize(int& width, int& height) const;
+        void getFramebufferSize(int& width, int& height) const;
+        void getCursorPos(double& xpos, double& ypos) const;
 
         void setCursorCaptured(bool captured);
-        bool isCursorCaptured() const { return _cursorCaptured; }
+        bool isCursorCaptured() const;
 
     private:
         static Engine* _instance;
