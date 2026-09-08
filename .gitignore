@@ -17,3 +17,8 @@ Backups/
 bin/
 assets/inwork/
 assets/configs/test_generated_server.cfg
+
+# Standalone subprojects, independent modules, and backups
+apps/
+modules/
+backups/
