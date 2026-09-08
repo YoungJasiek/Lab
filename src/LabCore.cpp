@@ -46,6 +46,33 @@ namespace Lab {
     Vec2 Input::mouseDelta = { 0, 0 };
     float Input::scrollDelta = 0.0f;
 
+    bool Input::isKeyPressed(int key) {
+        if (key >= 'a' && key <= 'z') key = key - 'a' + 'A';
+        return key >= 0 && key < 512 && (keys[key] || keysJustPressed[key]);
+    }
+
+    bool Input::isKeyJustPressed(int key) {
+        if (key >= 'a' && key <= 'z') key = key - 'a' + 'A';
+        return key >= 0 && key < 512 && keysJustPressed[key];
+    }
+
+    bool Input::isKeyJustReleased(int key) {
+        if (key >= 'a' && key <= 'z') key = key - 'a' + 'A';
+        return key >= 0 && key < 512 && keysJustReleased[key];
+    }
+
+    bool Input::isMouseButtonPressed(int button) {
+        return button >= 0 && button < 8 && (mouseButtons[button] || mouseButtonsJustPressed[button]);
+    }
+
+    bool Input::isMouseButtonJustPressed(int button) {
+        return button >= 0 && button < 8 && mouseButtonsJustPressed[button];
+    }
+
+    bool Input::isMouseButtonJustReleased(int button) {
+        return button >= 0 && button < 8 && mouseButtonsJustReleased[button];
+    }
+
     Engine::Engine(const std::string& title, int width, int height)
         : _window(nullptr), _standardCursor(nullptr), _cursorCaptured(false),
           _title(title), _width(width), _height(height), _running(false),
@@ -211,9 +238,11 @@ namespace Lab {
             if (action == GLFW_PRESS) {
                 Input::mouseButtons[button] = true;
                 Input::mouseButtonsJustPressed[button] = true;
+                LabLog::info("[Engine] Mouse Button PRESS: " + std::to_string(button) + " at (" + std::to_string(Input::mousePos.x) + ", " + std::to_string(Input::mousePos.y) + ")");
             } else if (action == GLFW_RELEASE) {
                 Input::mouseButtons[button] = false;
                 Input::mouseButtonsJustReleased[button] = true;
+                LabLog::info("[Engine] Mouse Button RELEASE: " + std::to_string(button) + " at (" + std::to_string(Input::mousePos.x) + ", " + std::to_string(Input::mousePos.y) + ")");
             }
         }
     }

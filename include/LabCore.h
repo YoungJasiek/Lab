@@ -35,27 +35,12 @@ namespace Lab {
         static Vec2 mouseDelta;
         static float scrollDelta;
 
-        static bool isKeyPressed(int key) {
-            if (key >= 'a' && key <= 'z') key = key - 'a' + 'A';
-            return key >= 0 && key < 512 && (keys[key] || keysJustPressed[key]);
-        }
-        static bool isKeyJustPressed(int key) {
-            if (key >= 'a' && key <= 'z') key = key - 'a' + 'A';
-            return key >= 0 && key < 512 && keysJustPressed[key];
-        }
-        static bool isKeyJustReleased(int key) {
-            if (key >= 'a' && key <= 'z') key = key - 'a' + 'A';
-            return key >= 0 && key < 512 && keysJustReleased[key];
-        }
-        static bool isMouseButtonPressed(int button) {
-            return button >= 0 && button < 8 && (mouseButtons[button] || mouseButtonsJustPressed[button]);
-        }
-        static bool isMouseButtonJustPressed(int button) {
-            return button >= 0 && button < 8 && mouseButtonsJustPressed[button];
-        }
-        static bool isMouseButtonJustReleased(int button) {
-            return button >= 0 && button < 8 && mouseButtonsJustReleased[button];
-        }
+        static bool isKeyPressed(int key);
+        static bool isKeyJustPressed(int key);
+        static bool isKeyJustReleased(int key);
+        static bool isMouseButtonPressed(int button);
+        static bool isMouseButtonJustPressed(int button);
+        static bool isMouseButtonJustReleased(int button);
     };
 
     class LAB_CORE_API Engine {

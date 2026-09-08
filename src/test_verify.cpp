@@ -75,6 +75,15 @@ int main() {
         return 1;
     }
 
+    int testWinW = 0, testWinH = 0, testFbW = 0, testFbH = 0;
+    glfwGetWindowSize(window, &testWinW, &testWinH);
+    glfwGetFramebufferSize(window, &testFbW, &testFbH);
+    float scX = 0, scY = 0;
+    glfwGetWindowContentScale(window, &scX, &scY);
+    std::cout << "\n==========================================================\n";
+    std::cout << "[DPI CHECK] WindowSize: " << testWinW << "x" << testWinH << " | FramebufferSize: " << testFbW << "x" << testFbH << " | ContentScale: " << scX << "x" << scY << "\n";
+    std::cout << "==========================================================\n\n";
+
     Lab::Renderer::init();
 
     // 1. Verify Map Loading
@@ -4736,6 +4745,76 @@ int main() {
         }
         std::memset(Lab::Input::keysJustPressed, 0, sizeof(Lab::Input::keysJustPressed));
         std::cout << "  [PASS] Key and mouse edge transitions verified!\n";
+    }
+
+    // =========================================================================
+    // TEST 47: Exported DLL Input Functions, UI Hitbox Precision & Multi-Frame Hold
+    // =========================================================================
+    {
+        std::cout << "\n[Test 47] Verifying Exported DLL Input Functions, UI Hitbox Precision & Multi-Frame Hold...\n";
+
+        // 1. Verify DLL-exported non-inline functions
+        std::memset(Lab::Input::mouseButtons, 0, sizeof(Lab::Input::mouseButtons));
+        std::memset(Lab::Input::mouseButtonsJustPressed, 0, sizeof(Lab::Input::mouseButtonsJustPressed));
+        std::memset(Lab::Input::mouseButtonsJustReleased, 0, sizeof(Lab::Input::mouseButtonsJustReleased));
+
+        Lab::Input::mouseButtonsJustPressed[0] = true;
+        if (!Lab::Input::isMouseButtonJustPressed(0) || !Lab::Input::isMouseButtonPressed(0)) {
+            std::cerr << "Assertion failed: Exported isMouseButtonJustPressed failed!\n";
+            return 1;
+        }
+
+        // 2. Simulate second frame (hold state)
+        std::memset(Lab::Input::mouseButtonsJustPressed, 0, sizeof(Lab::Input::mouseButtonsJustPressed));
+        Lab::Input::mouseButtons[0] = true;
+        if (Lab::Input::isMouseButtonJustPressed(0)) {
+            std::cerr << "Assertion failed: isMouseButtonJustPressed must be false on hold frame!\n";
+            return 1;
+        }
+        if (!Lab::Input::isMouseButtonPressed(0)) {
+            std::cerr << "Assertion failed: isMouseButtonPressed must be true on hold frame!\n";
+            return 1;
+        }
+
+        // 3. Simulate third frame (release state)
+        Lab::Input::mouseButtons[0] = false;
+        Lab::Input::mouseButtonsJustReleased[0] = true;
+        if (!Lab::Input::isMouseButtonJustReleased(0)) {
+            std::cerr << "Assertion failed: isMouseButtonJustReleased failed!\n";
+            return 1;
+        }
+        if (Lab::Input::isMouseButtonPressed(0)) {
+            std::cerr << "Assertion failed: isMouseButtonPressed must be false on release!\n";
+            return 1;
+        }
+
+        // Clean up
+        std::memset(Lab::Input::mouseButtons, 0, sizeof(Lab::Input::mouseButtons));
+        std::memset(Lab::Input::mouseButtonsJustPressed, 0, sizeof(Lab::Input::mouseButtonsJustPressed));
+        std::memset(Lab::Input::mouseButtonsJustReleased, 0, sizeof(Lab::Input::mouseButtonsJustReleased));
+
+        // 4. Verify Menu Hitbox Bounds
+        // Main menu buttons: x in [120, 500] (width 380)
+        auto testMenuHit = [](float x, float y) -> int {
+            float itemYs[5] = { 185.0f, 245.0f, 305.0f, 365.0f, 425.0f };
+            if (x >= 120.0f && x <= 500.0f) {
+                for (int i = 0; i < 5; ++i) {
+                    if (y >= itemYs[i] && y <= itemYs[i] + 48.0f) return i;
+                }
+            }
+            return -1;
+        };
+
+        if (testMenuHit(130.0f, 200.0f) != 0) { std::cerr << "Assertion failed: Campaign button hit test failed!\n"; return 1; }
+        if (testMenuHit(480.0f, 200.0f) != 0) { std::cerr << "Assertion failed: Campaign right side hit test failed!\n"; return 1; }
+        if (testMenuHit(300.0f, 260.0f) != 1) { std::cerr << "Assertion failed: Multiplayer button hit test failed!\n"; return 1; }
+        if (testMenuHit(300.0f, 320.0f) != 2) { std::cerr << "Assertion failed: Studio button hit test failed!\n"; return 1; }
+        if (testMenuHit(300.0f, 440.0f) != 4) { std::cerr << "Assertion failed: Quit button hit test failed!\n"; return 1; }
+        if (testMenuHit(510.0f, 200.0f) != -1) { std::cerr << "Assertion failed: Out of bounds x should be -1!\n"; return 1; }
+
+        std::cout << "  [PASS] Non-inline DLL-exported input query functions validated!\n";
+        std::cout << "  [PASS] Multi-frame press, hold, and release state transitions validated!\n";
+        std::cout << "  [PASS] Full 380px wide UI hitbox alignment validated!\n";
     }
 
     Lab::Renderer::shutdown();

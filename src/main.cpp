@@ -608,7 +608,15 @@ public:
             float my = (winH > 0) ? ((float)curY * 720.0f / (float)winH) : (float)curY;
             _menuMouseX = mx;
             _menuMouseY = my;
+
+            bool lmbPressed = Input::isMouseButtonPressed(0);
             bool lmbJustPressed = Input::isMouseButtonJustPressed(0);
+            bool lmbClick = lmbJustPressed || (lmbPressed && !_menuLmbLast);
+            _menuLmbLast = lmbPressed;
+
+            if (lmbClick) {
+                LabLog::info("[FrozenLife] Menu LMB Click at (" + std::to_string((int)mx) + ", " + std::to_string((int)my) + ")");
+            }
 
             if (_menuScreen == MenuScreen::JoinGame) {
                 _serverBrowser.update(time.delta);
@@ -618,7 +626,7 @@ public:
                 }
             }
 
-            handleMenuInput(mx, my, lmbJustPressed);
+            handleMenuInput(mx, my, lmbClick);
             return;
         }
 
@@ -1446,30 +1454,35 @@ public:
 
         if (_menuScreen == MenuScreen::Main) {
             if (lmbClick) {
-                // Button 0: Campaign / Singleplayer (x: 120..420, y: 185..233)
-                if (mx >= 120.0f && mx <= 420.0f && my >= 185.0f && my <= 233.0f) {
+                // Button 0: Campaign / Singleplayer (x: 120..500, y: 185..233)
+                if (mx >= 120.0f && mx <= 500.0f && my >= 185.0f && my <= 233.0f) {
+                    LabLog::info("[FrozenLife] Menu: Campaign selected");
                     _menuScreen = MenuScreen::Singleplayer;
                     return;
                 }
-                // Button 1: Multiplayer (x: 120..420, y: 245..293)
-                if (mx >= 120.0f && mx <= 420.0f && my >= 245.0f && my <= 293.0f) {
+                // Button 1: Multiplayer (x: 120..500, y: 245..293)
+                if (mx >= 120.0f && mx <= 500.0f && my >= 245.0f && my <= 293.0f) {
+                    LabLog::info("[FrozenLife] Menu: Multiplayer selected");
                     _menuScreen = MenuScreen::MultiSelect;
                     return;
                 }
-                // Button 2: Character & Weapon Studio (x: 120..420, y: 305..353)
-                if (mx >= 120.0f && mx <= 420.0f && my >= 305.0f && my <= 353.0f) {
+                // Button 2: Character & Weapon Studio (x: 120..500, y: 305..353)
+                if (mx >= 120.0f && mx <= 500.0f && my >= 305.0f && my <= 353.0f) {
+                    LabLog::info("[FrozenLife] Menu: Character Studio selected");
                     _menuScreen = MenuScreen::CharacterStudio;
                     return;
                 }
-                // Button 3: Resume Mission (x: 120..420, y: 365..413)
-                if (_currentMap && mx >= 120.0f && mx <= 420.0f && my >= 365.0f && my <= 413.0f) {
+                // Button 3: Resume Mission (x: 120..500, y: 365..413)
+                if (_currentMap && mx >= 120.0f && mx <= 500.0f && my >= 365.0f && my <= 413.0f) {
+                    LabLog::info("[FrozenLife] Menu: Resume Mission selected");
                     _inMenu = false;
                     _fireLmbLast = true;
                     setCursorCaptured(true);
                     return;
                 }
-                // Button 4: Quit Game (x: 120..420, y: 425..473)
-                if (mx >= 120.0f && mx <= 420.0f && my >= 425.0f && my <= 473.0f) {
+                // Button 4: Quit Game (x: 120..500, y: 425..473)
+                if (mx >= 120.0f && mx <= 500.0f && my >= 425.0f && my <= 473.0f) {
+                    LabLog::info("[FrozenLife] Menu: Quit Game selected");
                     stop();
                     return;
                 }
@@ -1477,18 +1490,21 @@ public:
         }
         else if (_menuScreen == MenuScreen::MultiSelect) {
             if (lmbClick) {
-                // Card 1: Host Game / Create Server (x: 140..620, y: 200..400)
-                if (mx >= 140.0f && mx <= 620.0f && my >= 200.0f && my <= 400.0f) {
+                // Card 1: Host Game / Create Server (x: 140..600, y: 180..420)
+                if (mx >= 140.0f && mx <= 600.0f && my >= 180.0f && my <= 420.0f) {
+                    LabLog::info("[FrozenLife] Menu: Host Game selected");
                     _menuScreen = MenuScreen::HostGame;
                     return;
                 }
-                // Card 2: Find Servers / Join Game (x: 660..1140, y: 200..400)
-                if (mx >= 660.0f && mx <= 1140.0f && my >= 200.0f && my <= 400.0f) {
+                // Card 2: Find Servers / Join Game (x: 680..1140, y: 180..420)
+                if (mx >= 680.0f && mx <= 1140.0f && my >= 180.0f && my <= 420.0f) {
+                    LabLog::info("[FrozenLife] Menu: Join Game selected");
                     _menuScreen = MenuScreen::JoinGame;
                     return;
                 }
                 // Back Button (x: 140..380, y: 580..628)
                 if (mx >= 140.0f && mx <= 380.0f && my >= 580.0f && my <= 628.0f) {
+                    LabLog::info("[FrozenLife] Menu: Back to Main Menu selected");
                     _menuScreen = MenuScreen::Main;
                     return;
                 }
@@ -1509,64 +1525,69 @@ public:
             }
 
             if (lmbClick) {
-                // Left Panel: Map items (x: 120..520, y: 170 + i * 50)
+                // Left Panel: Map items (x: 115..525, y: 170 + i * 50)
                 for (int i = 0; i < (int)_availableMaps.size(); ++i) {
                     float iy = 170.0f + i * 50.0f;
-                    if (mx >= 120.0f && mx <= 520.0f && my >= iy && my <= iy + 42.0f) {
+                    if (mx >= 115.0f && mx <= 525.0f && my >= iy && my <= iy + 42.0f) {
                         _selectedMapIndex = i;
                         _sessionConfig.mapPath = _availableMaps[i];
+                        LabLog::info("[FrozenLife] HostGame: Selected map " + _availableMaps[i]);
                         return;
                     }
                 }
 
-                // Open from disk button (x: 120..520, y: 490..532)
-                if (mx >= 120.0f && mx <= 520.0f && my >= 490.0f && my <= 532.0f) {
+                // Open from disk button (x: 115..525, y: 485..527)
+                if (mx >= 115.0f && mx <= 525.0f && my >= 485.0f && my <= 527.0f) {
                     std::string picked = LabDialogs::openFileDialog(getWindow(), "Lab Map Files (*.labmap)\0*.labmap\0All Files (*.*)\0*.*\0", "assets\\maps");
                     if (!picked.empty()) {
                         _sessionConfig.mapPath = picked;
+                        LabLog::info("[FrozenLife] HostGame: Picked disk map " + picked);
                     }
                     return;
                 }
 
-                // 1. Network Mode toggle: LAN (580..855) vs P2P (870..1160) at y: 155..192
-                if (my >= 155.0f && my <= 192.0f) {
-                    if (mx >= 580.0f && mx <= 855.0f) { _sessionConfig.networkMode = NetworkMode::LAN; return; }
-                    if (mx >= 870.0f && mx <= 1160.0f) { _sessionConfig.networkMode = NetworkMode::P2P; return; }
+                // 1. Network Mode toggle: LAN (580..855) vs P2P (870..1160) at y: 182..220
+                if (my >= 182.0f && my <= 220.0f) {
+                    if (mx >= 580.0f && mx <= 855.0f) { _sessionConfig.networkMode = NetworkMode::LAN; LabLog::info("[FrozenLife] HostGame: Network LAN"); return; }
+                    if (mx >= 870.0f && mx <= 1160.0f) { _sessionConfig.networkMode = NetworkMode::P2P; LabLog::info("[FrozenLife] HostGame: Network P2P"); return; }
                 }
 
-                // 2. Game Mode buttons: FFA (580..760), DM (770..950), TDM (960..1160) at y: 222..258
-                if (my >= 222.0f && my <= 258.0f) {
-                    if (mx >= 580.0f && mx <= 760.0f) { _sessionConfig.mode = GameMode::FFA; return; }
-                    if (mx >= 770.0f && mx <= 950.0f) { _sessionConfig.mode = GameMode::DM; return; }
-                    if (mx >= 960.0f && mx <= 1160.0f) { _sessionConfig.mode = GameMode::TDM; return; }
+                // 2. Game Mode buttons: FFA (580..760), DM (770..950), TDM (960..1160) at y: 248..284
+                if (my >= 248.0f && my <= 284.0f) {
+                    if (mx >= 580.0f && mx <= 760.0f) { _sessionConfig.mode = GameMode::FFA; LabLog::info("[FrozenLife] HostGame: Mode FFA"); return; }
+                    if (mx >= 770.0f && mx <= 950.0f) { _sessionConfig.mode = GameMode::DM; LabLog::info("[FrozenLife] HostGame: Mode DM"); return; }
+                    if (mx >= 960.0f && mx <= 1160.0f) { _sessionConfig.mode = GameMode::TDM; LabLog::info("[FrozenLife] HostGame: Mode TDM"); return; }
                 }
 
-                // 3. Combat AI Bots toggle (x: 580..855, y: 290..326)
-                if (mx >= 580.0f && mx <= 855.0f && my >= 290.0f && my <= 326.0f) {
+                // 3. Combat AI Bots toggle (x: 580..855, y: 314..350)
+                if (mx >= 580.0f && mx <= 855.0f && my >= 314.0f && my <= 350.0f) {
                     _sessionConfig.enableBots = !_sessionConfig.enableBots;
+                    LabLog::info(std::string("[FrozenLife] HostGame: Bots ") + (_sessionConfig.enableBots ? "Enabled" : "Disabled"));
                     return;
                 }
 
-                // Bot count [-] (875..920) and [+] (1066..1111) at y: 290..326
-                if (my >= 290.0f && my <= 326.0f) {
-                    if (mx >= 875.0f && mx <= 920.0f) { _sessionConfig.botCount = std::max(0, _sessionConfig.botCount - 1); return; }
-                    if (mx >= 1066.0f && mx <= 1111.0f) { _sessionConfig.botCount = std::min(8, _sessionConfig.botCount + 1); return; }
+                // Bot count [-] (875..920) and [+] (1066..1111) at y: 314..350
+                if (my >= 314.0f && my <= 350.0f) {
+                    if (mx >= 875.0f && mx <= 920.0f) { _sessionConfig.botCount = std::max(0, _sessionConfig.botCount - 1); LabLog::info("[FrozenLife] HostGame: Bot count " + std::to_string(_sessionConfig.botCount)); return; }
+                    if (mx >= 1066.0f && mx <= 1111.0f) { _sessionConfig.botCount = std::min(8, _sessionConfig.botCount + 1); LabLog::info("[FrozenLife] HostGame: Bot count " + std::to_string(_sessionConfig.botCount)); return; }
                 }
 
-                // 4. Frag Limit [-] (580..625) and [+] (771..816) at y: 358..394
-                if (my >= 358.0f && my <= 394.0f) {
-                    if (mx >= 580.0f && mx <= 625.0f) { _sessionConfig.fragLimit = std::max(5, _sessionConfig.fragLimit - 5); return; }
-                    if (mx >= 771.0f && mx <= 816.0f) { _sessionConfig.fragLimit = std::min(100, _sessionConfig.fragLimit + 5); return; }
+                // 4. Frag Limit [-] (580..625) and [+] (771..816) at y: 380..416
+                if (my >= 380.0f && my <= 416.0f) {
+                    if (mx >= 580.0f && mx <= 625.0f) { _sessionConfig.fragLimit = std::max(5, _sessionConfig.fragLimit - 5); LabLog::info("[FrozenLife] HostGame: Frag limit " + std::to_string(_sessionConfig.fragLimit)); return; }
+                    if (mx >= 771.0f && mx <= 816.0f) { _sessionConfig.fragLimit = std::min(100, _sessionConfig.fragLimit + 5); LabLog::info("[FrozenLife] HostGame: Frag limit " + std::to_string(_sessionConfig.fragLimit)); return; }
                 }
 
-                // 5. Bottom Back button (x: 100..280, y: 570..618)
-                if (mx >= 100.0f && mx <= 280.0f && my >= 570.0f && my <= 618.0f) {
+                // 5. Bottom Back button (x: 100..300, y: 570..618)
+                if (mx >= 100.0f && mx <= 300.0f && my >= 570.0f && my <= 618.0f) {
+                    LabLog::info("[FrozenLife] HostGame: Back selected");
                     _menuScreen = MenuScreen::MultiSelect;
                     return;
                 }
 
                 // 6. Bottom Start Server button (x: 740..1180, y: 570..618)
                 if (mx >= 740.0f && mx <= 1180.0f && my >= 570.0f && my <= 618.0f) {
+                    LabLog::info("[FrozenLife] HostGame: Starting Server and Session");
                     ServerConfig srvCfg;
                     srvCfg.port = _sessionConfig.port;
                     srvCfg.serverName = (_sessionConfig.networkMode == NetworkMode::LAN)
@@ -1781,11 +1802,17 @@ public:
             };
 
             for (const auto& it : items) {
-                Vec3 bgCol = it.active ? Vec3(0.18f, 0.28f, 0.40f) : Vec3(0.12f, 0.14f, 0.18f);
-                Vec3 txtCol = it.active ? Vec3(1, 1, 1) : Vec3(0.4f, 0.4f, 0.45f);
+                bool isHovered = it.active && (_menuMouseX >= 120.0f && _menuMouseX <= 500.0f && _menuMouseY >= it.y && _menuMouseY <= it.y + 48.0f);
+                Vec3 bgCol = it.active ? (isHovered ? Vec3(0.24f, 0.40f, 0.62f) : Vec3(0.18f, 0.28f, 0.40f)) : Vec3(0.12f, 0.14f, 0.18f);
+                Vec3 txtCol = it.active ? (isHovered ? Vec3(1.0f, 1.0f, 0.82f) : Vec3(1, 1, 1)) : Vec3(0.4f, 0.4f, 0.45f);
 
                 Renderer::drawRect(120.0f, it.y, 380.0f, 48.0f, bgCol);
-                Renderer::drawRect(120.0f, it.y, 4.0f, 48.0f, Vec3(0.2f, 0.75f, 0.95f));
+                Renderer::drawRect(120.0f, it.y, 4.0f, 48.0f, isHovered ? Vec3(1.0f, 0.85f, 0.2f) : Vec3(0.2f, 0.75f, 0.95f));
+                if (isHovered) {
+                    Renderer::drawRect(120.0f, it.y, 380.0f, 1.5f, Vec3(0.35f, 0.85f, 1.0f));
+                    Renderer::drawRect(120.0f, it.y + 46.5f, 380.0f, 1.5f, Vec3(0.35f, 0.85f, 1.0f));
+                    Renderer::drawRect(498.5f, it.y, 1.5f, 48.0f, Vec3(0.35f, 0.85f, 1.0f));
+                }
                 LabFont::drawText(140.0f, it.y + 14.0f, it.title, 2.0f, txtCol, LabFontType::GeoSans);
             }
 
