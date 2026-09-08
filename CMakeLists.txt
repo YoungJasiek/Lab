@@ -227,38 +227,33 @@ target_link_libraries(LabEngineLib INTERFACE
 # EXECUTABLE TARGETS (LINKED AGAINST MODULAR LAB ENGINE DLLS)
 # =============================================================================
 
-# 1. Lab Engine SDK Showcase / Sandbox Executable (Lab.exe)
-add_executable(Lab src/engine_demo.cpp)
-target_compile_options(Lab PRIVATE ${COMPILER_FLAGS})
-target_link_libraries(Lab PRIVATE LabEngineLib)
-
-# 2. Frozen-Life Flagship FPS Demo Game Executable (FrozenLife.exe)
+# 1. Frozen-Life Flagship FPS Demo Game Executable (FrozenLife.exe)
 add_executable(FrozenLife src/main.cpp)
 target_compile_options(FrozenLife PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(FrozenLife PRIVATE LabEngineLib)
 
-# 3. Standalone Hammer Map Editor Executable
+# 2. Standalone Hammer Map Editor Executable
 add_executable(LabHammer src/editor_main.cpp)
 target_compile_options(LabHammer PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabHammer PRIVATE LabEngineLib)
 
-# 4. Standalone Headless Dedicated Server Executable
+# 3. Standalone Headless Dedicated Server Executable
 add_executable(LabServer src/server_main.cpp)
 target_compile_options(LabServer PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabServer PRIVATE LabEngineLib)
 
-# 5. Standalone Character & Weapon Studio Executable
+# 4. Standalone Character & Weapon Studio Executable
 add_executable(LabStudio src/studio_main.cpp)
 target_compile_options(LabStudio PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabStudio PRIVATE LabEngineLib)
 
-# 6. Full Engine Automated Verification Suite
+# 5. Full Engine Automated Verification Suite
 add_executable(TestVerify src/test_verify.cpp)
 target_compile_options(TestVerify PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(TestVerify PRIVATE LabEngineLib)
 
 # Post-build asset replication to output directories
-set(ASSET_TARGETS Lab FrozenLife LabHammer LabStudio TestVerify)
+set(ASSET_TARGETS FrozenLife LabHammer LabStudio TestVerify)
 foreach(tgt ${ASSET_TARGETS})
     add_custom_command(TARGET ${tgt} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory

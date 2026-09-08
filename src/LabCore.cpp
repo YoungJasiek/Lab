@@ -42,13 +42,22 @@ namespace Lab {
     float Input::scrollDelta = 0.0f;
 
     Engine::Engine(const std::string& title, int width, int height)
-        : _title(title), _width(width), _height(height), _running(false), _lastFrameTime(0.0), _physicsAccumulator(0.0f), _firstMouse(true), _lastMousePos({0,0}) {
+        : _window(nullptr), _standardCursor(nullptr), _cursorCaptured(false),
+          _title(title), _width(width), _height(height), _running(false),
+          _lastFrameTime(0.0), _physicsAccumulator(0.0f), _firstMouse(true), _lastMousePos({0,0}) {
         if (_instance) {
             std::cerr << "Engine instance already exists!" << std::endl;
             return;
         }
         _instance = this;
         _time = { 0, 0, 1.0f / 64.0f };
+    }
+
+    Engine::~Engine() {
+        if (_standardCursor) {
+            glfwDestroyCursor(_standardCursor);
+            _standardCursor = nullptr;
+        }
     }
 
     void Engine::run() {
@@ -87,8 +96,12 @@ namespace Lab {
         glfwSetScrollCallback(_window, _scrollCallback);
         glfwSetFramebufferSizeCallback(_window, _framebufferSizeCallback);
 
-        // Capture mouse
-        glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        // Standard Arrow Cursor (visible and active by default)
+        _standardCursor = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
+        if (_standardCursor) {
+            glfwSetCursor(_window, _standardCursor);
+        }
+        glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
@@ -127,13 +140,38 @@ namespace Lab {
             Input::mouseDelta = { 0, 0 };
             Input::scrollDelta = 0.0f;
             glfwPollEvents();
+
+            // Continuously synchronize exact cursor position directly from GLFW
+            double curX = 0, curY = 0;
+            glfwGetCursorPos(_window, &curX, &curY);
+            Input::mousePos.x = (float)curX;
+            Input::mousePos.y = (float)curY;
+
             for (int b = 0; b < 8; ++b) {
                 Input::mouseButtons[b] = (glfwGetMouseButton(_window, b) == GLFW_PRESS);
             }
         }
 
         onShutdown();
+        if (_standardCursor) {
+            glfwDestroyCursor(_standardCursor);
+            _standardCursor = nullptr;
+        }
         glfwTerminate();
+    }
+
+    void Engine::setCursorCaptured(bool captured) {
+        _cursorCaptured = captured;
+        if (!_window) return;
+        _firstMouse = true;
+        if (captured) {
+            glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        } else {
+            glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            if (_standardCursor) {
+                glfwSetCursor(_window, _standardCursor);
+            }
+        }
     }
 
     void Engine::stop() {

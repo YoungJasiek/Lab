@@ -125,6 +125,16 @@ namespace Lab {
             updateVectors();
         }
 
+        // Unproject 2D screen coordinate to normalized 3D world ray direction
+        Vec3 screenToWorldRay(float screenX, float screenY, float screenW, float screenH) const {
+            if (screenW <= 0.0f || screenH <= 0.0f) return _front;
+            float ndcX = (2.0f * screenX) / screenW - 1.0f;
+            float ndcY = 1.0f - (2.0f * screenY) / screenH;
+            float tanFov = std::tan((_fov * 0.5f) * (3.14159265f / 180.0f));
+            Vec3 rayView(ndcX * tanFov * _aspect, ndcY * tanFov, 1.0f);
+            return (_right * rayView.x + _up * rayView.y + _front * rayView.z).normalized();
+        }
+
         // Fast AABB vs Frustum Culling with 0.75m conservative expansion margin
         // Prevents premature culling / popping / tearing at screen edges ("duplikowanie mapy w krawedziach")
         bool isInFrustum(const Vec3& min, const Vec3& max, float margin = 0.75f) const {

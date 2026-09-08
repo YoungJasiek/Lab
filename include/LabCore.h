@@ -6,6 +6,7 @@
 #include "LabExport.h"
 
 struct GLFWwindow;
+struct GLFWcursor;
 
 namespace Lab {
 
@@ -37,10 +38,10 @@ namespace Lab {
         static bool isMouseButtonPressed(int button) { return button >= 0 && button < 8 && mouseButtons[button]; }
     };
 
-    class Engine {
+    class LAB_CORE_API Engine {
     public:
         Engine(const std::string& title, int width, int height);
-        virtual ~Engine() = default;
+        virtual ~Engine();
 
         void run();
         void stop();
@@ -56,9 +57,14 @@ namespace Lab {
         int getWidth() const { return _width; }
         int getHeight() const { return _height; }
 
+        void setCursorCaptured(bool captured);
+        bool isCursorCaptured() const { return _cursorCaptured; }
+
     private:
         static Engine* _instance;
         GLFWwindow* _window;
+        GLFWcursor* _standardCursor;
+        bool _cursorCaptured;
 
         static void _keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
         static void _mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);

@@ -109,7 +109,7 @@ public:
         // Start in Main Menu
         _inMenu = true;
         _menuScreen = MenuScreen::Main;
-        glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        setCursorCaptured(false);
     }
 
     void reloadStudioWeapons() {
@@ -322,7 +322,7 @@ public:
 
             // Switch to gameplay mode and lock cursor
             _inMenu = false;
-            glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            setCursorCaptured(true);
             LabLog::info("Map successfully loaded and entered: " + mapPath);
         } else {
             LabLog::error("Failed to load map: " + mapPath);
@@ -416,7 +416,7 @@ public:
 
         _inMenu = false;
         _fireLmbLast = true;
-        glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        setCursorCaptured(true);
     }
 
     void onFixedUpdate(float fixedDelta) override {
@@ -602,10 +602,14 @@ public:
                 return;
             }
 
+            double curX = 0.0, curY = 0.0;
+            glfwGetCursorPos(getWindow(), &curX, &curY);
             float scaleX = 1280.0f / (float)std::max(1, getWidth());
             float scaleY = 720.0f / (float)std::max(1, getHeight());
-            float mx = Input::mousePos.x * scaleX;
-            float my = Input::mousePos.y * scaleY;
+            float mx = (float)curX * scaleX;
+            float my = (float)curY * scaleY;
+            _menuMouseX = mx;
+            _menuMouseY = my;
             bool lmbJustPressed = false;
 
             if (Input::isMouseButtonPressed(0)) {
@@ -727,7 +731,7 @@ public:
         if (!_chat.isOpen && (Input::isKeyPressed(GLFW_KEY_M) || Input::isKeyPressed(GLFW_KEY_ESCAPE))) {
             _inMenu = true;
             _menuScreen = MenuScreen::Main;
-            glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            setCursorCaptured(false);
             return;
         }
 
@@ -1439,7 +1443,7 @@ public:
                 } else if (_menuScreen == MenuScreen::Main && _currentMap) {
                     _inMenu = false;
                     _fireLmbLast = true;
-                    glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+                    setCursorCaptured(true);
                 }
                 _escPressedLast = true;
             }
@@ -1472,7 +1476,7 @@ public:
                 if (_currentMap && mx >= 120.0f && mx <= 420.0f && my >= 365.0f && my <= 413.0f) {
                     _inMenu = false;
                     _fireLmbLast = true;
-                    glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+                    setCursorCaptured(true);
                     return;
                 }
                 // Button 4: Quit Game (x: 120..420, y: 425..473)
@@ -1700,7 +1704,7 @@ public:
                 // Resume (x: 680..920, y: 560..608)
                 if (_currentMap && mx >= 680.0f && mx <= 920.0f && my >= 560.0f && my <= 608.0f) {
                     _inMenu = false;
-                    glfwSetInputMode(getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+                    setCursorCaptured(true);
                     return;
                 }
                 // Back (x: 940..1120, y: 560..608)
@@ -2132,6 +2136,20 @@ public:
         if (_inMenu) {
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             drawMenu();
+            if (_menuScreen != MenuScreen::CharacterStudio) {
+                int fbW = 0, fbH = 0;
+                glfwGetFramebufferSize(getWindow(), &fbW, &fbH);
+                int w = (fbW > 0) ? fbW : getWidth();
+                int h = (fbH > 0) ? fbH : getHeight();
+                Renderer::beginUI(w, h);
+                float cx = _menuMouseX * ((float)w / 1280.0f);
+                float cy = _menuMouseY * ((float)h / 720.0f);
+                Renderer::drawRect(cx, cy, 2.0f, 16.0f, Vec3(0.0f, 0.0f, 0.0f));
+                Renderer::drawRect(cx, cy, 14.0f, 2.0f, Vec3(0.0f, 0.0f, 0.0f));
+                Renderer::drawRect(cx + 1.0f, cy + 1.0f, 11.0f, 11.0f, Vec3(1.0f, 1.0f, 1.0f));
+                Renderer::drawRect(cx + 2.0f, cy + 2.0f, 8.0f, 8.0f, Vec3(0.15f, 0.15f, 0.15f));
+                Renderer::endUI();
+            }
             return;
         }
 
@@ -2504,6 +2522,8 @@ private:
     bool _wireframeMode = false;
     bool _f3PressedLast = false;
     bool _f1PressedLast = false;
+    float _menuMouseX = 640.0f;
+    float _menuMouseY = 360.0f;
 
     static FrozenLife* s_instance;
 };

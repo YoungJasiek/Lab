@@ -57,6 +57,8 @@ public:
             _lastKeys[k] = Input::keys[k];
         }
 
+        _scaledMx = scaledMx;
+        _scaledMy = scaledMy;
         _studio.update(time.delta, scaledMx, scaledMy, lmb, rmb, Input::scrollDelta);
         Input::scrollDelta = 0.0f;
 
@@ -78,10 +80,22 @@ public:
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         _studio.render(w, h);
+
+        // Render crisp UI cursor pointer
+        Renderer::beginUI(w, h);
+        float cx = _scaledMx;
+        float cy = _scaledMy;
+        Renderer::drawRect(cx, cy, 2.0f, 16.0f, Vec3(0.0f, 0.0f, 0.0f));
+        Renderer::drawRect(cx, cy, 14.0f, 2.0f, Vec3(0.0f, 0.0f, 0.0f));
+        Renderer::drawRect(cx + 1.0f, cy + 1.0f, 11.0f, 11.0f, Vec3(1.0f, 1.0f, 1.0f));
+        Renderer::drawRect(cx + 2.0f, cy + 2.0f, 8.0f, 8.0f, Vec3(0.2f, 0.2f, 0.2f));
+        Renderer::endUI();
     }
 
 private:
     CharacterStudio _studio;
+    float _scaledMx = 0.0f;
+    float _scaledMy = 0.0f;
     bool _lastKeys[512] = { false };
 };
 
