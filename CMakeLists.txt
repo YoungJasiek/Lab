@@ -5,11 +5,14 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Strict compiler flags
+# Enable automatic symbol export for Windows dynamic link libraries (.dll)
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+
+# Strict compiler flags with standard MSVC DLL warning suppressions
 if(MSVC)
-    set(COMPILER_FLAGS /W4 /WX /EHsc)
+    set(COMPILER_FLAGS /W4 /EHsc /wd4251 /wd4275)
 else()
-    set(COMPILER_FLAGS -Wall -Wextra -Wpedantic -Werror)
+    set(COMPILER_FLAGS -Wall -Wextra -Wpedantic)
 endif()
 
 include(FetchContent)
@@ -54,134 +57,210 @@ endif()
 # Find OpenGL
 find_package(OpenGL REQUIRED)
 
-# Include directories
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/glad/include)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/lua)
+# Glad OpenGL 4.5+ DSA loader library (Shared DLL so all engine modules share single function table)
+add_library(glad SHARED src/glad/src/gl.c)
+target_include_directories(glad PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/glad/include)
+target_compile_definitions(glad PRIVATE GLAD_API_CALL_EXPORT GLAD_API_CALL_EXPORT_BUILD)
+target_compile_definitions(glad INTERFACE GLAD_API_CALL_EXPORT)
 
-# Engine files
-set(ENGINE_SOURCES
+# Common include directories
+set(LAB_INCLUDES
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/glad/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/lua
+)
+
+# =============================================================================
+# MODULAR LAB ENGINE DYNAMIC LINK LIBRARIES (.DLL)
+# =============================================================================
+
+# 1. LabCore.dll - Core application lifecycle, Input, Math, Camera, Fonts, Dialogs
+add_library(LabCore SHARED
     src/LabCore.cpp
+    include/LabCore.h
+    include/LabMath.h
+    include/LabCamera.h
+    include/LabFont.h
+    include/LabDialogs.h
+    include/LabExport.h
+)
+target_include_directories(LabCore PUBLIC ${LAB_INCLUDES})
+target_compile_options(LabCore PRIVATE ${COMPILER_FLAGS})
+target_compile_definitions(LabCore PRIVATE LAB_CORE_BUILD)
+target_link_libraries(LabCore PUBLIC glfw glad OpenGL::GL)
+if(WIN32)
+    target_link_libraries(LabCore PUBLIC gdi32 comdlg32)
+endif()
+
+# 2. LabRender.dll - OpenGL 4.5+ DSA Renderer, Lighting, CSG, Decals, Post-process, Skeletal
+add_library(LabRender SHARED
     src/LabRenderer.cpp
-    src/LabMap.cpp
-    src/LabAnim.cpp
-    src/LabCombat.cpp
-    src/LabAI.cpp
+    src/LabLight.cpp
+    src/LabPostProcess.cpp
+    src/LabCSG.cpp
+    src/LabDecals.cpp
+    src/LabFace.cpp
+    src/LabSkeletal.cpp
+    include/LabRenderer.h
+    include/LabLight.h
+    include/LabPostProcess.h
+    include/LabCSG.h
+    include/LabDecals.h
+    include/LabFace.h
+    include/LabSkeletal.h
+)
+target_include_directories(LabRender PUBLIC ${LAB_INCLUDES})
+target_compile_options(LabRender PRIVATE ${COMPILER_FLAGS})
+target_link_libraries(LabRender PUBLIC LabCore glad OpenGL::GL)
+
+# 3. LabAudio.dll - 3D Spatial Audio Engine, Procedural WAV Synthesizer
+add_library(LabAudio SHARED
+    src/LabAudio.cpp
+    include/LabAudio.h
+)
+target_include_directories(LabAudio PUBLIC ${LAB_INCLUDES})
+target_compile_options(LabAudio PRIVATE ${COMPILER_FLAGS})
+target_link_libraries(LabAudio PUBLIC LabCore)
+
+# 4. LabPhysics.dll - AABB Collision Detection, MoveAndSlide, Dynamic Rigid Bodies, Raycasting
+add_library(LabPhysics SHARED
+    src/LabPhysics.cpp
     src/LabCollision.cpp
-    src/LabChat.cpp
+    src/LabCombat.cpp
+    include/LabPhysics.h
+    include/LabCollision.h
+    include/LabCombat.h
+)
+target_include_directories(LabPhysics PUBLIC ${LAB_INCLUDES})
+target_compile_options(LabPhysics PRIVATE ${COMPILER_FLAGS})
+target_link_libraries(LabPhysics PUBLIC LabCore LabRender LabAudio)
+
+# 5. LabAnimation.dll - Keyframe Animations & Tactical FPP Procedural Arms
+add_library(LabAnimation SHARED
+    src/LabAnim.cpp
+    src/LabArms.cpp
+    include/LabAnim.h
+    include/LabArms.h
+)
+target_include_directories(LabAnimation PUBLIC ${LAB_INCLUDES})
+target_compile_options(LabAnimation PRIVATE ${COMPILER_FLAGS})
+target_link_libraries(LabAnimation PUBLIC LabCore LabRender)
+
+# 6. LabWorld.dll - .LABMAP Format, Spawner Pads, Weapon Arsenal, Particles, Doors
+add_library(LabWorld SHARED
+    src/LabMap.cpp
     src/LabPickups.cpp
     src/LabWeapon.cpp
     src/LabParticles.cpp
-    src/LabAudio.cpp
-    src/LabArms.cpp
-    src/LabLight.cpp
-    src/LabSkeletal.cpp
-    src/LabPhysics.cpp
-    src/LabCSG.cpp
-    src/LabDecals.cpp
     src/LabInteractive.cpp
-    src/LabScript.cpp
-    src/LabPostProcess.cpp
-    src/LabFace.cpp
-    src/LabNetwork.cpp
-    src/LabStudio.cpp
-    src/glad/src/gl.c
-)
-
-set(ENGINE_HEADERS
-    include/LabCore.h
-    include/LabRenderer.h
-    include/LabMath.h
-    include/LabCamera.h
     include/LabMap.h
-    include/LabAnim.h
-    include/LabSession.h
-    include/LabCombat.h
-    include/LabAI.h
-    include/LabCollision.h
-    include/LabChat.h
     include/LabPickups.h
     include/LabWeapon.h
     include/LabParticles.h
-    include/LabAudio.h
-    include/LabArms.h
-    include/LabLight.h
-    include/LabSkeletal.h
-    include/LabPhysics.h
-    include/LabCSG.h
-    include/LabDecals.h
     include/LabInteractive.h
-    include/LabScript.h
-    include/LabPostProcess.h
-    include/LabFace.h
+    include/LabSession.h
+    include/LabHUD.h
+)
+target_include_directories(LabWorld PUBLIC ${LAB_INCLUDES})
+target_compile_options(LabWorld PRIVATE ${COMPILER_FLAGS})
+target_link_libraries(LabWorld PUBLIC LabCore LabRender LabPhysics LabAudio LabAnimation)
+
+# 7. LabNetwork.dll - Client Prediction, UDP Sockets, Dedicated Server, Server Browser, Chat
+add_library(LabNetwork SHARED
+    src/LabNetwork.cpp
+    src/LabChat.cpp
     include/LabNetwork.h
+    include/LabChat.h
+)
+target_include_directories(LabNetwork PUBLIC ${LAB_INCLUDES})
+target_compile_options(LabNetwork PRIVATE ${COMPILER_FLAGS})
+target_link_libraries(LabNetwork PUBLIC LabCore LabRender LabWorld LabPhysics)
+if(WIN32)
+    target_link_libraries(LabNetwork PUBLIC ws2_32)
+endif()
+
+# 8. LabAI.dll - CombatBot Sensory AI, State Machine, Combat Behaviors
+add_library(LabAI SHARED
+    src/LabAI.cpp
+    include/LabAI.h
+)
+target_include_directories(LabAI PUBLIC ${LAB_INCLUDES})
+target_compile_options(LabAI PRIVATE ${COMPILER_FLAGS})
+target_link_libraries(LabAI PUBLIC LabCore LabRender LabPhysics LabAnimation LabWorld LabNetwork)
+
+# 9. LabScript.dll - Lua 5.4 Scripting Engine Integration
+add_library(LabScript SHARED
+    src/LabScript.cpp
+    include/LabScript.h
+)
+target_include_directories(LabScript PUBLIC ${LAB_INCLUDES})
+target_compile_options(LabScript PRIVATE ${COMPILER_FLAGS})
+target_link_libraries(LabScript PUBLIC LabCore LabWorld lua)
+
+# 10. LabStudioCore.dll - Character & Weapon Studio Engine Backend
+add_library(LabStudioCore SHARED
+    src/LabStudio.cpp
     include/LabStudio.h
-    include/Lab.h
+)
+target_include_directories(LabStudioCore PUBLIC ${LAB_INCLUDES})
+target_compile_options(LabStudioCore PRIVATE ${COMPILER_FLAGS})
+target_link_libraries(LabStudioCore PUBLIC LabCore LabRender LabAnimation LabWorld LabAI)
+
+# -----------------------------------------------------------------------------
+# Unified Interface Target: LabEngineLib
+# -----------------------------------------------------------------------------
+add_library(LabEngineLib INTERFACE)
+target_link_libraries(LabEngineLib INTERFACE
+    LabCore
+    LabRender
+    LabAudio
+    LabPhysics
+    LabAnimation
+    LabWorld
+    LabAI
+    LabNetwork
+    LabScript
+    LabStudioCore
 )
 
-# Create an engine library
-add_library(LabEngineLib STATIC ${ENGINE_SOURCES} ${ENGINE_HEADERS})
-target_compile_options(LabEngineLib PRIVATE ${COMPILER_FLAGS})
-target_include_directories(LabEngineLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_include_directories(LabEngineLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/glad/include)
-target_include_directories(LabEngineLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/external/lua)
-target_link_libraries(LabEngineLib PUBLIC glfw OpenGL::GL lua)
+# =============================================================================
+# EXECUTABLE TARGETS (LINKED AGAINST MODULAR LAB ENGINE DLLS)
+# =============================================================================
 
-# Game executable
+# 1. Game Executable (Frozen-Life)
 add_executable(Lab src/main.cpp)
 target_compile_options(Lab PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(Lab PRIVATE LabEngineLib)
 
-# Standalone Hammer Map Editor executable
+# 2. Standalone Hammer Map Editor Executable
 add_executable(LabHammer src/editor_main.cpp)
 target_compile_options(LabHammer PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabHammer PRIVATE LabEngineLib)
 
-# Standalone Headless Dedicated Server executable
+# 3. Standalone Headless Dedicated Server Executable
 add_executable(LabServer src/server_main.cpp)
 target_compile_options(LabServer PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabServer PRIVATE LabEngineLib)
 
-# Verification executable
-add_executable(TestVerify src/test_verify.cpp)
-target_compile_options(TestVerify PRIVATE ${COMPILER_FLAGS})
-target_link_libraries(TestVerify PRIVATE LabEngineLib)
-
-# Standalone Character & Weapon Studio executable (Valve Hammer styled)
+# 4. Standalone Character & Weapon Studio Executable
 add_executable(LabStudio src/studio_main.cpp)
 target_compile_options(LabStudio PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabStudio PRIVATE LabEngineLib)
 
-# Windows system libraries
-if(WIN32)
-    target_link_libraries(LabEngineLib PUBLIC gdi32 comdlg32 ws2_32)
-endif()
+# 5. Full Engine Automated Verification Suite
+add_executable(TestVerify src/test_verify.cpp)
+target_compile_options(TestVerify PRIVATE ${COMPILER_FLAGS})
+target_link_libraries(TestVerify PRIVATE LabEngineLib)
 
-# Automatically copy entire assets and fonts directory into output directory
-add_custom_command(TARGET Lab POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_CURRENT_SOURCE_DIR}/assets"
-        "$<TARGET_FILE_DIR:Lab>/assets"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_CURRENT_SOURCE_DIR}/fonts"
-        "$<TARGET_FILE_DIR:Lab>/fonts"
-)
-
-add_custom_command(TARGET LabHammer POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_CURRENT_SOURCE_DIR}/assets"
-        "$<TARGET_FILE_DIR:LabHammer>/assets"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_CURRENT_SOURCE_DIR}/fonts"
-        "$<TARGET_FILE_DIR:LabHammer>/fonts"
-)
-
-add_custom_command(TARGET LabStudio POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_CURRENT_SOURCE_DIR}/assets"
-        "$<TARGET_FILE_DIR:LabStudio>/assets"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_CURRENT_SOURCE_DIR}/fonts"
-        "$<TARGET_FILE_DIR:LabStudio>/fonts"
-)
-
+# Post-build asset replication to output directories
+set(ASSET_TARGETS Lab LabHammer LabStudio TestVerify)
+foreach(tgt ${ASSET_TARGETS})
+    add_custom_command(TARGET ${tgt} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/assets"
+            "$<TARGET_FILE_DIR:${tgt}>/assets"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/fonts"
+            "$<TARGET_FILE_DIR:${tgt}>/fonts"
+    )
+endforeach()

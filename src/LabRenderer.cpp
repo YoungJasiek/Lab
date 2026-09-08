@@ -2,6 +2,7 @@
 #include "LabSkeletal.h"
 #include "LabFace.h"
 #include <glad/gl.h>
+#include <GLFW/glfw3.h>
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_NO_SIMD
 #include "stb_image.h"
@@ -647,7 +648,9 @@ namespace Lab {
     }
 
     Texture::~Texture() {
-        if (_id) glDeleteTextures(1, &_id);
+        if (_id && glfwGetCurrentContext() != nullptr) {
+            glDeleteTextures(1, &_id);
+        }
     }
 
     void Texture::bind(unsigned int slot) const {
@@ -726,9 +729,11 @@ namespace Lab {
     }
 
     Mesh::~Mesh() {
-        glDeleteBuffers(1, &_vbo);
-        glDeleteBuffers(1, &_ebo);
-        glDeleteVertexArrays(1, &_vao);
+        if (glfwGetCurrentContext() != nullptr) {
+            if (_vbo) glDeleteBuffers(1, &_vbo);
+            if (_ebo) glDeleteBuffers(1, &_ebo);
+            if (_vao) glDeleteVertexArrays(1, &_vao);
+        }
     }
 
     // --- Skybox Implementation ---

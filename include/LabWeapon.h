@@ -31,6 +31,13 @@ namespace Lab {
         Count = 9
     };
 
+    // --- Bot Weapon Socket Configuration ---
+    struct BotWeaponConfig {
+        Vec3 offset{ 0.0f, -0.05f, 0.02f };     // Translation in meters relative to wrist socket
+        Vec3 rotation{ 5.73f, -11.46f, 0.0f };  // Rotation (Pitch X, Yaw Y, Roll Z in degrees)
+        Vec3 scale{ 1.0f, 1.0f, 1.0f };         // Scale multiplier
+    };
+
     struct WeaponDef {
         WeaponID id = WeaponID::Pistol;
         int slot = 2; // 1 to 9

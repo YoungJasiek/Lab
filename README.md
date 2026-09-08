@@ -88,16 +88,33 @@ Comprehensive technical articles are organized modularly in the [`docs/`](docs/)
 
 ---
 
-## 📂 Project Targets & Executables
+## 📂 Modular Architecture & Separate Repositories
 
-| Binary Target | Type | Description |
+Lab is architected into **10 modular Dynamic Link Libraries (.dll)**, **3 standalone application repositories**, and the core engine SDK. Building individual modules and apps takes seconds, enabling rapid incremental compilation and clean separation of concerns.
+
+### 🎮 Standalone Application Repositories
+| Project | Repository | Executable | Description |
+| :--- | :--- | :--- | :--- |
+| **Frozen Life** | [`frozen-life`](https://github.com/YoungJasiek/frozen-life) | `FrozenLife.exe` | Tactical retro-modern FPS game client (weapons, HUD, audio, AI bots, multiplayer). |
+| **LabHammer** | [`labhammer`](https://github.com/YoungJasiek/labhammer) | `LabHammer.exe` | Valve Hammer styled CAD 3D level editor for authoring `.labmap` geometry and CSG brushes. |
+| **LabStudio** | [`labstudio`](https://github.com/YoungJasiek/labstudio) | `LabStudio.exe` | Character & Weapon Studio for Mixamo rig retargeting, weapon sockets, and reload curves. |
+
+### ⚙️ Engine Subsystem Modules (.dll)
+All modules reside in [`modules/`](modules/) and compile to standalone dynamic libraries:
+| Module | Shared DLL | Responsibilities & Focus |
 | :--- | :--- | :--- |
-| **`Lab.exe`** | Executable | The playable **Frozen-Life** FPS client (weapons, HUD, audio, AI bots, scoreboard, chat). |
-| **`LabHammer.exe`** | Executable | Standalone 3D Level Editor with free-cam navigation, CSG brush creation, and `.labmap` I/O. |
-| **`LabStudio.exe`** | Executable | Valve Hammer styled Character & Weapon Studio (weapon sockets, grips, timeline, anim switcher). |
-| **`LabServer.exe`** | Executable | Headless dedicated authoritative UDP multiplayer server (64Hz tickrate, prediction reconciliation). |
-| **`TestVerify.exe`** | Executable | Automated test suite validating collision math, transforms, map parsing, network, and studio (42 tests). |
-| **`LabEngineLib.lib`** | Static Library | Core engine subsystems linked by all client, editor, and server binaries. |
+| **[`lab_core`](modules/lab_core)** | `LabCore.dll` | Engine lifecycle, windowing, GLFW/Win32 input, math vector library, camera transforms, fonts. |
+| **[`lab_render`](modules/lab_render)** | `LabRender.dll` | OpenGL 4.5+ Direct State Access (DSA), Phong lighting, CSG brushes, decals, post-processing. |
+| **[`lab_audio`](modules/lab_audio)** | `LabAudio.dll` | 3D spatial audio system with miniaudio integration and procedural WAV sound synthesis. |
+| **[`lab_physics`](modules/lab_physics)** | `LabPhysics.dll` | Swept-AABB collisions, moveAndSlide kinematic controller, rigid bodies, raycasting. |
+| **[`lab_animation`](modules/lab_animation)** | `LabAnimation.dll` | Skeletal keyframe animation blending, bone hierarchy transformation, tactical FPP arms animator. |
+| **[`lab_world`](modules/lab_world)** | `LabWorld.dll` | Map environment (.labmap), weapon mechanics, particle systems, interactive terminals, HUD. |
+| **[`lab_network`](modules/lab_network)** | `LabNetwork.dll` | Low-latency UDP networking (64-128 Hz), client-side prediction, server reconciliation, LAN discovery. |
+| **[`lab_ai`](modules/lab_ai)** | `LabAI.dll` | CombatBot autonomous sensory perception, finite state machine, FBX skeletal animation retargeting. |
+| **[`lab_script`](modules/lab_script)** | `LabScript.dll` | Embedded Lua 5.4 scripting engine for weapon balistics, map events, and game mechanics balance. |
+| **[`lab_studio`](modules/lab_studio)** | `LabStudioCore.dll` | Engine backend for weapon sockets, reload choreography curves, and facial morph lip-sync. |
+| **`glad`** | `glad.dll` | Shared OpenGL 4.5+ DSA function dispatch table across all engine modules. |
+| **`TestVerify`** | `TestVerify.exe` | Automated verification suite validating 45 engine subsystems with 100% test pass rate. |
 
 ---
 

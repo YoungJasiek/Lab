@@ -3,6 +3,7 @@
 #include <string>
 #include <memory>
 #include "LabMath.h"
+#include "LabExport.h"
 
 struct GLFWwindow;
 
@@ -22,7 +23,7 @@ namespace Lab {
         static void debug(const std::string& msg);
     };
 
-    struct Input {
+    struct LAB_CORE_API Input {
         static bool keys[512];
         static bool mouseButtons[8];
         static Vec2 mousePos;

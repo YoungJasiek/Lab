@@ -8,7 +8,10 @@
 
 namespace Lab {
 
-    static std::ofstream g_logFile("lab_engine.log", std::ios::out | std::ios::app);
+    static std::ofstream& getLogStream() {
+        static std::ofstream s_logFile("lab_engine.log", std::ios::out | std::ios::app);
+        return s_logFile;
+    }
 
     static void logOutput(const std::string& level, const std::string& msg) {
         auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
@@ -19,9 +22,10 @@ namespace Lab {
 
         std::string line = "[" + std::string(timeBuf) + "] [" + level + "] " + msg;
         std::cout << line << std::endl;
-        if (g_logFile.is_open()) {
-            g_logFile << line << std::endl;
-            g_logFile.flush();
+        auto& logFile = getLogStream();
+        if (logFile.is_open()) {
+            logFile << line << std::endl;
+            logFile.flush();
         }
     }
 

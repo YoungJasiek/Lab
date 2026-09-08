@@ -8,7 +8,6 @@
 #include "LabSkeletal.h"
 #include "LabRenderer.h"
 #include "LabWeapon.h"
-#include "LabStudio.h"
 
 namespace Lab {
 
