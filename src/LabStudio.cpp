@@ -682,7 +682,7 @@ namespace Lab {
     void CharacterStudio::update(float dt, float mouseX, float mouseY, bool lmbPressed, bool rmbPressed, float scrollDelta) {
         _mouseX = mouseX;
         _mouseY = mouseY;
-        _lmbClicked = (lmbPressed && !_lastLmb);
+        _lmbClicked = Input::isMouseButtonJustPressed(0) || (lmbPressed && !_lastLmb);
         _lmbPressed = lmbPressed;
         _rmbPressed = rmbPressed;
 

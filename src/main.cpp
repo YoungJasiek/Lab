@@ -604,22 +604,11 @@ public:
 
             double curX = 0.0, curY = 0.0;
             glfwGetCursorPos(getWindow(), &curX, &curY);
-            float scaleX = 1280.0f / (float)std::max(1, getWidth());
-            float scaleY = 720.0f / (float)std::max(1, getHeight());
-            float mx = (float)curX * scaleX;
-            float my = (float)curY * scaleY;
+            float mx = (winW > 0) ? ((float)curX * 1280.0f / (float)winW) : (float)curX;
+            float my = (winH > 0) ? ((float)curY * 720.0f / (float)winH) : (float)curY;
             _menuMouseX = mx;
             _menuMouseY = my;
-            bool lmbJustPressed = false;
-
-            if (Input::isMouseButtonPressed(0)) {
-                if (!_menuLmbLast) {
-                    lmbJustPressed = true;
-                    _menuLmbLast = true;
-                }
-            } else {
-                _menuLmbLast = false;
-            }
+            bool lmbJustPressed = Input::isMouseButtonJustPressed(0);
 
             if (_menuScreen == MenuScreen::JoinGame) {
                 _serverBrowser.update(time.delta);
@@ -2136,20 +2125,6 @@ public:
         if (_inMenu) {
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             drawMenu();
-            if (_menuScreen != MenuScreen::CharacterStudio) {
-                int fbW = 0, fbH = 0;
-                glfwGetFramebufferSize(getWindow(), &fbW, &fbH);
-                int w = (fbW > 0) ? fbW : getWidth();
-                int h = (fbH > 0) ? fbH : getHeight();
-                Renderer::beginUI(w, h);
-                float cx = _menuMouseX * ((float)w / 1280.0f);
-                float cy = _menuMouseY * ((float)h / 720.0f);
-                Renderer::drawRect(cx, cy, 2.0f, 16.0f, Vec3(0.0f, 0.0f, 0.0f));
-                Renderer::drawRect(cx, cy, 14.0f, 2.0f, Vec3(0.0f, 0.0f, 0.0f));
-                Renderer::drawRect(cx + 1.0f, cy + 1.0f, 11.0f, 11.0f, Vec3(1.0f, 1.0f, 1.0f));
-                Renderer::drawRect(cx + 2.0f, cy + 2.0f, 8.0f, 8.0f, Vec3(0.15f, 0.15f, 0.15f));
-                Renderer::endUI();
-            }
             return;
         }
 

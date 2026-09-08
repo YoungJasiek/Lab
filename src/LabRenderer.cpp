@@ -1,4 +1,5 @@
 #include "LabRenderer.h"
+#include "LabCore.h"
 #include "LabSkeletal.h"
 #include "LabFace.h"
 #include <glad/gl.h>
@@ -1417,12 +1418,21 @@ namespace Lab {
     }
 
     void Renderer::beginUI(int windowWidth, int windowHeight) {
-        glViewport(0, 0, windowWidth, windowHeight);
+        int fbW = windowWidth;
+        int fbH = windowHeight;
+        Engine* eng = Engine::get();
+        if (eng && eng->getWindow()) {
+            glfwGetFramebufferSize(eng->getWindow(), &fbW, &fbH);
+        }
+        if (fbW <= 0) fbW = windowWidth;
+        if (fbH <= 0) fbH = windowHeight;
+
+        glViewport(0, 0, fbW, fbH);
         glDisable(GL_DEPTH_TEST);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         
-        // Ortho projection
+        // Ortho projection maps virtual coordinates (0..windowWidth, 0..windowHeight) to full viewport
         _uiProjMatrix.m[0] = 2.0f / windowWidth; _uiProjMatrix.m[4] = 0.0f; _uiProjMatrix.m[8] = 0.0f; _uiProjMatrix.m[12] = -1.0f;
         _uiProjMatrix.m[1] = 0.0f; _uiProjMatrix.m[5] = -2.0f / windowHeight; _uiProjMatrix.m[9] = 0.0f; _uiProjMatrix.m[13] = 1.0f;
         _uiProjMatrix.m[2] = 0.0f; _uiProjMatrix.m[6] = 0.0f; _uiProjMatrix.m[10] = -1.0f; _uiProjMatrix.m[14] = 0.0f;

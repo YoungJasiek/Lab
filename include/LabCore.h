@@ -26,16 +26,36 @@ namespace Lab {
 
     struct LAB_CORE_API Input {
         static bool keys[512];
+        static bool keysJustPressed[512];
+        static bool keysJustReleased[512];
         static bool mouseButtons[8];
+        static bool mouseButtonsJustPressed[8];
+        static bool mouseButtonsJustReleased[8];
         static Vec2 mousePos;
         static Vec2 mouseDelta;
         static float scrollDelta;
 
         static bool isKeyPressed(int key) {
             if (key >= 'a' && key <= 'z') key = key - 'a' + 'A';
-            return key >= 0 && key < 512 && keys[key];
+            return key >= 0 && key < 512 && (keys[key] || keysJustPressed[key]);
         }
-        static bool isMouseButtonPressed(int button) { return button >= 0 && button < 8 && mouseButtons[button]; }
+        static bool isKeyJustPressed(int key) {
+            if (key >= 'a' && key <= 'z') key = key - 'a' + 'A';
+            return key >= 0 && key < 512 && keysJustPressed[key];
+        }
+        static bool isKeyJustReleased(int key) {
+            if (key >= 'a' && key <= 'z') key = key - 'a' + 'A';
+            return key >= 0 && key < 512 && keysJustReleased[key];
+        }
+        static bool isMouseButtonPressed(int button) {
+            return button >= 0 && button < 8 && (mouseButtons[button] || mouseButtonsJustPressed[button]);
+        }
+        static bool isMouseButtonJustPressed(int button) {
+            return button >= 0 && button < 8 && mouseButtonsJustPressed[button];
+        }
+        static bool isMouseButtonJustReleased(int button) {
+            return button >= 0 && button < 8 && mouseButtonsJustReleased[button];
+        }
     };
 
     class LAB_CORE_API Engine {

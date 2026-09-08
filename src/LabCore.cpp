@@ -5,6 +5,7 @@
 #include <fstream>
 #include <chrono>
 #include <ctime>
+#include <cstring>
 
 namespace Lab {
 
@@ -36,7 +37,11 @@ namespace Lab {
 
     Engine* Engine::_instance = nullptr;
     bool Input::keys[512] = { false };
+    bool Input::keysJustPressed[512] = { false };
+    bool Input::keysJustReleased[512] = { false };
     bool Input::mouseButtons[8] = { false };
+    bool Input::mouseButtonsJustPressed[8] = { false };
+    bool Input::mouseButtonsJustReleased[8] = { false };
     Vec2 Input::mousePos = { 0, 0 };
     Vec2 Input::mouseDelta = { 0, 0 };
     float Input::scrollDelta = 0.0f;
@@ -113,6 +118,29 @@ namespace Lab {
         const float fixedDelta = 1.0f / 64.0f; // 64-tick physics rate
         
         while (!glfwWindowShouldClose(_window) && _running) {
+            // Clear transient per-frame edge states before polling
+            std::memset(Input::keysJustPressed, 0, sizeof(Input::keysJustPressed));
+            std::memset(Input::keysJustReleased, 0, sizeof(Input::keysJustReleased));
+            std::memset(Input::mouseButtonsJustPressed, 0, sizeof(Input::mouseButtonsJustPressed));
+            std::memset(Input::mouseButtonsJustReleased, 0, sizeof(Input::mouseButtonsJustReleased));
+            Input::mouseDelta = { 0, 0 };
+            Input::scrollDelta = 0.0f;
+
+            glfwPollEvents();
+
+            // Synchronize cursor position directly from GLFW
+            double curX = 0, curY = 0;
+            glfwGetCursorPos(_window, &curX, &curY);
+            Input::mousePos.x = (float)curX;
+            Input::mousePos.y = (float)curY;
+
+            // Maintain continuous hold state for pressed buttons
+            for (int b = 0; b < 8; ++b) {
+                if (glfwGetMouseButton(_window, b) == GLFW_PRESS) {
+                    Input::mouseButtons[b] = true;
+                }
+            }
+
             double currentTime = glfwGetTime();
             float frameTime = (float)(currentTime - _lastFrameTime);
             if (frameTime > 0.25f) frameTime = 0.25f; // Clamp to avoid spiral of death
@@ -135,21 +163,6 @@ namespace Lab {
             onRender();
 
             glfwSwapBuffers(_window);
-            
-            // Reset delta before poll events
-            Input::mouseDelta = { 0, 0 };
-            Input::scrollDelta = 0.0f;
-            glfwPollEvents();
-
-            // Continuously synchronize exact cursor position directly from GLFW
-            double curX = 0, curY = 0;
-            glfwGetCursorPos(_window, &curX, &curY);
-            Input::mousePos.x = (float)curX;
-            Input::mousePos.y = (float)curY;
-
-            for (int b = 0; b < 8; ++b) {
-                Input::mouseButtons[b] = (glfwGetMouseButton(_window, b) == GLFW_PRESS);
-            }
         }
 
         onShutdown();
@@ -182,20 +195,26 @@ namespace Lab {
     void Engine::_keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
         (void)window; (void)scancode; (void)mods;
         if (key >= 0 && key < 512) {
-            if (action == GLFW_PRESS) Input::keys[key] = true;
-            else if (action == GLFW_RELEASE) Input::keys[key] = false;
-        }
-        
-        if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
-            if (_instance) _instance->stop();
+            if (action == GLFW_PRESS) {
+                Input::keys[key] = true;
+                Input::keysJustPressed[key] = true;
+            } else if (action == GLFW_RELEASE) {
+                Input::keys[key] = false;
+                Input::keysJustReleased[key] = true;
+            }
         }
     }
 
     void Engine::_mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
         (void)window; (void)mods;
         if (button >= 0 && button < 8) {
-            if (action == GLFW_PRESS) Input::mouseButtons[button] = true;
-            else if (action == GLFW_RELEASE) Input::mouseButtons[button] = false;
+            if (action == GLFW_PRESS) {
+                Input::mouseButtons[button] = true;
+                Input::mouseButtonsJustPressed[button] = true;
+            } else if (action == GLFW_RELEASE) {
+                Input::mouseButtons[button] = false;
+                Input::mouseButtonsJustReleased[button] = true;
+            }
         }
     }
 

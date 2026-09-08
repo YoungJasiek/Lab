@@ -4689,6 +4689,55 @@ int main() {
         std::cout << "  [PASS] DedicatedServer clean shutdown verified.\n";
     }
 
+    // =========================================================================
+    // TEST 46: Robust Input Edge Transitions & Mouse Click Latch
+    // =========================================================================
+    {
+        std::cout << "\n[Test 46] Verifying Robust Input Edge Transitions & Mouse Click Latch...\n";
+        
+        // 1. Reset state
+        std::memset(Lab::Input::keys, 0, sizeof(Lab::Input::keys));
+        std::memset(Lab::Input::keysJustPressed, 0, sizeof(Lab::Input::keysJustPressed));
+        std::memset(Lab::Input::keysJustReleased, 0, sizeof(Lab::Input::keysJustReleased));
+        std::memset(Lab::Input::mouseButtons, 0, sizeof(Lab::Input::mouseButtons));
+        std::memset(Lab::Input::mouseButtonsJustPressed, 0, sizeof(Lab::Input::mouseButtonsJustPressed));
+        std::memset(Lab::Input::mouseButtonsJustReleased, 0, sizeof(Lab::Input::mouseButtonsJustReleased));
+
+        // 2. Simulate instantaneous single-frame click (button down and up in same poll)
+        Lab::Input::mouseButtonsJustPressed[0] = true;
+        Lab::Input::mouseButtons[0] = false; // physically released before frame update!
+
+        if (!Lab::Input::isMouseButtonJustPressed(0)) {
+            std::cerr << "Assertion failed: isMouseButtonJustPressed(0) returned false for transient click!\n";
+            return 1;
+        }
+        if (!Lab::Input::isMouseButtonPressed(0)) {
+            std::cerr << "Assertion failed: isMouseButtonPressed(0) returned false for transient click frame!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Single-frame transient LMB click latch verified!\n";
+
+        // 3. Simulate frame clear
+        std::memset(Lab::Input::mouseButtonsJustPressed, 0, sizeof(Lab::Input::mouseButtonsJustPressed));
+        if (Lab::Input::isMouseButtonJustPressed(0)) {
+            std::cerr << "Assertion failed: isMouseButtonJustPressed(0) should be false after frame clear!\n";
+            return 1;
+        }
+        if (Lab::Input::isMouseButtonPressed(0)) {
+            std::cerr << "Assertion failed: isMouseButtonPressed(0) should be false after release!\n";
+            return 1;
+        }
+
+        // 4. Test Key Edge Trigger
+        Lab::Input::keysJustPressed['M'] = true;
+        if (!Lab::Input::isKeyJustPressed('m') || !Lab::Input::isKeyPressed('m')) {
+            std::cerr << "Assertion failed: isKeyJustPressed / isKeyPressed failed for case-insensitive 'm'!\n";
+            return 1;
+        }
+        std::memset(Lab::Input::keysJustPressed, 0, sizeof(Lab::Input::keysJustPressed));
+        std::cout << "  [PASS] Key and mouse edge transitions verified!\n";
+    }
+
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();
