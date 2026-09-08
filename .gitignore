@@ -16,3 +16,4 @@ Backups/
 .vs/
 bin/
 assets/inwork/
+assets/configs/test_generated_server.cfg
