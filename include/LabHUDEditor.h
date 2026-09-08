@@ -1,4 +1,6 @@
 #pragma once
+#ifndef LAB_HUD_EDITOR_H
+#define LAB_HUD_EDITOR_H
 #include <string>
 #include <vector>
 #include <array>
@@ -375,3 +377,5 @@ namespace Lab {
     };
 
 } // namespace Lab
+
+#endif // LAB_HUD_EDITOR_H
