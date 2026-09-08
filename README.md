@@ -16,14 +16,19 @@
 
 ## 📖 Overview
 
-**Lab** is a high-performance, modular First-Person Shooter (FPS) game engine written from scratch in modern **C++20** and **OpenGL 4.5+ Core (Direct State Access)**. 
+**Lab** is a general-purpose, high-performance modular **3D Game Engine SDK** written from scratch in modern **C++20** and **OpenGL 4.5+ Core (Direct State Access)**. 
 
-The project encompasses five tightly integrated targets:
-1. **Frozen-Life (FL)** (`Lab.exe`): A fast-paced tactical FPS prototype inspired by the visual language, contrast, and movement mechanics of the classic **Source Engine** (*Half-Life 2*).
-2. **LabHammer** (`LabHammer.exe`): A standalone CAD-style 3D level editor for authoring geometry, dynamic doors, light sources, player spawns, and weapon pickup nodes in plain-text `.labmap` files.
-3. **LabStudio** (`LabStudio.exe`): A Valve Hammer styled Character & Weapon Studio for 3D weapon grip posing, bot weapon socket alignment, ADS optical tuning, reload choreography, facial morphs, and kinematic animation previewing.
-4. **LabServer** (`LabServer.exe`): Dedicated authoritative UDP multiplayer server running a deterministic 64Hz tickrate simulation with client prediction reconciliation.
-5. **LabEngineLib** (`LabEngineLib.lib`): The shared static engine library providing deterministic game loop timing, DSA rendering pipelines, Kay-Kajiya slab ray-AABB collision math, glTF 2.0 GPU skeletal animation, miniaudio spatial sound, and Lua 5.4 scripting.
+> [!IMPORTANT]
+> **Lab is the Game Engine SDK; Frozen-Life is its flagship demo game.**
+> Lab is designed to build *any* 3D game, simulation, or CAD tool. The engine is architected into 10 decoupled dynamic link libraries (`.dll`), enabling rapid incremental compilation, clean modularity, and independent maintenance across separate Git repositories.
+
+The project encompasses the following core targets:
+1. **Lab Engine Showcase** (`Lab.exe`): Interactive 3D engine sandbox demonstrating fixed-timestep 64Hz physics, dynamic lighting, spatial audio, particles, and Lua 5.4 scripting for developers building games on Lab.
+2. **Frozen-Life (FL)** (`FrozenLife.exe`): The flagship tactical FPS demonstration game built on top of the Lab Engine SDK (also available as an independent repository).
+3. **LabHammer** (`LabHammer.exe`): Standalone CAD-style 3D level editor for authoring geometry, dynamic doors, light sources, player spawns, and weapon pickup nodes in plain-text `.labmap` files.
+4. **LabStudio** (`LabStudio.exe`): Valve Hammer styled Character & Weapon Studio for 3D weapon grip posing, bot weapon socket alignment, ADS optical tuning, reload choreography, and animation previewing.
+5. **LabServer** (`LabServer.exe`): Dedicated authoritative UDP multiplayer server running a deterministic 64-128Hz tickrate simulation.
+6. **10 Modular Engine Subsystems** (`LabCore.dll` through `LabStudioCore.dll`): Decoupled DLL libraries consumable by any game or application.
 
 ---
 
@@ -100,21 +105,22 @@ Lab is architected into **10 modular Dynamic Link Libraries (.dll)**, **3 standa
 | **LabStudio** | [`labstudio`](https://github.com/YoungJasiek/labstudio) | `LabStudio.exe` | Character & Weapon Studio for Mixamo rig retargeting, weapon sockets, and reload curves. |
 
 ### ⚙️ Engine Subsystem Modules (.dll)
-All modules reside in [`modules/`](modules/) and compile to standalone dynamic libraries:
-| Module | Shared DLL | Responsibilities & Focus |
-| :--- | :--- | :--- |
-| **[`lab_core`](modules/lab_core)** | `LabCore.dll` | Engine lifecycle, windowing, GLFW/Win32 input, math vector library, camera transforms, fonts. |
-| **[`lab_render`](modules/lab_render)** | `LabRender.dll` | OpenGL 4.5+ Direct State Access (DSA), Phong lighting, CSG brushes, decals, post-processing. |
-| **[`lab_audio`](modules/lab_audio)** | `LabAudio.dll` | 3D spatial audio system with miniaudio integration and procedural WAV sound synthesis. |
-| **[`lab_physics`](modules/lab_physics)** | `LabPhysics.dll` | Swept-AABB collisions, moveAndSlide kinematic controller, rigid bodies, raycasting. |
-| **[`lab_animation`](modules/lab_animation)** | `LabAnimation.dll` | Skeletal keyframe animation blending, bone hierarchy transformation, tactical FPP arms animator. |
-| **[`lab_world`](modules/lab_world)** | `LabWorld.dll` | Map environment (.labmap), weapon mechanics, particle systems, interactive terminals, HUD. |
-| **[`lab_network`](modules/lab_network)** | `LabNetwork.dll` | Low-latency UDP networking (64-128 Hz), client-side prediction, server reconciliation, LAN discovery. |
-| **[`lab_ai`](modules/lab_ai)** | `LabAI.dll` | CombatBot autonomous sensory perception, finite state machine, FBX skeletal animation retargeting. |
-| **[`lab_script`](modules/lab_script)** | `LabScript.dll` | Embedded Lua 5.4 scripting engine for weapon balistics, map events, and game mechanics balance. |
-| **[`lab_studio`](modules/lab_studio)** | `LabStudioCore.dll` | Engine backend for weapon sockets, reload choreography curves, and facial morph lip-sync. |
-| **`glad`** | `glad.dll` | Shared OpenGL 4.5+ DSA function dispatch table across all engine modules. |
-| **`TestVerify`** | `TestVerify.exe` | Automated verification suite validating 45 engine subsystems with 100% test pass rate. |
+Each engine subsystem is maintained as an independent repository with its own `README.md`, standalone `CMakeLists.txt`, and dedicated web documentation page:
+
+| Subsystem Module | Shared DLL | Online Documentation | Responsibilities & Focus |
+| :--- | :--- | :--- | :--- |
+| **[`lab-core`](https://github.com/YoungJasiek/lab-core)** | `LabCore.dll` | [📖 Core Docs](https://youngjasiek.github.io/Lab/module-core.html) | Engine lifecycle, windowing, GLFW/Win32 input, math vector library, camera transforms, fonts. |
+| **[`lab-render`](https://github.com/YoungJasiek/lab-render)** | `LabRender.dll` | [📖 Render Docs](https://youngjasiek.github.io/Lab/module-render.html) | OpenGL 4.5+ Direct State Access (DSA), Phong lighting, CSG brushes, decals, post-processing. |
+| **[`lab-audio`](https://github.com/YoungJasiek/lab-audio)** | `LabAudio.dll` | [📖 Audio Docs](https://youngjasiek.github.io/Lab/module-audio.html) | 3D spatial audio system with miniaudio integration and procedural WAV sound synthesis. |
+| **[`lab-physics`](https://github.com/YoungJasiek/lab-physics)** | `LabPhysics.dll` | [📖 Physics Docs](https://youngjasiek.github.io/Lab/module-physics.html) | Swept-AABB collisions, moveAndSlide kinematic controller, rigid bodies, raycasting. |
+| **[`lab-animation`](https://github.com/YoungJasiek/lab-animation)** | `LabAnimation.dll` | [📖 Animation Docs](https://youngjasiek.github.io/Lab/module-animation.html) | Skeletal keyframe animation blending, bone hierarchy transformation, tactical FPP arms animator. |
+| **[`lab-world`](https://github.com/YoungJasiek/lab-world)** | `LabWorld.dll` | [📖 World Docs](https://youngjasiek.github.io/Lab/module-world.html) | Map environment (.labmap), weapon mechanics, particle systems, interactive terminals, HUD. |
+| **[`lab-network`](https://github.com/YoungJasiek/lab-network)** | `LabNetwork.dll` | [📖 Network Docs](https://youngjasiek.github.io/Lab/module-network.html) | Low-latency UDP networking (64-128 Hz), client-side prediction, server reconciliation, LAN discovery. |
+| **[`lab-ai`](https://github.com/YoungJasiek/lab-ai)** | `LabAI.dll` | [📖 AI Docs](https://youngjasiek.github.io/Lab/module-ai.html) | CombatBot autonomous sensory perception, finite state machine, FBX skeletal animation retargeting. |
+| **[`lab-script`](https://github.com/YoungJasiek/lab-script)** | `LabScript.dll` | [📖 Script Docs](https://youngjasiek.github.io/Lab/module-script.html) | Embedded Lua 5.4 scripting engine for weapon ballistics, map events, and game mechanics balance. |
+| **[`lab-studio`](https://github.com/YoungJasiek/lab-studio)** | `LabStudioCore.dll` | [📖 Studio Docs](https://youngjasiek.github.io/Lab/module-studio.html) | Engine backend for weapon sockets, reload choreography curves, and facial morph lip-sync. |
+| **`glad`** | `glad.dll` | [📖 OpenGL 4.5+ DSA](https://youngjasiek.github.io/Lab/opengl-dsa.html) | Shared OpenGL 4.5+ DSA function dispatch table across all engine modules. |
+| **`TestVerify`** | `TestVerify.exe` | [📖 Architecture](https://youngjasiek.github.io/Lab/architecture.html) | Automated verification suite validating 45 engine subsystems with 100% test pass rate. |
 
 ---
 

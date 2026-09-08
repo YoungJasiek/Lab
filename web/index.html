@@ -59,18 +59,34 @@
     <!-- Left Sidebar Navigation -->
     <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
       <div class="sidebar-block">
-                <div class="sidebar-title">Documentation</div>
+        <div class="sidebar-title">Engine Modules (.dll)</div>
+        <ul class="sidebar-links">
+          <li><a href="module-core.html">LabCore.dll</a></li>
+          <li><a href="module-render.html">LabRender.dll</a></li>
+          <li><a href="module-audio.html">LabAudio.dll</a></li>
+          <li><a href="module-physics.html">LabPhysics.dll</a></li>
+          <li><a href="module-animation.html">LabAnimation.dll</a></li>
+          <li><a href="module-world.html">LabWorld.dll</a></li>
+          <li><a href="module-network.html">LabNetwork.dll</a></li>
+          <li><a href="module-ai.html">LabAI.dll</a></li>
+          <li><a href="module-script.html">LabScript.dll</a></li>
+          <li><a href="module-studio.html">LabStudioCore.dll</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Documentation</div>
         <ul class="sidebar-links">
           <li><a href="index.html" class="active">Main Page (Portal)</a></li>
+          <li><a href="frozen-life.html">Frozen-Life (Demo FPS)</a></li>
           <li><a href="labhammer.html">LabHammer Editor</a></li>
-          <li><a href="character-studio.html">Character & Weapon Studio</a></li>
-          <li><a href="skeletal-animations.html">Skeletal & FBX Animations</a></li>
+          <li><a href="character-studio.html">Character &amp; Weapon Studio</a></li>
+          <li><a href="skeletal-animations.html">Skeletal &amp; FBX Animations</a></li>
           <li><a href="bot-ai.html">Combat Bot AI</a></li>
-          <li><a href="weapons-viewmodel.html">Weapons & Viewmodel</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></li>
           <li><a href="multiplayer.html">UDP Multiplayer</a></li>
-          <li><a href="audio-synthesizer.html">3D Audio & Synthesizer</a></li>
+          <li><a href="audio-synthesizer.html">3D Audio &amp; Synthesizer</a></li>
           <li><a href="lua-scripting.html">Lua 5.4 Scripting</a></li>
-          <li><a href="frozen-life.html">Frozen-Life Build</a></li>
           <li><a href="architecture.html">Engine Architecture</a></li>
           <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
           <li><a href="building.html">Building from Source</a></li>
@@ -131,17 +147,17 @@
       <div id="welcome" class="vdc-portal-banner">
         <h2 class="vdc-banner-title">Welcome to the <span>Lab Developer Community</span></h2>
         <p class="vdc-banner-desc">
-          The comprehensive engineering knowledge base and reference wiki for <strong>Lab Engine</strong>, the standalone 3D level editor <strong>LabHammer</strong>, and the official <strong>First Playable Test Build of Frozen-Life (FL)</strong>. Engineered from scratch in modern <strong>C++20</strong>, featuring an <strong>OpenGL 4.5+ Direct State Access (DSA)</strong> rendering pipeline, strict RAII memory management with zero raw pointers, branchless ray-AABB physics, and native real-time level authoring tools.
+          The comprehensive engineering knowledge base and reference wiki for <strong>Lab Engine</strong> – a high-performance, modular C++20 &amp; OpenGL 4.5+ Direct State Access (DSA) 3D Game Engine designed for building tactical FPS games, simulation software, and CAD tools. <strong>Frozen-Life (FL)</strong> is the flagship playable demonstration game powered by the Lab Engine.
         </p>
         <div class="vdc-banner-badges">
-          <span class="vdc-badge accent">Game: Lab.exe (Frozen-Life FPS)</span>
-          <span class="vdc-badge accent">Editor: LabHammer.exe (CSG &amp; CAD)</span>
+          <span class="vdc-badge accent">Engine: Lab SDK (10 Modular DLLs)</span>
+          <span class="vdc-badge accent">Demo Game: FrozenLife.exe</span>
+          <span class="vdc-badge accent">Editor: LabHammer.exe</span>
+          <span class="vdc-badge accent">Studio: LabStudio.exe</span>
           <span class="vdc-badge">Language: ISO C++20 / C++23</span>
           <span class="vdc-badge">Renderer: OpenGL 4.5+ DSA</span>
-          <span class="vdc-badge">Physics: 3D Rigid Body Dynamics</span>
-          <span class="vdc-badge">Audio: miniaudio 3D Synthesizers</span>
-          <span class="vdc-badge">Animation: glTF 2.0 GPU Skinning</span>
-          <span class="vdc-badge accent">Format: .labmap (Plain-Text Polyhedra)</span>
+          <span class="vdc-badge">Network: Authoritative UDP (64-128Hz)</span>
+          <span class="vdc-badge">Scripting: Lua 5.4</span>
         </div>
       </div>
 
@@ -169,9 +185,9 @@
         <div class="portal-box">
           <div class="portal-header">
             <span class="portal-icon">&#127918;</span>
-            <h3 class="portal-title"><a href="frozen-life.html">Frozen-Life Test Build</a></h3>
+            <h3 class="portal-title"><a href="frozen-life.html">Frozen-Life (Engine Demo Game)</a></h3>
           </div>
-          <p class="portal-desc">Official v0.1.0-alpha playable build milestone in <code>Lab.exe</code>. Included maps, movement mechanics, host server menu, scoreboard overlay, and HUD.</p>
+          <p class="portal-desc">The flagship tactical FPS demonstration game built on the Lab Engine. Demonstrates weapons, dynamic viewmodels, 64-128Hz multiplayer, bot AI, and CSG maps.</p>
           <ul class="portal-links">
             <li><a href="frozen-life.html#sec-maps">&bull; Playable Maps (Cryo &amp; Alpha)</a></li>
             <li><a href="frozen-life.html#sec-controls">&bull; Keybindings &amp; Controls Table</a></li>
@@ -345,7 +361,143 @@
             <li><a href="lua-scripting.html#sec-sandboxing">&bull; Hot-Reloading &amp; Sandboxing</a></li>
           </ul>
         </div>
-</section>
+      </section>
+
+      <!-- ================================================================
+           ENGINE SUBSYSTEM MODULES (10 MODULAR DLLs)
+           ================================================================ -->
+      <section class="wiki-section" id="sec-modules">
+        <h2>Engine Subsystem Modules (10 Modular DLLs)</h2>
+        <p>Lab is architected into 10 decoupled, high-performance dynamic link libraries (<code>.dll</code>). Each module has its own standalone repository on Desktop, public API header interfaces, and independent CMake build pipeline:</p>
+
+        <div class="vdc-portal-grid">
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#9881;</span>
+              <h3 class="portal-title"><a href="module-core.html">LabCore.dll</a></h3>
+            </div>
+            <p class="portal-desc">Engine lifecycle, deterministic 64Hz loop timing, Win32/GLFW input system, linear algebra (Vec2, Vec3, Mat4), camera transforms, and font rendering.</p>
+            <ul class="portal-links">
+              <li><a href="module-core.html#sec-lifecycle">&bull; Fixed Timestep Loop</a></li>
+              <li><a href="module-core.html#sec-input">&bull; Input Polling &amp; Smoothing</a></li>
+              <li><a href="module-core.html#sec-math">&bull; Vector &amp; Matrix Math</a></li>
+            </ul>
+          </div>
+
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#127912;</span>
+              <h3 class="portal-title"><a href="module-render.html">LabRender.dll</a></h3>
+            </div>
+            <p class="portal-desc">OpenGL 4.5+ Direct State Access (DSA), Blinn-Phong lighting, CSG brush clipping, projective impact decals, post-processing, and skeletal animation rendering.</p>
+            <ul class="portal-links">
+              <li><a href="module-render.html#sec-dsa">&bull; DSA Architecture</a></li>
+              <li><a href="module-render.html#sec-lighting">&bull; Shadow Mapping &amp; Spotlights</a></li>
+              <li><a href="module-render.html#sec-csg">&bull; CSG Brush Clipping</a></li>
+            </ul>
+          </div>
+
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#128266;</span>
+              <h3 class="portal-title"><a href="module-audio.html">LabAudio.dll</a></h3>
+            </div>
+            <p class="portal-desc">Low-latency 3D spatial audio system with miniaudio integration and 26 built-in procedural 16-bit PCM sound synthesizers.</p>
+            <ul class="portal-links">
+              <li><a href="module-audio.html#sec-miniaudio">&bull; miniaudio Threading Backend</a></li>
+              <li><a href="module-audio.html#sec-synth">&bull; Procedural Sound Synthesizers</a></li>
+            </ul>
+          </div>
+
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#9878;</span>
+              <h3 class="portal-title"><a href="module-physics.html">LabPhysics.dll</a></h3>
+            </div>
+            <p class="portal-desc">Deterministic 3D physics with swept-AABB collision detection, kinematic moveAndSlide character controller, rigid bodies, and slab raycasting.</p>
+            <ul class="portal-links">
+              <li><a href="module-physics.html#sec-kinematics">&bull; moveAndSlide Controller</a></li>
+              <li><a href="module-physics.html#sec-rigidbody">&bull; Rigid Body Dynamics</a></li>
+              <li><a href="module-physics.html#sec-raycast">&bull; Slab Ray-AABB Math</a></li>
+            </ul>
+          </div>
+
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#129302;</span>
+              <h3 class="portal-title"><a href="module-animation.html">LabAnimation.dll</a></h3>
+            </div>
+            <p class="portal-desc">Skeletal keyframe animation blending, glTF 2.0 / GLB loader, quaternion SLERP interpolation, and articulated cryo-suit FPP arms with telemetry LEDs.</p>
+            <ul class="portal-links">
+              <li><a href="module-animation.html#sec-skeletal">&bull; Skeletal GPU Skinning</a></li>
+              <li><a href="module-animation.html#sec-viewmodel">&bull; Tactical FPP Arms Viewmodel</a></li>
+            </ul>
+          </div>
+
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#127758;</span>
+              <h3 class="portal-title"><a href="module-world.html">LabWorld.dll</a></h3>
+            </div>
+            <p class="portal-desc">Map environment management (.labmap), 9-weapon arsenal mechanics, particle emitters, biometric retinal terminals, session state, and HUD overlay.</p>
+            <ul class="portal-links">
+              <li><a href="module-world.html#sec-labmap">&bull; .labmap Map Specification</a></li>
+              <li><a href="module-world.html#sec-weapons">&bull; 9-Weapon Ballistics</a></li>
+              <li><a href="module-world.html#sec-interactive">&bull; Biometric Retinal Terminals</a></li>
+            </ul>
+          </div>
+
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#128246;</span>
+              <h3 class="portal-title"><a href="module-network.html">LabNetwork.dll</a></h3>
+            </div>
+            <p class="portal-desc">Ultra-low latency UDP client-server networking (64-128Hz), client prediction, server reconciliation, ServerBrowser LAN discovery, and multiplayer chat.</p>
+            <ul class="portal-links">
+              <li><a href="module-network.html#sec-prediction">&bull; Prediction &amp; Reconciliation</a></li>
+              <li><a href="module-network.html#sec-protocol">&bull; Binary UDP Protocol</a></li>
+              <li><a href="module-network.html#sec-browser">&bull; LAN Server Discovery</a></li>
+            </ul>
+          </div>
+
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#128640;</span>
+              <h3 class="portal-title"><a href="module-ai.html">LabAI.dll</a></h3>
+            </div>
+            <p class="portal-desc">Autonomous CombatBot sensory perception (LOS raycasting), behavioral finite state machine, FBX Mixamo skeletal retargeting, and dynamic weapon tactics.</p>
+            <ul class="portal-links">
+              <li><a href="module-ai.html#sec-fsm">&bull; Behavioral Finite State Machine</a></li>
+              <li><a href="module-ai.html#sec-fbx">&bull; FBX Mixamo Retargeting</a></li>
+            </ul>
+          </div>
+
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#128220;</span>
+              <h3 class="portal-title"><a href="module-script.html">LabScript.dll</a></h3>
+            </div>
+            <p class="portal-desc">Embedded Lua 5.4 scripting engine integrating hot-reloadable gameplay mechanics, weapon balistics, map events, and console commands.</p>
+            <ul class="portal-links">
+              <li><a href="module-script.html#sec-lua">&bull; Lua 5.4 Integration</a></li>
+              <li><a href="module-script.html#sec-mechanics">&bull; game_mechanics.lua Balance</a></li>
+            </ul>
+          </div>
+
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#127917;</span>
+              <h3 class="portal-title"><a href="module-studio.html">LabStudioCore.dll</a></h3>
+            </div>
+            <p class="portal-desc">Character &amp; Weapon Studio engine backend for weapon socket calibration, reload choreography curve editing, and facial phoneme lip-sync.</p>
+            <ul class="portal-links">
+              <li><a href="module-studio.html#sec-grips">&bull; Dual-Socket Weapon Grips</a></li>
+              <li><a href="module-studio.html#sec-reload">&bull; Reload Curve Choreography</a></li>
+              <li><a href="module-studio.html#sec-face">&bull; Facial Blend Shapes &amp; Lip-Sync</a></li>
+            </ul>
+          </div>
+        </div>
+      </section>
 
       <!-- ================================================================
            FEATURED ARTICLES SPLIT (WIKIPEDIA STYLE)
