@@ -59,7 +59,7 @@
     <!-- Left Sidebar Navigation -->
     <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
       <div class="sidebar-block">
-        <div class="sidebar-title">Engine Modules (.dll)</div>
+        <div class="sidebar-title"><a href="modules.html" style="color:inherit; text-decoration:none;">Engine Modules (.dll)</a></div>
         <ul class="sidebar-links">
           <li><a href="module-core.html">LabCore.dll</a></li>
           <li><a href="module-render.html">LabRender.dll</a></li>
@@ -367,8 +367,22 @@
            ENGINE SUBSYSTEM MODULES (10 MODULAR DLLs)
            ================================================================ -->
       <section class="wiki-section" id="sec-modules">
-        <h2>Engine Subsystem Modules (10 Modular DLLs)</h2>
-        <p>Lab is architected into 10 decoupled, high-performance dynamic link libraries (<code>.dll</code>). Each module has its own standalone repository on Desktop, public API header interfaces, and independent CMake build pipeline:</p>
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
+          <h2 style="margin: 0;"><a href="modules.html" style="color: inherit; text-decoration: none;">Engine Subsystem Modules (10 Modular DLLs)</a></h2>
+          <a href="modules.html" class="vdc-badge accent" style="text-decoration: none;">&#128196; View Full DLL Architecture Specification &rarr;</a>
+        </div>
+        
+        <div class="build-highlight-card" style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin: 16px 0 24px 0;">
+          <a href="modules.html" style="flex-shrink: 0;">
+            <img src="assets/img/dll.webp" data-full="assets/img/dll.png" alt="Lab Modular Dynamic Link Libraries" style="width: 72px; height: 72px; object-fit: contain; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.3));">
+          </a>
+          <div style="flex: 1; min-width: 260px;">
+            <div style="font-size: 1.1rem; font-weight: 700; color: var(--wiki-text-primary);">Decoupled Dynamic Link Library (DLL) Ecosystem</div>
+            <p style="margin: 4px 0 0 0; font-size: 0.88rem; color: var(--wiki-text-secondary);">
+              Lab is architected into 10 decoupled, high-performance dynamic link libraries (<code>.dll</code>). Each module maintains an independent repository, public C++20 headers in <code>include/</code>, and a dedicated CMake build pipeline:
+            </p>
+          </div>
+        </div>
 
         <div class="vdc-portal-grid">
           <div class="portal-box">

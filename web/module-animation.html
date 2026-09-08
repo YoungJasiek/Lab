@@ -4,16 +4,25 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="High-performance skeletal animation engine supporting glTF 2.0 / GLB keyframes, quaternion SLERP interpolation, bone matrices evaluation, and articulated cryo-suit FPP arms with telemetry LEDs.">
-  <meta name="keywords" content="LabAnimation.dll, Lab Engine, C++20, OpenGL 4.5, Game Engine Subsystem, Modular DLL">
+  <meta name="keywords" content="LabAnimation.dll, Lab Engine, C++20, OpenGL 4.5, Game Engine Subsystem, Modular DLL, Frozen-Life">
   <meta name="author" content="YoungJasiek">
 
   <title>LabAnimation – Skeletal Blending & Viewmodel Arms – Lab Developer Community</title>
-  <link rel="icon" type="image/webp" href="assets/img/LabLogo.webp">
+
+  <!-- Favicon: DLL Subsystem Icon -->
+  <link rel="icon" type="image/png" href="assets/img/dll.png">
+
+  <!-- Core Stylesheet -->
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+
+  <!-- Accessibility Skip Link -->
   <a href="#content" class="skip-link">Skip to main content</a>
 
+  <!-- ====================================================================
+       1. TOP HEADER
+       ==================================================================== -->
   <header class="vdc-top-header" role="banner">
     <div class="vdc-header-left">
       <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
@@ -26,11 +35,13 @@
       </a>
     </div>
 
+    <!-- Search Bar -->
     <div class="vdc-search-bar" role="search">
       <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search documentation..." aria-label="Search wiki documentation">
       <span class="vdc-search-icon" aria-hidden="true">&#128269;</span>
     </div>
 
+    <!-- Header Actions -->
     <div class="vdc-header-right">
       <button id="theme-toggle-btn" class="theme-toggle-btn" aria-label="Toggle theme">&#9728;&#65039; Light Mode</button>
       <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="github-badge-btn" aria-label="GitHub repository">
@@ -40,10 +51,15 @@
     </div>
   </header>
 
+  <!-- ====================================================================
+       2. WIKI CONTAINER (SIDEBAR + MAIN CONTENT)
+       ==================================================================== -->
   <div class="vdc-page-container">
+
+    <!-- Left Sidebar Navigation -->
     <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
       <div class="sidebar-block">
-        <div class="sidebar-title">Engine Modules (.dll)</div>
+        <div class="sidebar-title"><a href="modules.html" style="color:inherit; text-decoration:none;">Engine Modules (.dll)</a></div>
         <ul class="sidebar-links">
           <li><a href="module-core.html" class="">LabCore.dll</a></li>
           <li><a href="module-render.html" class="">LabRender.dll</a></li>
@@ -59,13 +75,20 @@
       </div>
 
       <div class="sidebar-block">
-        <div class="sidebar-title">Projects &amp; Tools</div>
+        <div class="sidebar-title">Documentation</div>
         <ul class="sidebar-links">
-          <li><a href="index.html">Main Portal</a></li>
+          <li><a href="index.html">Main Page (Portal)</a></li>
           <li><a href="frozen-life.html">Frozen-Life (Demo FPS)</a></li>
-          <li><a href="labhammer.html">LabHammer (Level Editor)</a></li>
-          <li><a href="character-studio.html">LabStudio</a></li>
+          <li><a href="labhammer.html">LabHammer Editor</a></li>
+          <li><a href="character-studio.html">Character &amp; Weapon Studio</a></li>
+          <li><a href="skeletal-animations.html">Skeletal &amp; FBX Animations</a></li>
+          <li><a href="bot-ai.html">Combat Bot AI</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></li>
+          <li><a href="multiplayer.html">UDP Multiplayer</a></li>
+          <li><a href="audio-synthesizer.html">3D Audio &amp; Synthesizer</a></li>
+          <li><a href="lua-scripting.html">Lua 5.4 Scripting</a></li>
           <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
           <li><a href="building.html">Building from Source</a></li>
         </ul>
       </div>
@@ -75,61 +98,249 @@
         <ul class="sidebar-links">
           <li><a href="#sec-skeletal">Skeletal Animation Pipeline</a></li>
 <li><a href="#sec-viewmodel">Tactical FPP Viewmodel Arms</a></li>
+          <li><a href="#sec-cmake">CMake Integration</a></li>
+          <li><a href="#sec-api">Exported API Headers</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Project &amp; Source</div>
+        <ul class="sidebar-links">
+          <li><a href="https://github.com/YoungJasiek/lab-animation" target="_blank" rel="noopener noreferrer">Standalone Repository</a></li>
+          <li><a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer">Lab Master Workspace</a></li>
+          <li><a href="building.html">Compilation Guide</a></li>
         </ul>
       </div>
     </aside>
 
-    <main id="content" class="vdc-content" role="main">
-      <div class="article-header">
-        <div class="article-category">ENGINE SUBSYSTEM MODULE &bull; SHARED DLL</div>
-        <h1 class="article-title">LabAnimation.dll</h1>
-        <div class="article-meta">
-          <span class="badge badge-tech">Animation Pipeline</span>
-          <span class="badge badge-cpp">C++20</span>
-          <span class="badge badge-gl">OpenGL 4.5+ DSA</span>
-          <span class="badge badge-win">x64 Dynamic Library</span>
+    <!-- Main Content Area (Matches FL style) -->
+    <main id="content" class="vdc-main-content" role="main">
+
+      <!-- Navigation Tabs -->
+      <nav class="vdc-page-tabs" aria-label="Namespace tabs">
+        <div class="tabs-left">
+          <a href="module-animation.html" class="wiki-tab active">Module</a>
+          <a href="index.html#welcome" class="wiki-tab">Main Portal</a>
+          <a href="modules.html" class="wiki-tab">All 10 DLLs</a>
+        </div>
+        <div class="tabs-right">
+          <a href="module-animation.html" class="wiki-tab active">Read</a>
+          <a href="https://github.com/YoungJasiek/lab-animation" target="_blank" rel="noopener noreferrer" class="wiki-tab">Module GitHub</a>
+          <a href="architecture.html" class="wiki-tab">Engine Internals</a>
+        </div>
+      </nav>
+
+      <!-- Breadcrumb Trail -->
+      <div class="wiki-breadcrumbs">
+        <a href="index.html">Main Page</a>
+        <span class="crumb-sep">&gt;</span>
+        <a href="modules.html">Engine Modules</a>
+        <span class="crumb-sep">&gt;</span>
+        <span class="crumb-current">LabAnimation.dll</span>
+      </div>
+
+      <!-- Article Header -->
+      <h1 class="firstHeading">
+        <span>LabAnimation.dll (Skeletal Rigging & Dual Sockets)</span>
+        <span style="font-size: 0.85rem; font-weight: normal; font-family: var(--font-mono); color: var(--wiki-accent);">[Modular C++20 DLL]</span>
+      </h1>
+      <div class="siteSub">From Lab Developer Community &ndash; Official Technical Specification for Lab Engine Subsystem DLL</div>
+
+      <!-- ================================================================
+           RIGHT-FLOATING MEDIAWIKI INFOBOX (Featuring dll.png / dll.webp)
+           ================================================================ -->
+      <aside class="infobox" aria-label="LabAnimation.dll Technical Information">
+        <div class="infobox-title">
+          LabAnimation.dll
+          <span class="infobox-subtitle">ANIMATION PIPELINE SUBSYSTEM</span>
+        </div>
+        <div class="infobox-image">
+          <img src="assets/img/dll.webp" data-full="assets/img/dll.png" alt="LabAnimation.dll Dynamic Link Library" style="max-height: 150px; object-fit: contain; padding: 10px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));">
+          <div class="infobox-caption">Modular C++20 Dynamic Link Library (LabAnimation.dll)</div>
+        </div>
+        <table class="infobox-table">
+          <tbody>
+            <tr>
+              <td class="infobox-label">Target Name</td>
+              <td class="infobox-data"><code>LabAnimation.dll</code></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Output Type</td>
+              <td class="infobox-data">Shared Library (<code>.dll</code> + <code>.lib</code>)</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Category</td>
+              <td class="infobox-data"><span class="badge badge-tech">Animation Pipeline</span></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Standard</td>
+              <td class="infobox-data">ISO C++20 / C++23 &bull; MSVC v143</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Platform</td>
+              <td class="infobox-data">Windows x64 / Linux (Clang 16+)</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Memory Paradigm</td>
+              <td class="infobox-data">Strict RAII &bull; Zero Heap in Loop</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Standalone Repo</td>
+              <td class="infobox-data"><a href="https://github.com/YoungJasiek/lab-animation" target="_blank" rel="noopener noreferrer"><code>YoungJasiek/lab-animation</code></a></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Consumer Apps</td>
+              <td class="infobox-data"><a href="frozen-life.html">Frozen-Life</a> &bull; <a href="labhammer.html">LabHammer</a> &bull; <a href="character-studio.html">LabStudio</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </aside>
+
+      <!-- Technical Notice Callout (Like FL Alpha Verification) -->
+      <div class="wiki-notice notice-note">
+        <span class="notice-icon">&#9432;</span>
+        <div class="wiki-notice-content">
+          <strong>Decoupled Subsystem Architecture:</strong>
+          <code>LabAnimation.dll</code> is compiled as an independent, portable x64 dynamic link library (DLL) with clean C++20 interfaces. Consumers link against <code>LabAnimation.lib</code> and runtime loads <code>LabAnimation.dll</code>, ensuring zero build coupling between the engine modules and client games like <a href="frozen-life.html">Frozen-Life (FL)</a>.
         </div>
       </div>
 
-      <div class="wiki-infobox">
-        <div class="infobox-header">Module: LabAnimation.dll</div>
-        <table class="infobox-table">
-          <tr><th>Target Name</th><td><code>LabAnimation.dll</code></td></tr>
-          <tr><th>Output Type</th><td>Shared Library (<code>.dll</code> + <code>.lib</code>)</td></tr>
-          <tr><th>Headers</th><td><code>LabAnim.h</code>, <code>LabArms.h</code></td></tr>
-          <tr><th>Standard</th><td>ISO C++20 / MSVC v143</td></tr>
-          <tr><th>Standalone Repo</th><td><code>Desktop/lab-animation</code></td></tr>
-        </table>
-      </div>
-
-      <p class="lead-text">High-performance skeletal animation engine supporting glTF 2.0 / GLB keyframes, quaternion SLERP interpolation, bone matrices evaluation, and articulated cryo-suit FPP arms with telemetry LEDs.</p>
-
-      <div class="vdc-toc">
-        <div class="toc-title">Table of Contents</div>
-        <ol class="toc-list">
-          <li><a href="#sec-skeletal">Skeletal Animation Pipeline</a></li>
-<li><a href="#sec-viewmodel">Tactical FPP Viewmodel Arms</a></li>
+      <!-- Collapsible Table of Contents (TOC) -->
+      <nav id="toc" class="toc" role="doc-toc" aria-label="Table of contents">
+        <div class="toctitle">
+          <span>Contents</span>
+          <span id="toctogglelink" class="toctoggle">hide</span>
+        </div>
+        <ol id="toc-list" class="toc-list">
+          <li><a href="#sec-skeletal"><span class="tocnumber">1</span> <span class="toctext">Skeletal Animation Pipeline</span></a></li>
+<li><a href="#sec-viewmodel"><span class="tocnumber">2</span> <span class="toctext">Tactical FPP Viewmodel Arms</span></a></li>
+          <li><a href="#sec-cmake"><span class="tocnumber">3</span> <span class="toctext">CMake Integration &amp; Compilation</span></a></li>
+          <li><a href="#sec-api"><span class="tocnumber">4</span> <span class="toctext">Exported API Headers &amp; Interfaces</span></a></li>
         </ol>
+      </nav>
+
+      <!-- Build Metrics / Specification Highlight Card (Matching FL style) -->
+      <div class="build-highlight-card">
+        <div class="build-header-row">
+          <div>
+            <h3 style="margin:0; font-size: 1.3rem;">LabAnimation.dll Specifications</h3>
+            <div style="font-size:0.8rem; color:var(--wiki-text-muted); margin-top:2px;">Target: <code>bin/Release/LabAnimation.dll</code> &bull; Platform: Windows x64 (MSVC 2022) &bull; Standard: ISO C++20</div>
+          </div>
+          <span class="build-version-tag">SUBSYSTEM: ANIMATION PIPELINE</span>
+        </div>
+
+        <!-- Metrics Grid -->
+        <div class="build-metrics-grid">
+          <div class="metric-card">
+            <span class="metric-val">35 Bones</span>
+            <span class="metric-label">Humanoid glTF/GLB Rig</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-val">0.05 ms</span>
+            <span class="metric-label">Binary LAB_ANIM Cache</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-val">SLERP</span>
+            <span class="metric-label">Quaternion Dual-Clip Blend</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-val">GPU Skin</span>
+            <span class="metric-label">DSA Linear Blend Skinning</span>
+          </div>
+        </div>
       </div>
 
-      <section class="wiki-section" id="sec-skeletal"><h2>Skeletal Animation Pipeline</h2>
+      <!-- Article Sections -->
+      
+      <section id="sec-skeletal" class="wiki-section-container">
+        <h2><span class="mw-headline">1. Skeletal Animation Pipeline</span></h2>
+        
                 <p>35-bone humanoid skeleton deformation, cross-fade animation clip blending, and dynamic bone socket binding for weapon attachments.</p>
-                </section>
-<section class="wiki-section" id="sec-viewmodel"><h2>Tactical FPP Viewmodel Arms</h2>
-                <p>Articulated cryo-suit gauntlet model with dual-socket hand grips, spring-damper recoil, walking roll sway, and tactical inspect.</p>
-                </section>
-
-      <section class="wiki-section" id="sec-cmake">
-        <h2>CMake Integration &amp; Compilation</h2>
-        <p>To integrate <code>LabAnimation.dll</code> in your game or tool, include its headers and link to its import library:</p>
-        <div class="code-block"><pre><code>target_include_directories(MyGame PRIVATE "${LAB_ENGINE_DIR}/include")
-target_link_libraries(MyGame PRIVATE LabAnimation)</code></pre></div>
+                <div class="code-block"><pre><code>// Blend between Idle and Running states
+skeleton.updatePose(clipA, clipB, blendFactor, dt);
+skeleton.uploadBoneMatricesToShader(shaderID);</code></pre></div>
+                
       </section>
 
-      <footer class="article-footer">
-        <p>Lab Engine is created by <a href="https://github.com/YoungJasiek" target="_blank" rel="noopener noreferrer">YoungJasiek</a>. Released under the MIT License.</p>
-        <p><a href="#content">Back to top &#8593;</a></p>
-      </footer>
+      <section id="sec-viewmodel" class="wiki-section-container">
+        <h2><span class="mw-headline">2. Tactical FPP Viewmodel Arms</span></h2>
+        
+                <p>Articulated cryo-suit gauntlet model with dual-socket hand grips, spring-damper recoil, walking roll sway, and tactical inspect.</p>
+                
+      </section>
+
+      <!-- CMake Integration Section -->
+      <section id="sec-cmake" class="wiki-section-container">
+        <h2><span class="mw-headline">3. CMake Integration &amp; Compilation</span></h2>
+        <p>To integrate <code>LabAnimation.dll</code> into your game client, level editor, or standalone tool, link against its import library target in CMake:</p>
+        <div class="code-block"><pre><code># Link against LabAnimation.dll in CMakeLists.txt
+find_package(LabEngine REQUIRED)
+
+target_include_directories(MyTarget PRIVATE
+    "${LAB_ENGINE_DIR}/include"
+)
+
+target_link_libraries(MyTarget PRIVATE
+    LabAnimation
+)
+
+# Automatically copy LabAnimation.dll to the output directory on build
+add_custom_command(TARGET MyTarget POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${LAB_BIN_DIR}/LabAnimation.dll"
+    "$&lt;TARGET_FILE_DIR:MyTarget&gt;/LabAnimation.dll"
+)</code></pre></div>
+      </section>
+
+      <!-- Public Headers Section -->
+      <section id="sec-api" class="wiki-section-container">
+        <h2><span class="mw-headline">4. Exported API Headers &amp; Interfaces</span></h2>
+        <p>The following public header files define the exposed surface of <code>LabAnimation.dll</code>. Symbols are exported via the standard <code>LAB_API</code> macro (translating to <code>__declspec(dllexport)</code> during module compilation and <code>__declspec(dllimport)</code> for client consumers):</p>
+        <div style="overflow-x: auto; margin: 16px 0;">
+          <table class="infobox-table" style="width: 100%; border: 1px solid var(--wiki-border);">
+            <thead>
+              <tr style="background: var(--wiki-bg-inset); text-align: left;">
+                <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Public Header</th>
+                <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Namespace / Core Class</th>
+                <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Responsibility</th>
+              </tr>
+            </thead>
+            <tbody>
+              
+              <tr>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>include/LabAnim.h</code></td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-accent); font-family: var(--font-mono);">Lab::Anim</td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for LabAnimation.dll.</td>
+              </tr>
+
+              <tr>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>include/LabArms.h</code></td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-accent); font-family: var(--font-mono);">Lab::Arms</td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for LabAnimation.dll.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Article Footer (FL / VDC Style) -->
+      <div class="article-footer" style="margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--wiki-border);">
+        <div class="vdc-see-also">
+          <h4>Related Engine Modules &amp; Documentation</h4>
+          <ul class="footer-links" style="display: flex; flex-wrap: wrap; gap: 12px; list-style: none; padding: 0; margin-top: 8px;">
+            <li><a href="modules.html">&bull; All 10 Engine Modules</a></li>
+            <li><a href="frozen-life.html">&bull; Frozen-Life (FL) Playable Build</a></li>
+            <li><a href="architecture.html">&bull; Engine Architecture</a></li>
+            <li><a href="labhammer.html">&bull; LabHammer Editor</a></li>
+            <li><a href="building.html">&bull; Build from Source</a></li>
+          </ul>
+        </div>
+        <div style="margin-top: 18px; font-size: 0.8rem; color: var(--wiki-text-muted); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+          <div>Lab Developer Community &bull; Lab Engine SDK &amp; Frozen-Life &bull; Maintained by YoungJasiek</div>
+          <div><a href="#content" style="color: var(--wiki-accent);">Back to top &#8593;</a></div>
+        </div>
+      </div>
+
     </main>
   </div>
 

@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Lab Engine Subsystem Modules (.dll) – Comprehensive technical overview of the 10 decoupled dynamic link libraries powering Lab Engine, Frozen-Life, LabHammer, and LabStudio.">
+  <meta name="keywords" content="Lab Engine, Modular DLL, C++20, Shared Library, LabCore, LabRender, LabAudio, LabPhysics, LabAnimation, LabWorld, LabNetwork, LabAI, LabScript, LabStudioCore, Frozen-Life">
+  <meta name="author" content="YoungJasiek">
+
+  <title>Engine Subsystem Modules (.dll) – Lab Developer Community</title>
+
+  <!-- Favicon: DLL Subsystem Icon -->
+  <link rel="icon" type="image/png" href="assets/img/dll.png">
+
+  <!-- Core Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Accessibility Skip Link -->
+  <a href="#content" class="skip-link">Skip to main content</a>
+
+  <!-- ====================================================================
+       1. TOP HEADER
+       ==================================================================== -->
+  <header class="vdc-top-header" role="banner">
+    <div class="vdc-header-left">
+      <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
+      <a href="index.html" class="vdc-brand">
+        <img src="assets/img/LabLogo.webp" alt="Lab Engine Logo" class="vdc-logo-img">
+        <div class="vdc-brand-text">
+          <span class="vdc-brand-title"><span class="accent">Lab</span> Developer Community</span>
+          <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LAB ENGINE</span>
+        </div>
+      </a>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="vdc-search-bar" role="search">
+      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search documentation..." aria-label="Search wiki documentation">
+      <span class="vdc-search-icon" aria-hidden="true">&#128269;</span>
+    </div>
+
+    <!-- Header Actions -->
+    <div class="vdc-header-right">
+      <button id="theme-toggle-btn" class="theme-toggle-btn" aria-label="Toggle theme">&#9728;&#65039; Light Mode</button>
+      <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="github-badge-btn" aria-label="GitHub repository">
+        <span>GitHub</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- ====================================================================
+       2. WIKI CONTAINER (SIDEBAR + MAIN CONTENT)
+       ==================================================================== -->
+  <div class="vdc-page-container">
+
+    <!-- Left Sidebar Navigation -->
+    <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
+      <div class="sidebar-block">
+        <div class="sidebar-title"><a href="modules.html" class="active" style="color:var(--wiki-accent); text-decoration:none;">Engine Modules (.dll)</a></div>
+        <ul class="sidebar-links">
+          <li><a href="module-core.html">LabCore.dll</a></li>
+          <li><a href="module-render.html">LabRender.dll</a></li>
+          <li><a href="module-audio.html">LabAudio.dll</a></li>
+          <li><a href="module-physics.html">LabPhysics.dll</a></li>
+          <li><a href="module-animation.html">LabAnimation.dll</a></li>
+          <li><a href="module-world.html">LabWorld.dll</a></li>
+          <li><a href="module-network.html">LabNetwork.dll</a></li>
+          <li><a href="module-ai.html">LabAI.dll</a></li>
+          <li><a href="module-script.html">LabScript.dll</a></li>
+          <li><a href="module-studio.html">LabStudioCore.dll</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Documentation</div>
+        <ul class="sidebar-links">
+          <li><a href="index.html">Main Page (Portal)</a></li>
+          <li><a href="frozen-life.html">Frozen-Life (Demo FPS)</a></li>
+          <li><a href="labhammer.html">LabHammer Editor</a></li>
+          <li><a href="character-studio.html">Character &amp; Weapon Studio</a></li>
+          <li><a href="skeletal-animations.html">Skeletal &amp; FBX Animations</a></li>
+          <li><a href="bot-ai.html">Combat Bot AI</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></li>
+          <li><a href="multiplayer.html">UDP Multiplayer</a></li>
+          <li><a href="audio-synthesizer.html">3D Audio &amp; Synthesizer</a></li>
+          <li><a href="lua-scripting.html">Lua 5.4 Scripting</a></li>
+          <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+          <li><a href="building.html">Building from Source</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Portal Sections</div>
+        <ul class="sidebar-links">
+          <li><a href="#sec-overview">1. Architecture Overview</a></li>
+          <li><a href="#sec-catalog">2. The 10 Subsystem Modules</a></li>
+          <li><a href="#sec-abi">3. ABI &amp; LAB_API Export Specification</a></li>
+          <li><a href="#sec-cmake">4. CMake Integration &amp; Linking</a></li>
+          <li><a href="#sec-order">5. Subsystem Initialization Order</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Project &amp; Source</div>
+        <ul class="sidebar-links">
+          <li><a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer">GitHub Workspace</a></li>
+          <li><a href="building.html">Compilation Guide</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main id="content" class="vdc-main-content" role="main">
+
+      <!-- Navigation Tabs -->
+      <nav class="vdc-page-tabs" aria-label="Namespace tabs">
+        <div class="tabs-left">
+          <a href="modules.html" class="wiki-tab active">Overview</a>
+          <a href="index.html#welcome" class="wiki-tab">Main Portal</a>
+          <a href="architecture.html" class="wiki-tab">Engine Architecture</a>
+        </div>
+        <div class="tabs-right">
+          <a href="modules.html" class="wiki-tab active">Read</a>
+          <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="wiki-tab">GitHub</a>
+          <a href="building.html" class="wiki-tab">Build Guide</a>
+        </div>
+      </nav>
+
+      <!-- Breadcrumb Trail -->
+      <div class="wiki-breadcrumbs">
+        <a href="index.html">Main Page</a>
+        <span class="crumb-sep">&gt;</span>
+        <span>Engine</span>
+        <span class="crumb-sep">&gt;</span>
+        <span class="crumb-current">Subsystem Modules (.dll)</span>
+      </div>
+
+      <!-- Article Header -->
+      <h1 class="firstHeading">
+        <span>Engine Subsystem Modules (.dll)</span>
+        <span style="font-size: 0.85rem; font-weight: normal; font-family: var(--font-mono); color: var(--wiki-accent);">[Modular C++20 SDK]</span>
+      </h1>
+      <div class="siteSub">From Lab Developer Community &ndash; The Official Architecture Specification for the 10 Decoupled Dynamic Link Libraries</div>
+
+      <!-- ================================================================
+           RIGHT-FLOATING MEDIAWIKI INFOBOX (Featuring dll.png / dll.webp)
+           ================================================================ -->
+      <aside class="infobox" aria-label="Engine Modules Technical Information">
+        <div class="infobox-title">
+          Lab Subsystems
+          <span class="infobox-subtitle">MODULAR DLL ARCHITECTURE</span>
+        </div>
+        <div class="infobox-image">
+          <img src="assets/img/dll.webp" data-full="assets/img/dll.png" alt="Lab Modular Dynamic Link Libraries" style="max-height: 160px; object-fit: contain; padding: 10px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));">
+          <div class="infobox-caption">10 Decoupled C++20 Dynamic Link Libraries</div>
+        </div>
+        <table class="infobox-table">
+          <tbody>
+            <tr>
+              <td class="infobox-label">Developer</td>
+              <td class="infobox-data">YoungJasiek</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Module Count</td>
+              <td class="infobox-data"><strong>10 Standalone DLLs</strong></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Binary Formats</td>
+              <td class="infobox-data"><code>.dll</code> (Shared) + <code>.lib</code> (Import)</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Standard</td>
+              <td class="infobox-data">ISO C++20 / C++23</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Compiler</td>
+              <td class="infobox-data">MSVC v143 (VS 2022) / Clang 16+</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Graphics API</td>
+              <td class="infobox-data"><a href="opengl-dsa.html">OpenGL 4.5+ Core (DSA)</a></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Flagship Game</td>
+              <td class="infobox-data"><a href="frozen-life.html">Frozen-Life (FL)</a></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Level Editor</td>
+              <td class="infobox-data"><a href="labhammer.html">LabHammer.exe</a></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Studio App</td>
+              <td class="infobox-data"><a href="character-studio.html">LabStudio.exe</a></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Repository</td>
+              <td class="infobox-data"><a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer"><code>YoungJasiek/Lab</code></a></td>
+            </tr>
+          </tbody>
+        </table>
+      </aside>
+
+      <!-- Technical Notice Callout -->
+      <div class="wiki-notice notice-note">
+        <span class="notice-icon">&#9432;</span>
+        <div class="wiki-notice-content">
+          <strong>Clean Architecture Verification:</strong>
+          Lab Engine is strictly partitioned into 10 decoupled Dynamic Link Libraries (<code>.dll</code>). Each subsystem lives in an isolated module, maintains its own public headers in <code>include/</code>, compiles to an independent binary target, and can be consumed independently without monolithic source coupling.
+        </div>
+      </div>
+
+      <!-- Collapsible Table of Contents (TOC) -->
+      <nav id="toc" class="toc" role="doc-toc" aria-label="Table of contents">
+        <div class="toctitle">
+          <span>Contents</span>
+          <span id="toctogglelink" class="toctoggle">hide</span>
+        </div>
+        <ol id="toc-list" class="toc-list">
+          <li><a href="#sec-overview"><span class="tocnumber">1</span> <span class="toctext">Architecture Overview &amp; Decoupling Goals</span></a></li>
+          <li><a href="#sec-catalog"><span class="tocnumber">2</span> <span class="toctext">Complete Catalog of the 10 Engine DLLs</span></a></li>
+          <li><a href="#sec-abi"><span class="tocnumber">3</span> <span class="toctext">ABI &amp; LAB_API Export Specification</span></a></li>
+          <li><a href="#sec-cmake"><span class="tocnumber">4</span> <span class="toctext">CMake Integration &amp; Consumer Linking</span></a></li>
+          <li><a href="#sec-order"><span class="tocnumber">5</span> <span class="toctext">Subsystem Initialization &amp; Loading Order</span></a></li>
+        </ol>
+      </nav>
+
+      <!-- Build Metrics / Specification Highlight Card -->
+      <div class="build-highlight-card">
+        <div class="build-header-row">
+          <div>
+            <h3 style="margin:0; font-size: 1.3rem;">Lab Modular Subsystem Architecture</h3>
+            <div style="font-size:0.8rem; color:var(--wiki-text-muted); margin-top:2px;">Targets: 10 Decoupled DLLs &bull; Platform: Windows x64 (MSVC 2022) &bull; Standard: ISO C++20</div>
+          </div>
+          <span class="build-version-tag">SDK ARCHITECTURE</span>
+        </div>
+
+        <!-- Metrics Grid -->
+        <div class="build-metrics-grid">
+          <div class="metric-card">
+            <span class="metric-val">10 DLLs</span>
+            <span class="metric-label">Decoupled Subsystems</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-val">100% C++20</span>
+            <span class="metric-label">Modern ISO Standard</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-val">0 CIRCULAR</span>
+            <span class="metric-label">Clean Acyclic Dependency</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-val">144+ FPS</span>
+            <span class="metric-label">Zero-Overhead Linkage</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 1: ARCHITECTURE OVERVIEW -->
+      <section id="sec-overview" class="wiki-section-container">
+        <h2><span class="mw-headline">1. Architecture Overview &amp; Decoupling Goals</span></h2>
+        <p>
+          The Lab Engine eliminates monolithic codebase pitfalls by establishing strict boundary interfaces across 10 specialized dynamic link libraries. This architectural decision delivers multiple engineering advantages:
+        </p>
+        <ul style="margin: 12px 0 16px 24px; line-height: 1.7;">
+          <li><strong>Incremental Compilation:</strong> Modifying rendering shaders or HUD logic only recompiles <code>LabRender.dll</code> or <code>LabWorld.dll</code>, avoiding engine-wide re-linking.</li>
+          <li><strong>Independent Standalone Repositories:</strong> Each subsystem maintains its own Git repository on Desktop, allowing modular testing, versioning, and reuse across tools like <a href="labhammer.html">LabHammer</a> and <a href="character-studio.html">LabStudio</a>.</li>
+          <li><strong>Zero Circular Dependencies:</strong> Modules form a clean directed acyclic graph (DAG), rooted at <code>LabCore.dll</code>.</li>
+          <li><strong>Safe Hot-Reloading:</strong> Subsystems such as <code>LabScript.dll</code> and <code>LabAudio.dll</code> can reload assets dynamically at runtime without disrupting the core 64Hz simulation loop.</li>
+        </ul>
+      </section>
+
+      <!-- SECTION 2: THE 10 MODULES CATALOG -->
+      <section id="sec-catalog" class="wiki-section-container">
+        <h2><span class="mw-headline">2. Complete Catalog of the 10 Engine DLLs</span></h2>
+        <p>Click on any module name to inspect its dedicated specification page, exported classes, and usage guide:</p>
+
+        <div class="vdc-portal-grid" style="margin-top: 20px;">
+          <!-- 1. LabCore -->
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#9881;</span>
+              <h3 class="portal-title"><a href="module-core.html">LabCore.dll</a></h3>
+            </div>
+            <p class="portal-desc">Engine lifecycle, deterministic 64Hz loop timing, Win32/GLFW input system, SIMD vector math (Vec2, Vec3, Mat4), camera projection, and font rendering.</p>
+            <ul class="portal-links">
+              <li><a href="module-core.html#sec-lifecycle">&bull; Fixed Timestep Loop</a></li>
+              <li><a href="module-core.html#sec-input">&bull; Zero-Latency Input</a></li>
+              <li><a href="module-core.html#sec-api">&bull; Public Headers</a></li>
+            </ul>
+          </div>
+
+          <!-- 2. LabRender -->
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#127912;</span>
+              <h3 class="portal-title"><a href="module-render.html">LabRender.dll</a></h3>
+            </div>
+            <p class="portal-desc">Direct State Access (DSA) OpenGL 4.5+ pipeline, Blinn-Phong lighting, CSG brush clipping, projective impact decals, and post-process passes.</p>
+            <ul class="portal-links">
+              <li><a href="module-render.html#sec-dsa">&bull; DSA Architecture</a></li>
+              <li><a href="module-render.html#sec-lighting">&bull; Dynamic Shadow Mapping</a></li>
+              <li><a href="module-render.html#sec-csg">&bull; CSG Polyhedra Clipping</a></li>
+            </ul>
+          </div>
+
+          <!-- 3. LabAudio -->
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#128266;</span>
+              <h3 class="portal-title"><a href="module-audio.html">LabAudio.dll</a></h3>
+            </div>
+            <p class="portal-desc">Low-latency spatialized 3D audio engine powered by miniaudio with inverse-square falloff and 26 built-in procedural 16-bit PCM sound synthesizers.</p>
+            <ul class="portal-links">
+              <li><a href="module-audio.html#sec-miniaudio">&bull; Dedicated Audio Thread</a></li>
+              <li><a href="module-audio.html#sec-synth">&bull; 26 Procedural PCM Sounds</a></li>
+              <li><a href="module-audio.html#sec-api">&bull; Audio Interfaces</a></li>
+            </ul>
+          </div>
+
+          <!-- 4. LabPhysics -->
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#9878;</span>
+              <h3 class="portal-title"><a href="module-physics.html">LabPhysics.dll</a></h3>
+            </div>
+            <p class="portal-desc">Deterministic 3D physics module featuring swept-AABB collision detection, kinematic moveAndSlide player movement, and branchless slab raycasting.</p>
+            <ul class="portal-links">
+              <li><a href="module-physics.html#sec-kinematics">&bull; moveAndSlide Controller</a></li>
+              <li><a href="module-physics.html#sec-rigidbody">&bull; Destructible Props</a></li>
+              <li><a href="module-physics.html#sec-raycast">&bull; Ray-AABB Hitscan</a></li>
+            </ul>
+          </div>
+
+          <!-- 5. LabAnimation -->
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#127939;</span>
+              <h3 class="portal-title"><a href="module-animation.html">LabAnimation.dll</a></h3>
+            </div>
+            <p class="portal-desc">glTF 2.0 / GLB skeletal deformation, 35-bone humanoid retargeting, 0.05ms binary animation caching, and articulated cryo-suit viewmodel arms.</p>
+            <ul class="portal-links">
+              <li><a href="module-animation.html#sec-skeletal">&bull; Skeletal Deformation</a></li>
+              <li><a href="module-animation.html#sec-viewmodel">&bull; FPP Gauntlet Arms</a></li>
+              <li><a href="module-animation.html#sec-api">&bull; Bone Matrices API</a></li>
+            </ul>
+          </div>
+
+          <!-- 6. LabWorld -->
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#127758;</span>
+              <h3 class="portal-title"><a href="module-world.html">LabWorld.dll</a></h3>
+            </div>
+            <p class="portal-desc">World state management, plain-text .labmap parsing, 9-weapon arsenal ballistics, particle emitters, retinal scanners, and in-game HUD diagnostics.</p>
+            <ul class="portal-links">
+              <li><a href="module-world.html#sec-labmap">&bull; .labmap Specification</a></li>
+              <li><a href="module-world.html#sec-weapons">&bull; 9-Weapon Ballistics</a></li>
+              <li><a href="module-world.html#sec-interactive">&bull; Biometric Retinal Terminals</a></li>
+            </ul>
+          </div>
+
+          <!-- 7. LabNetwork -->
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#127760;</span>
+              <h3 class="portal-title"><a href="module-network.html">LabNetwork.dll</a></h3>
+            </div>
+            <p class="portal-desc">Ultra-low latency UDP multiplayer networking running at 64-128Hz tickrates with client-side prediction, server reconciliation, and LAN discovery.</p>
+            <ul class="portal-links">
+              <li><a href="module-network.html#sec-prediction">&bull; Prediction &amp; Clamping</a></li>
+              <li><a href="module-network.html#sec-protocol">&bull; Binary Datagrams</a></li>
+              <li><a href="module-network.html#sec-browser">&bull; Subnet LAN Broadcast</a></li>
+            </ul>
+          </div>
+
+          <!-- 8. LabAI -->
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#129302;</span>
+              <h3 class="portal-title"><a href="module-ai.html">LabAI.dll</a></h3>
+            </div>
+            <p class="portal-desc">Sensory bot AI with 5-state tactical FSM, ray-AABB line of sight perception, 0.28s human firing cadence, and 19-clip Mixamo FBX retargeting.</p>
+            <ul class="portal-links">
+              <li><a href="module-ai.html#sec-fsm">&bull; Tactical 5-State FSM</a></li>
+              <li><a href="module-ai.html#sec-fbx">&bull; FBX Retargeting</a></li>
+              <li><a href="module-ai.html#sec-api">&bull; Bot AI API</a></li>
+            </ul>
+          </div>
+
+          <!-- 9. LabScript -->
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#128220;</span>
+              <h3 class="portal-title"><a href="module-script.html">LabScript.dll</a></h3>
+            </div>
+            <p class="portal-desc">Embedded Lua 5.4 scripting environment powering weapon balance curves (scripts/game_mechanics.lua), developer console, and dynamic modding.</p>
+            <ul class="portal-links">
+              <li><a href="module-script.html#sec-lua">&bull; Lua 5.4.6 Runtime</a></li>
+              <li><a href="module-script.html#sec-mechanics">&bull; Game Balance Tables</a></li>
+              <li><a href="module-script.html#sec-api">&bull; Lua C-API Bindings</a></li>
+            </ul>
+          </div>
+
+          <!-- 10. LabStudioCore -->
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#9874;</span>
+              <h3 class="portal-title"><a href="module-studio.html">LabStudioCore.dll</a></h3>
+            </div>
+            <p class="portal-desc">Dedicated backend for LabStudio: 3D weapon grip transformation gizmos, bone socket calibration, reload curve choreography, and phoneme lip-sync.</p>
+            <ul class="portal-links">
+              <li><a href="module-studio.html#sec-grips">&bull; Dual-Socket Calibration</a></li>
+              <li><a href="module-studio.html#sec-reload">&bull; Reload Curve Timeline</a></li>
+              <li><a href="module-studio.html#sec-face">&bull; Facial Blend Shapes</a></li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 3: ABI EXPORT SPEC -->
+      <section id="sec-abi" class="wiki-section-container">
+        <h2><span class="mw-headline">3. ABI &amp; LAB_API Export Specification</span></h2>
+        <p>Every module defines a standard export macro to control symbol visibility across shared library boundaries. Under MSVC, symbols are qualified with <code>__declspec(dllexport)</code> when compiling the module itself and <code>__declspec(dllimport)</code> when included by client code:</p>
+        <div class="code-block"><pre><code>// LabExport.h – Unified Dynamic Link Visibility
+#pragma once
+
+#if defined(_WIN32) || defined(__CYGWIN__)
+  #if defined(LAB_BUILDING_DLL)
+    #define LAB_API __declspec(dllexport)
+  #else
+    #define LAB_API __declspec(dllimport)
+  #endif
+#else
+  #if __GNUC__ >= 4
+    #define LAB_API __attribute__ ((visibility ("default")))
+  #else
+    #define LAB_API
+  #endif
+#endif</code></pre></div>
+      </section>
+
+      <!-- SECTION 4: CMAKE LINKING -->
+      <section id="sec-cmake" class="wiki-section-container">
+        <h2><span class="mw-headline">4. CMake Integration &amp; Consumer Linking</span></h2>
+        <p>Game executables such as <a href="frozen-life.html">Frozen-Life</a> link against the required subsystem libraries via CMake targets. The build system automatically copies all referenced DLLs to the target executable directory post-build:</p>
+        <div class="code-block"><pre><code># Linking engine modules into FrozenLife.exe
+add_executable(FrozenLife src/main.cpp)
+
+target_link_libraries(FrozenLife PRIVATE
+    LabCore
+    LabRender
+    LabAudio
+    LabPhysics
+    LabAnimation
+    LabWorld
+    LabNetwork
+    LabAI
+    LabScript
+    LabStudioCore
+)</code></pre></div>
+      </section>
+
+      <!-- SECTION 5: INITIALIZATION ORDER -->
+      <section id="sec-order" class="wiki-section-container">
+        <h2><span class="mw-headline">5. Subsystem Initialization &amp; Loading Order</span></h2>
+        <p>During application boot, subsystems are initialized in strict topological order to ensure all foundational dependencies are established before higher-level systems begin allocation:</p>
+        <ol style="margin: 12px 0 20px 24px; line-height: 1.8;">
+          <li><strong><code>LabCore.dll</code></strong>: Initialize window context, Win32/GLFW event dispatch, and 64Hz clock accumulator.</li>
+          <li><strong><code>LabRender.dll</code></strong>: Query OpenGL 4.5+ DSA profile, allocate cascaded shadow framebuffers, and load shader pipelines.</li>
+          <li><strong><code>LabAudio.dll</code></strong>: Start dedicated miniaudio hardware thread and initialize 26 procedural PCM synthesizers.</li>
+          <li><strong><code>LabPhysics.dll</code></strong>: Setup spatial broadphase grids and swept-AABB kinematic constraints.</li>
+          <li><strong><code>LabAnimation.dll</code></strong>: Initialize glTF 2.0 humanoid rig, bone cache, and viewmodel arms.</li>
+          <li><strong><code>LabScript.dll</code></strong>: Open Lua 5.4 virtual machine and load <code>game_mechanics.lua</code>.</li>
+          <li><strong><code>LabWorld.dll</code></strong>: Parse <code>.labmap</code> geometry, populate weapon entities, and start HUD.</li>
+          <li><strong><code>LabAI.dll</code> &amp; <code>LabNetwork.dll</code></strong>: Spawn combat bots and bind authoritative UDP server sockets.</li>
+        </ol>
+      </section>
+
+      <!-- Article Footer -->
+      <div class="article-footer" style="margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--wiki-border);">
+        <div class="vdc-see-also">
+          <h4>Related Engine Documentation</h4>
+          <ul class="footer-links" style="display: flex; flex-wrap: wrap; gap: 12px; list-style: none; padding: 0; margin-top: 8px;">
+            <li><a href="frozen-life.html">&bull; Frozen-Life (FL) Playable Build</a></li>
+            <li><a href="architecture.html">&bull; Engine Architecture</a></li>
+            <li><a href="labhammer.html">&bull; LabHammer Editor</a></li>
+            <li><a href="character-studio.html">&bull; Character &amp; Weapon Studio</a></li>
+            <li><a href="building.html">&bull; Build from Source</a></li>
+          </ul>
+        </div>
+        <div style="margin-top: 18px; font-size: 0.8rem; color: var(--wiki-text-muted); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+          <div>Lab Developer Community &bull; Lab Engine SDK &amp; Frozen-Life &bull; Maintained by YoungJasiek</div>
+          <div><a href="#content" style="color: var(--wiki-accent);">Back to top &#8593;</a></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="js/main.js"></script>
+</body>
+</html>

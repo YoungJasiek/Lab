@@ -3,17 +3,26 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Foundational subsystem of the Lab Engine managing application lifecycle, deterministic 64Hz loop timing, Win32/GLFW input processing, vector math (Vec2, Vec3, Mat4), camera projection, native file dialogs, and font atlas rendering.">
-  <meta name="keywords" content="LabCore.dll, Lab Engine, C++20, OpenGL 4.5, Game Engine Subsystem, Modular DLL">
+  <meta name="description" content="Foundational subsystem of the Lab Engine managing application lifecycle, deterministic 64Hz loop timing, Win32/GLFW input processing, SIMD vector math (Vec2, Vec3, Mat4), camera projection, native file dialogs, and font atlas rendering.">
+  <meta name="keywords" content="LabCore.dll, Lab Engine, C++20, OpenGL 4.5, Game Engine Subsystem, Modular DLL, Frozen-Life">
   <meta name="author" content="YoungJasiek">
 
   <title>LabCore – Engine Lifecycle, Input, Math & Platform – Lab Developer Community</title>
-  <link rel="icon" type="image/webp" href="assets/img/LabLogo.webp">
+
+  <!-- Favicon: DLL Subsystem Icon -->
+  <link rel="icon" type="image/png" href="assets/img/dll.png">
+
+  <!-- Core Stylesheet -->
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+
+  <!-- Accessibility Skip Link -->
   <a href="#content" class="skip-link">Skip to main content</a>
 
+  <!-- ====================================================================
+       1. TOP HEADER
+       ==================================================================== -->
   <header class="vdc-top-header" role="banner">
     <div class="vdc-header-left">
       <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
@@ -26,11 +35,13 @@
       </a>
     </div>
 
+    <!-- Search Bar -->
     <div class="vdc-search-bar" role="search">
       <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search documentation..." aria-label="Search wiki documentation">
       <span class="vdc-search-icon" aria-hidden="true">&#128269;</span>
     </div>
 
+    <!-- Header Actions -->
     <div class="vdc-header-right">
       <button id="theme-toggle-btn" class="theme-toggle-btn" aria-label="Toggle theme">&#9728;&#65039; Light Mode</button>
       <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="github-badge-btn" aria-label="GitHub repository">
@@ -40,10 +51,15 @@
     </div>
   </header>
 
+  <!-- ====================================================================
+       2. WIKI CONTAINER (SIDEBAR + MAIN CONTENT)
+       ==================================================================== -->
   <div class="vdc-page-container">
+
+    <!-- Left Sidebar Navigation -->
     <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
       <div class="sidebar-block">
-        <div class="sidebar-title">Engine Modules (.dll)</div>
+        <div class="sidebar-title"><a href="modules.html" style="color:inherit; text-decoration:none;">Engine Modules (.dll)</a></div>
         <ul class="sidebar-links">
           <li><a href="module-core.html" class="active">LabCore.dll</a></li>
           <li><a href="module-render.html" class="">LabRender.dll</a></li>
@@ -59,13 +75,20 @@
       </div>
 
       <div class="sidebar-block">
-        <div class="sidebar-title">Projects &amp; Tools</div>
+        <div class="sidebar-title">Documentation</div>
         <ul class="sidebar-links">
-          <li><a href="index.html">Main Portal</a></li>
+          <li><a href="index.html">Main Page (Portal)</a></li>
           <li><a href="frozen-life.html">Frozen-Life (Demo FPS)</a></li>
-          <li><a href="labhammer.html">LabHammer (Level Editor)</a></li>
-          <li><a href="character-studio.html">LabStudio</a></li>
+          <li><a href="labhammer.html">LabHammer Editor</a></li>
+          <li><a href="character-studio.html">Character &amp; Weapon Studio</a></li>
+          <li><a href="skeletal-animations.html">Skeletal &amp; FBX Animations</a></li>
+          <li><a href="bot-ai.html">Combat Bot AI</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></li>
+          <li><a href="multiplayer.html">UDP Multiplayer</a></li>
+          <li><a href="audio-synthesizer.html">3D Audio &amp; Synthesizer</a></li>
+          <li><a href="lua-scripting.html">Lua 5.4 Scripting</a></li>
           <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
           <li><a href="building.html">Building from Source</a></li>
         </ul>
       </div>
@@ -77,76 +100,298 @@
 <li><a href="#sec-input">Input System (Win32 & GLFW)</a></li>
 <li><a href="#sec-math">Linear Algebra & Camera Transforms</a></li>
 <li><a href="#sec-fonts">Font Atlas & Rasterizer</a></li>
+          <li><a href="#sec-cmake">CMake Integration</a></li>
+          <li><a href="#sec-api">Exported API Headers</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Project &amp; Source</div>
+        <ul class="sidebar-links">
+          <li><a href="https://github.com/YoungJasiek/lab-studio" target="_blank" rel="noopener noreferrer">Standalone Repository</a></li>
+          <li><a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer">Lab Master Workspace</a></li>
+          <li><a href="building.html">Compilation Guide</a></li>
         </ul>
       </div>
     </aside>
 
-    <main id="content" class="vdc-content" role="main">
-      <div class="article-header">
-        <div class="article-category">ENGINE SUBSYSTEM MODULE &bull; SHARED DLL</div>
-        <h1 class="article-title">LabCore.dll</h1>
-        <div class="article-meta">
-          <span class="badge badge-tech">Core Runtime</span>
-          <span class="badge badge-cpp">C++20</span>
-          <span class="badge badge-gl">OpenGL 4.5+ DSA</span>
-          <span class="badge badge-win">x64 Dynamic Library</span>
+    <!-- Main Content Area (Matches FL style) -->
+    <main id="content" class="vdc-main-content" role="main">
+
+      <!-- Navigation Tabs -->
+      <nav class="vdc-page-tabs" aria-label="Namespace tabs">
+        <div class="tabs-left">
+          <a href="module-core.html" class="wiki-tab active">Module</a>
+          <a href="index.html#welcome" class="wiki-tab">Main Portal</a>
+          <a href="modules.html" class="wiki-tab">All 10 DLLs</a>
+        </div>
+        <div class="tabs-right">
+          <a href="module-core.html" class="wiki-tab active">Read</a>
+          <a href="https://github.com/YoungJasiek/lab-studio" target="_blank" rel="noopener noreferrer" class="wiki-tab">Module GitHub</a>
+          <a href="architecture.html" class="wiki-tab">Engine Internals</a>
+        </div>
+      </nav>
+
+      <!-- Breadcrumb Trail -->
+      <div class="wiki-breadcrumbs">
+        <a href="index.html">Main Page</a>
+        <span class="crumb-sep">&gt;</span>
+        <a href="modules.html">Engine Modules</a>
+        <span class="crumb-sep">&gt;</span>
+        <span class="crumb-current">LabCore.dll</span>
+      </div>
+
+      <!-- Article Header -->
+      <h1 class="firstHeading">
+        <span>LabCore.dll (Core Runtime & Platform)</span>
+        <span style="font-size: 0.85rem; font-weight: normal; font-family: var(--font-mono); color: var(--wiki-accent);">[Modular C++20 DLL]</span>
+      </h1>
+      <div class="siteSub">From Lab Developer Community &ndash; Official Technical Specification for Lab Engine Subsystem DLL</div>
+
+      <!-- ================================================================
+           RIGHT-FLOATING MEDIAWIKI INFOBOX (Featuring dll.png / dll.webp)
+           ================================================================ -->
+      <aside class="infobox" aria-label="LabCore.dll Technical Information">
+        <div class="infobox-title">
+          LabCore.dll
+          <span class="infobox-subtitle">CORE RUNTIME SUBSYSTEM</span>
+        </div>
+        <div class="infobox-image">
+          <img src="assets/img/dll.webp" data-full="assets/img/dll.png" alt="LabCore.dll Dynamic Link Library" style="max-height: 150px; object-fit: contain; padding: 10px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));">
+          <div class="infobox-caption">Modular C++20 Dynamic Link Library (LabCore.dll)</div>
+        </div>
+        <table class="infobox-table">
+          <tbody>
+            <tr>
+              <td class="infobox-label">Target Name</td>
+              <td class="infobox-data"><code>LabCore.dll</code></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Output Type</td>
+              <td class="infobox-data">Shared Library (<code>.dll</code> + <code>.lib</code>)</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Category</td>
+              <td class="infobox-data"><span class="badge badge-tech">Core Runtime</span></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Standard</td>
+              <td class="infobox-data">ISO C++20 / C++23 &bull; MSVC v143</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Platform</td>
+              <td class="infobox-data">Windows x64 / Linux (Clang 16+)</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Memory Paradigm</td>
+              <td class="infobox-data">Strict RAII &bull; Zero Heap in Loop</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Standalone Repo</td>
+              <td class="infobox-data"><a href="https://github.com/YoungJasiek/lab-studio" target="_blank" rel="noopener noreferrer"><code>YoungJasiek/lab-studio</code></a></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Consumer Apps</td>
+              <td class="infobox-data"><a href="frozen-life.html">Frozen-Life</a> &bull; <a href="labhammer.html">LabHammer</a> &bull; <a href="character-studio.html">LabStudio</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </aside>
+
+      <!-- Technical Notice Callout (Like FL Alpha Verification) -->
+      <div class="wiki-notice notice-note">
+        <span class="notice-icon">&#9432;</span>
+        <div class="wiki-notice-content">
+          <strong>Decoupled Subsystem Architecture:</strong>
+          <code>LabCore.dll</code> is compiled as an independent, portable x64 dynamic link library (DLL) with clean C++20 interfaces. Consumers link against <code>LabCore.lib</code> and runtime loads <code>LabCore.dll</code>, ensuring zero build coupling between the engine modules and client games like <a href="frozen-life.html">Frozen-Life (FL)</a>.
         </div>
       </div>
 
-      <div class="wiki-infobox">
-        <div class="infobox-header">Module: LabCore.dll</div>
-        <table class="infobox-table">
-          <tr><th>Target Name</th><td><code>LabCore.dll</code></td></tr>
-          <tr><th>Output Type</th><td>Shared Library (<code>.dll</code> + <code>.lib</code>)</td></tr>
-          <tr><th>Headers</th><td><code>LabCore.h</code>, <code>LabMath.h</code>, <code>LabCamera.h</code>, <code>LabFont.h</code>, <code>LabDialogs.h</code>, <code>LabExport.h</code></td></tr>
-          <tr><th>Standard</th><td>ISO C++20 / MSVC v143</td></tr>
-          <tr><th>Standalone Repo</th><td><code>Desktop/lab-studio</code></td></tr>
-        </table>
-      </div>
-
-      <p class="lead-text">Foundational subsystem of the Lab Engine managing application lifecycle, deterministic 64Hz loop timing, Win32/GLFW input processing, vector math (Vec2, Vec3, Mat4), camera projection, native file dialogs, and font atlas rendering.</p>
-
-      <div class="vdc-toc">
-        <div class="toc-title">Table of Contents</div>
-        <ol class="toc-list">
-          <li><a href="#sec-lifecycle">Application Lifecycle & Fixed Timestep Loop</a></li>
-<li><a href="#sec-input">Input System (Win32 & GLFW)</a></li>
-<li><a href="#sec-math">Linear Algebra & Camera Transforms</a></li>
-<li><a href="#sec-fonts">Font Atlas & Rasterizer</a></li>
+      <!-- Collapsible Table of Contents (TOC) -->
+      <nav id="toc" class="toc" role="doc-toc" aria-label="Table of contents">
+        <div class="toctitle">
+          <span>Contents</span>
+          <span id="toctogglelink" class="toctoggle">hide</span>
+        </div>
+        <ol id="toc-list" class="toc-list">
+          <li><a href="#sec-lifecycle"><span class="tocnumber">1</span> <span class="toctext">Application Lifecycle & Fixed Timestep Loop</span></a></li>
+<li><a href="#sec-input"><span class="tocnumber">2</span> <span class="toctext">Input System (Win32 & GLFW)</span></a></li>
+<li><a href="#sec-math"><span class="tocnumber">3</span> <span class="toctext">Linear Algebra & Camera Transforms</span></a></li>
+<li><a href="#sec-fonts"><span class="tocnumber">4</span> <span class="toctext">Font Atlas & Rasterizer</span></a></li>
+          <li><a href="#sec-cmake"><span class="tocnumber">5</span> <span class="toctext">CMake Integration &amp; Compilation</span></a></li>
+          <li><a href="#sec-api"><span class="tocnumber">6</span> <span class="toctext">Exported API Headers &amp; Interfaces</span></a></li>
         </ol>
+      </nav>
+
+      <!-- Build Metrics / Specification Highlight Card (Matching FL style) -->
+      <div class="build-highlight-card">
+        <div class="build-header-row">
+          <div>
+            <h3 style="margin:0; font-size: 1.3rem;">LabCore.dll Specifications</h3>
+            <div style="font-size:0.8rem; color:var(--wiki-text-muted); margin-top:2px;">Target: <code>bin/Release/LabCore.dll</code> &bull; Platform: Windows x64 (MSVC 2022) &bull; Standard: ISO C++20</div>
+          </div>
+          <span class="build-version-tag">SUBSYSTEM: CORE RUNTIME</span>
+        </div>
+
+        <!-- Metrics Grid -->
+        <div class="build-metrics-grid">
+          <div class="metric-card">
+            <span class="metric-val">64 Hz</span>
+            <span class="metric-label">Deterministic Loop Rate</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-val">0.00 ms</span>
+            <span class="metric-label">Heap Overhead / Frame</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-val">512 Keys</span>
+            <span class="metric-label">Win32/GLFW Input Array</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-val">SIMD AVX2</span>
+            <span class="metric-label">Vec3/Mat4 Math</span>
+          </div>
+        </div>
       </div>
 
-      <section class="wiki-section" id="sec-lifecycle"><h2>Application Lifecycle & Fixed Timestep Loop</h2>
+      <!-- Article Sections -->
+      
+      <section id="sec-lifecycle" class="wiki-section-container">
+        <h2><span class="mw-headline">1. Application Lifecycle & Fixed Timestep Loop</span></h2>
+        
                 <p>The <code>Lab::Engine</code> class encapsulates the master execution loop, providing deterministic fixed-timestep physics updates (64Hz) decoupled from uncapped rendering framerates. Time accumulation prevents temporal aliasing while maintaining sub-millisecond precision.</p>
-                <div class="code-block"><pre><code>// Initialize Engine Context
+                <div class="code-block"><pre><code>// Initialize Engine Context with strict RAII
 Lab::Engine engine("Lab Showcase", 1920, 1080);
-engine.run(); // Starts fixed-timestep accumulator loop</code></pre></div>
-                </section>
-<section class="wiki-section" id="sec-input"><h2>Input System (Win32 & GLFW)</h2>
+engine.run(); // Starts fixed-timestep accumulator loop at 64Hz</code></pre></div>
+                <p>The loop guarantees that every physics and logic update receives a constant delta time (<code>dt = 1/64s ≈ 15.625ms</code>), eliminating non-deterministic physics anomalies across different display refresh rates (60Hz, 144Hz, 240Hz).</p>
+                
+      </section>
+
+      <section id="sec-input" class="wiki-section-container">
+        <h2><span class="mw-headline">2. Input System (Win32 & GLFW)</span></h2>
+        
                 <p><code>Lab::Input</code> delivers zero-latency polling for keyboard keys (512-code array), mouse buttons (8 channels), cursor coordinates, and fractional delta vectors with smoothing filter.</p>
                 <div class="code-block"><pre><code>if (Lab::Input::isKeyDown(GLFW_KEY_W)) {
     playerPos += camera.getFront() * moveSpeed * dt;
 }
-Lab::Vec2 mouseDelta = Lab::Input::getMouseDelta();</code></pre></div>
-                </section>
-<section class="wiki-section" id="sec-math"><h2>Linear Algebra & Camera Transforms</h2>
-                <p>Optimized 3D mathematics suite including <code>Vec2</code>, <code>Vec3</code>, and <code>Mat4</code> with SIMD-aligned structures, quaternion SLERP interpolation, and <code>Lab::Camera</code> perspective and view matrix evaluation.</p>
-                </section>
-<section class="wiki-section" id="sec-fonts"><h2>Font Atlas & Rasterizer</h2>
-                <p><code>Lab::LabFont</code> builds crisp, anti-aliased texture atlases using Windows native GDI font rasterization (Segoe UI, Arial) and the bundled Geo Sans Light typeface with sub-pixel rendering.</p>
-                </section>
-
-      <section class="wiki-section" id="sec-cmake">
-        <h2>CMake Integration &amp; Compilation</h2>
-        <p>To integrate <code>LabCore.dll</code> in your game or tool, include its headers and link to its import library:</p>
-        <div class="code-block"><pre><code>target_include_directories(MyGame PRIVATE "${LAB_ENGINE_DIR}/include")
-target_link_libraries(MyGame PRIVATE LabCore)</code></pre></div>
+Lab::Vec2 mouseDelta = Lab::Input::getMouseDelta();
+camera.processMouseMovement(mouseDelta.x, mouseDelta.y);</code></pre></div>
+                <p>Coordinates are normalized against high-DPI scaling factors via native Win32 <code>GetCursorPos</code> and GLFW callback multiplexing, preventing cursor drops across DLL process boundaries.</p>
+                
       </section>
 
-      <footer class="article-footer">
-        <p>Lab Engine is created by <a href="https://github.com/YoungJasiek" target="_blank" rel="noopener noreferrer">YoungJasiek</a>. Released under the MIT License.</p>
-        <p><a href="#content">Back to top &#8593;</a></p>
-      </footer>
+      <section id="sec-math" class="wiki-section-container">
+        <h2><span class="mw-headline">3. Linear Algebra & Camera Transforms</span></h2>
+        
+                <p>Optimized 3D mathematics suite including <code>Vec2</code>, <code>Vec3</code>, and <code>Mat4</code> with SIMD-aligned structures, quaternion SLERP interpolation, and <code>Lab::Camera</code> perspective and view matrix evaluation.</p>
+                <p>Matrix operations adhere strictly to OpenGL column-major memory layout, facilitating direct uploads to GPU uniform buffers and shader push constants without transposition.</p>
+                
+      </section>
+
+      <section id="sec-fonts" class="wiki-section-container">
+        <h2><span class="mw-headline">4. Font Atlas & Rasterizer</span></h2>
+        
+                <p><code>Lab::LabFont</code> builds crisp, anti-aliased texture atlases using Windows native GDI font rasterization (Segoe UI, Arial) and the bundled Geo Sans Light typeface with sub-pixel rendering.</p>
+                <p>Glyph metric caches (advance width, bearing, kerning pairs) ensure instantaneous UI text rendering without runtime CPU string rasterization.</p>
+                
+      </section>
+
+      <!-- CMake Integration Section -->
+      <section id="sec-cmake" class="wiki-section-container">
+        <h2><span class="mw-headline">5. CMake Integration &amp; Compilation</span></h2>
+        <p>To integrate <code>LabCore.dll</code> into your game client, level editor, or standalone tool, link against its import library target in CMake:</p>
+        <div class="code-block"><pre><code># Link against LabCore.dll in CMakeLists.txt
+find_package(LabEngine REQUIRED)
+
+target_include_directories(MyTarget PRIVATE
+    "${LAB_ENGINE_DIR}/include"
+)
+
+target_link_libraries(MyTarget PRIVATE
+    LabCore
+)
+
+# Automatically copy LabCore.dll to the output directory on build
+add_custom_command(TARGET MyTarget POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${LAB_BIN_DIR}/LabCore.dll"
+    "$&lt;TARGET_FILE_DIR:MyTarget&gt;/LabCore.dll"
+)</code></pre></div>
+      </section>
+
+      <!-- Public Headers Section -->
+      <section id="sec-api" class="wiki-section-container">
+        <h2><span class="mw-headline">6. Exported API Headers &amp; Interfaces</span></h2>
+        <p>The following public header files define the exposed surface of <code>LabCore.dll</code>. Symbols are exported via the standard <code>LAB_API</code> macro (translating to <code>__declspec(dllexport)</code> during module compilation and <code>__declspec(dllimport)</code> for client consumers):</p>
+        <div style="overflow-x: auto; margin: 16px 0;">
+          <table class="infobox-table" style="width: 100%; border: 1px solid var(--wiki-border);">
+            <thead>
+              <tr style="background: var(--wiki-bg-inset); text-align: left;">
+                <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Public Header</th>
+                <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Namespace / Core Class</th>
+                <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Responsibility</th>
+              </tr>
+            </thead>
+            <tbody>
+              
+              <tr>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>include/LabCore.h</code></td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-accent); font-family: var(--font-mono);">Lab::Core</td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for LabCore.dll.</td>
+              </tr>
+
+              <tr>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>include/LabMath.h</code></td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-accent); font-family: var(--font-mono);">Lab::Math</td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for LabCore.dll.</td>
+              </tr>
+
+              <tr>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>include/LabCamera.h</code></td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-accent); font-family: var(--font-mono);">Lab::Camera</td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for LabCore.dll.</td>
+              </tr>
+
+              <tr>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>include/LabFont.h</code></td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-accent); font-family: var(--font-mono);">Lab::Font</td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for LabCore.dll.</td>
+              </tr>
+
+              <tr>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>include/LabDialogs.h</code></td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-accent); font-family: var(--font-mono);">Lab::Dialogs</td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for LabCore.dll.</td>
+              </tr>
+
+              <tr>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>include/LabExport.h</code></td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-accent); font-family: var(--font-mono);">Lab::Export</td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for LabCore.dll.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Article Footer (FL / VDC Style) -->
+      <div class="article-footer" style="margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--wiki-border);">
+        <div class="vdc-see-also">
+          <h4>Related Engine Modules &amp; Documentation</h4>
+          <ul class="footer-links" style="display: flex; flex-wrap: wrap; gap: 12px; list-style: none; padding: 0; margin-top: 8px;">
+            <li><a href="modules.html">&bull; All 10 Engine Modules</a></li>
+            <li><a href="frozen-life.html">&bull; Frozen-Life (FL) Playable Build</a></li>
+            <li><a href="architecture.html">&bull; Engine Architecture</a></li>
+            <li><a href="labhammer.html">&bull; LabHammer Editor</a></li>
+            <li><a href="building.html">&bull; Build from Source</a></li>
+          </ul>
+        </div>
+        <div style="margin-top: 18px; font-size: 0.8rem; color: var(--wiki-text-muted); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+          <div>Lab Developer Community &bull; Lab Engine SDK &amp; Frozen-Life &bull; Maintained by YoungJasiek</div>
+          <div><a href="#content" style="color: var(--wiki-accent);">Back to top &#8593;</a></div>
+        </div>
+      </div>
+
     </main>
   </div>
 
