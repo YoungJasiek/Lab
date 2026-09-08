@@ -28,3 +28,4 @@
 #include "LabFace.h"
 #include "LabNetwork.h"
 #include "LabStudio.h"
+#include "LabHUDEditor.h"

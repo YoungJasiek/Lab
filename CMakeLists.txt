@@ -206,6 +206,15 @@ target_include_directories(LabStudioCore PUBLIC ${LAB_INCLUDES})
 target_compile_options(LabStudioCore PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabStudioCore PUBLIC LabCore LabRender LabAnimation LabWorld LabAI)
 
+# 11. LabHUDEditorCore.dll - 2D/HUD/GUI Editor Engine Backend
+add_library(LabHUDEditorCore SHARED
+    src/LabHUDEditor.cpp
+    include/LabHUDEditor.h
+)
+target_include_directories(LabHUDEditorCore PUBLIC ${LAB_INCLUDES})
+target_compile_options(LabHUDEditorCore PRIVATE ${COMPILER_FLAGS})
+target_link_libraries(LabHUDEditorCore PUBLIC LabCore LabRender LabAnimation LabWorld)
+
 # -----------------------------------------------------------------------------
 # Unified Interface Target: LabEngineLib
 # -----------------------------------------------------------------------------
@@ -221,6 +230,7 @@ target_link_libraries(LabEngineLib INTERFACE
     LabNetwork
     LabScript
     LabStudioCore
+    LabHUDEditorCore
 )
 
 # =============================================================================
@@ -247,13 +257,18 @@ add_executable(LabStudio src/studio_main.cpp)
 target_compile_options(LabStudio PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabStudio PRIVATE LabEngineLib)
 
-# 5. Full Engine Automated Verification Suite
+# 5. Standalone 2D/HUD/GUI Editor Executable
+add_executable(LabHUDEditor src/hud_editor_main.cpp)
+target_compile_options(LabHUDEditor PRIVATE ${COMPILER_FLAGS})
+target_link_libraries(LabHUDEditor PRIVATE LabEngineLib)
+
+# 6. Full Engine Automated Verification Suite
 add_executable(TestVerify src/test_verify.cpp)
 target_compile_options(TestVerify PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(TestVerify PRIVATE LabEngineLib)
 
 # Post-build asset replication to output directories
-set(ASSET_TARGETS FrozenLife LabHammer LabStudio TestVerify)
+set(ASSET_TARGETS FrozenLife LabHammer LabStudio LabHUDEditor TestVerify)
 foreach(tgt ${ASSET_TARGETS})
     add_custom_command(TARGET ${tgt} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -264,3 +279,4 @@ foreach(tgt ${ASSET_TARGETS})
             "$<TARGET_FILE_DIR:${tgt}>/fonts"
     )
 endforeach()
+
