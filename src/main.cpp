@@ -95,7 +95,7 @@ public:
         NetworkSystem::init();
         _serverBrowser.start();
 
-        // Initialize Valve Hammer Character & Weapon Studio
+        // Initialize Lab Character & Weapon Studio
         _characterStudio.init();
         _characterStudio.setWindow(getWindow());
         _characterStudio.loadConfig("assets/configs/character_studio.cfg");
@@ -1782,7 +1782,7 @@ public:
             std::vector<MenuItem> items = {
                 { "CAMPAIGN / MISSIONS", "Explore maps solo without hostile combat bot squads", 185.0f, true },
                 { "MULTIPLAYER (HOST / JOIN)", "Host a custom LAN match with bots, game modes (FFA/DM/TDM) & rules", 245.0f, true },
-                { "CHARACTER & WEAPON STUDIO", "Valve Hammer style studio: grip poser, reload timeline, skins & face lip-sync", 305.0f, true },
+                { "CHARACTER & WEAPON STUDIO", "Lab Studio: 3D grip poser, reload timeline, skins & face lip-sync", 305.0f, true },
                 { "RESUME MISSION [ESC]", "Return to current active gameplay session", 365.0f, (_currentMap != nullptr) },
                 { "QUIT GAME", "Exit to desktop", 425.0f, true }
             };

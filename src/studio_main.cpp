@@ -9,7 +9,7 @@ using namespace Lab;
 class LabStudioApp : public Engine {
 public:
     LabStudioApp()
-        : Engine("Valve Hammer Character & Weapon Studio - [Lab Engine 2026]", 1600, 900) {
+        : Engine("Lab Character & Weapon Studio - [Lab Engine 2026]", 1600, 900) {
     }
 
     ~LabStudioApp() override {
@@ -17,7 +17,7 @@ public:
     }
 
     void onInit() override {
-        LabLog::info("Initializing Standalone Valve Hammer Character Studio...");
+        LabLog::info("Initializing Standalone Lab Character Studio...");
         Renderer::init();
         _studio.init();
         _studio.setWindow(getWindow());
@@ -72,7 +72,7 @@ public:
         int w = (fbW > 0) ? fbW : getWidth();
         int h = (fbH > 0) ? fbH : getHeight();
 
-        // Clear background to Valve Hammer dark slate
+        // Clear background to dark slate
         glViewport(0, 0, w, h);
         glClearColor(0.12f, 0.13f, 0.15f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Valve Hammer Character &amp; Weapon Studio (LabStudio) ? Technical documentation for 3D weapon grip posing, bot sockets, reload choreography, PBR skins, and FBX skeletal animation preview.">
+  <meta name="description" content="Lab Character &amp; Weapon Studio (LabStudio) ? Technical documentation for 3D weapon grip posing, bot sockets, reload choreography, PBR skins, and FBX skeletal animation preview.">
   <meta name="keywords" content="LabStudio, Valve Hammer, Character Studio, Weapon Grip Poser, Bot Sockets, Skeletal Animation, FBX, glTF 2.0, Lip-Sync, C++20, OpenGL">
   <meta name="author" content="YoungJasiek">
 
-  <title>Valve Hammer Character &amp; Weapon Studio ? Lab Developer Community</title>
+  <title>Lab Character &amp; Weapon Studio ? Lab Developer Community</title>
   <link rel="icon" type="image/webp" href="assets/img/LabLogo.webp">
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -65,7 +65,7 @@
         <div class="sidebar-title">Studio Topics</div>
         <ul class="sidebar-links">
           <li><a href="#sec-overview">Studio Architecture</a></li>
-          <li><a href="#sec-ui-layout">Valve Hammer UI &amp; Gizmos</a></li>
+          <li><a href="#sec-ui-layout">Studio UI &amp; Gizmos</a></li>
           <li><a href="#sec-tab-poser">Tab 1: Weapon Grip Poser</a></li>
           <li><a href="#sec-bot-socket">Bot Sockets &amp; Normalization</a></li>
           <li><a href="#sec-tab-reload">Tab 2: Reload Choreographer</a></li>
@@ -108,7 +108,7 @@
       </div>
 
       <h1 class="firstHeading">
-        <span>Valve Hammer Character &amp; Weapon Studio</span>
+        <span>Lab Character &amp; Weapon Studio</span>
         <span style="font-size: 0.85rem; font-weight: normal; font-family: var(--font-mono); color: var(--wiki-accent);">[LabStudio.exe]</span>
       </h1>
       <div class="siteSub">From Lab Developer Community &ndash; Real-Time 3D Weapon Alignment, Dual-Socket Poser, Reload Choreography, PBR Custom STL Skins, and 23-Clip FBX Skeletal Previewer</div>
@@ -116,11 +116,11 @@
       <aside class="infobox" aria-label="LabStudio Information">
         <div class="infobox-title">
           LabStudio
-          <span class="infobox-subtitle">VALVE HAMMER CHARACTER SUITE</span>
+          <span class="infobox-subtitle">LAB CHARACTER &amp; WEAPON SUITE</span>
         </div>
         <div class="infobox-image">
-          <img src="assets/img/test_character_studio.webp" alt="Valve Hammer Character Studio Interface" style="max-height:180px; width:100%; object-fit:cover;">
-          <div class="infobox-caption">LabStudio showing 3D Cryo-Marine turntable and Valve Hammer beveled UI</div>
+          <img src="assets/img/test_character_studio.webp" alt="Lab Character &amp; Weapon Studio Interface" style="max-height:180px; width:100%; object-fit:cover;">
+          <div class="infobox-caption">LabStudio showing 3D Cryo-Marine turntable and Studio beveled UI</div>
         </div>
         <table class="infobox-table">
           <tbody>
@@ -134,7 +134,7 @@
             </tr>
             <tr>
               <td class="infobox-label">UI Paradigm</td>
-              <td class="infobox-data">Immediate-Mode Classic Valve Hammer (Bevels, Sliders, Dropdowns)</td>
+              <td class="infobox-data">Immediate-Mode CAD UI (Bevels, Sliders, Dropdowns)</td>
             </tr>
             <tr>
               <td class="infobox-label">Core Modes</td>
@@ -163,7 +163,7 @@
         </div>
         <ul>
           <li class="toclevel-1"><a href="#sec-overview"><span class="tocnumber">1</span> <span class="toctext">Studio Architecture &amp; Rationale</span></a></li>
-          <li class="toclevel-1"><a href="#sec-ui-layout"><span class="tocnumber">2</span> <span class="toctext">Valve Hammer UI, Gizmos &amp; Diagnostics</span></a></li>
+          <li class="toclevel-1"><a href="#sec-ui-layout"><span class="tocnumber">2</span> <span class="toctext">Studio UI, Gizmos &amp; Diagnostics</span></a></li>
           <li class="toclevel-1"><a href="#sec-tab-poser"><span class="tocnumber">3</span> <span class="toctext">Tab 1: Weapon Grip Poser &amp; Sub-Modes</span></a></li>
           <li class="toclevel-1"><a href="#sec-bot-socket"><span class="tocnumber">4</span> <span class="toctext">Third-Person Bot Weapon Sockets &amp; Scaling</span></a></li>
           <li class="toclevel-1"><a href="#sec-tab-reload"><span class="tocnumber">5</span> <span class="toctext">Tab 2: Reload Timeline Choreography</span></a></li>
@@ -180,7 +180,7 @@
         In traditional game production, aligning first-person viewmodels, calibrating two-handed weapon grips, tuning aim-down-sights (ADS) camera offsets, and fitting third-person bot skeletal sockets is an arduous trial-and-error cycle of recompiling code or re-exporting 3D assets. 
       </p>
       <p>
-        <strong>LabStudio</strong> (<code>LabStudio.exe</code>) is a specialized, zero-overhead standalone authoring suite built natively inside Lab Engine. Modeled after the iconic industrial aesthetic of <em>Valve Hammer Editor</em>, it allows technical artists and gameplay programmers to inspect, pose, animate, and customize all 9 tactical weapons and character rigs directly inside OpenGL 4.5+ with instant visual feedback and sub-millimeter precision.
+        <strong>LabStudio</strong> (<code>LabStudio.exe</code>) is a specialized, zero-overhead standalone authoring suite built natively inside Lab Engine. It allows technical artists and gameplay programmers to inspect, pose, animate, and customize all 9 tactical weapons and character rigs directly inside OpenGL 4.5+ with instant visual feedback and sub-millimeter precision.
       </p>
 
       <div class="vdc-callout vdc-callout-tip">
@@ -190,12 +190,12 @@
         </div>
       </div>
 
-      <h2 id="sec-ui-layout">2. Valve Hammer UI, Gizmos &amp; Diagnostics</h2>
+      <h2 id="sec-ui-layout">2. Studio UI, Gizmos &amp; Diagnostics</h2>
       <p>
         The user interface of LabStudio is rendered using immediate-mode 2D and 3D primitives via <code>LabRenderer</code> and <code>LabFont</code>. It avoids heavyweight web views or bloated third-party GUI libraries, maintaining a blistering <strong>&gt;1000 FPS</strong> rendering loop.
       </p>
       <figure class="vdc-img-figure">
-        <img src="assets/img/test_weapon_grip_studio.webp" alt="Valve Hammer Weapon Grip Poser" class="vdc-article-img">
+        <img src="assets/img/test_weapon_grip_studio.webp" alt="Lab Studio Weapon Grip Poser" class="vdc-article-img">
         <figcaption class="vdc-img-caption">Figure 1: LabStudio Weapon Grip Poser showing the M4A4-S tactical carbine, cybernetic viewmodel arms, and industrial Hammer bevel controls.</figcaption>
       </figure>
 
@@ -401,7 +401,7 @@ roughness = 0.35</code></pre>
   <footer class="vdc-footer" role="contentinfo">
     <div class="vdc-footer-content">
       <div class="footer-left">
-        <p><strong>Lab Developer Community</strong> ? The Valve-Style Knowledge Hub for Lab Engine, LabHammer &amp; Frozen-Life.</p>
+        <p><strong>Lab Developer Community</strong> ? The Official Technical Knowledge Hub for Lab Engine, Lab Hammer &amp; Frozen Life.</p>
         <p>Crafted in ISO C++20 with OpenGL 4.5+ Direct State Access (DSA). Zero runtime external dependencies.</p>
       </div>
       <div class="footer-right">

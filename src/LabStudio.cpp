@@ -351,7 +351,7 @@ namespace Lab {
     }
 
     void CharacterStudio::init() {
-        LabLog::info("CharacterStudio: Initializing Valve Hammer styled Studio...");
+        LabLog::info("CharacterStudio: Initializing Lab Character & Weapon Studio...");
 
         _arms = std::make_unique<ViewModelArms>();
         _animator = std::make_unique<WeaponAnimator>();
@@ -369,7 +369,7 @@ namespace Lab {
         _speechTrackSamples = LipSyncEvaluator::generateSpeechTrack(
             _dialogueLines[0].duration, _dialogueLines[0].syllablesPerSec, _dialogueLines[0].seed);
 
-        // Build 3D Ground Grid (Valve Hammer green/grey coordinate plane)
+        // Build 3D Ground Grid (Green/grey coordinate plane)
         std::vector<Vertex> gridVerts;
         const int halfExtents = 24;
         const float spacing = 0.5f;
@@ -462,7 +462,7 @@ namespace Lab {
         // Try load saved config
         loadConfig("assets/configs/character_studio.cfg");
 
-        log("Valve Hammer Character & Weapon Studio ready.");
+        log("Lab Character & Weapon Studio ready.");
         log("Select tool from left palette or press 1-5.");
     }
 
@@ -1402,7 +1402,7 @@ namespace Lab {
         }
 
         // Title Tag
-        LabFont::drawText(std::max(250.0f, w - 420.0f), 5.0f, "Valve Hammer Character & Weapon Studio - [Lab Studio 2026]", 1.4f, Vec3(0.85f, 0.88f, 0.92f), LabFontType::System);
+        LabFont::drawText(std::max(250.0f, w - 420.0f), 5.0f, "Lab Character & Weapon Studio - [Lab Studio 2026]", 1.4f, Vec3(0.85f, 0.88f, 0.92f), LabFontType::System);
     }
 
     void CharacterStudio::renderHammerDropdownMenus(float w, float h) {
@@ -1551,7 +1551,7 @@ namespace Lab {
                 log("Home: Reset Cam     | G: Grid | Z: Gizmos | R: Rotate | 1-5: Tabs");
             }});
             items.push_back({ "About Hammer Studio", "", false, false, false, [this]() {
-                log("Valve Hammer Character & Weapon Studio v2.0 for Frozen-Life.");
+                log("Lab Character & Weapon Studio v2.0.");
                 log("Strict Core Profile OpenGL 4.5 | Responsive DPI Scaling.");
             }});
         }
@@ -2515,7 +2515,7 @@ namespace Lab {
         // 1. Center 3D Viewport Frame Border
         drawHammerBevel(vpX, vpY, vpW, vpH, true);
 
-        // Viewport Header Label (Valve Hammer iconic text with live tool mode and transform status)
+        // Viewport Header Label (Viewport header text with live tool mode and transform status)
         float headerBoxW = std::min(540.0f, vpW - 8.0f);
         Renderer::drawRect(vpX + 4.0f, vpY + 4.0f, headerBoxW, 20.0f, Vec3(0.10f, 0.12f, 0.14f));
         const char* toolNames[] = { "ORBIT", "MOVE", "ROTATE", "SCALE" };

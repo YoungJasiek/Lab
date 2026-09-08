@@ -24,9 +24,9 @@
 
 The project encompasses the following core targets:
 1. **Lab Engine Showcase** (`Lab.exe`): Interactive 3D engine sandbox demonstrating fixed-timestep 64Hz physics, dynamic lighting, spatial audio, particles, and Lua 5.4 scripting for developers building games on Lab.
-2. **Frozen-Life (FL)** (`FrozenLife.exe`): The flagship tactical FPS demonstration game built on top of the Lab Engine SDK (also available as an independent repository).
-3. **LabHammer** (`LabHammer.exe`): Standalone CAD-style 3D level editor for authoring geometry, dynamic doors, light sources, player spawns, and weapon pickup nodes in plain-text `.labmap` files.
-4. **LabStudio** (`LabStudio.exe`): Valve Hammer styled Character & Weapon Studio for 3D weapon grip posing, bot weapon socket alignment, ADS optical tuning, reload choreography, and animation previewing.
+2. **Frozen Life** (`FrozenLife.exe`): The flagship tactical FPS demonstration game built on top of the Lab Engine SDK (also available as an independent repository).
+3. **Lab Hammer** (`LabHammer.exe`): Standalone CAD 3D level editor for authoring geometry, dynamic doors, light sources, player spawns, and weapon pickup nodes in plain-text `.labmap` files.
+4. **Lab Studio** (`LabStudio.exe`): Specialized 3D Character & Weapon Studio for weapon grip posing, bot weapon socket alignment, ADS optical tuning, reload choreography, and animation previewing.
 5. **LabServer** (`LabServer.exe`): Dedicated authoritative UDP multiplayer server running a deterministic 64-128Hz tickrate simulation.
 6. **10 Modular Engine Subsystems** (`LabCore.dll` through `LabStudioCore.dll`): Decoupled DLL libraries consumable by any game or application.
 
@@ -67,7 +67,7 @@ Comprehensive technical articles are organized modularly in the [`docs/`](docs/)
 * **Decoupled State Pipeline:** No global state binding spaghetti (`glBindTexture`, `glBindBuffer` eliminated where DSA is applicable).
 * **Immutable Storage:** Textures and vertex buffers allocated via `glCreateTextures`, `glTextureStorage2D`, `glCreateBuffers`, and `glNamedBufferStorage`.
 * **Dynamic Shadow Mapping (2048x2048 FBO):** Real-time depth pass with 3x3 Percentage-Closer Filtering (PCF) and slope-scaled normal bias.
-* **Half-Life 2 Tactical Flashlight:** High-intensity spotlight with inner/outer beam falloff and synthesized mechanical toggle audio.
+* **Tactical Spotlight & Flashlight:** High-intensity spotlight with inner/outer beam falloff and synthesized mechanical toggle audio.
 
 ### 👁️ Biometric Retinal Scanner & Airlock Security (`LabInteractive`)
 * **Environmental Interaction:** In-world 3D scanner consoles with procedural animated eye calibration textures, iris rendering, and sweeping laser beams.
@@ -100,25 +100,25 @@ Lab is architected into **10 modular Dynamic Link Libraries (.dll)**, **3 standa
 ### 🎮 Standalone Application Repositories
 | Project | Repository | Executable | Description |
 | :--- | :--- | :--- | :--- |
-| **Frozen Life** | [`frozen-life`](https://github.com/YoungJasiek/frozen-life) | `FrozenLife.exe` | Tactical retro-modern FPS game client (weapons, HUD, audio, AI bots, multiplayer). |
-| **LabHammer** | [`labhammer`](https://github.com/YoungJasiek/labhammer) | `LabHammer.exe` | Valve Hammer styled CAD 3D level editor for authoring `.labmap` geometry and CSG brushes. |
-| **LabStudio** | [`labstudio`](https://github.com/YoungJasiek/labstudio) | `LabStudio.exe` | Character & Weapon Studio for Mixamo rig retargeting, weapon sockets, and reload curves. |
+| **Frozen Life** | [`Frozen-Life`](https://github.com/YoungJasiek/Frozen-Life) | `FrozenLife.exe` | Tactical retro-modern FPS game client (weapons, HUD, audio, AI bots, multiplayer). |
+| **Lab Hammer** | [`Lab-Hammer`](https://github.com/YoungJasiek/Lab-Hammer) | `LabHammer.exe` | Standalone CAD 3D level editor for authoring `.labmap` geometry and CSG brushes. |
+| **Lab Studio** | [`Lab-Studio`](https://github.com/YoungJasiek/Lab-Studio) | `LabStudio.exe` | Character & Weapon Studio for Mixamo rig retargeting, weapon sockets, and reload curves. |
 
 ### ⚙️ Engine Subsystem Modules (.dll)
 Each engine subsystem is maintained as an independent repository with its own `README.md`, standalone `CMakeLists.txt`, and dedicated web documentation page:
 
 | Subsystem Module | Shared DLL | Online Documentation | Responsibilities & Focus |
 | :--- | :--- | :--- | :--- |
-| **[`lab-core`](https://github.com/YoungJasiek/lab-core)** | `LabCore.dll` | [📖 Core Docs](https://youngjasiek.github.io/Lab/module-core.html) | Engine lifecycle, windowing, GLFW/Win32 input, math vector library, camera transforms, fonts. |
-| **[`lab-render`](https://github.com/YoungJasiek/lab-render)** | `LabRender.dll` | [📖 Render Docs](https://youngjasiek.github.io/Lab/module-render.html) | OpenGL 4.5+ Direct State Access (DSA), Phong lighting, CSG brushes, decals, post-processing. |
-| **[`lab-audio`](https://github.com/YoungJasiek/lab-audio)** | `LabAudio.dll` | [📖 Audio Docs](https://youngjasiek.github.io/Lab/module-audio.html) | 3D spatial audio system with miniaudio integration and procedural WAV sound synthesis. |
-| **[`lab-physics`](https://github.com/YoungJasiek/lab-physics)** | `LabPhysics.dll` | [📖 Physics Docs](https://youngjasiek.github.io/Lab/module-physics.html) | Swept-AABB collisions, moveAndSlide kinematic controller, rigid bodies, raycasting. |
-| **[`lab-animation`](https://github.com/YoungJasiek/lab-animation)** | `LabAnimation.dll` | [📖 Animation Docs](https://youngjasiek.github.io/Lab/module-animation.html) | Skeletal keyframe animation blending, bone hierarchy transformation, tactical FPP arms animator. |
-| **[`lab-world`](https://github.com/YoungJasiek/lab-world)** | `LabWorld.dll` | [📖 World Docs](https://youngjasiek.github.io/Lab/module-world.html) | Map environment (.labmap), weapon mechanics, particle systems, interactive terminals, HUD. |
-| **[`lab-network`](https://github.com/YoungJasiek/lab-network)** | `LabNetwork.dll` | [📖 Network Docs](https://youngjasiek.github.io/Lab/module-network.html) | Low-latency UDP networking (64-128 Hz), client-side prediction, server reconciliation, LAN discovery. |
-| **[`lab-ai`](https://github.com/YoungJasiek/lab-ai)** | `LabAI.dll` | [📖 AI Docs](https://youngjasiek.github.io/Lab/module-ai.html) | CombatBot autonomous sensory perception, finite state machine, FBX skeletal animation retargeting. |
-| **[`lab-script`](https://github.com/YoungJasiek/lab-script)** | `LabScript.dll` | [📖 Script Docs](https://youngjasiek.github.io/Lab/module-script.html) | Embedded Lua 5.4 scripting engine for weapon ballistics, map events, and game mechanics balance. |
-| **[`lab-studio`](https://github.com/YoungJasiek/lab-studio)** | `LabStudioCore.dll` | [📖 Studio Docs](https://youngjasiek.github.io/Lab/module-studio.html) | Engine backend for weapon sockets, reload choreography curves, and facial morph lip-sync. |
+| **[`Lab Core`](https://github.com/YoungJasiek/Lab-Core)** | `LabCore.dll` | [📖 Core Docs](https://youngjasiek.github.io/Lab/module-core.html) | Engine lifecycle, windowing, GLFW/Win32 input, math vector library, camera transforms, fonts. |
+| **[`Lab Render`](https://github.com/YoungJasiek/Lab-Render)** | `LabRender.dll` | [📖 Render Docs](https://youngjasiek.github.io/Lab/module-render.html) | OpenGL 4.5+ Direct State Access (DSA), Phong lighting, CSG brushes, decals, post-processing. |
+| **[`Lab Audio`](https://github.com/YoungJasiek/Lab-Audio)** | `LabAudio.dll` | [📖 Audio Docs](https://youngjasiek.github.io/Lab/module-audio.html) | 3D spatial audio system with miniaudio integration and procedural WAV sound synthesis. |
+| **[`Lab Physics`](https://github.com/YoungJasiek/Lab-Physics)** | `LabPhysics.dll` | [📖 Physics Docs](https://youngjasiek.github.io/Lab/module-physics.html) | Swept-AABB collisions, moveAndSlide kinematic controller, rigid bodies, raycasting. |
+| **[`Lab Animation`](https://github.com/YoungJasiek/Lab-Animation)** | `LabAnimation.dll` | [📖 Animation Docs](https://youngjasiek.github.io/Lab/module-animation.html) | Skeletal keyframe animation blending, bone hierarchy transformation, tactical FPP arms animator. |
+| **[`Lab World`](https://github.com/YoungJasiek/Lab-World)** | `LabWorld.dll` | [📖 World Docs](https://youngjasiek.github.io/Lab/module-world.html) | Map environment (.labmap), weapon mechanics, particle systems, interactive terminals, HUD. |
+| **[`Lab Network`](https://github.com/YoungJasiek/Lab-Network)** | `LabNetwork.dll` | [📖 Network Docs](https://youngjasiek.github.io/Lab/module-network.html) | Low-latency UDP networking (64-128 Hz), client-side prediction, server reconciliation, LAN discovery. |
+| **[`Lab AI`](https://github.com/YoungJasiek/Lab-AI)** | `LabAI.dll` | [📖 AI Docs](https://youngjasiek.github.io/Lab/module-ai.html) | CombatBot autonomous sensory perception, finite state machine, FBX skeletal animation retargeting. |
+| **[`Lab Script`](https://github.com/YoungJasiek/Lab-Script)** | `LabScript.dll` | [📖 Script Docs](https://youngjasiek.github.io/Lab/module-script.html) | Embedded Lua 5.4 scripting engine for weapon ballistics, map events, and game mechanics balance. |
+| **[`Lab Studio Core`](https://github.com/YoungJasiek/Lab-Studio-Core)** | `LabStudioCore.dll` | [📖 Studio Docs](https://youngjasiek.github.io/Lab/module-studio.html) | Engine backend for weapon sockets, reload choreography curves, and facial morph lip-sync. |
 | **`glad`** | `glad.dll` | [📖 OpenGL 4.5+ DSA](https://youngjasiek.github.io/Lab/opengl-dsa.html) | Shared OpenGL 4.5+ DSA function dispatch table across all engine modules. |
 | **`TestVerify`** | `TestVerify.exe` | [📖 Architecture](https://youngjasiek.github.io/Lab/architecture.html) | Automated verification suite validating 45 engine subsystems with 100% test pass rate. |
 
@@ -295,5 +295,6 @@ The project includes an interactive developer wiki located in the `web/` directo
 
 ## 👤 Author & Acknowledgments
 
-* **Creator:** [YoungJasiek](https://github.com/YoungJasiek)
-* **Special Thanks:** The open-source graphics community, contributors to GLFW, GLAD, and the developers of the classic Source Engine for endless inspiration.
+* **Creator & Architect:** [YoungJasiek](https://github.com/YoungJasiek)
+* **Special Thanks to Valve Corporation:** Sincere gratitude, respect, and admiration to **Valve Corporation** for their magnificent game engines (GoldSrc, Source Engine). Their monumental design philosophy, architectural elegance, and timeless tactile mechanics provided boundless inspiration for building the Lab Engine SDK.
+* **Community Acknowledgments:** Sincere thanks to the open-source graphics community and the developers of GLFW, GLAD, miniaudio, and Lua.

@@ -45,7 +45,7 @@ Decomposition of the monolithic C++20 Lab engine (`c:\Users\jancz\Desktop\Lab`) 
 | F11 | Fast DLL Incremental Builds | Independent compilation units ensuring single-subsystem changes do not trigger ecosystem recompiles | M2 | ORIGINAL_REQUEST §R2 |
 | F12 | Unified Binary & Asset Output | Output all `.dll`s, `.exe`s, and mirrored asset trees into unified `Desktop/Lab_Suite/bin/` | M2 | ORIGINAL_REQUEST §R2 |
 | F13 | Frozen-Life Application | Port game client executable (`Frozen-Life.exe`), game loop, HUD, gameplay mechanics | M3 | ORIGINAL_REQUEST §R1, §R3 |
-| F14 | LabHammer Application | Port Valve Hammer styled map editor (`LabHammer.exe`), CSG slicing, 3D viewports | M3 | ORIGINAL_REQUEST §R1, §R3 |
+| F14 | LabHammer Application | Port CAD-styled map editor (`LabHammer.exe`), CSG slicing, 3D viewports | M3 | ORIGINAL_REQUEST §R1, §R3 |
 | F15 | LabStudio Application | Port character & weapon studio (`LabStudio.exe`), 3D gizmos, posing timelines | M3 | ORIGINAL_REQUEST §R1, §R3 |
 | F16 | LabServer Application | Port headless dedicated server (`LabServer.exe`), 64Hz deterministic sleep loop, zero OpenGL | M3 | ORIGINAL_REQUEST §R1, §R3 |
 | F17 | Asset Migration & Preservation | All textures, maps, models, audio WAVs, animations, fonts, scripts organized and accessible | M3 | ORIGINAL_REQUEST §R3 |

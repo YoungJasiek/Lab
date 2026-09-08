@@ -350,7 +350,7 @@ int main() {
     Lab::LabFont::drawText(94.0f, 5.0f, "View", 1.8f, textDark, Lab::LabFontType::System);
     Lab::LabFont::drawText(140.0f, 5.0f, "Tools", 1.8f, textDark, Lab::LabFontType::System);
     Lab::LabFont::drawText(190.0f, 5.0f, "Help", 1.8f, textDark, Lab::LabFontType::System);
-    Lab::LabFont::drawText((float)w - 360.0f, 5.0f, "Valve Hammer 4.1 - Frozen-Life Engine", 1.8f, Lab::Vec3(0.15f, 0.45f, 0.75f), Lab::LabFontType::GeoSans);
+    Lab::LabFont::drawText((float)w - 360.0f, 5.0f, "Lab Hammer 4.1 - 3D Level Editor", 1.8f, Lab::Vec3(0.15f, 0.45f, 0.75f), Lab::LabFontType::GeoSans);
 
     // Toolbar (18 buttons with icons)
     Lab::Renderer::drawRect(0, 24.0f, (float)w, 34.0f, winBg);
@@ -456,7 +456,7 @@ int main() {
     // Menu & Toolbar
     Lab::Renderer::drawRect(0, 0, (float)w, 24.0f, winBg);
     Lab::LabFont::drawText(14.0f, 5.0f, "File  Edit  View  Tools  Help", 1.8f, textDark, Lab::LabFontType::System);
-    Lab::LabFont::drawText((float)w - 360.0f, 5.0f, "Valve Hammer 4.1 - Frozen-Life Engine", 1.8f, Lab::Vec3(0.15f, 0.45f, 0.75f), Lab::LabFontType::GeoSans);
+    Lab::LabFont::drawText((float)w - 360.0f, 5.0f, "Lab Hammer 4.1 - 3D Level Editor", 1.8f, Lab::Vec3(0.15f, 0.45f, 0.75f), Lab::LabFontType::GeoSans);
     Lab::Renderer::drawRect(0, 24.0f, (float)w, 34.0f, winBg);
     for (int i = 0; i < 18; ++i) {
         float bx = 8.0f + i * 28.0f;
@@ -3351,9 +3351,9 @@ int main() {
         std::cout << "  [PASS] Dedicated server and network client clean shutdown verified!\n";
     }
 
-    // 34. Verify Valve Hammer Character & Weapon Studio Subsystem (Grip Poser, Reload Curve, Skins, Face Mimics & Lip-Sync)
+    // 34. Verify Lab Character & Weapon Studio Subsystem (Grip Poser, Reload Curve, Skins, Face Mimics & Lip-Sync)
     {
-        std::cout << "\n[Test 34] Verifying Valve Hammer Character & Weapon Studio Subsystems...\n";
+        std::cout << "\n[Test 34] Verifying Lab Character & Weapon Studio Subsystems...\n";
 
         Lab::CharacterStudio studio;
         studio.init();
@@ -3443,7 +3443,7 @@ int main() {
         std::filesystem::remove(testCfg);
         std::cout << "  [PASS] Configuration file serialization (.cfg) integrity validated!\n";
 
-        // 6. Verify Valve Hammer Dropdown Menus
+        // 6. Verify Lab Studio Dropdown Menus
         studio.setActiveDropdown(Lab::CharacterStudio::DropdownMenu::File);
         if (studio.getActiveDropdown() != Lab::CharacterStudio::DropdownMenu::File) {
             std::cerr << "Assertion failed: Dropdown menu state should be File!\n";
@@ -3456,7 +3456,7 @@ int main() {
             std::cerr << "Assertion failed: Clicking outside should close the dropdown menu!\n";
             return 1;
         }
-        std::cout << "  [PASS] Valve Hammer Dropdown Menu modal behavior and dismissal validated!\n";
+        std::cout << "  [PASS] Lab Studio Dropdown Menu modal behavior and dismissal validated!\n";
 
         // 7. Verify Undo / Redo & Grip Clipboard
         studio.setSelectedWeapon(3); // M4A4-S

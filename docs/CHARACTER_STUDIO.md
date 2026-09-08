@@ -1,6 +1,6 @@
-# 🛠️ Valve Hammer Character & Weapon Studio
+# 🛠️ Lab Hammer Character & Weapon Studio
 
-The **Character & Weapon Studio** (`LabStudio.exe` / `CharacterStudio`) is an integrated visual authoring environment designed in the visual language of Valve Hammer Editor. It provides real-time 3D posing, socket calibration, reload choreography, facial morph tuning, and kinematic animation previewing.
+The **Character & Weapon Studio** (`LabStudio.exe` / `CharacterStudio`) is an integrated visual authoring environment designed in the visual language of Lab Hammer Editor. It provides real-time 3D posing, socket calibration, reload choreography, facial morph tuning, and kinematic animation previewing.
 
 ---
 

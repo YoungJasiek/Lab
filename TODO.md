@@ -47,7 +47,7 @@ Wszystkie systemy tworzone sa w standardzie **C++20**, **OpenGL 4.5+ Core Profil
 - [x] GPU emiter czasteczek: iskry przy trafieniu w metal i beton, krew przy trafieniu w boty, dym i plomien wylotowy (muzzle flash), eksplozje RPG (blysk, odlamki, fala uderzeniowa).
 - [x] Obsluga przezroczystosci (Alpha Blending oraz Additive Blending).
 
-### 4. Valve Hammer Editor (LabHammer.exe)
+### 4. Lab Hammer Editor (LabHammer.exe)
 - [x] Widok trojwymiarowy (3D Viewport) oraz dwuwymiarowy rzut z gory (Top-Down).
 - [x] Zaznaczanie raycastem bryl, jednostek, spawnow i spawnerow broni.
 - [x] Manipulatory gizmo: translacja, przyciaganie do siatki (Grid Snap), klonowanie (Ctrl+D), usuwanie (Del), centrowanie kamery (F).
