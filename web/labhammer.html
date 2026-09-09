@@ -63,6 +63,7 @@
         <ul class="sidebar-links">
           <li><a href="index.html">Main Page (Portal)</a></li>
           <li><a href="labhammer.html" class="active">LabHammer Editor</a></li>
+          <li><a href="lighting.html">Dynamic Lighting &amp; Lamps</a></li>
           <li><a href="character-studio.html">Character & Weapon Studio</a></li>
           <li><a href="skeletal-animations.html">Skeletal & FBX Animations</a></li>
           <li><a href="bot-ai.html">Combat Bot AI</a></li>
@@ -259,12 +260,12 @@
       </section>
 
       <!-- ================================================================
-           SECTION 3: THE 6 CORE EDITING TOOLS
+           SECTION 3: THE 7 CORE EDITING TOOLS
            ================================================================ -->
       <section id="sec-tools" class="wiki-section-container">
-        <h2><span class="mw-headline">3. The 6 Core Editing Tools</span></h2>
+        <h2><span class="mw-headline">3. The 7 Core Editing Tools</span></h2>
         <p>
-          The editor toolbar grants immediate access to 6 specialized editing modalities:
+          The editor toolbar grants immediate access to 7 specialized editing modalities:
         </p>
 
         <div class="hammer-tools-grid">
@@ -340,6 +341,19 @@
             <p>
               Press <code>X</code> or <code>Shift+X</code> to cycle clipping modes:
               <strong>Keep Front</strong> (retains positive half-space), <strong>Keep Back</strong> (retains negative half-space), or <strong>Keep Both</strong> (splits brush into two convex brushes). Press <code>Enter</code> to commit the clip. Preserves planar texture UV mappings and normals.
+            </p>
+          </div>
+
+          <div id="sec-tool-7" class="tool-tile">
+            <div class="tool-tile-header">
+              <h4>Tool 7: Lamp / Light Tool</h4>
+              <span class="tool-badge">TOOL 7</span>
+            </div>
+            <p>
+              Places dynamic omni point lamps directly into the 3D scene. Real-time forward lighting recalculation in the viewport previews quadratic falloff, specular highlights, and radius cutoff.
+            </p>
+            <p>
+              Features 3D glowing bulb visualization, fixture cap, wireframe bounding sphere, interactive +Y elevation gizmo arrow, and 6 one-click Kelvin/Atmospheric color presets (Warm 2700K, Cool 6500K, Sodium Amber, Neon Cyan, Hazard Red, Toxic Green). Full documentation: <a href="lighting.html">Dynamic Lighting &amp; Lamps</a>.
             </p>
           </div>
 

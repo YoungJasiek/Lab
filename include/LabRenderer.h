@@ -3,6 +3,7 @@
 #include <string>
 #include "LabMath.h"
 #include "LabCamera.h"
+#include "LabLight.h"
 
 namespace Lab {
 
@@ -118,6 +119,12 @@ namespace Lab {
         static void setShadowMap(const Mat4& lightSpaceMatrix, unsigned int depthTexture);
         static void disableShadowMap();
 
+        // Dynamic Point Lights / Omni Lamps
+        static void setPointLights(const std::vector<PointLight>& lights);
+        static void addPointLight(const Vec3& pos, const Vec3& color, float intensity = 2.0f, float radius = 14.0f);
+        static void clearPointLights();
+        static const std::vector<PointLight>& getPointLights();
+
         // Atmospheric Volumetric Distance Fog
         static void setFog(bool enable, const Vec3& color = { 0.05f, 0.07f, 0.10f }, float startDist = 12.0f, float endDist = 85.0f);
 
@@ -181,6 +188,7 @@ namespace Lab {
         static float _spotLightOuterCone;
         static float _spotLightRange;
         static float _spotLightIntensity;
+        static std::vector<PointLight> _pointLights;
 
         static bool _enableShadows;
         static Mat4 _lightSpaceMatrix;

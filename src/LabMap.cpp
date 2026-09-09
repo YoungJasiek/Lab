@@ -170,6 +170,37 @@ namespace Lab {
                     }
                     if (ws.respawnTime <= 0.0f) ws.respawnTime = 60.0f;
                     map->weaponSpawners.push_back(ws);
+                } else if (token == "light" || token == "light_omni" || token == "light_spot") {
+                    MapLight lt;
+                    std::string firstArg;
+                    if (ss >> firstArg) {
+                        bool isNumber = (!firstArg.empty() && (std::isdigit(firstArg[0]) || firstArg[0] == '-' || firstArg[0] == '+' || firstArg[0] == '.'));
+                        if (isNumber) {
+                            try {
+                                lt.position.x = std::stof(firstArg);
+                                lt.name = token;
+                            } catch (...) {
+                                lt.name = firstArg;
+                                ss >> lt.position.x;
+                            }
+                        } else {
+                            lt.name = firstArg;
+                            ss >> lt.position.x;
+                        }
+                    }
+                    ss >> lt.position.y >> lt.position.z
+                       >> lt.color.x >> lt.color.y >> lt.color.z
+                       >> lt.intensity >> lt.radius;
+                    std::string typeStr;
+                    if (ss >> typeStr) {
+                        if (typeStr == "spot" || token == "light_spot") lt.type = MapLightType::Spot;
+                        else lt.type = MapLightType::Point;
+                    } else {
+                        lt.type = (token == "light_spot") ? MapLightType::Spot : MapLightType::Point;
+                    }
+                    if (lt.intensity <= 0.0f) lt.intensity = 2.0f;
+                    if (lt.radius <= 0.0f) lt.radius = 12.0f;
+                    map->lights.push_back(lt);
                 }
             }
         }
@@ -189,6 +220,7 @@ namespace Lab {
         LabLog::info("Loaded .LABMAP: " + map->metadata.name + " (" +
                      std::to_string(map->spawnPoints.size()) + " spawns, " +
                      std::to_string(map->weaponSpawners.size()) + " weapon spawners, " +
+                     std::to_string(map->lights.size()) + " lights, " +
                      std::to_string(map->brushes.size()) + " brushes, " +
                      std::to_string(map->props.size()) + " props, " +
                      std::to_string(map->doors.size()) + " doors)");
@@ -340,6 +372,14 @@ namespace Lab {
                  << d.openOffset.x << " " << d.openOffset.y << " " << d.openOffset.z << " "
                  << d.color.x << " " << d.color.y << " " << d.color.z << " "
                  << d.openSpeed << " " << d.triggerRadius << "\n";
+        }
+
+        for (const auto& lt : lights) {
+            std::string typeStr = (lt.type == MapLightType::Spot) ? "spot" : "point";
+            file << "    light " << lt.name << " "
+                 << lt.position.x << " " << lt.position.y << " " << lt.position.z << " "
+                 << lt.color.x << " " << lt.color.y << " " << lt.color.z << " "
+                 << lt.intensity << " " << lt.radius << " " << typeStr << "\n";
         }
 
         file << "END_ENTITIES\n";

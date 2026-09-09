@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Advanced Dynamic Lighting System in Lab Engine &amp; LabHammer. Multi-light forward rendering, quadratic distance attenuation, Blinn-Phong specular shading, and 3D lamp entity placement.">
+  <meta name="keywords" content="Lab Engine, Dynamic Lighting, Point Lights, Blinn-Phong, Shader, Attenuation, LabHammer, MapLight, OpenGL 4.5, C++20">
+  <meta name="author" content="YoungJasiek">
+
+  <title>Advanced Dynamic Lighting &amp; Lamp System - Lab Developer Community</title>
+  <link rel="icon" type="image/webp" href="assets/img/LabLogo.webp">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <a href="#content" class="skip-link">Skip to main content</a>
+
+  <header class="vdc-top-header" role="banner">
+    <div class="vdc-header-left">
+      <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
+      <a href="index.html" class="vdc-brand">
+        <img src="assets/img/LabLogo.webp" alt="Lab Engine Logo" class="vdc-logo-img">
+        <div class="vdc-brand-text">
+          <span class="vdc-brand-title"><span class="accent">Lab</span> Developer Community</span>
+          <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LAB ENGINE</span>
+        </div>
+      </a>
+    </div>
+
+    <div class="vdc-search-bar" role="search">
+      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search documentation..." aria-label="Search wiki documentation">
+      <span class="vdc-search-icon" aria-hidden="true">&#128269;</span>
+    </div>
+
+    <div class="vdc-header-right">
+      <button id="theme-toggle-btn" class="theme-toggle-btn" aria-label="Toggle theme">&#9728;&#65039; Light Mode</button>
+      <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="github-badge-btn" aria-label="GitHub repository">
+        <span>GitHub</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <div class="vdc-page-container">
+    <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
+      <div class="sidebar-block">
+        <div class="sidebar-title">Documentation</div>
+        <ul class="sidebar-links">
+          <li><a href="index.html">Main Page (Portal)</a></li>
+          <li><a href="labhammer.html">LabHammer Editor</a></li>
+          <li><a href="lighting.html" class="active">Advanced Lighting &amp; Lamps</a></li>
+          <li><a href="character-studio.html">Character &amp; Weapon Studio</a></li>
+          <li><a href="skeletal-animations.html">Skeletal &amp; FBX Animations</a></li>
+          <li><a href="bot-ai.html">Combat Bot AI</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></li>
+          <li><a href="multiplayer.html">UDP Multiplayer</a></li>
+          <li><a href="audio-synthesizer.html">3D Audio &amp; Synthesizer</a></li>
+          <li><a href="lua-scripting.html">Lua 5.4 Scripting</a></li>
+          <li><a href="frozen-life.html">Frozen-Life Build</a></li>
+          <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+          <li><a href="building.html">Building from Source</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Lighting Topics</div>
+        <ul class="sidebar-links">
+          <li><a href="#sec-overview">System Overview</a></li>
+          <li><a href="#sec-math">Mathematical Model &amp; Attenuation</a></li>
+          <li><a href="#sec-shader">GLSL Forward Shading Implementation</a></li>
+          <li><a href="#sec-hammer">LabHammer Lamp Placement Tool</a></li>
+          <li><a href="#sec-presets">Kelvin &amp; Atmospheric Color Presets</a></li>
+          <li><a href="#sec-map-format">.labmap Serialization Specification</a></li>
+          <li><a href="#sec-cpp-api">C++20 Subsystem API Reference</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <main id="content" class="vdc-main-content" role="main">
+      <nav class="breadcrumb-trail" aria-label="Breadcrumb">
+        <a href="index.html">Home</a> &gt; <a href="modules.html">Subsystems</a> &gt; <a href="module-render.html">LabRender.dll</a> &gt; <span class="current-crumb">Advanced Lighting &amp; Lamps</span>
+      </nav>
+
+      <h1 class="page-title">Advanced Dynamic Lighting &amp; Lamp System</h1>
+      <div class="page-subtitle">Multi-Light Dynamic Forward Shading, Realistic Quadratic Attenuation, Blinn-Phong Specular Highlights &amp; Interactive Valve Hammer Lamp Tool</div>
+
+      <aside class="wiki-infobox" aria-label="Subsystem Infobox">
+        <div class="infobox-title">Dynamic Lighting Subsystem</div>
+        <div class="infobox-image-wrap">
+          <img src="assets/img/test_dynamic_lighting.png" alt="Dynamic Lighting in Lab Engine" class="infobox-img" style="max-height: 180px; object-fit: cover;">
+          <div class="infobox-caption">Real-time multi-light forward illumination in Lab Engine (Test 48 Verification Frame)</div>
+        </div>
+        <table class="infobox-table">
+          <tbody>
+            <tr>
+              <td class="infobox-label">Renderer Pipeline</td>
+              <td class="infobox-data">Multi-Light Forward Shading (DSA)</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Dynamic Point Lights</td>
+              <td class="infobox-data">Up to 16 Active Lamps per Scene</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Specular Formulation</td>
+              <td class="infobox-data">Blinn-Phong (N &middot; H) Shininess 32.0</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Distance Falloff</td>
+              <td class="infobox-data">Realistic Quadratic + Smooth Radius Cutoff</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Level Editor Tool</td>
+              <td class="infobox-data">LabHammer Lamp Tool [7] + 3D Gizmo</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Map Serialization</td>
+              <td class="infobox-data"><code>light &lt;name&gt; &lt;x y z&gt; &lt;r g b&gt; &lt;int&gt; &lt;rad&gt;</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </aside>
+
+      <div class="wiki-notice notice-success">
+        <span class="notice-icon">&#10004;</span>
+        <div class="wiki-notice-content">
+          <strong>Production Feature:</strong> Dynamic multi-light illumination is integrated natively across <code>LabRender.dll</code>, <code>LabWorld.dll</code>, and <code>LabHammer</code>. Brushes and prop meshes in the level editor update instantaneously when lamps are moved, raised, or configured.
+        </div>
+      </div>
+
+      <section id="sec-overview" class="wiki-section-container">
+        <h2><span class="mw-headline">1. System Overview</span></h2>
+        <p>The <strong>Lab Engine Dynamic Lighting Pipeline</strong> brings high-fidelity local illumination to indoor facility corridors, subterranean caverns, and combat arenas in <em>Frozen-Life</em>. Built directly into <code>LabRender.dll</code>, the lighting model combines global directional sun illumination with dynamic point lights (lamps, emergency beacons, flares, reactor cores) and tactical weapon flashlights.</p>
+
+        <p>Key highlights of the architecture:</p>
+        <ul>
+          <li><strong>Forward Multi-Light Acceleration:</strong> Single-pass fragment shader evaluates up to 16 concurrent point lights per draw call with near-zero overhead when light count is zero.</li>
+          <li><strong>Physically-Plausible Attenuation:</strong> Distance falloff accurately follows the inverse-square law with standard linear and quadratic coefficients tuned for crisp indoor contrast.</li>
+          <li><strong>Smooth Horizon Windowing:</strong> Lights gracefully fade to zero intensity at their bounding radius R, eliminating hard polygon edge cuts.</li>
+          <li><strong>Real-Time Editor Viewport Preview:</strong> Level designers in <code>LabHammer</code> see exact lighting as players will experience in-game.</li>
+        </ul>
+      </section>
+
+      <section id="sec-math" class="wiki-section-container">
+        <h2><span class="mw-headline">2. Mathematical Model &amp; Attenuation</span></h2>
+        <p>For each active point light i at position P<sub>L</sub> with color C<sub>L</sub>, intensity I<sub>L</sub>, and radius R<sub>L</sub>, the surface illumination at point P<sub>S</sub> with normal N and view direction V is governed by:</p>
+
+        <div class="code-block"><pre><code>// 1. Direction and Distance
+vec3 lightDir = normalize(lightPos - FragPos);
+float dist = length(lightPos - FragPos);
+
+// 2. Quadratic Distance Falloff (Inverse-Square approximation)
+float attenuation = 1.0 / (1.0 + 0.09 * dist + 0.032 * dist * dist);
+
+// 3. Smooth Radius Windowing Cutoff
+float cutoff = clamp(1.0 - (dist / lightRadius), 0.0, 1.0);
+cutoff = cutoff * cutoff; // Smooth Hermite falloff
+attenuation *= cutoff;
+
+// 4. Diffuse Lambertian Term
+float diff = max(dot(norm, lightDir), 0.0);
+
+// 5. Blinn-Phong Halfway Specular Term
+vec3 halfwayDir = normalize(lightDir + viewDir);
+float spec = pow(max(dot(norm, halfwayDir), 0.0), 32.0);
+
+// 6. Cumulative Point Radiance
+vec3 lightContrib = (lightColor * diff * 0.9 + vec3(1.0) * spec * 0.4) * lightIntensity * attenuation;</code></pre></div>
+      </section>
+
+      <section id="sec-shader" class="wiki-section-container">
+        <h2><span class="mw-headline">3. GLSL Forward Shading Implementation</span></h2>
+        <p>The standard fragment shader receives uniforms through Direct State Access (DSA) in a compact, cache-friendly uniform array:</p>
+
+        <div class="code-block"><pre><code>#define MAX_POINT_LIGHTS 16
+
+struct PointLightShader {
+    vec3 position;
+    float intensity;
+    vec3 color;
+    float radius;
+};
+
+uniform int uNumPointLights;
+uniform PointLightShader uPointLights[MAX_POINT_LIGHTS];
+
+void main() {
+    // ... Directional and ambient base pass ...
+    vec3 pointLightsResult = vec3(0.0);
+    for (int i = 0; i < uNumPointLights && i < MAX_POINT_LIGHTS; ++i) {
+        vec3 lDir = normalize(uPointLights[i].position - FragPos);
+        float d = length(uPointLights[i].position - FragPos);
+        if (d >= uPointLights[i].radius) continue;
+
+        float att = 1.0 / (1.0 + 0.09 * d + 0.032 * d * d);
+        float win = clamp(1.0 - (d / uPointLights[i].radius), 0.0, 1.0);
+        att *= (win * win);
+
+        float dCoeff = max(dot(norm, lDir), 0.0);
+        vec3 hDir = normalize(lDir + viewDir);
+        float sCoeff = pow(max(dot(norm, hDir), 0.0), 32.0);
+
+        pointLightsResult += (uPointLights[i].color * dCoeff * 0.9 + vec3(1.0) * sCoeff * 0.35) 
+                             * uPointLights[i].intensity * att;
+    }
+    vec3 finalColor = (baseLighting + pointLightsResult) * surfaceColor;
+    FragColor = vec4(finalColor, 1.0);
+}</code></pre></div>
+      </section>
+
+      <section id="sec-hammer" class="wiki-section-container">
+        <h2><span class="mw-headline">4. LabHammer Lamp Placement Tool</span></h2>
+        <p>In <code>LabHammer</code>, lamps are first-class entities selectable from the left toolbar via <strong>Tool [7] - Lamp Tool</strong>:</p>
+
+        <div class="build-metrics-grid" style="margin: 20px 0;">
+          <div class="metric-card">
+            <span class="metric-val">Tool [7]</span>
+            <span class="metric-label">Toolbar Quick Select</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-val">3D Bulb</span>
+            <span class="metric-label">Glowing Core &amp; Fixture</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-val">Wire Radius</span>
+            <span class="metric-label">Visual Bounding Sphere</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-val">3D Gizmo</span>
+            <span class="metric-label">Interactive Elevation Arrow</span>
+          </div>
+        </div>
+
+        <h3>Interactive Viewport Controls</h3>
+        <ul>
+          <li><strong>Placement:</strong> Press <kbd>7</kbd> or click the <em>Lamp</em> icon in the left toolbar. Left-click in the 3D viewport or press <kbd>E</kbd> to spawn a lamp at the 3D cursor position.</li>
+          <li><strong>Selection:</strong> Click directly on the glowing bulb or select <code>[LIGHT #X]</code> from the <strong>Struktura (Outliner)</strong> sidebar tab.</li>
+          <li><strong>Elevation (+Y):</strong> Use the vertical green gizmo arrow, press <kbd>R</kbd> / <kbd>C</kbd>, scroll the mouse wheel, or click <code>[^ UP (+Y)]</code> / <code>[v DOWN (-Y)]</code> in the Properties tab.</li>
+          <li><strong>Duplication:</strong> Press <kbd>Ctrl+D</kbd> or click <em>Duplicate</em> in the Outliner to clone the lamp with grid snap offset.</li>
+        </ul>
+      </section>
+
+      <section id="sec-presets" class="wiki-section-container">
+        <h2><span class="mw-headline">5. Kelvin &amp; Atmospheric Color Presets</span></h2>
+        <p>The Properties tab offers one-click atmospheric color calibration calibrated to physical color temperatures and tactical sci-fi aesthetics:</p>
+
+        <table class="infobox-table" style="width: 100%; margin-top: 12px;">
+          <thead>
+            <tr style="background: var(--wiki-bg-card);">
+              <th style="padding: 8px;">Preset Name</th>
+              <th style="padding: 8px;">Kelvin / Theme</th>
+              <th style="padding: 8px;">RGB Color Vector</th>
+              <th style="padding: 8px;">Atmospheric Usage</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Warm 2700K</strong></td>
+              <td>2700K Incandescent</td>
+              <td><code>Vec3(1.0, 0.88, 0.72)</code></td>
+              <td>Living quarters, bunkrooms, mess halls, wooden interiors</td>
+            </tr>
+            <tr>
+              <td><strong>Cool 6500K</strong></td>
+              <td>6500K Fluorescent Daylight</td>
+              <td><code>Vec3(0.95, 0.98, 1.00)</code></td>
+              <td>Research laboratories, medical bays, sterile server rooms</td>
+            </tr>
+            <tr>
+              <td><strong>Sodium Amber</strong></td>
+              <td>2100K Low-Pressure Sodium</td>
+              <td><code>Vec3(1.0, 0.75, 0.20)</code></td>
+              <td>Industrial warehouses, maintenance tunnels, cargo docks</td>
+            </tr>
+            <tr>
+              <td><strong>Neon Cyan</strong></td>
+              <td>Sci-Fi High Voltage</td>
+              <td><code>Vec3(0.20, 0.90, 1.00)</code></td>
+              <td>Cryo chambers, holographic terminals, laser defense zones</td>
+            </tr>
+            <tr>
+              <td><strong>Hazard Red</strong></td>
+              <td>Tactical Lockdown</td>
+              <td><code>Vec3(1.0, 0.15, 0.15)</code></td>
+              <td>Emergency containment, breach doors, reactor alarms</td>
+            </tr>
+            <tr>
+              <td><strong>Toxic Green</strong></td>
+              <td>Chemical Hazard</td>
+              <td><code>Vec3(0.20, 1.0, 0.30)</code></td>
+              <td>Radiation leaks, biochemical silos, experimental vats</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="sec-map-format" class="wiki-section-container">
+        <h2><span class="mw-headline">6. .labmap Serialization Specification</span></h2>
+        <p>Lamps are serialized to plaintext <code>.labmap</code> files under the <code>ENTITIES</code> block. Backwards-compatible parser reads existing maps without lights seamlessly:</p>
+
+        <div class="code-block"><pre><code>ENTITIES
+light ceiling_lamp_0 0.00 6.50 0.00 1.00 0.88 0.72 1.50 18.00 0 0.00 0.00 0.00 45.00
+light hazard_strobe 14.00 3.20 -8.50 1.00 0.15 0.15 2.00 12.00 0 0.00 0.00 0.00 45.00
+END_ENTITIES</code></pre></div>
+      </section>
+
+      <section id="sec-cpp-api" class="wiki-section-container">
+        <h2><span class="mw-headline">7. C++20 Subsystem API Reference</span></h2>
+        <div class="code-block"><pre><code>// LabLight.h
+namespace Lab {
+    struct PointLight {
+        Vec3 position{ 0.0f, 0.0f, 0.0f };
+        Vec3 color{ 1.0f, 1.0f, 1.0f };
+        float intensity = 1.0f;
+        float radius = 10.0f;
+    };
+}
+
+// LabRenderer.h
+namespace Lab {
+    class LAB_API Renderer {
+    public:
+        static void setPointLights(const std::vector&lt;PointLight&gt;&amp; lights);
+        static void addPointLight(const PointLight&amp; light);
+        static void clearPointLights();
+        static const std::vector&lt;PointLight&gt;&amp; getPointLights();
+    };
+}</code></pre></div>
+      </section>
+
+    </main>
+  </div>
+
+  <footer class="vdc-footer">
+    <div class="vdc-footer-content">
+      <div class="vdc-footer-left">
+        <p>&copy; 2026 Lab Developer Community &bull; Frozen-Life Engine &bull; Developed by YoungJasiek</p>
+        <p class="footer-sub">Standard ISO C++20 &bull; OpenGL 4.5+ Direct State Access &bull; Dynamic Shading Pipeline</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/main.js"></script>
+</body>
+</html>

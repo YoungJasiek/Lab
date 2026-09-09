@@ -494,6 +494,13 @@ namespace Lab {
                     Renderer::drawRect(x + 8.0f, y + 10.0f, 3.0f, 5.0f, Vec3(0.12f, 0.12f, 0.14f));
                     Renderer::drawRect(x + 14.0f, y + 10.0f, 3.0f, 5.0f, Vec3(0.12f, 0.12f, 0.14f));
                     break;
+                case 11: // Lamp / Light Source (Glowing warm bulb with radial rays)
+                    Renderer::drawRect(x + 10.0f, y + 8.0f, 6.0f, 7.0f, Vec3(1.0f, 0.95f, 0.5f));
+                    Renderer::drawRect(x + 11.0f, y + 15.0f, 4.0f, 3.0f, Vec3(0.6f, 0.6f, 0.65f));
+                    Renderer::drawRect(x + 6.0f, y + 10.0f, 2.0f, 3.0f, color);
+                    Renderer::drawRect(x + 18.0f, y + 10.0f, 2.0f, 3.0f, color);
+                    Renderer::drawRect(x + 12.0f, y + 4.0f, 2.0f, 2.0f, color);
+                    break;
                 default:
                     Renderer::drawRect(x + 6.0f, y + 6.0f, 14.0f, 14.0f, color);
                     break;

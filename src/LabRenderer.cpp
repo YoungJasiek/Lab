@@ -111,6 +111,17 @@ namespace Lab {
         uniform float spotLightRange;
         uniform float spotLightIntensity;
 
+        // Dynamic Point Lights (Omni Lamps)
+        #define MAX_POINT_LIGHTS 16
+        struct PointLightShader {
+            vec3 position;
+            vec3 color;
+            float intensity;
+            float radius;
+        };
+        uniform int uNumPointLights;
+        uniform PointLightShader uPointLights[MAX_POINT_LIGHTS];
+
         // Dynamic Shadow Mapping
         uniform int enableShadows;
         uniform sampler2D shadowMap;
@@ -202,7 +213,31 @@ namespace Lab {
                 }
             }
 
-            vec3 result = baseLighting + spotResult;
+            // Dynamic Point Lights (Omni Lamps / Sconces / Beacons)
+            vec3 pointLightsResult = vec3(0.0);
+            for (int i = 0; i < uNumPointLights && i < MAX_POINT_LIGHTS; ++i) {
+                vec3 toLight = uPointLights[i].position - FragPos;
+                float dist = length(toLight);
+                if (dist < uPointLights[i].radius && dist > 0.001) {
+                    vec3 lDirNorm = normalize(toLight);
+                    float diff = max(dot(norm, lDirNorm), 0.0);
+
+                    // Quadratic distance attenuation with smooth radius cutoff
+                    float atten = 1.0 / (1.0 + 0.09 * dist + 0.032 * dist * dist);
+                    float cutoff = clamp(1.0 - (dist / uPointLights[i].radius), 0.0, 1.0);
+                    float factor = atten * cutoff * uPointLights[i].intensity;
+
+                    vec3 diffTerm = diff * uPointLights[i].color * albedo;
+
+                    vec3 halfDir = normalize(lDirNorm + viewDir);
+                    float spec = pow(max(dot(norm, halfDir), 0.0), 32.0);
+                    vec3 specTerm = uPointLights[i].color * spec * 0.35;
+
+                    pointLightsResult += (diffTerm + specTerm) * factor;
+                }
+            }
+
+            vec3 result = baseLighting + spotResult + pointLightsResult;
 
             // Volumetric Distance Blizzard Fog
             if (uEnableFog == 1) {
@@ -965,6 +1000,7 @@ namespace Lab {
     float Renderer::_spotLightOuterCone = 0.9510f;
     float Renderer::_spotLightRange = 42.0f;
     float Renderer::_spotLightIntensity = 2.2f;
+    std::vector<PointLight> Renderer::_pointLights;
 
     bool Renderer::_enableShadows = false;
     Mat4 Renderer::_lightSpaceMatrix;
@@ -1003,6 +1039,17 @@ namespace Lab {
         if (Renderer::_enableShadows && Renderer::_shadowDepthTexture) {
             glBindTextureUnit(1, Renderer::_shadowDepthTexture);
             shader->setInt("shadowMap", 1);
+        }
+
+        // Dynamic Point Lights upload
+        int numPointLights = std::min((int)Renderer::_pointLights.size(), 16);
+        shader->setInt("uNumPointLights", numPointLights);
+        for (int i = 0; i < numPointLights; ++i) {
+            std::string prefix = "uPointLights[" + std::to_string(i) + "].";
+            shader->setVec3(prefix + "position", Renderer::_pointLights[i].position);
+            shader->setVec3(prefix + "color", Renderer::_pointLights[i].color);
+            shader->setFloat(prefix + "intensity", Renderer::_pointLights[i].intensity);
+            shader->setFloat(prefix + "radius", Renderer::_pointLights[i].radius);
         }
     }
 
@@ -1128,6 +1175,24 @@ namespace Lab {
     void Renderer::disableShadowMap() {
         _enableShadows = false;
         _shadowDepthTexture = 0;
+    }
+
+    void Renderer::setPointLights(const std::vector<PointLight>& lights) {
+        _pointLights = lights;
+    }
+
+    void Renderer::addPointLight(const Vec3& pos, const Vec3& color, float intensity, float radius) {
+        if (_pointLights.size() < 16) {
+            _pointLights.push_back(PointLight{ pos, color, intensity, radius });
+        }
+    }
+
+    void Renderer::clearPointLights() {
+        _pointLights.clear();
+    }
+
+    const std::vector<PointLight>& Renderer::getPointLights() {
+        return _pointLights;
     }
 
     void Renderer::setFog(bool enable, const Vec3& color, float startDist, float endDist) {

@@ -3,6 +3,13 @@
 
 namespace Lab {
 
+    struct PointLight {
+        Vec3 position = { 0.0f, 0.0f, 0.0f };
+        Vec3 color = { 1.0f, 0.95f, 0.85f };
+        float intensity = 2.0f;
+        float radius = 14.0f;
+    };
+
     struct Flashlight {
         bool enabled = false;
         Vec3 position = { 0.0f, 0.0f, 0.0f };

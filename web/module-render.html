@@ -80,6 +80,7 @@
           <li><a href="index.html">Main Page (Portal)</a></li>
           <li><a href="frozen-life.html">Frozen-Life (Demo FPS)</a></li>
           <li><a href="labhammer.html">LabHammer Editor</a></li>
+          <li><a href="lighting.html">Dynamic Lighting &amp; Lamps</a></li>
           <li><a href="character-studio.html">Character &amp; Weapon Studio</a></li>
           <li><a href="skeletal-animations.html">Skeletal &amp; FBX Animations</a></li>
           <li><a href="bot-ai.html">Combat Bot AI</a></li>
@@ -271,7 +272,8 @@ glVertexArrayVertexBuffer(_vao, 0, _vbo, 0, sizeof(Vertex));</code></pre></div>
       <section id="sec-lighting" class="wiki-section-container">
         <h2><span class="mw-headline">2. Directional, Point & Spot Lighting</span></h2>
         
-                <p>Blinn-Phong illumination with Source Engine-like contrast. Features 2048x2048 cascaded shadow maps, 3x3 PCF filtering, and tactical flashlight spotlights.</p>
+        <p>Blinn-Phong illumination with Source Engine-like contrast. Features 2048x2048 cascaded shadow maps, 3x3 PCF filtering, tactical flashlight spotlights, and <strong>Multi-Light Dynamic Forward Shading</strong> supporting up to 16 point light lamps per scene with realistic quadratic distance attenuation (\(1 / (1 + 0.09d + 0.032d^2)\)) and smooth horizon radius cutoff.</p>
+        <p>Dynamic lamps are natively supported in <a href="labhammer.html">LabHammer</a> via the <strong>Lamp Tool [7]</strong> with 3D glowing bulb visualization, radius wireframe sphere, interactive +Y elevation gizmo, and Kelvin/Atmosphere color presets. See full technical details in the <a href="lighting.html"><strong>Advanced Dynamic Lighting &amp; Lamp System Documentation</strong></a>.</p>
                 
       </section>
 

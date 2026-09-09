@@ -96,6 +96,23 @@ namespace Lab {
         }
     };
 
+    enum class MapLightType {
+        Point = 0,    // Omni lamp / bulb / sconce
+        Spot = 1,     // Spotlight cone
+        Directional = 2
+    };
+
+    struct MapLight {
+        std::string name = "light_omni";
+        Vec3 position = { 0.0f, 3.0f, 0.0f };
+        Vec3 color = { 1.0f, 0.95f, 0.85f }; // Warm incandescent
+        float intensity = 2.5f;
+        float radius = 14.0f;
+        MapLightType type = MapLightType::Point;
+        Vec3 direction = { 0.0f, -1.0f, 0.0f };
+        float spotAngle = 45.0f;
+    };
+
     class LabMap {
     public:
         MapMetadata metadata;
@@ -105,6 +122,7 @@ namespace Lab {
         std::vector<MapDoor> doors;
         std::vector<MapSpawnPoint> spawnPoints;
         std::vector<MapWeaponSpawner> weaponSpawners;
+        std::vector<MapLight> lights;
 
         std::vector<MapSpawnPoint> getSpawnsForTeam(GameMode mode, int team) const;
         MapSpawnPoint selectBestSpawn(GameMode mode, int team, const std::vector<Vec3>& enemyPositions = {}) const;

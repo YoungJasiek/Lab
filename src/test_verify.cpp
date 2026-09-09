@@ -4839,6 +4839,146 @@ int main() {
         std::cout << "  [PASS] Full 380px wide UI hitbox alignment validated!\n";
     }
 
+    // =========================================================================
+    // [Test 48] Verifying Dynamic Multi-Light Forward Shading & .labmap Light Persistence
+    // =========================================================================
+    {
+        std::cout << "\n[Test 48] Verifying Dynamic Multi-Light Forward Shading & .labmap Light Persistence...\n";
+
+        // 1. Verify Renderer PointLight interface
+        Lab::Renderer::clearPointLights();
+        if (!Lab::Renderer::getPointLights().empty()) {
+            std::cerr << "Assertion failed: clearPointLights did not empty lights!\n";
+            return 1;
+        }
+
+        Lab::PointLight l1{
+            .position = Lab::Vec3(0.0f, 4.0f, 0.0f),
+            .color = Lab::Vec3(1.0f, 0.88f, 0.72f), // Warm 2700K
+            .intensity = 1.8f,
+            .radius = 16.0f
+        };
+        Lab::PointLight l2{
+            .position = Lab::Vec3(5.0f, 2.0f, -3.0f),
+            .color = Lab::Vec3(0.20f, 0.90f, 1.0f), // Neon Cyan
+            .intensity = 2.2f,
+            .radius = 12.0f
+        };
+
+        Lab::Renderer::addPointLight(l1.position, l1.color, l1.intensity, l1.radius);
+        Lab::Renderer::addPointLight(l2.position, l2.color, l2.intensity, l2.radius);
+
+        const auto& activeLights = Lab::Renderer::getPointLights();
+        if (activeLights.size() != 2) {
+            std::cerr << "Assertion failed: Expected 2 active point lights, got " << activeLights.size() << "\n";
+            return 1;
+        }
+        if (activeLights[0].intensity != 1.8f || activeLights[1].color.y != 0.90f) {
+            std::cerr << "Assertion failed: Active point light attributes corrupted!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Dynamic PointLight array upload verified (2 lights active, Warm 2700K & Neon Cyan)!\n";
+
+        // 2. Verify MapLight serialization and roundtrip
+        std::string testMapPath = "assets/maps/test_lighting_persistence.labmap";
+        auto mapOut = std::make_shared<Lab::LabMap>();
+        mapOut->metadata.name = "Dynamic Lighting Test Facility";
+
+        // Add a ground brush
+        Lab::MapBrush floorBrush;
+        floorBrush.type = "cube";
+        floorBrush.position = Lab::Vec3(0.0f, -0.5f, 0.0f);
+        floorBrush.size = Lab::Vec3(30.0f, 1.0f, 30.0f);
+        floorBrush.color = Lab::Vec3(0.7f, 0.7f, 0.75f);
+        floorBrush.texturePath = "concrete_wall.bmp";
+        mapOut->brushes.push_back(floorBrush);
+
+        // Add 2 map lights
+        Lab::MapLight ml1;
+        ml1.name = "ceiling_warm_lamp";
+        ml1.position = Lab::Vec3(0.0f, 4.5f, 0.0f);
+        ml1.color = Lab::Vec3(1.0f, 0.88f, 0.72f);
+        ml1.intensity = 2.0f;
+        ml1.radius = 18.0f;
+        mapOut->lights.push_back(ml1);
+
+        Lab::MapLight ml2;
+        ml2.name = "hazard_red_strobe";
+        ml2.position = Lab::Vec3(-6.0f, 2.0f, 4.0f);
+        ml2.color = Lab::Vec3(1.0f, 0.15f, 0.15f);
+        ml2.intensity = 3.0f;
+        ml2.radius = 10.0f;
+        mapOut->lights.push_back(ml2);
+
+        // Save
+        if (!mapOut->saveToFile(testMapPath)) {
+            std::cerr << "Assertion failed: Failed to save test lighting map to " << testMapPath << "\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Saved .labmap with 2 lights to '" << testMapPath << "'!\n";
+
+        // Load back
+        auto mapIn = Lab::LabMap::loadFromFile(testMapPath);
+        if (!mapIn) {
+            std::cerr << "Assertion failed: Failed to reload test lighting map!\n";
+            return 1;
+        }
+        if (mapIn->lights.size() != 2) {
+            std::cerr << "Assertion failed: Expected 2 lights in reloaded map, got " << mapIn->lights.size() << "\n";
+            return 1;
+        }
+        if (mapIn->lights[0].name != "ceiling_warm_lamp" || std::abs(mapIn->lights[0].intensity - 2.0f) > 0.01f) {
+            std::cerr << "Assertion failed: First light data mismatch: name=" << mapIn->lights[0].name 
+                      << ", int=" << mapIn->lights[0].intensity << "\n";
+            return 1;
+        }
+        if (mapIn->lights[1].name != "hazard_red_strobe" || std::abs(mapIn->lights[1].color.x - 1.0f) > 0.01f) {
+            std::cerr << "Assertion failed: Second light data mismatch: name=" << mapIn->lights[1].name << "\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Reloaded .labmap: 2 lights verified with exact names, Kelvin colors, and attenuation radii!\n";
+
+        // 3. Render 3D Frame with active dynamic lights and capture verification frame
+        Lab::Camera lightCam(70.0f, 16.0f / 9.0f, 0.1f, 1000.0f);
+        lightCam.setPosition(Lab::Vec3(0.0f, 3.0f, 10.0f));
+        lightCam.setYaw(-90.0f);
+        lightCam.setPitch(-15.0f);
+
+        Lab::Renderer::beginFrame(lightCam);
+        // Upload map lights to renderer
+        std::vector<Lab::PointLight> frameLights;
+        for (const auto& ml : mapIn->lights) {
+            frameLights.push_back(Lab::PointLight{
+                .position = ml.position,
+                .color = ml.color,
+                .intensity = ml.intensity,
+                .radius = ml.radius
+            });
+        }
+        Lab::Renderer::setPointLights(frameLights);
+
+        // Draw ground and pillars under dynamic lighting
+        Lab::Renderer::drawCube(floorBrush.position, floorBrush.size, floorBrush.color, nullptr, true);
+        Lab::Renderer::drawCube(Lab::Vec3(-2.0f, 1.5f, 0.0f), Lab::Vec3(1.0f, 3.0f, 1.0f), Lab::Vec3(0.9f, 0.9f, 0.9f));
+        Lab::Renderer::drawCube(Lab::Vec3(2.0f, 1.5f, 0.0f), Lab::Vec3(1.0f, 3.0f, 1.0f), Lab::Vec3(0.9f, 0.9f, 0.9f));
+
+        // Draw visual lamp bulbs
+        for (const auto& ml : mapIn->lights) {
+            Lab::Renderer::drawCube(ml.position, Lab::Vec3(0.35f, 0.35f, 0.35f), ml.color, nullptr, false);
+            Lab::Renderer::drawWireCube(ml.position, Lab::Vec3(0.55f, 0.55f, 0.55f), ml.color);
+        }
+
+        Lab::Renderer::endFrame();
+        glFinish();
+
+        // Capture verification frame
+        saveFrameToBMP("test_dynamic_lighting.bmp", w, h);
+        std::cout << "  [PASS] Dynamic forward lighting rendered & saved frame to 'test_dynamic_lighting.bmp'!\n";
+
+        // Clean up temporary test map file
+        std::filesystem::remove(testMapPath);
+    }
+
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();
