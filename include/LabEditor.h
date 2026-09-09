@@ -43,6 +43,12 @@ namespace Lab {
         float texApplyX, texApplyY, texApplyW, texApplyH;
         float modelBoxX, modelBoxY, modelBoxW, modelBoxH;
         float modelBrowseX, modelBrowseY, modelBrowseW, modelBrowseH;
+        // Position translation
+        float posBtnsY, posBtnW, posBtnH;
+        float elevUpX, elevUpY, elevUpW, elevUpH;
+        float elevDwnX, elevDwnY, elevDwnW, elevDwnH;
+        float elevGndX, elevGndY, elevGndW, elevGndH;
+        // Size scaling
         float dimBtnsY, dimBtnW, dimBtnH;
         float deselX, deselY, deselW, deselH;
         float delX, delY, delW, delH;
@@ -123,7 +129,29 @@ namespace Lab {
         l.modelBrowseW = 280.0f;
         l.modelBrowseH = 32.0f;
 
-        l.dimBtnsY = l.modelBrowseY + 54.0f;
+        // Position Translation (Move X / Y / Z on grid)
+        l.posBtnsY = l.modelBrowseY + 52.0f;
+        l.posBtnW = 26.0f;
+        l.posBtnH = 24.0f;
+
+        // Quick Elevation Buttons (Up / Down / Ground)
+        l.elevUpX = l.rightX + 10.0f;
+        l.elevUpY = l.posBtnsY + 28.0f;
+        l.elevUpW = 88.0f;
+        l.elevUpH = 26.0f;
+
+        l.elevDwnX = l.rightX + 104.0f;
+        l.elevDwnY = l.posBtnsY + 28.0f;
+        l.elevDwnW = 88.0f;
+        l.elevDwnH = 26.0f;
+
+        l.elevGndX = l.rightX + 198.0f;
+        l.elevGndY = l.posBtnsY + 28.0f;
+        l.elevGndW = 92.0f;
+        l.elevGndH = 26.0f;
+
+        // Dimension Adjusters (Scale X / Y / Z)
+        l.dimBtnsY = l.elevUpY + 48.0f;
         l.dimBtnW = 26.0f;
         l.dimBtnH = 24.0f;
 

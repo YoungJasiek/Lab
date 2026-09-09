@@ -290,6 +290,9 @@ int main() {
         if (sl.texBrowseX + sl.texBrowseW > sl.rightX + sl.rightW ||
             sl.texApplyX + sl.texApplyW > sl.rightX + sl.rightW ||
             sl.modelBrowseX + sl.modelBrowseW > sl.rightX + sl.rightW ||
+            sl.elevUpX + sl.elevUpW > sl.rightX + sl.rightW ||
+            sl.elevDwnX + sl.elevDwnW > sl.rightX + sl.rightW ||
+            sl.elevGndX + sl.elevGndW > sl.rightX + sl.rightW ||
             sl.deselX + sl.deselW > sl.rightX + sl.rightW ||
             sl.delX + sl.delW > sl.rightX + sl.rightW) {
             std::cerr << "ERROR: Properties buttons overflow sidebar!\n";
@@ -298,7 +301,8 @@ int main() {
 
         // Verify vertical order in Properties tab
         if (sl.uvBtnY >= sl.texBoxY || sl.texBoxY >= sl.thumbY || sl.thumbY >= sl.modelBoxY ||
-            sl.modelBoxY >= sl.modelBrowseY || sl.modelBrowseY >= sl.dimBtnsY ||
+            sl.modelBoxY >= sl.modelBrowseY || sl.modelBrowseY >= sl.posBtnsY ||
+            sl.posBtnsY >= sl.elevUpY || sl.elevUpY >= sl.dimBtnsY ||
             sl.dimBtnsY >= sl.deselY || sl.deselY >= sl.delY || sl.delY + sl.delH > sl.rightY + sl.rightH) {
             std::cerr << "ERROR: Properties tab vertical order or height overflow!\n";
             return 1;
