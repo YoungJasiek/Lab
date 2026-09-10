@@ -1,0 +1,20 @@
+LABMAP_VERSION 1
+
+METADATA
+    name "darkness"
+    ambient 0.2 0.25 0.35
+    sun_dir -0.4 -0.8 -0.4
+    sun_color 0.9 0.95 1
+END_METADATA
+
+ENTITIES
+    spawn 0 1.8 0 0
+    brush cube 0 -0.5 0 32 1 32 1 1 1 floor_tiles.bmp 0.25 0.25 1
+    brush cube -15 3 -1 2 6 28 1 1 1 blast_door.bmp 0.25 0.25 1
+    brush cube 9 3 -0 2 6 30 1 1 1 blast_door.bmp 0.25 0.25 1
+    brush cube 8 0 -38 27 6 4 1 1 1 blast_door.bmp 0.25 0.25 1
+    brush cube -5 3 -14 27 6 4 1 1 1 blast_door.bmp 0.25 0.25 1
+    brush cube -9 3 13 27 6 4 1 1 1 blast_door.bmp 0.25 0.25 1
+    brush cube 4 3 14 27 6 4 1 1 1 blast_door.bmp 0.25 0.25 1
+    brush cube 1 5.5 1 32 1 32 1 1 1 floor_tiles.bmp 0.25 0.25 1
+END_ENTITIES
