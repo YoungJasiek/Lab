@@ -176,7 +176,7 @@ target_include_directories(LabNetwork PUBLIC ${LAB_INCLUDES})
 target_compile_options(LabNetwork PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabNetwork PUBLIC LabCore LabRender LabWorld LabPhysics)
 if(WIN32)
-    target_link_libraries(LabNetwork PUBLIC ws2_32)
+    target_link_libraries(LabNetwork PUBLIC ws2_32 wininet)
 endif()
 
 # 8. LabAI.dll - CombatBot Sensory AI, State Machine, Combat Behaviors

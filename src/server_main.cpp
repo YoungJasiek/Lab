@@ -58,8 +58,10 @@ int main(int argc, char* argv[]) {
         } else if (arg == "-p2p" || arg == "--p2p") {
             config.networkMode = Lab::NetMatchMode::P2P;
             config.lanMode = false;
+        } else if ((arg == "-code" || arg == "--code") && i + 1 < argc) {
+            config.roomCode = argv[++i];
         } else if (arg == "-help" || arg == "--help" || arg == "/?") {
-            std::cout << "Usage: LabServer.exe [-config <assets/configs/server.cfg>] [-port <27015>] [-map <map_name>] [-mode <FFA|DM|TDM>] [-bots <count>] [-lan|-p2p]\n";
+            std::cout << "Usage: LabServer.exe [-config <assets/configs/server.cfg>] [-port <27015>] [-map <map_name>] [-mode <FFA|DM|TDM>] [-bots <count>] [-lan|-p2p] [-code <room_code>]\n";
             return 0;
         }
     }
@@ -93,6 +95,13 @@ int main(int argc, char* argv[]) {
     std::cout << "  - Frag Limit:     " << config.fragLimit << " kills\n";
     std::cout << "  - Network Mode:   " << (config.networkMode == Lab::NetMatchMode::P2P ? "P2P (Direct/Relay)" : "LAN (Broadcast Discovery)") << "\n";
     std::cout << "  - LAN Broadcast:  " << (config.lanMode ? "Active" : "Disabled") << "\n";
+    std::cout << "=======================================================\n";
+    Lab::NATStatus nat = Lab::NATDiscovery::queryFullStatus(config.port);
+    std::cout << "[NAT / UPnP Diagnostics]:\n";
+    std::cout << "  - Local Adapter IP: " << nat.localIP << ":" << config.port << "\n";
+    std::cout << "  - Public STUN IP:   " << nat.publicIP << ":" << config.port << "\n";
+    std::cout << "  - Router Port State:" << nat.upnpMessage << "\n";
+    std::cout << "  - Plug & Play Code: [" << server.getRoomCode() << "]\n";
     std::cout << "=======================================================\n";
     std::cout << "[Server] Ready. Listening on UDP 0.0.0.0:" << config.port << ".\n";
     std::cout << "[Server] Press Ctrl+C to stop server.\n\n";

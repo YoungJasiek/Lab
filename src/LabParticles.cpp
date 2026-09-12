@@ -303,7 +303,21 @@ namespace Lab {
 
     void ParticleSystem::spawnImpact(const Vec3& hitPos, const Vec3& hitNormal, SurfaceType surface) {
         // 1. Spark spray along reflection normal
-        int sparkCount = (surface == SurfaceType::Metal) ? 18 : 10;
+        int sparkCount = (surface == SurfaceType::Metal) ? 18 : (surface == SurfaceType::Ice ? 14 : 10);
+        Vec3 sparkColor = Vec3(1.0f, 0.75f, 0.25f);
+        Vec3 sparkEndColor = Vec3(1.0f, 0.35f, 0.05f);
+
+        if (surface == SurfaceType::Metal) {
+            sparkColor = Vec3(1.0f, 0.95f, 0.6f);
+            sparkEndColor = Vec3(1.0f, 0.45f, 0.1f);
+        } else if (surface == SurfaceType::Wood) {
+            sparkColor = Vec3(0.88f, 0.68f, 0.38f);
+            sparkEndColor = Vec3(0.65f, 0.45f, 0.20f);
+        } else if (surface == SurfaceType::Ice) {
+            sparkColor = Vec3(0.75f, 0.92f, 1.0f);
+            sparkEndColor = Vec3(0.40f, 0.75f, 0.95f);
+        }
+
         for (int i = 0; i < sparkCount; ++i) {
             Particle p;
             p.type = ParticleType::Spark;
@@ -311,30 +325,44 @@ namespace Lab {
             Vec3 spreadDir = (hitNormal + randomVector(-0.75f, 0.75f)).normalized();
             p.velocity = spreadDir * randomFloat(4.5f, 11.0f);
             p.acceleration = Vec3(0.0f, -14.0f, 0.0f);
-            p.startColor = (surface == SurfaceType::Metal) ? Vec3(1.0f, 0.95f, 0.6f) : Vec3(1.0f, 0.75f, 0.25f);
-            p.endColor = Vec3(1.0f, 0.35f, 0.05f);
+            p.startColor = sparkColor;
+            p.endColor = sparkEndColor;
             p.startAlpha = 1.0f;
             p.endAlpha = 0.0f;
             p.startSize = randomFloat(0.025f, 0.05f);
             p.endSize = 0.01f;
             p.lifetime = 0.0f;
             p.maxLifetime = randomFloat(0.25f, 0.65f);
-            p.isAdditive = true;
+            p.isAdditive = (surface != SurfaceType::Wood);
             p.hasCollision = true;
             p.bounceCount = 2;
             spawnParticle(p);
         }
 
-        // 2. Concrete/Rock Dust puff
-        int dustCount = (surface == SurfaceType::Concrete) ? 5 : 3;
+        // 2. Dust / Sawdust / Frost mist puff
+        int dustCount = (surface == SurfaceType::Concrete || surface == SurfaceType::Wood) ? 6 : 4;
+        Vec3 dustStartColor = Vec3(0.72f, 0.70f, 0.65f);
+        Vec3 dustEndColor = Vec3(0.55f, 0.54f, 0.50f);
+
+        if (surface == SurfaceType::Wood) {
+            dustStartColor = Vec3(0.78f, 0.62f, 0.40f);
+            dustEndColor = Vec3(0.58f, 0.44f, 0.26f);
+        } else if (surface == SurfaceType::Ice) {
+            dustStartColor = Vec3(0.85f, 0.95f, 1.0f);
+            dustEndColor = Vec3(0.65f, 0.85f, 0.95f);
+        } else if (surface == SurfaceType::Metal) {
+            dustStartColor = Vec3(0.65f, 0.65f, 0.70f);
+            dustEndColor = Vec3(0.45f, 0.45f, 0.50f);
+        }
+
         for (int i = 0; i < dustCount; ++i) {
             Particle p;
             p.type = ParticleType::Dust;
             p.position = hitPos + hitNormal * 0.05f + randomVector(-0.06f, 0.06f);
             p.velocity = (hitNormal * randomFloat(0.6f, 1.8f)) + randomVector(-0.35f, 0.35f);
             p.acceleration = Vec3(0.0f, 0.15f, 0.0f); // Slight upward drift
-            p.startColor = Vec3(0.72f, 0.70f, 0.65f);
-            p.endColor = Vec3(0.55f, 0.54f, 0.50f);
+            p.startColor = dustStartColor;
+            p.endColor = dustEndColor;
             p.startAlpha = randomFloat(0.55f, 0.85f);
             p.endAlpha = 0.0f;
             p.startSize = randomFloat(0.08f, 0.14f);
@@ -348,16 +376,31 @@ namespace Lab {
             spawnParticle(p);
         }
 
-        // 3. Concrete debris chunks
-        for (int i = 0; i < 4; ++i) {
+        // 3. Debris chunks / wood splinters / ice shards
+        int debrisCount = (surface == SurfaceType::Metal) ? 2 : 5;
+        Vec3 debStartColor = Vec3(0.35f, 0.35f, 0.38f);
+        Vec3 debEndColor = Vec3(0.20f, 0.20f, 0.22f);
+
+        if (surface == SurfaceType::Wood) {
+            debStartColor = Vec3(0.58f, 0.42f, 0.22f);
+            debEndColor = Vec3(0.40f, 0.28f, 0.14f);
+        } else if (surface == SurfaceType::Ice) {
+            debStartColor = Vec3(0.80f, 0.94f, 1.0f);
+            debEndColor = Vec3(0.60f, 0.82f, 0.95f);
+        } else if (surface == SurfaceType::Metal) {
+            debStartColor = Vec3(0.45f, 0.45f, 0.48f);
+            debEndColor = Vec3(0.30f, 0.30f, 0.32f);
+        }
+
+        for (int i = 0; i < debrisCount; ++i) {
             Particle p;
             p.type = ParticleType::Debris;
             p.position = hitPos + hitNormal * 0.02f;
             Vec3 dir = (hitNormal + randomVector(-0.6f, 0.6f)).normalized();
             p.velocity = dir * randomFloat(2.5f, 6.5f);
             p.acceleration = Vec3(0.0f, -16.0f, 0.0f);
-            p.startColor = Vec3(0.35f, 0.35f, 0.38f);
-            p.endColor = Vec3(0.20f, 0.20f, 0.22f);
+            p.startColor = debStartColor;
+            p.endColor = debEndColor;
             p.startAlpha = 1.0f;
             p.endAlpha = 0.0f;
             p.startSize = randomFloat(0.035f, 0.065f);

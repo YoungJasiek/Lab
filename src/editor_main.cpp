@@ -76,7 +76,9 @@ public:
         for (const auto& dir : searchDirs) {
             if (std::filesystem::exists(dir)) {
                 for (const auto& entry : std::filesystem::directory_iterator(dir)) {
-                    if (entry.path().extension() == ".bmp") {
+                    std::string ext = entry.path().extension().string();
+                    std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return (char)::tolower(c); });
+                    if (ext == ".bmp" || ext == ".png" || ext == ".jpg" || ext == ".tga") {
                         std::string fname = entry.path().filename().string();
                         _availableTextures.push_back({ fname, fname });
                         if (!_textures.contains(fname)) {
@@ -87,6 +89,9 @@ public:
                 if (!_availableTextures.empty()) break;
             }
         }
+        std::sort(_availableTextures.begin(), _availableTextures.end(), [](const auto& a, const auto& b) {
+            return a.filename < b.filename;
+        });
         if (_availableTextures.empty()) {
             _availableTextures.push_back({ "concrete_wall.bmp", "concrete_wall.bmp" });
             _textures["concrete_wall.bmp"] = std::make_unique<Texture>("concrete_wall.bmp");
@@ -469,6 +474,17 @@ public:
             }
         } else {
             _fPressed = false;
+        }
+
+        // L: Toggle Darkness Mode (Pitch black preview with point lights)
+        if (!ctrlDown && (Input::isKeyPressed('L') || Input::isKeyPressed('l'))) {
+            if (!_lPressed) {
+                _darknessMode = !_darknessMode;
+                logMessage(_darknessMode ? "Darkness Mode: ACTIVE (Pitch Black Ambient/Sun)" : "Darkness Mode: DISABLED (Standard Sunlight)");
+                _lPressed = true;
+            }
+        } else {
+            _lPressed = false;
         }
 
         // E: Place Brush / Prop / Door / Spawn
@@ -1639,6 +1655,33 @@ public:
                     return;
                 }
             }
+
+            // Quick Action Buttons on Top Toolbar
+            float quickX = 525.0f;
+            // 1. [+ POINT LIGHT] button
+            if (mx >= quickX && mx <= quickX + 105.0f) {
+                _activeTool = 7;
+                logMessage("Tool 7: Point Light / Lamp Tool Activated (Click scene or E to place)");
+                return;
+            }
+            // 2. [DARKNESS: ON/OFF] button
+            float darkX = quickX + 112.0f;
+            if (mx >= darkX && mx <= darkX + 125.0f) {
+                _darknessMode = !_darknessMode;
+                logMessage(_darknessMode ? "Darkness Mode: ACTIVE (Pitch Black Ambient/Sun)" : "Darkness Mode: DISABLED (Standard Sunlight)");
+                return;
+            }
+            // 3. [DARK PRESET] button
+            float presetX = darkX + 132.0f;
+            if (mx >= presetX && mx <= presetX + 115.0f) {
+                if (_map) {
+                    _map->metadata.ambientColor = Vec3(0.015f, 0.018f, 0.025f);
+                    _map->metadata.sunColor = Vec3(0.0f, 0.0f, 0.0f);
+                    _darknessMode = true;
+                    logMessage("Applied Darkness Preset to Map Metadata (Ambient: 0.015, Sun: 0)");
+                }
+                return;
+            }
         }
 
         // 7. Left Tools Palette (x: 0..42, y: 58..878)
@@ -2070,6 +2113,18 @@ public:
     }
 
     void onRender() override {
+        // Darkness Mode or Map atmospheric lighting configuration
+        if (_darknessMode) {
+            glClearColor(0.012f, 0.015f, 0.022f, 1.0f);
+            Renderer::setSunLight(Vec3(0.0f, -1.0f, 0.0f), Vec3(0.0f, 0.0f, 0.0f), Vec3(0.012f, 0.015f, 0.022f));
+        } else if (_map) {
+            glClearColor(0.05f, 0.07f, 0.10f, 1.0f);
+            Renderer::setSunLight(_map->metadata.sunDir, _map->metadata.sunColor, _map->metadata.ambientColor);
+        } else {
+            glClearColor(0.05f, 0.07f, 0.10f, 1.0f);
+            Renderer::setSunLight(Vec3(-0.4f, -0.8f, -0.4f), Vec3(1.0f, 0.95f, 0.9f), Vec3(0.25f, 0.28f, 0.35f));
+        }
+
         // 1. Begin 3D Frame & Frustum Culling
         Renderer::beginFrame(_camera);
 
@@ -2412,6 +2467,35 @@ public:
             drawDarkBevel(bx, tbY + 4.0f, 26.0f, 26.0f, false);
             drawToolbarIcon(i, bx + 1.0f, tbY + 5.0f, iconCol, bgCol);
         }
+
+        // Quick Action Buttons on Top Toolbar: [+ POINT LIGHT], [DARKNESS: ON/OFF], [DARK PRESET]
+        float quickX = 525.0f;
+
+        // 1. [+ POINT LIGHT] button
+        bool isLightTool = (_activeTool == 7);
+        bool isLightHov = (_mouseScreenX >= quickX && _mouseScreenX <= quickX + 105.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        Vec3 lightBtnBg = isLightTool ? Vec3(0.95f, 0.75f, 0.15f) : (isLightHov ? Vec3(0.32f, 0.35f, 0.40f) : Vec3(0.22f, 0.23f, 0.26f));
+        Renderer::drawRect(quickX, tbY + 4.0f, 105.0f, 26.0f, lightBtnBg);
+        drawDarkBevel(quickX, tbY + 4.0f, 105.0f, 26.0f, isLightTool);
+        drawHammerIcon(7, quickX + 2.0f, tbY + 5.0f, isLightTool ? Vec3(0.05f, 0.05f, 0.05f) : Vec3(1.0f, 0.85f, 0.2f), lightBtnBg);
+        LabFont::drawText(quickX + 30.0f, tbY + 9.0f, "+ POINT LIGHT", 1.25f, isLightTool ? Vec3(0.05f, 0.05f, 0.05f) : Vec3(1, 1, 1), LabFontType::System);
+
+        // 2. [DARKNESS: ON/OFF] button
+        float darkX = quickX + 112.0f;
+        bool isDarkHov = (_mouseScreenX >= darkX && _mouseScreenX <= darkX + 125.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        Vec3 darkBtnBg = _darknessMode ? Vec3(0.55f, 0.15f, 0.80f) : (isDarkHov ? Vec3(0.32f, 0.35f, 0.40f) : Vec3(0.22f, 0.23f, 0.26f));
+        Renderer::drawRect(darkX, tbY + 4.0f, 125.0f, 26.0f, darkBtnBg);
+        drawDarkBevel(darkX, tbY + 4.0f, 125.0f, 26.0f, _darknessMode);
+        std::string darkLabel = _darknessMode ? "DARKNESS: ON" : "DARKNESS: OFF";
+        LabFont::drawText(darkX + 12.0f, tbY + 9.0f, darkLabel, 1.25f, _darknessMode ? Vec3(1.0f, 0.95f, 0.6f) : Vec3(0.85f, 0.88f, 0.92f), LabFontType::System);
+
+        // 3. [DARK PRESET] button
+        float presetX = darkX + 132.0f;
+        bool isPresetHov = (_mouseScreenX >= presetX && _mouseScreenX <= presetX + 115.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        Vec3 presetBtnBg = isPresetHov ? Vec3(0.32f, 0.35f, 0.40f) : Vec3(0.22f, 0.23f, 0.26f);
+        Renderer::drawRect(presetX, tbY + 4.0f, 115.0f, 26.0f, presetBtnBg);
+        drawDarkBevel(presetX, tbY + 4.0f, 115.0f, 26.0f, false);
+        LabFont::drawText(presetX + 10.0f, tbY + 9.0f, "DARK PRESET", 1.25f, Vec3(0.6f, 0.85f, 1.0f), LabFontType::System);
 
         // ==================== 3. LEFT TOOLS PALETTE (Tools 0..7) ====================
         float leftW = 42.0f;
@@ -3176,6 +3260,8 @@ private:
     bool _arrowDownPressed = false;
     bool _pageUpPressed = false;
     bool _pageDownPressed = false;
+    bool _darknessMode = false;
+    bool _lPressed = false;
     float _mouseScreenX = 0.0f;
     float _mouseScreenY = 0.0f;
 };

@@ -186,11 +186,17 @@ namespace Lab {
     class LabHammerEditor {
     public:
         bool active = false;
+        bool darknessMode = false;
         EditorTool currentTool = EditorTool::CreateBrush;
         EditorCursor3D cursor;
         int selectedBrushIndex = -1;
         std::string currentMapName = "facility_hammer.labmap";
         std::string statusMessage = "Hammer: Ready";
+
+        // Light Tool parameters
+        Vec3 lightColor{ 1.0f, 0.95f, 0.85f }; // Warm 2700K incandescent
+        float lightRadius = 14.0f;
+        float lightIntensity = 2.5f;
 
         void toggle(Camera& cam) {
             active = !active;
@@ -199,6 +205,12 @@ namespace Lab {
                 // place cursor in front of camera
                 cursor.position = snapToGrid(cam.getPosition() + cam.getForward() * 6.0f, cursor.gridSnap);
             }
+        }
+
+        void toggleDarkness() {
+            darknessMode = !darknessMode;
+            statusMessage = darknessMode ? "Hammer: Darkness Mode ON [Pitch Black Ambient/Sun]" 
+                                         : "Hammer: Darkness Mode OFF [Standard Daylight]";
         }
 
         static Vec3 snapToGrid(const Vec3& v, float snap) {
@@ -227,6 +239,22 @@ namespace Lab {
             statusMessage = "Placed Brush at (" + std::to_string((int)b.position.x) + ", " + std::to_string((int)b.position.y) + ", " + std::to_string((int)b.position.z) + ")";
         }
 
+        void placeLight(LabMap& map) {
+            MapLight lt;
+            lt.name = "light_omni_" + std::to_string(map.lights.size() + 1);
+            lt.position = cursor.position;
+            lt.color = lightColor;
+            lt.intensity = lightIntensity;
+            lt.radius = lightRadius;
+            lt.type = MapLightType::Point;
+            map.lights.push_back(lt);
+            statusMessage = "Placed Point Light #" + std::to_string(map.lights.size()) + " at (" + 
+                            std::to_string((int)lt.position.x) + ", " + 
+                            std::to_string((int)lt.position.y) + ", " + 
+                            std::to_string((int)lt.position.z) + ") [Radius: " + 
+                            std::to_string((int)lt.radius) + "m]";
+        }
+
         void placeDoor(LabMap& map) {
             MapDoor d;
             d.position = cursor.position;
@@ -248,18 +276,36 @@ namespace Lab {
         }
 
         void deleteLast(LabMap& map) {
-            if (!map.brushes.empty()) {
+            if (currentTool == EditorTool::CreateLight && !map.lights.empty()) {
+                map.lights.pop_back();
+                statusMessage = "Deleted last point light";
+            } else if (!map.brushes.empty()) {
                 map.brushes.pop_back();
                 statusMessage = "Deleted last brush";
             }
         }
 
-        void draw3DOverlay() {
+        void draw3DOverlay(LabMap* map = nullptr) {
             if (!active) return;
 
-            // Draw Wireframe/Hologram Ghost Brush at Cursor Position (Valve Orange / Cyan)
-            Vec3 ghostColor = Vec3(1.0f, 0.55f, 0.1f); // Valve Hammer Orange
-            Renderer::drawCube(cursor.position, cursor.brushSize, ghostColor, false);
+            // Draw Wireframe/Hologram Ghost Brush or Light Bulb at Cursor Position
+            if (currentTool == EditorTool::CreateLight) {
+                // Glowing light bulb indicator
+                Renderer::drawCube(cursor.position, Vec3(0.5f, 0.5f, 0.5f), lightColor, false);
+                // Wireframe volume illustrating light influence radius
+                Renderer::drawWireCube(cursor.position, Vec3(lightRadius * 0.5f, lightRadius * 0.5f, lightRadius * 0.5f), lightColor);
+            } else {
+                Vec3 ghostColor = Vec3(1.0f, 0.55f, 0.1f); // Valve Hammer Orange
+                Renderer::drawCube(cursor.position, cursor.brushSize, ghostColor, false);
+            }
+
+            // Draw existing map dynamic point lights as glowing markers
+            if (map) {
+                for (const auto& l : map->lights) {
+                    Renderer::drawCube(l.position, Vec3(0.35f, 0.35f, 0.35f), l.color, false);
+                    Renderer::drawWireCube(l.position, Vec3(l.radius * 0.35f, l.radius * 0.35f, l.radius * 0.35f), l.color * 0.7f);
+                }
+            }
 
             // Draw coordinate axis markers around cursor
             Renderer::drawCube(cursor.position + Vec3(1.5f, 0, 0), Vec3(1.0f, 0.06f, 0.06f), Vec3(1.0f, 0.2f, 0.2f), false); // X
@@ -278,14 +324,17 @@ namespace Lab {
             Renderer::drawRect(10.0f, 8.0f, 24.0f, 24.0f, Vec3(1.0f, 0.55f, 0.1f)); // Hammer Logo Icon
             Renderer::drawRect(45.0f, 12.0f, 160.0f, 16.0f, Vec3(0.2f, 0.25f, 0.32f));
 
-            // Tool selector buttons (Brush, Door, Save)
-            Renderer::drawRect(240.0f, 8.0f, 90.0f, 24.0f, currentTool == EditorTool::CreateBrush ? Vec3(0.2f, 0.6f, 0.9f) : Vec3(0.18f, 0.2f, 0.25f));
-            Renderer::drawRect(340.0f, 8.0f, 90.0f, 24.0f, currentTool == EditorTool::CreateDoor ? Vec3(0.2f, 0.6f, 0.9f) : Vec3(0.18f, 0.2f, 0.25f));
-            Renderer::drawRect(440.0f, 8.0f, 90.0f, 24.0f, Vec3(0.2f, 0.55f, 0.35f)); // Save button
+            // Tool selector buttons (Brush, Point Light, Door, Darkness Mode, Save)
+            Renderer::drawRect(240.0f, 8.0f, 85.0f, 24.0f, currentTool == EditorTool::CreateBrush ? Vec3(0.2f, 0.6f, 0.9f) : Vec3(0.18f, 0.2f, 0.25f));
+            Renderer::drawRect(332.0f, 8.0f, 95.0f, 24.0f, currentTool == EditorTool::CreateLight ? Vec3(0.95f, 0.75f, 0.15f) : Vec3(0.18f, 0.2f, 0.25f));
+            Renderer::drawRect(434.0f, 8.0f, 85.0f, 24.0f, currentTool == EditorTool::CreateDoor ? Vec3(0.2f, 0.6f, 0.9f) : Vec3(0.18f, 0.2f, 0.25f));
+            // Darkness mode button
+            Renderer::drawRect(526.0f, 8.0f, 115.0f, 24.0f, darknessMode ? Vec3(0.6f, 0.15f, 0.85f) : Vec3(0.18f, 0.2f, 0.25f));
+            Renderer::drawRect(648.0f, 8.0f, 85.0f, 24.0f, Vec3(0.2f, 0.55f, 0.35f)); // Save button
 
             // Bottom Status Console
             Renderer::drawRect(0, (float)screenH - 32.0f, (float)screenW, 32.0f, Vec3(0.08f, 0.1f, 0.13f));
-            Renderer::drawRect(10.0f, (float)screenH - 22.0f, 12.0f, 12.0f, Vec3(0.2f, 0.85f, 0.4f));
+            Renderer::drawRect(10.0f, (float)screenH - 22.0f, 12.0f, 12.0f, darknessMode ? Vec3(0.8f, 0.2f, 0.9f) : Vec3(0.2f, 0.85f, 0.4f));
         }
     };
 

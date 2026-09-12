@@ -2289,11 +2289,16 @@ namespace Lab {
             { "Standard Army", "weapon_m4a4s.bmp" },
             { "Frostbite Glaze", "cryo_ice.bmp" },
             { "Titanium Hull", "metal_hull.bmp" },
-            { "Hazard Caution", "hazard_stripes.bmp" },
+            { "Fortress Stone", "texture_22.png" },
+            { "Polished Timber", "texture_17.png" },
+            { "Royal Marble", "texture_23.png" },
+            { "Dark Slate", "texture_20.png" },
+            { "Terracotta Pavers", "texture_19.png" },
             { "Sub-Zero Camo", "snow_frost.bmp" }
         };
+        const int numSkins = (int)(sizeof(skins) / sizeof(skins[0]));
 
-        for (int i = 0; i < 5; ++i) {
+        for (int i = 0; i < numSkins; ++i) {
             float by = curY + i * 24.0f;
             bool active = (skin.textureFile == skins[i].file);
             if (drawHammerButton(x + 12.0f, by, w - 24.0f, 20.0f, skins[i].name + " (" + skins[i].file + ")", active)) {
@@ -2302,7 +2307,7 @@ namespace Lab {
                 log("Applied material texture: " + skins[i].name);
             }
         }
-        curY += 128.0f;
+        curY += numSkins * 24.0f + 8.0f;
 
         // 3. Material Parameters Group
         Renderer::drawRect(x + 8.0f, curY, w - 16.0f, 130.0f, Vec3(0.18f, 0.19f, 0.21f));

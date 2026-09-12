@@ -28,7 +28,11 @@ namespace Lab {
         ServerSnapshot = 7,
         ChatMessage = 8,
         ServerQuery = 9,
-        ServerInfo = 10
+        ServerInfo = 10,
+        DamageEvent = 11,
+        KillEvent = 12,
+        ProjectileSpawn = 13,
+        NatPunch = 14
     };
 
     // --- Compact Binary Protocol Structures ---
@@ -76,6 +80,7 @@ namespace Lab {
         float pitch = 0.0f;
         uint32_t buttons = 0;
         float deltaTime = 0.015625f;
+        uint8_t activeWeapon = 0;
     };
 
     struct NetPlayerState {
@@ -120,7 +125,44 @@ namespace Lab {
         uint16_t maxPlayers = 16;
         uint16_t pingMs = 0;
     };
+
+    struct NetMsgNatPunch {
+        NetHeader header;
+        uint32_t senderId = 0;
+        char tag[16] = "NAT_PUNCH";
+    };
 #pragma pack(pop)
+
+    struct NetMsgDamageEvent {
+        NetHeader header;
+        uint32_t attackerId = 0;
+        uint32_t targetId = 0;
+        float damage = 0.0f;
+        uint8_t weaponId = 0;
+        uint8_t isHeadshot = 0;
+        uint8_t pad[2] = { 0 };
+        Vec3 hitPoint = { 0, 0, 0 };
+    };
+
+    struct NetMsgKillEvent {
+        NetHeader header;
+        uint32_t killerId = 0;
+        uint32_t victimId = 0;
+        uint8_t weaponId = 0;
+        uint8_t isHeadshot = 0;
+        uint8_t pad[2] = { 0 };
+        char killerName[32] = { 0 };
+        char victimName[32] = { 0 };
+    };
+
+    struct NetMsgProjectileSpawn {
+        NetHeader header;
+        uint32_t ownerId = 0;
+        uint8_t weaponId = 0;
+        uint8_t pad[3] = { 0 };
+        Vec3 position = { 0, 0, 0 };
+        Vec3 direction = { 0, 0, 0 };
+    };
 
     // --- Socket Address Abstraction ---
     class SocketAddress {
@@ -226,9 +268,52 @@ namespace Lab {
         NetMatchMode networkMode = NetMatchMode::LAN;
         bool lanMode = true;
         std::string password = "";
+        std::string roomCode = "";
 
         bool loadFromFile(const std::string& filepath = "assets/configs/server.cfg");
         bool saveToFile(const std::string& filepath = "assets/configs/server.cfg") const;
+    };
+
+    // --- NAT Traversal, STUN & UPnP Discovery ---
+    struct NATStatus {
+        std::string localIP = "127.0.0.1";
+        std::string publicIP = "127.0.0.1";
+        uint16_t externalPort = DEFAULT_SERVER_PORT;
+        bool upnpActive = false;
+        std::string upnpMessage = "UPnP not initialized";
+    };
+
+    class NATDiscovery {
+    public:
+        static std::string discoverPublicIP(uint16_t localPort = DEFAULT_SERVER_PORT);
+        static std::string getLocalIP();
+        static bool openUPnPPort(uint16_t port, const std::string& description = "FrozenLife Server");
+        static void closeUPnPPort(uint16_t port);
+        static NATStatus queryFullStatus(uint16_t port = DEFAULT_SERVER_PORT);
+        static bool punchHole(const std::string& remoteIP, uint16_t remotePort, uint16_t localPort = 0);
+    };
+
+    // --- Plug & Play Cloud Rendezvous & Automatic Hole Punching ---
+    struct PnPRoomInfo {
+        std::string roomCode;
+        std::string publicIP;
+        uint16_t publicPort = DEFAULT_SERVER_PORT;
+        std::string lanIP;
+        uint16_t lanPort = DEFAULT_SERVER_PORT;
+        std::string mapName = "facility_alpha.labmap";
+        std::string gameMode = "FFA";
+        bool valid = false;
+    };
+
+    class PnPBroker {
+    public:
+        static bool publishRoom(const std::string& roomCode, const std::string& publicIP, uint16_t publicPort,
+                                const std::string& lanIP, uint16_t lanPort, const std::string& mapName = "facility_alpha.labmap",
+                                const std::string& gameMode = "FFA");
+        static bool fetchRoom(const std::string& roomCode, PnPRoomInfo& outInfo);
+        static bool registerGuestPunch(const std::string& roomCode, const std::string& guestIP, uint16_t guestPort);
+        static bool fetchGuestPunch(const std::string& roomCode, std::string& outGuestIP, uint16_t& outGuestPort);
+        static std::string generateRoomCode();
     };
 
     // --- Dedicated Headless & Listen Server Engine ---
@@ -241,6 +326,7 @@ namespace Lab {
         uint32_t lastProcessedCmd = 0;
         float ping = 0.0f;
         bool isGrounded = true;
+        float deathTime = 0.0f;
     };
 
     class DedicatedServer {
@@ -265,9 +351,16 @@ namespace Lab {
         const ServerConfig& getConfig() const { return _config; }
         void setConfig(const ServerConfig& cfg) { _config = cfg; }
         uint16_t getTickrate() const { return _config.tickrate > 0 ? _config.tickrate : 64; }
+        const std::string& getRoomCode() const { return _roomCode; }
+        void setRoomCode(const std::string& code) { _roomCode = code; _config.roomCode = code; }
 
-        // Send a chat message to all connected clients
+        // Game event broadcasts
         void broadcastChatMessage(const std::string& sender, const std::string& text);
+        void broadcastDamageEvent(const NetMsgDamageEvent& dmg);
+        void broadcastKillEvent(const NetMsgKillEvent& kill);
+        void broadcastProjectileSpawn(const NetMsgProjectileSpawn& proj);
+        void applyDamageToClient(uint32_t attackerId, uint32_t targetId, float damage, uint8_t weaponId, bool isHeadshot, const Vec3& hitPoint);
+        bool punchClient(const std::string& clientIP, uint16_t clientPort);
 
     private:
         UDPSocket _socket;
@@ -276,6 +369,9 @@ namespace Lab {
         std::string _serverName = "Lab Dedicated Arena [LAN]";
         std::string _gameMode = "FFA";
         std::string _mapName;
+        std::string _roomCode = "";
+        float _pnpPunchPollTimer = 0.0f;
+        std::string _lastPunchedGuest = "";
         bool _running = false;
         uint32_t _serverTick = 0;
         uint32_t _nextClientId = 1;
@@ -291,9 +387,17 @@ namespace Lab {
         void simulateWorld(float dt);
         void broadcastSnapshot();
         ConnectedClient* findClient(const SocketAddress& addr);
+        ConnectedClient* findClientById(uint32_t clientId);
     };
 
     // --- Network Client Subsystem (Integrated into FrozenLife game client) ---
+    enum class ClientConnectionState {
+        Disconnected,
+        Connecting,
+        Connected,
+        TimedOut
+    };
+
     class NetworkClient {
     public:
         NetworkClient();
@@ -301,22 +405,39 @@ namespace Lab {
 
         bool connect(const std::string& ip, uint16_t port, const std::string& playerName);
         void disconnect();
-        void update(float dt, const Vec3& localPos, const Vec3& localVel, float yaw, float pitch, uint32_t buttons, float forwardMove = 0.0f, float sideMove = 0.0f);
+        void update(float dt, const Vec3& localPos, const Vec3& localVel, float yaw, float pitch, uint32_t buttons, float forwardMove = 0.0f, float sideMove = 0.0f, uint8_t activeWeapon = 0);
 
-        bool isConnected() const { return _connected; }
+        bool isConnected() const { return _state == ClientConnectionState::Connected; }
+        ClientConnectionState getState() const { return _state; }
+        int getConnectAttempts() const { return _connectAttempts; }
         uint32_t getClientId() const { return _assignedClientId; }
         float getRTT() const { return _rtt; }
         const NetServerSnapshot& getLatestSnapshot() const { return _latestSnapshot; }
         bool hasNewSnapshot() const { return _hasNewSnapshot; }
         void consumeSnapshot() { _hasNewSnapshot = false; }
+        const std::string& getServerAddressString() const { return _serverAddrStr; }
+        const std::string& getConnectedMapName() const { return _connectedMapName; }
+
+        void sendDamage(uint32_t targetId, float damage, uint8_t weaponId, bool isHeadshot, const Vec3& hitPoint);
+        void sendChatMessage(const std::string& text);
+        void sendProjectileSpawn(uint8_t weaponId, const Vec3& pos, const Vec3& dir);
+
+        std::vector<NetChatMessage> pollIncomingChat();
+        std::vector<NetMsgDamageEvent> pollIncomingDamageEvents();
+        std::vector<NetMsgKillEvent> pollIncomingKillEvents();
+        std::vector<NetMsgProjectileSpawn> pollIncomingProjectiles();
 
         ClientPrediction& getPrediction() { return _prediction; }
 
     private:
         UDPSocket _socket;
         SocketAddress _serverAddr;
+        std::string _serverAddrStr = "127.0.0.1:27015";
+        std::string _connectedMapName = "facility_alpha.labmap";
         std::string _playerName;
-        bool _connected = false;
+        ClientConnectionState _state = ClientConnectionState::Disconnected;
+        int _connectAttempts = 0;
+        float _connectTimer = 0.0f;
         uint32_t _assignedClientId = 0;
         float _rtt = 0.0f;
         float _pingTimer = 0.0f;
@@ -325,6 +446,11 @@ namespace Lab {
         ClientPrediction _prediction;
         NetServerSnapshot _latestSnapshot;
         bool _hasNewSnapshot = false;
+
+        std::vector<NetChatMessage> _incomingChat;
+        std::vector<NetMsgDamageEvent> _incomingDamageEvents;
+        std::vector<NetMsgKillEvent> _incomingKillEvents;
+        std::vector<NetMsgProjectileSpawn> _incomingProjectiles;
 
         void processIncomingPackets();
     };

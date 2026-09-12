@@ -26,8 +26,8 @@ namespace Lab {
     struct GameSessionConfig {
         std::string mapPath = "assets/maps/facility_alpha.labmap";
         GameMode mode = GameMode::FFA;
-        bool enableBots = true;
-        int botCount = 4;
+        bool enableBots = false;
+        int botCount = 0;
         int fragLimit = 25;
         int timeLimitMinutes = 10;
         int botDifficulty = 1; // 0 = Easy, 1 = Normal, 2 = Hard
@@ -35,6 +35,7 @@ namespace Lab {
         uint16_t port = 27015;
         std::string serverName = "Lab Arena [LAN]";
         std::string configPath = "assets/configs/server.cfg";
+        std::string roomCode = "7788";
 
         std::string getModeString() const {
             switch (mode) {

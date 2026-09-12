@@ -1,6 +1,7 @@
 *.user
 *.log
 *.bmp
+test_*.png
 *.af
 *.kra
 logos/

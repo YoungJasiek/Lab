@@ -15,7 +15,37 @@
 
 using namespace Lab;
 
+
+#ifdef _WIN32
+static std::string getClipboardText() {
+    if (!OpenClipboard(nullptr)) return "";
+    HANDLE hData = GetClipboardData(CF_TEXT);
+    if (!hData) { CloseClipboard(); return ""; }
+    char* pszText = static_cast<char*>(GlobalLock(hData));
+    std::string text = pszText ? pszText : "";
+    GlobalUnlock(hData);
+    CloseClipboard();
+    text.erase(std::remove(text.begin(), text.end(), '\r'), text.end());
+    text.erase(std::remove(text.begin(), text.end(), '\n'), text.end());
+    return text;
+}
+static void setClipboardText(const std::string& text) {
+    if (!OpenClipboard(nullptr)) return;
+    EmptyClipboard();
+    HGLOBAL hGlob = GlobalAlloc(GMEM_FIXED, text.size() + 1);
+    if (hGlob) {
+        memcpy(hGlob, text.c_str(), text.size() + 1);
+        SetClipboardData(CF_TEXT, hGlob);
+    }
+    CloseClipboard();
+}
+#else
+static std::string getClipboardText() { return ""; }
+static void setClipboardText(const std::string&) {}
+#endif
+
 class FrozenLife : public Engine {
+
 public:
     FrozenLife()
         : Engine("Frozen-Life: Lab FPS", 1280, 720),
@@ -45,15 +75,20 @@ public:
         // Discover available maps in assets/maps/
         scanMapFiles();
 
-        // Preload Core Textures
+        // Preload Core Textures (Classic engine materials + 25 new high-definition environmental textures)
         std::vector<std::string> coreTextures = {
             "concrete_wall.bmp", "floor_tiles.bmp", "cryo_ice.bmp",
             "hazard_stripes.bmp", "metal_hull.bmp", "snow_frost.bmp",
-            "floor_lab.bmp", "wall_concrete.bmp", "brick_wall.bmp",
+            "floor_lab.bmp", "wall_concrete.bmp", "brick_wall.bmp", "blast_door.bmp",
             "weapon_pipe.bmp", "weapon_pistol.bmp", "weapon_shotgun.bmp",
             "weapon_m4a4s.bmp", "weapon_sg553.bmp", "weapon_minigun.bmp",
             "weapon_plasma.bmp", "weapon_railgun.bmp", "weapon_rpg.bmp"
         };
+        for (int i = 1; i <= 25; ++i) {
+            char buf[32];
+            snprintf(buf, sizeof(buf), "texture_%02d.png", i);
+            coreTextures.push_back(buf);
+        }
         for (const auto& texName : coreTextures) {
             getTexture(texName);
         }
@@ -94,6 +129,9 @@ public:
         // Initialize Authoritative UDP Network Subsystem
         NetworkSystem::init();
         _serverBrowser.start();
+        _pnpRoomCode = PnPBroker::generateRoomCode();
+        _pnpJoinCode = _pnpRoomCode;
+        _sessionConfig.roomCode = _pnpRoomCode;
 
         // Initialize Lab Character & Weapon Studio
         _characterStudio.init();
@@ -177,6 +215,33 @@ public:
         }
         _missingTextures.insert(path);
         return nullptr;
+    }
+
+    static SurfaceType getSurfaceTypeForTexture(const std::string& texturePath) {
+        std::string lower = texturePath;
+        std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return (char)::tolower(c); });
+        // Wood materials
+        if (lower.find("wood") != std::string::npos || lower.find("board") != std::string::npos ||
+            lower.find("plank") != std::string::npos || lower.find("timber") != std::string::npos ||
+            lower.find("texture_04") != std::string::npos || lower.find("texture_08") != std::string::npos ||
+            lower.find("texture_13") != std::string::npos || lower.find("texture_17") != std::string::npos ||
+            lower.find("texture_25") != std::string::npos) {
+            return SurfaceType::Wood;
+        }
+        // Ice / Snow
+        if (lower.find("ice") != std::string::npos || lower.find("snow") != std::string::npos ||
+            lower.find("frost") != std::string::npos) {
+            return SurfaceType::Ice;
+        }
+        // Metal materials
+        if (lower.find("metal") != std::string::npos || lower.find("blast_door") != std::string::npos ||
+            lower.find("hazard") != std::string::npos || lower.find("server") != std::string::npos ||
+            lower.find("diamond_plate") != std::string::npos || lower.find("vent_grate") != std::string::npos ||
+            lower.find("texture_02") != std::string::npos || lower.find("texture_03") != std::string::npos) {
+            return SurfaceType::Metal;
+        }
+        // Default to Concrete / Stone / Masonry / Tile
+        return SurfaceType::Concrete;
     }
 
     Mesh* getMesh(const std::string& path) {
@@ -376,6 +441,7 @@ public:
         _playerKills = 0;
         _playerDeaths = 0;
         _isPlayerDead = false;
+        _velocity = { 0, 0, 0 };
         _playerRespawnTimer = 0.0f;
 
         if (_currentMap && !_currentMap->doors.empty()) {
@@ -498,9 +564,11 @@ public:
             }
             _bobTime += fixedDelta * (speed * 2.0f);
         } else {
-            float friction = isIceSurface ? 0.985f : 0.85f;
+            float friction = isIceSurface ? 0.985f : 0.80f;
             _velocity.x *= friction;
             _velocity.z *= friction;
+            if (std::abs(_velocity.x) < 0.05f) _velocity.x = 0.0f;
+            if (std::abs(_velocity.z) < 0.05f) _velocity.z = 0.0f;
         }
 
         // Jump physics (Spacebar = 32)
@@ -545,7 +613,9 @@ public:
                 if (Input::isKeyPressed('D') || Input::isKeyPressed('d')) netSide += 1.0f;
             }
 
-            _netClient.update(fixedDelta, pos, _velocity, _camera.getYaw(), _camera.getPitch(), netButtons, netForward, netSide);
+            _netClient.update(fixedDelta, pos, _velocity, _camera.getYaw(), _camera.getPitch(), netButtons, netForward, netSide, static_cast<uint8_t>(_weaponSystem.getActiveId()));
+        } else if (_netClient.getState() == ClientConnectionState::Connecting) {
+            _netClient.update(fixedDelta, pos, _velocity, _camera.getYaw(), _camera.getPitch(), 0, 0.0f, 0.0f, static_cast<uint8_t>(_weaponSystem.getActiveId()));
         }
 
         // Procedural Door animations and distance triggers
@@ -628,6 +698,34 @@ public:
                 if (Input::isKeyPressed(294)) {
                     _serverBrowser.refresh();
                 }
+
+                if (_isConnecting) {
+                    _connectAnimTimer += time.delta;
+                    _netClient.update(time.delta, Vec3(0, 0, 0), Vec3(0, 0, 0), 0.0f, 0.0f, 0, 0.0f, 0.0f, 0);
+
+                    if (_netClient.isConnected()) {
+                        _isConnecting = false;
+                        _connectStatusMsg = "CONNECTED TO SERVER! JOINING ARENA...";
+                        std::string srvMap = _netClient.getConnectedMapName();
+                        if (srvMap.empty()) srvMap = "facility_alpha.labmap";
+                        if (srvMap.find('/') == std::string::npos && srvMap.find('\\') == std::string::npos) {
+                            srvMap = "assets/maps/" + srvMap;
+                        }
+                        _sessionConfig.mapPath = srvMap;
+                        _sessionConfig.mode = GameMode::FFA;
+                        _sessionConfig.enableBots = false; // Never spawn local bots on guest
+                        _sessionConfig.botCount = 0;
+                        _isLocalHost = false;
+                        startSession(_sessionConfig);
+                        _chat.addMessage("[CLIENT]", "Connected to server " + _netClient.getServerAddressString() + "!", Vec3(0.2f, 0.9f, 0.35f));
+                        _hud.showCombatMessage("CONNECTED TO MULTIPLAYER ARENA!", 3.0f);
+                        return;
+                    } else if (_netClient.getState() == ClientConnectionState::TimedOut) {
+                        _isConnecting = false;
+                        _connectStatusMsg = "FAILED TO CONNECT: TIMEOUT! Check Port 27015 / UDP Punch or connect via Radmin VPN";
+                        _netClient.disconnect();
+                    }
+                }
             }
 
             handleMenuInput(mx, my, lmbClick);
@@ -681,6 +779,9 @@ public:
             if (enterPressed && !_enterPressedLast) {
                 std::string sentMsg;
                 _chat.onKey(257, 1, sentMsg);
+                if (!sentMsg.empty() && _netClient.isConnected()) {
+                    _netClient.sendChatMessage(sentMsg);
+                }
             } else if (escPressed && !_escPressedLast) {
                 _chat.close();
             } else if (backspacePressed && !_backspacePressedLast) {
@@ -700,6 +801,52 @@ public:
         _tPressedLast = tPressed;
         _backspacePressedLast = backspacePressed;
         _chat.update(time.delta);
+
+        // Poll incoming network events (chat, authoritative damage, kills, projectiles)
+        if (_netClient.isConnected()) {
+            for (const auto& chatMsg : _netClient.pollIncomingChat()) {
+                _chat.addMessage(chatMsg.sender, chatMsg.text, Vec3(0.35f, 0.85f, 1.0f));
+            }
+            for (const auto& dmg : _netClient.pollIncomingDamageEvents()) {
+                if (dmg.targetId == _netClient.getClientId()) {
+                    applyDamageToPlayer(dmg.damage, "Player " + std::to_string(dmg.attackerId));
+                    _hud.triggerDamageFlash();
+                    AudioEngine::playSound(SoundID::PlayerHurt);
+                }
+            }
+            for (const auto& kill : _netClient.pollIncomingKillEvents()) {
+                std::string msg = std::string(kill.killerName) + " ELIMINATED " + kill.victimName + (kill.isHeadshot ? " (HEADSHOT!)" : "");
+                _chat.addMessage("[DEATH]", msg, kill.isHeadshot ? Vec3(1.0f, 0.25f, 0.25f) : Vec3(0.9f, 0.5f, 0.2f));
+                _hud.showCombatMessage(msg, 3.0f);
+                if (kill.killerId == _netClient.getClientId()) {
+                    _playerKills++;
+                    _hud.frags = _playerKills;
+                    AudioEngine::playSound(SoundID::AccessGranted);
+                }
+                if (kill.victimId == _netClient.getClientId()) {
+                    _playerDeaths++;
+                    _isPlayerDead = true;
+                    _playerRespawnTimer = 3.0f;
+                    _velocity = { 0, 0, 0 };
+                    AudioEngine::playSound(SoundID::PlayerHurt);
+                }
+            }
+            for (const auto& proj : _netClient.pollIncomingProjectiles()) {
+                Projectile p;
+                p.position = proj.position;
+                p.weaponId = static_cast<WeaponID>(proj.weaponId);
+                float spd = (p.weaponId == WeaponID::RPG) ? 28.0f : 35.0f;
+                p.velocity = proj.direction.normalized() * spd;
+                p.damage = (p.weaponId == WeaponID::RPG) ? 140.0f : 45.0f;
+                p.splashRadius = (p.weaponId == WeaponID::RPG) ? 5.5f : 3.0f;
+                p.splashDamage = (p.weaponId == WeaponID::RPG) ? 90.0f : 30.0f;
+                p.color = (p.weaponId == WeaponID::RPG) ? Vec3(1.0f, 0.45f, 0.1f) : Vec3(0.2f, 0.85f, 1.0f);
+                p.lifetime = 0.0f;
+                p.maxLifetime = 6.0f;
+                p.active = true;
+                _weaponSystem.getProjectiles().push_back(p);
+            }
+        }
 
         // Network simulation tick and client-side prediction update
         if (_localServer.isRunning()) {
@@ -867,6 +1014,9 @@ public:
                 if (def.isProjectile) {
                     // Projectile weapon: Plasma Gun & RPG
                     _weaponSystem.spawnProjectile(muzzlePos, forward);
+                    if (_netClient.isConnected()) {
+                        _netClient.sendProjectileSpawn(static_cast<uint8_t>(def.id), muzzlePos, forward);
+                    }
                 } else if (def.isMelee) {
                     // Melee sweep: Pipe (2.6m sweep)
                     RaycastHit hit;
@@ -874,7 +1024,40 @@ public:
                     _aiManager.testRaycast(rayOrigin, forward, hit);
                     _physicsWorld.raycast(rayOrigin, forward, hit);
 
+                    // Test Remote Multiplayer Players
+                    if (_netClient.isConnected()) {
+                        const auto& snap = _netClient.getLatestSnapshot();
+                        for (uint16_t i = 0; i < snap.playerCount; ++i) {
+                            const auto& p = snap.players[i];
+                            if (p.clientId == _netClient.getClientId() || !p.isAlive) continue;
+                            Vec3 pCenter = p.position - Vec3(0.0f, 0.775f, 0.0f);
+                            Vec3 pMin = pCenter - Vec3(0.45f, 0.925f, 0.45f);
+                            Vec3 pMax = pCenter + Vec3(0.45f, 0.925f, 0.45f);
+                            Vec3 norm;
+                            float t = 0.0f;
+                            if (Raycast::rayIntersectAABB(rayOrigin, forward, pMin, pMax, t, &norm)) {
+                                if (t < hit.distance) {
+                                    hit.hit = true;
+                                    hit.distance = t;
+                                    hit.point = rayOrigin + forward * t;
+                                    hit.normal = norm;
+                                    hit.tag = EntityTag::Bot;
+                                    hit.entityIndex = 10000 + p.clientId;
+                                    hit.isHeadshot = (hit.point.y >= p.position.y - 0.25f);
+                                }
+                            }
+                        }
+                    }
+
                     if (hit.hit && hit.distance <= def.range) {
+                        if (hit.entityIndex >= 10000) {
+                            uint32_t targetId = static_cast<uint32_t>(hit.entityIndex - 10000);
+                            float dmg = hit.isHeadshot ? (def.damage * def.headshotMultiplier) : def.damage;
+                            _netClient.sendDamage(targetId, dmg, static_cast<uint8_t>(def.id), hit.isHeadshot, hit.point);
+                            _hud.triggerHitmarker(hit.isHeadshot);
+                            _particleSystem.spawnBlood(hit.point, -forward, hit.isHeadshot);
+                            AudioEngine::playSound(SoundID::PipeHit);
+                        } else 
                         if (hit.tag == EntityTag::Bot) {
                             AudioEngine::playSound(SoundID::PipeHit);
                             for (auto& bot : _aiManager.bots) {
@@ -949,6 +1132,31 @@ public:
                         _aiManager.testRaycast(rayOrigin, spreadDir, hit);
                         _physicsWorld.raycast(rayOrigin, spreadDir, hit);
 
+                        // Test Remote Multiplayer Players
+                        if (_netClient.isConnected()) {
+                            const auto& snap = _netClient.getLatestSnapshot();
+                            for (uint16_t i = 0; i < snap.playerCount; ++i) {
+                                const auto& rp = snap.players[i];
+                                if (rp.clientId == _netClient.getClientId() || !rp.isAlive) continue;
+                                Vec3 pCenter = rp.position - Vec3(0.0f, 0.775f, 0.0f);
+                                Vec3 pMin = pCenter - Vec3(0.35f, 0.925f, 0.35f);
+                                Vec3 pMax = pCenter + Vec3(0.35f, 0.925f, 0.35f);
+                                Vec3 norm;
+                                float t = 0.0f;
+                                if (Raycast::rayIntersectAABB(rayOrigin, spreadDir, pMin, pMax, t, &norm)) {
+                                    if (t < hit.distance) {
+                                        hit.hit = true;
+                                        hit.distance = t;
+                                        hit.point = rayOrigin + spreadDir * t;
+                                        hit.normal = norm;
+                                        hit.tag = EntityTag::Bot;
+                                        hit.entityIndex = 10000 + rp.clientId;
+                                        hit.isHeadshot = (hit.point.y >= rp.position.y - 0.25f);
+                                    }
+                                }
+                            }
+                        }
+
                         // 2. Test Solid Map Geometry (Brushes & Doors)
                         if (_currentMap) {
                             Vec3 norm;
@@ -1005,7 +1213,14 @@ public:
 
                         // 4. Hit Processing & Particle Effects
                         if (hit.hit) {
-                            if (hit.tag == EntityTag::Bot) {
+                            if (hit.entityIndex >= 10000) {
+                                uint32_t targetId = static_cast<uint32_t>(hit.entityIndex - 10000);
+                                float dmg = hit.isHeadshot ? (def.damage * def.headshotMultiplier) : def.damage;
+                                _netClient.sendDamage(targetId, dmg, static_cast<uint8_t>(def.id), hit.isHeadshot, hit.point);
+                                _hud.triggerHitmarker(hit.isHeadshot);
+                                _particleSystem.spawnBlood(hit.point, -spreadDir, hit.isHeadshot);
+                                AudioEngine::playSound(SoundID::PlayerHurt);
+                            } else if (hit.tag == EntityTag::Bot) {
                                 // Crimson blood splatter spray & mist
                                 _particleSystem.spawnBlood(hit.point, -spreadDir, hit.isHeadshot);
                                 if (_currentMap) {
@@ -1061,9 +1276,17 @@ public:
                                 _decalSystem.spawnDecal(DecalType::BulletHoleMetal, hit.point, hit.normal, 0.15f);
                                 _hud.triggerHitmarker(false);
                             } else if (hit.tag == EntityTag::World) {
-                                // Concrete dust puff + spark spray + debris
-                                _particleSystem.spawnImpact(hit.point, hit.normal, SurfaceType::Concrete);
-                                _decalSystem.spawnDecal(DecalType::BulletHoleConcrete, hit.point, hit.normal, 0.18f + (float)(rand() % 8) * 0.01f);
+                                std::string brushTex = "";
+                                if (_currentMap && hit.entityIndex >= 0 && hit.entityIndex < (int)_currentMap->brushes.size()) {
+                                    brushTex = _currentMap->brushes[hit.entityIndex].texturePath;
+                                }
+                                SurfaceType st = getSurfaceTypeForTexture(brushTex);
+                                _particleSystem.spawnImpact(hit.point, hit.normal, st);
+                                if (st == SurfaceType::Metal) {
+                                    _decalSystem.spawnDecal(DecalType::BulletHoleMetal, hit.point, hit.normal, 0.16f + (float)(rand() % 6) * 0.01f);
+                                } else {
+                                    _decalSystem.spawnDecal(DecalType::BulletHoleConcrete, hit.point, hit.normal, 0.18f + (float)(rand() % 8) * 0.01f);
+                                }
                             } else if (hit.tag == EntityTag::Door) {
                                 // Metal ricochet spark spray + metallic shrapnel
                                 _particleSystem.spawnImpact(hit.point, hit.normal, SurfaceType::Metal);
@@ -1132,6 +1355,22 @@ public:
                     float factor = 1.0f - (pDist / proj.splashRadius);
                     float pDmg = (proj.damage * 0.5f + proj.splashDamage) * factor;
                     applyDamageToPlayer(pDmg, (proj.weaponId == WeaponID::RPG) ? "RPG Splash" : "Plasma Blast");
+                }
+
+                // Affect remote multiplayer players
+                if (_netClient.isConnected()) {
+                    const auto& snap = _netClient.getLatestSnapshot();
+                    for (uint16_t i = 0; i < snap.playerCount; ++i) {
+                        const auto& p = snap.players[i];
+                        if (p.clientId == _netClient.getClientId() || !p.isAlive) continue;
+                        float pDistRemote = (p.position - hitPos).length();
+                        if (pDistRemote <= proj.splashRadius) {
+                            float factor = 1.0f - (pDistRemote / proj.splashRadius);
+                            float pDmg = (proj.damage * 0.5f + proj.splashDamage) * factor;
+                            _netClient.sendDamage(p.clientId, pDmg, static_cast<uint8_t>(proj.weaponId), false, hitPos);
+                            _hud.triggerHitmarker(false);
+                        }
+                    }
                 }
 
                 float radiusSq = proj.splashRadius * proj.splashRadius;
@@ -1346,11 +1585,13 @@ public:
         if (_hammerEditor.active && _currentMap) {
             _hammerEditor.update(time.delta, _camera, *_currentMap);
 
-            // E key: Place object (Brush or Door)
+            // E key: Place object (Brush, Light, or Door)
             if (Input::isKeyPressed('E') || Input::isKeyPressed('e')) {
                 if (!_ePressedLast) {
                     if (_hammerEditor.currentTool == EditorTool::CreateBrush) {
                         _hammerEditor.placeBrush(*_currentMap);
+                    } else if (_hammerEditor.currentTool == EditorTool::CreateLight) {
+                        _hammerEditor.placeLight(*_currentMap);
                     } else if (_hammerEditor.currentTool == EditorTool::CreateDoor) {
                         _hammerEditor.placeDoor(*_currentMap);
                     }
@@ -1360,14 +1601,33 @@ public:
                 _ePressedLast = false;
             }
 
-            // R key: Toggle Tool (Brush <-> Door)
+            // R key: Toggle Tool (Brush -> Light -> Door -> Brush)
             if (Input::isKeyPressed('R') || Input::isKeyPressed('r')) {
                 if (!_rPressedLast) {
-                    _hammerEditor.currentTool = (_hammerEditor.currentTool == EditorTool::CreateBrush) ? EditorTool::CreateDoor : EditorTool::CreateBrush;
+                    if (_hammerEditor.currentTool == EditorTool::CreateBrush) {
+                        _hammerEditor.currentTool = EditorTool::CreateLight;
+                        _hammerEditor.statusMessage = "Hammer Tool: Point Light [E: Place, R: Cycle]";
+                    } else if (_hammerEditor.currentTool == EditorTool::CreateLight) {
+                        _hammerEditor.currentTool = EditorTool::CreateDoor;
+                        _hammerEditor.statusMessage = "Hammer Tool: Dynamic Door [E: Place, R: Cycle]";
+                    } else {
+                        _hammerEditor.currentTool = EditorTool::CreateBrush;
+                        _hammerEditor.statusMessage = "Hammer Tool: Geometry Brush [E: Place, R: Cycle]";
+                    }
                     _rPressedLast = true;
                 }
             } else {
                 _rPressedLast = false;
+            }
+
+            // L key: Toggle Darkness Mode (Pitch black ambient/sun)
+            if (Input::isKeyPressed('L') || Input::isKeyPressed('l')) {
+                if (!_lPressedLast) {
+                    _hammerEditor.toggleDarkness();
+                    _lPressedLast = true;
+                }
+            } else {
+                _lPressedLast = false;
             }
 
             // K key: Quick Save Map to assets/maps/hammer_export.labmap
@@ -1380,7 +1640,7 @@ public:
                 _kPressedLast = false;
             }
 
-            // Backspace / Delete: Delete last placed brush
+            // Backspace / Delete: Delete last placed brush or point light
             if (Input::isKeyPressed(259)) { // GLFW_KEY_BACKSPACE
                 if (!_backspacePressedLast) {
                     _hammerEditor.deleteLast(*_currentMap);
@@ -1515,6 +1775,25 @@ public:
             }
         }
         else if (_menuScreen == MenuScreen::HostGame) {
+            // Text typing for friend punch target IP
+            if (_punchTargetActive) {
+                for (int k = 0; k < 512; ++k) {
+                    if (Input::keys[k] && !_lastMenuKeys[k]) {
+                        if (k == 259) { // Backspace
+                            if (!_punchTargetIP.empty()) _punchTargetIP.pop_back();
+                        } else if (k == 'V' && (Input::isKeyPressed(GLFW_KEY_LEFT_CONTROL) || Input::isKeyPressed(GLFW_KEY_RIGHT_CONTROL))) {
+                            std::string clip = getClipboardText();
+                            if (!clip.empty()) _punchTargetIP = clip;
+                        } else if (k >= 32 && k <= 126) {
+                            if (_punchTargetIP.size() < 45) {
+                                _punchTargetIP.push_back(static_cast<char>(k));
+                            }
+                        }
+                    }
+                    _lastMenuKeys[k] = Input::keys[k];
+                }
+            }
+
             // O key: Open native Windows File Dialog for map
             if (Input::isKeyPressed('O') || Input::isKeyPressed('o')) {
                 if (!_oPressedLast) {
@@ -1582,6 +1861,31 @@ public:
                     if (mx >= 771.0f && mx <= 816.0f) { _sessionConfig.fragLimit = std::min(100, _sessionConfig.fragLimit + 5); LabLog::info("[FrozenLife] HostGame: Frag limit " + std::to_string(_sessionConfig.fragLimit)); return; }
                 }
 
+                // Copy Invite / IP button (x: 580..1160, y: 476..514)
+                if (mx >= 580.0f && mx <= 1160.0f && my >= 476.0f && my <= 514.0f) {
+                    std::string inviteIP = _hostNATStatus.publicIP.empty() ? _hostNATStatus.localIP : _hostNATStatus.publicIP;
+                    std::string inviteStr = inviteIP + ":" + std::to_string(_sessionConfig.port);
+                    setClipboardText(inviteStr);
+                    _chat.addMessage("[INVITE]", "Copied host address to clipboard: " + inviteStr, Vec3(0.3f, 0.9f, 0.4f));
+                    _punchStatusMsg = "Copied host address (" + inviteStr + ") to clipboard!";
+                    return;
+                }
+
+                // Plug & Play: Copy Room Code button (x: 820..980, y: 518..556)
+                if (mx >= 820.0f && mx <= 980.0f && my >= 518.0f && my <= 556.0f) {
+                    setClipboardText(_pnpRoomCode);
+                    _punchStatusMsg = "Copied Room Code [" + _pnpRoomCode + "] to clipboard! Share with friend.";
+                    return;
+                }
+
+                // Plug & Play: Generate New Room Code button (x: 990..1160, y: 518..556)
+                if (mx >= 990.0f && mx <= 1160.0f && my >= 518.0f && my <= 556.0f) {
+                    _pnpRoomCode = PnPBroker::generateRoomCode();
+                    _sessionConfig.roomCode = _pnpRoomCode;
+                    _punchStatusMsg = "Generated new Room Code: [" + _pnpRoomCode + "]!";
+                    return;
+                }
+
                 // 5. Bottom Back button (x: 100..300, y: 570..618)
                 if (mx >= 100.0f && mx <= 300.0f && my >= 570.0f && my <= 618.0f) {
                     LabLog::info("[FrozenLife] HostGame: Back selected");
@@ -1594,6 +1898,7 @@ public:
                     LabLog::info("[FrozenLife] HostGame: Starting Server and Session");
                     ServerConfig srvCfg;
                     srvCfg.port = _sessionConfig.port;
+                    srvCfg.roomCode = _pnpRoomCode;
                     srvCfg.serverName = (_sessionConfig.networkMode == NetworkMode::LAN)
                         ? "Lab LAN Dedicated Arena"
                         : "Lab P2P Dedicated Arena";
@@ -1609,6 +1914,11 @@ public:
 
                     // Strictly save to assets/configs/server.cfg
                     srvCfg.saveToFile("assets/configs/server.cfg");
+
+                    // Publish to Cloud Broker for zero-config Plug & Play
+                    std::string pubIP = NATDiscovery::discoverPublicIP(srvCfg.port);
+                    std::string lanIP = NATDiscovery::getLocalIP();
+                    PnPBroker::publishRoom(_pnpRoomCode, pubIP, srvCfg.port, lanIP, srvCfg.port, srvCfg.mapName, srvCfg.gameMode);
 
                     _localServer.stop();
                     _isLocalHost = true;
@@ -1632,7 +1942,94 @@ public:
             }
         }
         else if (_menuScreen == MenuScreen::JoinGame) {
+            // Text typing for direct connect target address or plug & play room code
+            for (int k = 0; k < 512; ++k) {
+                if (Input::keys[k] && !_lastMenuKeys[k]) {
+                    if (_pnpJoinCodeActive) {
+                        if (k == 259) { // Backspace
+                            if (!_pnpJoinCode.empty()) _pnpJoinCode.pop_back();
+                        } else if (k == 'V' && (Input::isKeyPressed(GLFW_KEY_LEFT_CONTROL) || Input::isKeyPressed(GLFW_KEY_RIGHT_CONTROL))) {
+                            std::string clip = getClipboardText();
+                            if (!clip.empty()) _pnpJoinCode = clip;
+                        } else if (k >= 32 && k <= 126) {
+                            if (_pnpJoinCode.size() < 12) {
+                                _pnpJoinCode.push_back(static_cast<char>(k));
+                            }
+                        }
+                    } else if (_directConnectActive) {
+                        if (k == 259) { // Backspace
+                            if (!_directConnectIP.empty()) _directConnectIP.pop_back();
+                        } else if (k == 'V' && (Input::isKeyPressed(GLFW_KEY_LEFT_CONTROL) || Input::isKeyPressed(GLFW_KEY_RIGHT_CONTROL))) {
+                            std::string clip = getClipboardText();
+                            if (!clip.empty()) _directConnectIP = clip;
+                        } else if (k >= 32 && k <= 126) {
+                            if (_directConnectIP.size() < 45) {
+                                _directConnectIP.push_back(static_cast<char>(k));
+                            }
+                        }
+                    }
+                }
+                _lastMenuKeys[k] = Input::keys[k];
+            }
+
             if (lmbClick) {
+                // 0A. Click Room Code input field (x: 110..370, y: 116..154)
+                if (mx >= 110.0f && mx <= 370.0f && my >= 116.0f && my <= 154.0f) {
+                    _pnpJoinCodeActive = true;
+                    _directConnectActive = false;
+                    return;
+                }
+
+                // 0B. Click PASTE Room Code button (x: 380..470, y: 116..154)
+                if (mx >= 380.0f && mx <= 470.0f && my >= 116.0f && my <= 154.0f) {
+                    std::string clip = getClipboardText();
+                    if (!clip.empty()) _pnpJoinCode = clip;
+                    return;
+                }
+
+                // 0C. Click JOIN VIA ROOM CODE (PLUG & PLAY) button (x: 485..865, y: 116..154)
+                if (mx >= 485.0f && mx <= 865.0f && my >= 116.0f && my <= 154.0f) {
+                    if (_pnpJoinCode.empty()) {
+                        _connectStatusMsg = "Please enter 4-digit Room Code first!";
+                        return;
+                    }
+                    _isConnecting = true;
+                    _connectAnimTimer = 0.0f;
+                    _connectStatusMsg = "LOOKING UP ROOM [" + _pnpJoinCode + "] ON CLOUD BROKER...";
+
+                    PnPRoomInfo room;
+                    if (PnPBroker::fetchRoom(_pnpJoinCode, room) && room.valid) {
+                        std::string myPub = NATDiscovery::discoverPublicIP(27016);
+                        std::string targetIP = room.publicIP;
+                        uint16_t targetPort = room.publicPort;
+
+                        // Automatic LAN detection: if my public IP equals host's public IP, we are in the same home!
+                        if (!room.lanIP.empty() && (myPub == room.publicIP || room.publicIP == "127.0.0.1" || room.publicIP.empty())) {
+                            targetIP = room.lanIP;
+                            targetPort = room.lanPort;
+                            _connectStatusMsg = "SAME NETWORK DETECTED! JOINING VIA LAN: " + targetIP;
+                        } else {
+                            PnPBroker::registerGuestPunch(_pnpJoinCode, myPub, 27016);
+                            NATDiscovery::punchHole(room.publicIP, room.publicPort, 27016);
+                            _connectStatusMsg = "FOUND HOST AT " + targetIP + ":" + std::to_string(targetPort) + " (PLUG & PLAY)!";
+                        }
+                        _directConnectIP = targetIP + ":" + std::to_string(targetPort);
+                        _netClient.connect(targetIP, targetPort, "GuestPlayer");
+                    } else {
+                        _isConnecting = false;
+                        _connectStatusMsg = "ROOM [" + _pnpJoinCode + "] NOT FOUND! Ensure host clicked START GAME.";
+                    }
+                    return;
+                }
+
+                // COPY MY IP button (x: 1050..1160, y: 72..100)
+                if (mx >= 1050.0f && mx <= 1160.0f && my >= 72.0f && my <= 100.0f) {
+                    std::string myIP = (_guestNATStatus.publicIP.empty() ? "127.0.0.1" : _guestNATStatus.publicIP) + ":27016";
+                    setClipboardText(myIP);
+                    _connectStatusMsg = "Copied your IP (" + myIP + ") to clipboard! Send to Host to punch firewall.";
+                    return;
+                }
+
                 const auto& servers = _serverBrowser.getServers();
 
                 // 1. Select server row
@@ -1640,44 +2037,88 @@ public:
                     float rowY = 168.0f + static_cast<float>(i) * 52.0f;
                     if (mx >= 110.0f && mx <= 1170.0f && my >= rowY && my <= rowY + 46.0f) {
                         _selectedServerIndex = static_cast<int>(i);
+                        _directConnectIP = servers[i].ip + ":" + std::to_string(servers[i].port);
                         return;
                     }
                 }
 
-                // 2. Refresh button (x: 620..800, y: 560..608)
+                // 2. Direct Connect input box (x: 110..800, y: 480..524)
+                if (mx >= 110.0f && mx <= 800.0f && my >= 480.0f && my <= 524.0f) {
+                    _directConnectActive = true;
+                    _pnpJoinCodeActive = false;
+                    return;
+                }
+
+                // 3. PASTE button (x: 815..940, y: 480..524)
+                if (mx >= 815.0f && mx <= 940.0f && my >= 480.0f && my <= 524.0f) {
+                    std::string clip = getClipboardText();
+                    if (!clip.empty()) {
+                        _directConnectIP = clip;
+                    }
+                    return;
+                }
+
+                // 4. CLEAR button (x: 955..1060, y: 480..524)
+                if (mx >= 955.0f && mx <= 1060.0f && my >= 480.0f && my <= 524.0f) {
+                    _directConnectIP.clear();
+                    return;
+                }
+
+                // 5. Refresh button (x: 620..800, y: 560..608)
                 if (mx >= 620.0f && mx <= 800.0f && my >= 560.0f && my <= 608.0f) {
                     _serverBrowser.refresh();
                     return;
                 }
 
-                // 3. Connect to Server button (x: 830..1170, y: 560..608)
+                // 6. Connect to Server button (x: 830..1170, y: 560..608)
                 if (mx >= 830.0f && mx <= 1170.0f && my >= 560.0f && my <= 608.0f) {
-                    _isLocalHost = false;
-                    if (!servers.empty() && _selectedServerIndex >= 0 && _selectedServerIndex < (int)servers.size()) {
-                        const auto& s = servers[_selectedServerIndex];
-                        _sessionConfig.mapPath = "assets/maps/" + s.map;
-                        _sessionConfig.mode = (s.mode == "TDM") ? GameMode::TDM : GameMode::FFA;
-                        _sessionConfig.enableBots = true;
-                        _sessionConfig.botCount = 2;
-                        _netClient.connect(s.ip, s.port, "GuestPlayer");
-                        startSession(_sessionConfig);
-                        _chat.addMessage("[CLIENT]", "Connected to " + s.name + " (" + s.ip + ":" + std::to_string(s.port) + ")", Vec3(0.2f, 0.9f, 0.3f));
-                        return;
-                    } else {
-                        // Direct connect fallback to 127.0.0.1:27015
-                        _sessionConfig.mapPath = "assets/maps/facility_alpha.labmap";
-                        _sessionConfig.mode = GameMode::FFA;
-                        _sessionConfig.enableBots = true;
-                        _sessionConfig.botCount = 2;
-                        _netClient.connect("127.0.0.1", 27015, "GuestPlayer");
-                        startSession(_sessionConfig);
-                        _chat.addMessage("[CLIENT]", "Direct Connected to 127.0.0.1:27015", Vec3(0.2f, 0.9f, 0.3f));
+                    if (_isConnecting) {
+                        _isConnecting = false;
+                        _netClient.disconnect();
+                        _connectStatusMsg = "Connection cancelled by user.";
                         return;
                     }
+
+                    _localServer.stop();
+#ifdef _WIN32
+                    if (_hasSpawnedServer && _dedicatedServerPI.hProcess) {
+                        TerminateProcess(_dedicatedServerPI.hProcess, 0);
+                        CloseHandle(_dedicatedServerPI.hProcess);
+                        CloseHandle(_dedicatedServerPI.hThread);
+                        _hasSpawnedServer = false;
+                    }
+#endif
+                    _isLocalHost = false;
+                    std::string targetIP = "127.0.0.1";
+                    uint16_t targetPort = DEFAULT_SERVER_PORT;
+
+                    if (!_directConnectIP.empty()) {
+                        size_t colon = _directConnectIP.find(':');
+                        if (colon != std::string::npos) {
+                            targetIP = _directConnectIP.substr(0, colon);
+                            try { targetPort = static_cast<uint16_t>(std::stoi(_directConnectIP.substr(colon + 1))); } catch (...) {}
+                        } else {
+                            targetIP = _directConnectIP;
+                        }
+                    } else if (!servers.empty() && _selectedServerIndex >= 0 && _selectedServerIndex < (int)servers.size()) {
+                        targetIP = servers[_selectedServerIndex].ip;
+                        targetPort = servers[_selectedServerIndex].port;
+                    }
+
+                    _isConnecting = true;
+                    _connectAnimTimer = 0.0f;
+                    _connectStatusMsg = "CONNECTING TO " + targetIP + ":" + std::to_string(targetPort) + "...";
+                    _netClient.connect(targetIP, targetPort, "GuestPlayer");
+                    return;
                 }
 
-                // 4. Back button (x: 110..290, y: 560..608)
+                // 7. Back button (x: 110..290, y: 560..608)
                 if (mx >= 110.0f && mx <= 290.0f && my >= 560.0f && my <= 608.0f) {
+                    if (_isConnecting) {
+                        _isConnecting = false;
+                        _netClient.disconnect();
+                        _connectStatusMsg = "";
+                    }
                     _menuScreen = MenuScreen::MultiSelect;
                     return;
                 }
@@ -1953,19 +2394,50 @@ public:
             Renderer::drawRect(771.0f, 380.0f, 45.0f, 36.0f, Vec3(0.22f, 0.28f, 0.38f));
             LabFont::drawText(787.0f, 389.0f, "+", 2.2f, Vec3(1, 1, 1), LabFontType::GeoSans);
 
+            if (!_hasQueriedNAT) {
+                _hostNATStatus = NATDiscovery::queryFullStatus(_sessionConfig.port);
+                _hasQueriedNAT = true;
+            }
+
             Renderer::drawRect(830.0f, 380.0f, 330.0f, 36.0f, Vec3(0.10f, 0.14f, 0.20f));
             Renderer::drawRect(830.0f, 380.0f, 330.0f, 1.0f, Vec3(0.2f, 0.75f, 0.95f));
-            LabFont::drawText(845.0f, 391.0f, "PORT: 27015 | assets/configs/server.cfg", 1.4f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::GeoSans);
+            std::string ipDisplay = "LAN: " + (_hostNATStatus.localIP.empty() ? "127.0.0.1" : _hostNATStatus.localIP) + ":" + std::to_string(_sessionConfig.port);
+            LabFont::drawText(845.0f, 391.0f, ipDisplay, 1.4f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::GeoSans);
 
             // 5. Descriptive Info Box
-            Renderer::drawRect(580.0f, 430.0f, 580.0f, 54.0f, Vec3(0.06f, 0.08f, 0.12f));
-            Renderer::drawRect(580.0f, 430.0f, 4.0f, 54.0f, isLAN ? Vec3(0.2f, 0.85f, 0.4f) : Vec3(0.2f, 0.75f, 1.0f));
+            Renderer::drawRect(580.0f, 424.0f, 580.0f, 46.0f, Vec3(0.06f, 0.08f, 0.12f));
+            Renderer::drawRect(580.0f, 424.0f, 4.0f, 46.0f, isLAN ? Vec3(0.2f, 0.85f, 0.4f) : (_hostNATStatus.upnpActive ? Vec3(0.2f, 0.85f, 0.4f) : Vec3(0.95f, 0.65f, 0.15f)));
             if (isLAN) {
-                LabFont::drawText(595.0f, 442.0f, "LAN Mode: Broadcasts UDP discovery on local network so nearby players find server.", 1.35f, Vec3(0.85f, 0.9f, 0.95f), LabFontType::System);
-                LabFont::drawText(595.0f, 462.0f, "Runs LabServer.exe console with match configuration from assets/configs/server.cfg.", 1.35f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::System);
+                LabFont::drawText(595.0f, 432.0f, "LAN Mode: Broadcasts UDP discovery on local network so nearby players find server.", 1.35f, Vec3(0.85f, 0.9f, 0.95f), LabFontType::System);
+                LabFont::drawText(595.0f, 450.0f, "Direct connect available on " + (_hostNATStatus.localIP.empty() ? "127.0.0.1" : _hostNATStatus.localIP) + ":" + std::to_string(_sessionConfig.port), 1.35f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::System);
             } else {
-                LabFont::drawText(595.0f, 442.0f, "P2P Mode: Direct IP / peer relay match without local network broadcast beaconing.", 1.35f, Vec3(0.85f, 0.9f, 0.95f), LabFontType::System);
-                LabFont::drawText(595.0f, 462.0f, "Runs LabServer.exe console with match configuration from assets/configs/server.cfg.", 1.35f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::System);
+                std::string pubStr = "Public Internet IP: " + (_hostNATStatus.publicIP.empty() ? _hostNATStatus.localIP : _hostNATStatus.publicIP) + ":" + std::to_string(_sessionConfig.port);
+                LabFont::drawText(595.0f, 432.0f, pubStr, 1.35f, Vec3(0.2f, 0.9f, 0.45f), LabFontType::System);
+                std::string notice = _hostNATStatus.upnpActive ? "UPnP IGD Active: Port mapped on router! Share Public IP with friend." : "Router Firewall: Forward UDP 27015, or use Radmin VPN, or Punch below";
+                LabFont::drawText(595.0f, 450.0f, notice, 1.35f, _hostNATStatus.upnpActive ? Vec3(0.4f, 0.95f, 0.5f) : Vec3(0.98f, 0.75f, 0.25f), LabFontType::System);
+            }
+
+            // Copy Invite / IP button (x: 580..1160, y: 476..512)
+            Renderer::drawRect(580.0f, 476.0f, 580.0f, 36.0f, Vec3(0.16f, 0.32f, 0.48f));
+            Renderer::drawRect(580.0f, 476.0f, 580.0f, 2.0f, Vec3(0.3f, 0.85f, 1.0f));
+            std::string copyInviteBtnText = "[COPY INVITE ADDRESS TO CLIPBOARD]";
+            LabFont::drawText(660.0f, 487.0f, copyInviteBtnText, 1.6f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            // Plug & Play Room Code Box (x: 580..1160, y: 518..554)
+            Renderer::drawRect(580.0f, 518.0f, 230.0f, 36.0f, Vec3(0.10f, 0.18f, 0.28f));
+            Renderer::drawRect(580.0f, 518.0f, 230.0f, 1.0f, Vec3(0.3f, 0.85f, 1.0f));
+            LabFont::drawText(592.0f, 529.0f, "ROOM: [" + _pnpRoomCode + "]", 1.6f, Vec3(0.3f, 0.95f, 1.0f), LabFontType::GeoSans);
+
+            Renderer::drawRect(820.0f, 518.0f, 160.0f, 36.0f, Vec3(0.18f, 0.34f, 0.50f));
+            Renderer::drawRect(820.0f, 518.0f, 160.0f, 1.0f, Vec3(0.3f, 0.75f, 1.0f));
+            LabFont::drawText(836.0f, 529.0f, "COPY ROOM CODE", 1.4f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            Renderer::drawRect(990.0f, 518.0f, 170.0f, 36.0f, Vec3(0.20f, 0.55f, 0.35f));
+            Renderer::drawRect(990.0f, 518.0f, 170.0f, 1.0f, Vec3(0.4f, 0.95f, 0.55f));
+            LabFont::drawText(1015.0f, 529.0f, "NEW ROOM CODE", 1.4f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            if (!_punchStatusMsg.empty()) {
+                LabFont::drawText(580.0f, 558.0f, _punchStatusMsg, 1.25f, Vec3(0.35f, 0.95f, 0.5f), LabFontType::System);
             }
 
             // Bottom Buttons: Back and Launch
@@ -1984,64 +2456,114 @@ public:
             Renderer::drawRect(82.0f, 62.0f, 1116.0f, 44.0f, { 0.12f, 0.16f, 0.22f });
             Renderer::drawRect(82.0f, 106.0f, 1116.0f, 4.0f, { 0.2f, 0.75f, 0.95f });
 
-            LabFont::drawText(100.0f, 74.0f, "MULTIPLAYER : DYNAMIC LAN SERVER BROWSER", 2.4f, Vec3(0.95f, 0.98f, 1.0f), LabFontType::GeoSans);
+            LabFont::drawText(100.0f, 74.0f, "MULTIPLAYER : PLUG & PLAY QUICK JOIN & BROWSER", 2.2f, Vec3(0.95f, 0.98f, 1.0f), LabFontType::GeoSans);
 
-            bool scanning = _serverBrowser.isScanning();
-            std::string scanStatus = scanning ? "[ SCANNING LOCALHOST / LAN :27015 ... ]" : "[ ACTIVE - F5 TO REFRESH ]";
-            Vec3 scanColor = scanning ? Vec3(0.2f, 0.85f, 1.0f) : Vec3(0.4f, 0.85f, 0.4f);
-            LabFont::drawText(720.0f, 76.0f, scanStatus, 1.4f, scanColor, LabFontType::System);
+            if (!_hasQueriedGuestNAT) {
+                _guestNATStatus = NATDiscovery::queryFullStatus(27016);
+                _hasQueriedGuestNAT = true;
+            }
+
+            std::string myPubDisplay = "MY IP: " + (_guestNATStatus.publicIP.empty() ? "127.0.0.1" : _guestNATStatus.publicIP) + ":27016";
+            LabFont::drawText(720.0f, 76.0f, myPubDisplay, 1.35f, Vec3(0.95f, 0.85f, 0.2f), LabFontType::System);
+
+            Renderer::drawRect(1050.0f, 70.0f, 110.0f, 26.0f, Vec3(0.18f, 0.38f, 0.58f));
+            Renderer::drawRect(1050.0f, 70.0f, 110.0f, 1.0f, Vec3(0.4f, 0.85f, 1.0f));
+            LabFont::drawText(1062.0f, 77.0f, "COPY MY IP", 1.25f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            // Plug & Play Quick Join Bar (x: 110..1170, y: 116..154)
+            Renderer::drawRect(110.0f, 116.0f, 250.0f, 38.0f, _pnpJoinCodeActive ? Vec3(0.12f, 0.22f, 0.35f) : Vec3(0.08f, 0.12f, 0.18f));
+            Renderer::drawRect(110.0f, 116.0f, 250.0f, 1.0f, _pnpJoinCodeActive ? Vec3(0.3f, 0.85f, 1.0f) : Vec3(0.2f, 0.3f, 0.45f));
+            std::string codeDisplay = "ROOM CODE: " + _pnpJoinCode + (_pnpJoinCodeActive ? "_" : "");
+            LabFont::drawText(125.0f, 126.0f, codeDisplay, 1.6f, Vec3(0.3f, 0.95f, 1.0f), LabFontType::GeoSans);
+
+            Renderer::drawRect(370.0f, 116.0f, 85.0f, 38.0f, Vec3(0.18f, 0.34f, 0.50f));
+            LabFont::drawText(388.0f, 126.0f, "PASTE", 1.5f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            Renderer::drawRect(465.0f, 116.0f, 400.0f, 38.0f, Vec3(0.18f, 0.65f, 0.38f));
+            Renderer::drawRect(465.0f, 116.0f, 400.0f, 2.0f, Vec3(0.4f, 0.95f, 0.65f));
+            LabFont::drawText(485.0f, 126.0f, "JOIN VIA ROOM CODE (PLUG & PLAY)", 1.5f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            LabFont::drawText(880.0f, 128.0f, "Zero config / Auto-NAT punch", 1.25f, Vec3(0.5f, 0.85f, 0.65f), LabFontType::System);
 
             // Table Header
-            Renderer::drawRect(110.0f, 126.0f, 1060.0f, 32.0f, Vec3(0.14f, 0.20f, 0.28f));
-            LabFont::drawText(130.0f, 134.0f, "SERVER NAME", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
-            LabFont::drawText(500.0f, 134.0f, "MAP", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
-            LabFont::drawText(720.0f, 134.0f, "MODE", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
-            LabFont::drawText(880.0f, 134.0f, "PLAYERS", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
-            LabFont::drawText(1030.0f, 134.0f, "PING", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            Renderer::drawRect(110.0f, 164.0f, 1060.0f, 30.0f, Vec3(0.14f, 0.20f, 0.28f));
+            LabFont::drawText(130.0f, 172.0f, "SERVER NAME", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            LabFont::drawText(500.0f, 172.0f, "MAP", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            LabFont::drawText(720.0f, 172.0f, "MODE", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            LabFont::drawText(880.0f, 172.0f, "PLAYERS", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            LabFont::drawText(1030.0f, 172.0f, "PING", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
 
             const auto& servers = _serverBrowser.getServers();
             if (servers.empty()) {
-                Renderer::drawRect(110.0f, 168.0f, 1060.0f, 95.0f, Vec3(0.06f, 0.08f, 0.11f));
-                Renderer::drawRect(110.0f, 168.0f, 4.0f, 95.0f, Vec3(0.85f, 0.35f, 0.25f));
-                LabFont::drawText(130.0f, 185.0f, "NO RUNNING SERVERS FOUND ON LAN / LOCALHOST", 1.8f, Vec3(0.95f, 0.45f, 0.45f), LabFontType::GeoSans);
-                LabFont::drawText(130.0f, 215.0f, "Run 'LabServer.exe' in terminal or click 'HOST MATCH' in previous screen to start a dedicated instance.", 1.4f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::System);
-                LabFont::drawText(130.0f, 238.0f, "You can still click 'CONNECT TO SERVER' below to connect immediately to 127.0.0.1:27015.", 1.4f, Vec3(0.4f, 0.75f, 0.95f), LabFontType::System);
+                Renderer::drawRect(110.0f, 202.0f, 1060.0f, 80.0f, Vec3(0.06f, 0.08f, 0.11f));
+                Renderer::drawRect(110.0f, 202.0f, 4.0f, 80.0f, Vec3(0.85f, 0.35f, 0.25f));
+                LabFont::drawText(130.0f, 216.0f, "NO RUNNING SERVERS FOUND ON LAN / LOCALHOST", 1.8f, Vec3(0.95f, 0.45f, 0.45f), LabFontType::GeoSans);
+                LabFont::drawText(130.0f, 244.0f, "To connect over Internet: Enter 4-digit Room Code above and click JOIN (Plug & Play)!", 1.4f, Vec3(0.4f, 0.85f, 0.95f), LabFontType::System);
             } else {
-                for (size_t i = 0; i < servers.size() && i < 6; ++i) {
+                for (size_t i = 0; i < servers.size() && i < 5; ++i) {
                     const auto& s = servers[i];
-                    float rowY = 168.0f + static_cast<float>(i) * 52.0f;
+                    float rowY = 202.0f + static_cast<float>(i) * 50.0f;
                     bool isSelected = (_selectedServerIndex == static_cast<int>(i));
 
                     Vec3 rowBg = isSelected ? Vec3(0.18f, 0.40f, 0.65f) : ((i % 2 == 0) ? Vec3(0.10f, 0.14f, 0.19f) : Vec3(0.08f, 0.11f, 0.15f));
-                    Renderer::drawRect(110.0f, rowY, 1060.0f, 46.0f, rowBg);
+                    Renderer::drawRect(110.0f, rowY, 1060.0f, 44.0f, rowBg);
                     if (isSelected) {
-                        Renderer::drawRect(110.0f, rowY, 5.0f, 46.0f, Vec3(0.2f, 0.85f, 1.0f));
+                        Renderer::drawRect(110.0f, rowY, 5.0f, 44.0f, Vec3(0.2f, 0.85f, 1.0f));
                     }
 
-                    LabFont::drawText(130.0f, rowY + 14.0f, s.name, 1.8f, isSelected ? Vec3(1, 1, 1) : Vec3(0.9f, 0.95f, 1.0f), LabFontType::GeoSans);
-                    LabFont::drawText(500.0f, rowY + 14.0f, s.map, 1.8f, Vec3(0.75f, 0.85f, 0.95f), LabFontType::GeoSans);
-                    LabFont::drawText(720.0f, rowY + 14.0f, s.mode, 1.8f, Vec3(0.95f, 0.85f, 0.2f), LabFontType::GeoSans);
+                    LabFont::drawText(130.0f, rowY + 12.0f, s.name, 1.8f, isSelected ? Vec3(1, 1, 1) : Vec3(0.9f, 0.95f, 1.0f), LabFontType::GeoSans);
+                    LabFont::drawText(500.0f, rowY + 12.0f, s.map, 1.8f, Vec3(0.75f, 0.85f, 0.95f), LabFontType::GeoSans);
+                    LabFont::drawText(720.0f, rowY + 12.0f, s.mode, 1.8f, Vec3(0.95f, 0.85f, 0.2f), LabFontType::GeoSans);
                     std::string plStr = std::to_string(s.playerCount) + " / " + std::to_string(s.maxPlayers);
-                    LabFont::drawText(880.0f, rowY + 14.0f, plStr, 1.8f, Vec3(0.9f, 0.95f, 1.0f), LabFontType::GeoSans);
+                    LabFont::drawText(880.0f, rowY + 12.0f, plStr, 1.8f, Vec3(0.9f, 0.95f, 1.0f), LabFontType::GeoSans);
                     std::string pingStr = std::to_string(s.pingMs) + " ms";
-                    LabFont::drawText(1030.0f, rowY + 14.0f, pingStr, 1.8f, Vec3(0.2f, 0.9f, 0.35f), LabFontType::GeoSans);
+                    LabFont::drawText(1030.0f, rowY + 12.0f, pingStr, 1.8f, Vec3(0.2f, 0.9f, 0.35f), LabFontType::GeoSans);
                 }
             }
 
             // Direct Connect field
-            Renderer::drawRect(110.0f, 480.0f, 600.0f, 44.0f, Vec3(0.06f, 0.08f, 0.12f));
-            LabFont::drawText(130.0f, 494.0f, "DIRECT CONNECT TARGET:  127.0.0.1:27015", 1.8f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::GeoSans);
+            Renderer::drawRect(110.0f, 480.0f, 690.0f, 44.0f, _directConnectActive ? Vec3(0.12f, 0.18f, 0.28f) : Vec3(0.06f, 0.08f, 0.12f));
+            Renderer::drawRect(110.0f, 480.0f, 690.0f, 2.0f, _directConnectActive ? Vec3(0.3f, 0.85f, 1.0f) : Vec3(0.18f, 0.24f, 0.32f));
+            std::string dcDisplay = "DIRECT IP TARGET:  " + _directConnectIP + (_directConnectActive ? "_" : "");
+            LabFont::drawText(130.0f, 494.0f, dcDisplay, 1.8f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::GeoSans);
 
-            // Bottom Buttons: BACK, REFRESH, CONNECT TO SERVER
+            // [PASTE] button (x: 815..940, y: 480..524)
+            Renderer::drawRect(815.0f, 480.0f, 125.0f, 44.0f, Vec3(0.18f, 0.38f, 0.58f));
+            Renderer::drawRect(815.0f, 480.0f, 125.0f, 2.0f, Vec3(0.4f, 0.85f, 1.0f));
+            LabFont::drawText(850.0f, 494.0f, "PASTE", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            // [CLEAR] button (x: 955..1060, y: 480..524)
+            Renderer::drawRect(955.0f, 480.0f, 105.0f, 44.0f, Vec3(0.28f, 0.18f, 0.22f));
+            LabFont::drawText(980.0f, 494.0f, "CLEAR", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            // Connection Status Feedback line
+            if (_isConnecting) {
+                Renderer::drawRect(110.0f, 530.0f, 1060.0f, 24.0f, Vec3(0.08f, 0.12f, 0.18f));
+                std::string connStatus = ">> CONNECTING TO " + _netClient.getServerAddressString() + " (ATTEMPT " + std::to_string(_netClient.getConnectAttempts()) + "/20) ...";
+                LabFont::drawText(130.0f, 534.0f, connStatus, 1.4f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::System);
+            } else if (!_connectStatusMsg.empty()) {
+                bool isErr = (_connectStatusMsg.find("FAILED") != std::string::npos || _connectStatusMsg.find("TIMED OUT") != std::string::npos);
+                Renderer::drawRect(110.0f, 530.0f, 1060.0f, 24.0f, Vec3(0.08f, 0.12f, 0.18f));
+                LabFont::drawText(130.0f, 534.0f, _connectStatusMsg, 1.4f, isErr ? Vec3(1.0f, 0.35f, 0.35f) : Vec3(0.35f, 0.9f, 0.45f), LabFontType::System);
+            }
+
+            // Bottom Buttons: BACK, REFRESH, CONNECT TO SERVER / CANCEL
             Renderer::drawRect(110.0f, 560.0f, 180.0f, 48.0f, Vec3(0.20f, 0.25f, 0.35f));
             LabFont::drawText(150.0f, 576.0f, "< BACK", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
 
             Renderer::drawRect(620.0f, 560.0f, 180.0f, 48.0f, Vec3(0.18f, 0.32f, 0.48f));
             LabFont::drawText(655.0f, 576.0f, "REFRESH", 1.8f, Vec3(0.9f, 0.95f, 1.0f), LabFontType::GeoSans);
 
-            Renderer::drawRect(830.0f, 560.0f, 340.0f, 48.0f, Vec3(0.20f, 0.65f, 0.42f));
-            Renderer::drawRect(830.0f, 560.0f, 340.0f, 2.0f, Vec3(0.4f, 0.95f, 0.65f));
-            LabFont::drawText(860.0f, 576.0f, "CONNECT TO SERVER", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            if (_isConnecting) {
+                Renderer::drawRect(830.0f, 560.0f, 340.0f, 48.0f, Vec3(0.75f, 0.25f, 0.15f));
+                Renderer::drawRect(830.0f, 560.0f, 340.0f, 2.0f, Vec3(1.0f, 0.5f, 0.3f));
+                std::string cancelText = "CANCEL CONNECTING [" + std::to_string(_netClient.getConnectAttempts()) + "/20]";
+                LabFont::drawText(845.0f, 576.0f, cancelText, 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            } else {
+                Renderer::drawRect(830.0f, 560.0f, 340.0f, 48.0f, Vec3(0.20f, 0.65f, 0.42f));
+                Renderer::drawRect(830.0f, 560.0f, 340.0f, 2.0f, Vec3(0.4f, 0.95f, 0.65f));
+                LabFont::drawText(860.0f, 576.0f, "CONNECT TO SERVER", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            }
         }
         else if (_menuScreen == MenuScreen::Singleplayer) {
             // Existing Singleplayer Map Selection
@@ -2210,6 +2732,39 @@ public:
 
         // ==================== PASS 2: COLOR & LIGHTING SCENE PASS (HDR FBO) ====================
         _postProcess.beginScene();
+
+        // Update Sun & Ambient Lighting (Handling Hammer Darkness Mode)
+        if (_hammerEditor.active && _hammerEditor.darknessMode) {
+            Renderer::setSunLight(
+                Vec3(0.0f, -1.0f, 0.0f),
+                Vec3(0.0f, 0.0f, 0.0f),
+                Vec3(0.012f, 0.015f, 0.022f)
+            );
+        } else if (_currentMap) {
+            Renderer::setSunLight(
+                _currentMap->metadata.sunDir,
+                _currentMap->metadata.sunColor,
+                _currentMap->metadata.ambientColor
+            );
+        }
+
+        // Upload Dynamic Point Lights to Renderer
+        if (_currentMap) {
+            std::vector<PointLight> dynamicLights;
+            dynamicLights.reserve(_currentMap->lights.size());
+            for (const auto& lgt : _currentMap->lights) {
+                dynamicLights.push_back(PointLight{
+                    .position = lgt.position,
+                    .color = lgt.color,
+                    .intensity = lgt.intensity,
+                    .radius = lgt.radius
+                });
+            }
+            Renderer::setPointLights(dynamicLights);
+        } else {
+            Renderer::clearPointLights();
+        }
+
         Renderer::beginFrame(_camera);
 
         if (_shadowMap.isInitialized()) {
@@ -2334,7 +2889,7 @@ public:
         _particleSystem.render(_camera);
 
         // Lab Hammer Editor 3D Ghost/Grid Overlay
-        _hammerEditor.draw3DOverlay();
+        _hammerEditor.draw3DOverlay(_currentMap.get());
 
         // Viewmodel (only drawn when not in Hammer Editor mode)
         if (!_hammerEditor.active) {
@@ -2450,6 +3005,21 @@ private:
     NetworkClient _netClient;
     ServerBrowser _serverBrowser;
     int _selectedServerIndex = 0;
+    std::string _directConnectIP = "127.0.0.1:27015";
+    bool _directConnectActive = false;
+    bool _isConnecting = false;
+    std::string _connectStatusMsg = "";
+    float _connectAnimTimer = 0.0f;
+    NATStatus _hostNATStatus;
+    bool _hasQueriedNAT = false;
+    NATStatus _guestNATStatus;
+    bool _hasQueriedGuestNAT = false;
+    std::string _punchTargetIP = "";
+    bool _punchTargetActive = false;
+    std::string _punchStatusMsg = "";
+    std::string _pnpRoomCode = "7788";
+    std::string _pnpJoinCode = "7788";
+    bool _pnpJoinCodeActive = false;
 #ifdef _WIN32
     PROCESS_INFORMATION _dedicatedServerPI{ 0 };
 #endif
@@ -2518,6 +3088,7 @@ private:
     bool _backspacePressedLast = false;
     bool _fPressedLast = false;
     bool _vPressedLast = false;
+    bool _lPressedLast = false;
 
     // Real-Time Lighting & Shadow Mapping (Sprint 3)
     Flashlight _flashlight;
