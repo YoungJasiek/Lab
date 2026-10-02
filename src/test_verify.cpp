@@ -21,6 +21,7 @@
 #include "LabForceField.h"
 #include "LabProfiler.h"
 #include "LabVCS.h"
+#include "LabPackage.h"
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -7362,6 +7363,132 @@ int main() {
         }
 
         std::cout << "  [PASS] Test 70 VCS / Git Integration & Asset Locking passed 100%!\n";
+    }
+
+    // 71. Verify Plugin / Package Ecosystem (Unity Package Manager style) (Task #175)
+    {
+        std::cout << "\n[Test 71] Verifying Plugin / Package Ecosystem...\n";
+
+        auto& pkgMgr = Lab::PackageManager::instance();
+        pkgMgr.clear();
+
+        // Mock modular packages
+        Lab::PackageManifest coreUtils;
+        coreUtils.id = "com.lab.core-utils";
+        coreUtils.displayName = "Core Utilities";
+        coreUtils.version = "1.0.0";
+        coreUtils.state = Lab::PackageState::Discovered;
+
+        Lab::PackageManifest dialogue;
+        dialogue.id = "com.lab.dialogue-quest";
+        dialogue.displayName = "Dialogue & Quest System";
+        dialogue.version = "2.1.0";
+        dialogue.dependencies = { "com.lab.core-utils" }; // Depends on core-utils
+        dialogue.state = Lab::PackageState::Discovered;
+
+        pkgMgr.registerPackage(coreUtils);
+        pkgMgr.registerPackage(dialogue);
+
+        // --- Sub-test A: Dependency Validation & Order-Independent Resolution ---
+        {
+            // Enabling dialogue without core-utils must fail
+            bool enabledEarly = pkgMgr.enablePackage("com.lab.dialogue-quest");
+            if (enabledEarly) {
+                std::cerr << "Assertion failed: Package enabled without fulfilling dependency!\n";
+                return 1;
+            }
+
+            // Enable core-utils first
+            bool enabledDep = pkgMgr.enablePackage("com.lab.core-utils");
+            if (!enabledDep) {
+                std::cerr << "Assertion failed: Failed to enable dependency package!\n";
+                return 1;
+            }
+
+            // Now dialogue must enable successfully
+            bool enabledSub = pkgMgr.enablePackage("com.lab.dialogue-quest");
+            if (!enabledSub) {
+                std::cerr << "Assertion failed: Failed to enable package with fulfilled dependency!\n";
+                return 1;
+            }
+
+            // Attempting to disable core-utils while dialogue is active must fail
+            bool disabledDep = pkgMgr.disablePackage("com.lab.core-utils");
+            if (disabledDep) {
+                std::cerr << "Assertion failed: Allowed disabling package required by active dependent!\n";
+                return 1;
+            }
+
+            // Disable dialogue first, then core-utils -> Success
+            bool disSub = pkgMgr.disablePackage("com.lab.dialogue-quest");
+            bool disDep = pkgMgr.disablePackage("com.lab.core-utils");
+            if (!disSub || !disDep) {
+                std::cerr << "Assertion failed: Clean package teardown sequence failed!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test A: Package dependency graph resolution & guarded teardown verified!\n";
+        }
+
+        // --- Sub-test B: Dynamic Runtime Plugin Attachment via Package ---
+        {
+            class PackageTestPlugin : public Lab::ILabPlugin {
+            public:
+                bool loaded{false};
+                const char* getName() const override { return "TestPackPlugin"; }
+                const char* getVersion() const override { return "1.0.0"; }
+                bool onLoad() override { loaded = true; return true; }
+                void onUpdate(float) override {}
+                void onUnload() override { loaded = false; }
+            };
+
+            auto plug = std::make_shared<PackageTestPlugin>();
+            Lab::PackageManifest dynPack;
+            dynPack.id = "com.lab.test-plugin";
+            dynPack.displayName = "Runtime Test Plugin";
+            dynPack.version = "1.0.0";
+
+            pkgMgr.registerPackage(dynPack, plug);
+            pkgMgr.enablePackage("com.lab.test-plugin");
+
+            if (!plug->loaded || Lab::PluginManager::get().getPlugin("TestPackPlugin") == nullptr) {
+                std::cerr << "Assertion failed: Plugin implementation not registered into PluginManager!\n";
+                return 1;
+            }
+
+            pkgMgr.disablePackage("com.lab.test-plugin");
+            if (plug->loaded || Lab::PluginManager::get().getPlugin("TestPackPlugin") != nullptr) {
+                std::cerr << "Assertion failed: Plugin implementation not cleanly unregistered!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test B: Dynamic runtime plugin attachment and lifecycle bridge verified!\n";
+        }
+
+        // --- Sub-test C: Massive Package Registry Benchmark (20,000 Packages) ---
+        {
+            constexpr size_t PKG_COUNT = 20000;
+            auto startPkg = std::chrono::high_resolution_clock::now();
+            for (size_t i = 0; i < PKG_COUNT; ++i) {
+                Lab::PackageManifest p;
+                p.id = "com.community.addon_" + std::to_string(i);
+                p.displayName = "Community Addon " + std::to_string(i);
+                p.version = "1.0.0";
+                pkgMgr.registerPackage(p);
+            }
+            auto endPkg = std::chrono::high_resolution_clock::now();
+            auto pkgMs = std::chrono::duration_cast<std::chrono::milliseconds>(endPkg - startPkg).count();
+
+            if (pkgMgr.getAllPackages().size() < PKG_COUNT) {
+                std::cerr << "Assertion failed: Package registry count mismatch!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test C: 20,000 packages ingested into registry in " << pkgMs
+                      << " ms (avg " << (double)pkgMs / (double)PKG_COUNT * 1e6 << " ns/pkg)!\n";
+        }
+
+        std::cout << "  [PASS] Test 71 Plugin / Package Ecosystem passed 100%!\n";
     }
 
     Lab::Renderer::shutdown();
