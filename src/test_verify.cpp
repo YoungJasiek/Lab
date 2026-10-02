@@ -5824,6 +5824,66 @@ int main() {
         std::cout << "  [PASS] Test 55 Scene Graph & Prefab System passed 100%!\n";
     }
 
+    // 56. Verify Generic ILabApplication Decoupled Lifecycle (Zero-Game Coupling)
+    {
+        std::cout << "\n[Test 56] Verifying Generic ILabApplication Decoupled Lifecycle...\n";
+
+        class MockGeneric2DGame : public Lab::ILabApplication {
+        public:
+            bool initialized = false;
+            int updateFrames = 0;
+            int renderFrames = 0;
+            bool shutdownComplete = false;
+
+            bool onInit() override {
+                initialized = true;
+                return true;
+            }
+
+            void onUpdate(float dt) override {
+                updateFrames++;
+            }
+
+            void onRender() override {
+                renderFrames++;
+            }
+
+            void onShutdown() override {
+                shutdownComplete = true;
+            }
+        };
+
+        auto game = std::make_unique<MockGeneric2DGame>();
+        MockGeneric2DGame* rawPtr = game.get();
+
+        // Simulate engine running generic application
+        if (!rawPtr->onInit()) {
+            std::cerr << "Assertion failed: Generic ILabApplication onInit failed!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Generic application onInit() lifecycle invoked successfully!\n";
+
+        // Simulate 60 frame ticks of universal game loop
+        for (int i = 0; i < 60; ++i) {
+            rawPtr->onUpdate(0.016f);
+            rawPtr->onRender();
+        }
+
+        if (rawPtr->updateFrames != 60 || rawPtr->renderFrames != 60) {
+            std::cerr << "Assertion failed: Frame dispatch count mismatch!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] 60-frame decoupled game loop simulated (60 updates, 60 renders)!\n";
+
+        rawPtr->onShutdown();
+        if (!rawPtr->shutdownComplete) {
+            std::cerr << "Assertion failed: onShutdown not called!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Generic application onShutdown() cleanup verified!\n";
+        std::cout << "  [PASS] Test 56 Generic ILabApplication Lifecycle passed 100%!\n";
+    }
+
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();

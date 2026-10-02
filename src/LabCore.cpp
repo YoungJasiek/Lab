@@ -1,4 +1,5 @@
 #include "LabCore.h"
+#include "LabApplication.h"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
@@ -203,6 +204,38 @@ namespace Lab {
             _standardCursor = nullptr;
         }
         glfwTerminate();
+    }
+
+    class GenericAppEngineHost : public Engine {
+    public:
+        GenericAppEngineHost(std::unique_ptr<ILabApplication> app, const std::string& title, int width, int height)
+            : Engine(title, width, height), m_app(std::move(app)) {}
+
+        void onInit() override {
+            if (m_app) m_app->onInit();
+        }
+
+        void onUpdate(const Time& time) override {
+            if (m_app) m_app->onUpdate(time.delta);
+        }
+
+        void onRender() override {
+            if (m_app) m_app->onRender();
+        }
+
+        void onShutdown() override {
+            if (m_app) m_app->onShutdown();
+        }
+
+    private:
+        std::unique_ptr<ILabApplication> m_app;
+    };
+
+    int Engine::runApplication(std::unique_ptr<ILabApplication> app, const std::string& title, int width, int height) {
+        if (!app) return -1;
+        GenericAppEngineHost host(std::move(app), title, width, height);
+        host.run();
+        return 0;
     }
 
     void Engine::setCursorCaptured(bool captured) {

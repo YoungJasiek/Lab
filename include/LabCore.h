@@ -56,6 +56,8 @@ namespace Lab {
         void run();
         void stop();
 
+        static int runApplication(std::unique_ptr<class ILabApplication> app, const std::string& title, int width, int height);
+
         virtual void onInit() {}
         virtual void onUpdate(const Time& /*time*/) {}
         virtual void onFixedUpdate(float /*fixedDelta*/) {}
