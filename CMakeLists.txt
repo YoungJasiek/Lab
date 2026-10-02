@@ -278,15 +278,20 @@ target_link_libraries(LabEngineLib INTERFACE
 # EXECUTABLE TARGETS (LINKED AGAINST MODULAR LAB ENGINE DLLS)
 # =============================================================================
 
-# 1. Frozen-Life Flagship FPS Demo Game Executable (FrozenLife.exe)
-add_executable(FrozenLife src/main.cpp)
-target_compile_options(FrozenLife PRIVATE ${COMPILER_FLAGS})
-target_link_libraries(FrozenLife PRIVATE LabEngineLib)
+# 1. Standalone Lab Engine Editor Executable (LabEditor.exe - Primary LabSDK Tool)
+add_executable(LabEditor src/editor_main.cpp)
+target_compile_options(LabEditor PRIVATE ${COMPILER_FLAGS})
+target_link_libraries(LabEditor PRIVATE LabEngineLib)
 
-# 2. Standalone Hammer Map Editor Executable
+# Standalone Editor Legacy Target Alias
 add_executable(LabHammer src/editor_main.cpp)
 target_compile_options(LabHammer PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabHammer PRIVATE LabEngineLib)
+
+# 2. Frozen-Life Flagship FPS Demo Game Executable (FrozenLife.exe)
+add_executable(FrozenLife src/main.cpp)
+target_compile_options(FrozenLife PRIVATE ${COMPILER_FLAGS})
+target_link_libraries(FrozenLife PRIVATE LabEngineLib)
 
 # 3. Standalone Headless Dedicated Server Executable
 add_executable(LabServer src/server_main.cpp)
@@ -309,7 +314,7 @@ target_compile_options(TestVerify PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(TestVerify PRIVATE LabEngineLib)
 
 # Post-build asset replication to output directories
-set(ASSET_TARGETS FrozenLife LabHammer LabStudio LabHUDEditor TestVerify)
+set(ASSET_TARGETS LabEditor LabHammer FrozenLife LabStudio LabHUDEditor TestVerify)
 foreach(tgt ${ASSET_TARGETS})
     add_custom_command(TARGET ${tgt} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory

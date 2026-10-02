@@ -43,33 +43,23 @@ enum class BottomDockTab {
     Profiler
 };
 
-class LabHammerStandalone : public Engine {
+class LabEditorApp : public Engine {
 public:
-    LabHammerStandalone()
-        : Engine("Lab Engine Editor 2026 (LabSDK)", 1600, 900),
+    LabEditorApp()
+        : Engine("Lab Engine Studio (LabSDK)", 1600, 900),
           _camera(70.0f, 16.0f / 9.0f, 0.01f, 3000.0f) {
     }
 
     void onInit() override {
-        LabLog::info("Launching Lab Engine Editor 2026 (LabSDK)...");
+        LabLog::info("Launching Lab Engine Studio (LabSDK)...");
         Renderer::init();
 
         // Scan textures and models
         discoverTextures();
         discoverModels();
 
-        // Load default or facility map
-        std::string targetMap = "assets/maps/facility_alpha.labmap";
-        if (std::filesystem::exists(targetMap)) {
-            _map = LabMap::loadFromFile(targetMap);
-            if (_map) _currentMapPath = targetMap;
-        }
-        if (!_map) {
-            newMap();
-        }
-
-        // Check weapon assets once at startup
-        cacheWeaponAssets();
+        // Initialize clean default studio scene
+        newMap();
 
         // Camera initial pose
         _camera.setPosition(Vec3(0, 8.0f, 18.0f));
@@ -77,7 +67,7 @@ public:
         // Unlock mouse cursor for UI desktop interaction
         setCursorCaptured(false);
 
-        logMessage("Hammer initialized. Ready.");
+        logMessage("Lab Engine Studio initialized. Ready.");
         logMessage("Textures loaded: " + std::to_string(_availableTextures.size()) + " | Models: " + std::to_string(_availableModels.size()));
         logMessage("Frustum Culling active: 'To czego oko nie widzi tego maszyna renderowac nie musi'");
     }
@@ -168,33 +158,12 @@ public:
         return nullptr;
     }
 
-    void cacheWeaponAssets() {
-        const char* stlNames[9] = {
-            "assets/models/pipe.stl", "assets/models/pistol.stl", "assets/models/shotgun.stl",
-            "assets/models/m4a4s.stl", "assets/models/sg553.stl", "assets/models/minigun.stl",
-            "assets/models/plasma.stl", "assets/models/railgun.stl", "assets/models/rpg.stl"
-        };
-        const char* texFallbacks[9] = {
-            "weapon_pipe.bmp", "weapon_pistol.bmp", "weapon_shotgun.bmp",
-            "weapon_m4a4s.bmp", "weapon_sg553.bmp", "weapon_minigun.bmp",
-            "weapon_plasma.bmp", "weapon_railgun.bmp", "weapon_rpg.bmp"
-        };
-        int customCount = 0;
-        for (int i = 0; i < 9; ++i) {
-            _weaponMeshes[i] = getMesh(stlNames[i]);
-            std::string texName = Renderer::resolveModelTexture(stlNames[i], texFallbacks[i]);
-            _weaponTextures[i] = getTexture(texName);
-            if (_weaponMeshes[i]) customCount++;
-        }
-        logMessage("Weapons check-once: " + std::to_string(customCount) + " STL, " + std::to_string(9 - customCount) + " built-in procedural.");
-    }
-
     void logMessage(const std::string& msg) {
         _consoleMessages.push_back(msg);
         if (_consoleMessages.size() > 8) {
             _consoleMessages.erase(_consoleMessages.begin());
         }
-        LabLog::info("[LabHammer] " + msg);
+        LabLog::info("[LabEditor] " + msg);
     }
 
     void onFixedUpdate(float fixedDelta) override {
@@ -266,27 +235,13 @@ public:
         }
     }
 
-    void runInEngine() {
-        if (!_map) return;
-        std::string runPath = _currentMapPath.empty() ? "assets/maps/hammer_run.labmap" : _currentMapPath;
-        _map->saveToFile(runPath);
-        logMessage("Saved map for engine: " + runPath);
-
-        STARTUPINFOA si;
-        PROCESS_INFORMATION pi;
-        ZeroMemory(&si, sizeof(si));
-        si.cb = sizeof(si);
-        ZeroMemory(&pi, sizeof(pi));
-
-        char cmdLine[256] = "FrozenLife.exe";
-        if (CreateProcessA("FrozenLife.exe", cmdLine, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi) ||
-            CreateProcessA("Release\\FrozenLife.exe", cmdLine, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
-            CloseHandle(pi.hProcess);
-            CloseHandle(pi.hThread);
-            logMessage("Launched FrozenLife.exe in Game Engine!");
+    void toggleSimulation() {
+        if (_simState == EngineSimState::Playing) {
+            _simState = EngineSimState::Stopped;
+            logMessage("In-Editor Simulation: STOPPED");
         } else {
-            system("start FrozenLife.exe");
-            logMessage("Launched FrozenLife.exe via shell!");
+            _simState = EngineSimState::Playing;
+            logMessage("In-Editor Simulation: PLAYING (Live Viewport Physics & Scene Simulation)");
         }
     }
 
@@ -428,10 +383,10 @@ public:
         bool ctrlDown = Input::isKeyPressed(341) || Input::isKeyPressed(345); // Left/Right Ctrl
         bool shiftDown = Input::isKeyPressed(340) || Input::isKeyPressed(344);
 
-        // F9: Run in Engine
+        // F9: Toggle Live In-Editor Simulation
         if (Input::isKeyPressed(298)) { // GLFW_KEY_F9
             if (!_f9Pressed) {
-                runInEngine();
+                toggleSimulation();
                 _f9Pressed = true;
             }
         } else {
@@ -1669,8 +1624,8 @@ public:
                             _gridSnap = std::min(16.0f, _gridSnap * 2.0f);
                             logMessage("Grid Snap: " + std::to_string(_gridSnap));
                             break;
-                        case 17: // Run in Engine (F9)
-                            runInEngine();
+                        case 17: // Toggle In-Editor Simulation (Play/Stop)
+                            toggleSimulation();
                             break;
                     }
                     return;
@@ -2302,23 +2257,15 @@ public:
                 const auto& ws = _map->weaponSpawners[i];
                 // Base ground pedestal
                 Renderer::drawCube(ws.position + Vec3(0.0f, 0.04f, 0.0f), Vec3(0.0f, ws.yaw, 0.0f),
-                                   Vec3(1.35f, 0.08f, 1.35f), Vec3(0.18f, 0.20f, 0.24f), nullptr, false);
+                                   Vec3(1.1f, 0.08f, 1.1f), Vec3(0.18f, 0.20f, 0.24f), nullptr, false);
                 Renderer::drawCube(ws.position + Vec3(0.0f, 0.082f, 0.0f), Vec3(0.0f, ws.yaw, 0.0f),
-                                   Vec3(1.15f, 0.01f, 1.15f), Vec3(0.2f, 0.75f, 0.95f), nullptr, false);
+                                   Vec3(0.9f, 0.01f, 0.9f), Vec3(0.2f, 0.75f, 0.95f), nullptr, false);
 
-                // Render 3D Weapon Model (Using pre-cached STL mesh or built-in procedural)
-                float weaponY = ws.position.y + 0.38f;
-                int wId = (ws.weaponId >= 0 && ws.weaponId < 9) ? ws.weaponId : 0;
-                Mesh* wMesh = _weaponMeshes[wId];
-                Texture* wTex = _weaponTextures[wId];
-
-                if (wMesh) {
-                    Renderer::drawMesh(*wMesh, Vec3(ws.position.x, weaponY, ws.position.z),
-                                       Vec3(0.0f, ws.yaw, 0.0f), Vec3(0.018f, 0.018f, 0.018f), Vec3(1, 1, 1), wTex);
-                } else {
-                    Renderer::drawCube(Vec3(ws.position.x, weaponY, ws.position.z), Vec3(0.0f, ws.yaw, 0.0f),
-                                       Vec3(0.12f, 0.14f, 0.82f), Vec3(0.35f, 0.65f, 0.95f), wTex, false);
-                }
+                // Render floating pickup entity node
+                float itemY = ws.position.y + 0.45f;
+                Renderer::drawCube(Vec3(ws.position.x, itemY, ws.position.z), Vec3(0.0f, ws.yaw, 0.0f),
+                                   Vec3(0.35f, 0.35f, 0.35f), Vec3(0.2f, 0.8f, 0.6f), nullptr, false);
+                Renderer::drawWireCube(Vec3(ws.position.x, itemY, ws.position.z), Vec3(0.45f, 0.45f, 0.45f), Vec3(0.3f, 1.0f, 0.8f));
             }
 
             // Render All Map Dynamic Lights (Lamps)
@@ -2751,13 +2698,13 @@ public:
                 if (itemIdx < totalSpawns) {
                     isSelected = (_selectionType == SelectionType::Spawn && _selectedIndex == itemIdx);
                     const auto& sp = _map->spawnPoints[itemIdx];
-                    itemText = "[" + sp.getDisplayName() + " #" + std::to_string(itemIdx) + "] (" +
+                    itemText = "[Actor #" + std::to_string(itemIdx) + "] (" +
                                std::to_string((int)sp.position.x) + "," + std::to_string((int)sp.position.z) + ")";
                 } else if (itemIdx < totalSpawns + totalWepSpawns) {
                     int wsIdx = itemIdx - totalSpawns;
                     isSelected = (_selectionType == SelectionType::WeaponSpawner && _selectedIndex == wsIdx);
                     const auto& ws = _map->weaponSpawners[wsIdx];
-                    itemText = "[WEP: " + ws.getWeaponName() + " #" + std::to_string(wsIdx) + "] (" +
+                    itemText = "[Item Pickup #" + std::to_string(wsIdx) + "] (" +
                                std::to_string((int)ws.position.x) + "," + std::to_string((int)ws.position.z) + ")";
                 } else {
                     int bOffset = totalSpawns + totalWepSpawns;
@@ -2770,21 +2717,21 @@ public:
                         isSelected = (_selectionType == SelectionType::Brush && _selectedIndex == bIdx);
                         std::string tName = _map->brushes[bIdx].texturePath;
                         if (tName.size() > 14) tName = tName.substr(0, 12) + "..";
-                        itemText = "[B#" + std::to_string(bIdx) + "] " + tName;
+                        itemText = "[Mesh #" + std::to_string(bIdx) + "] " + tName;
                     } else if (itemIdx >= pOffset && itemIdx < dOffset) {
                         int pIdx = itemIdx - pOffset;
                         isSelected = (_selectionType == SelectionType::Prop && _selectedIndex == pIdx);
                         std::string mName = _map->props[pIdx].modelPath;
                         if (mName.size() > 14) mName = mName.substr(0, 12) + "..";
-                        itemText = "[P#" + std::to_string(pIdx) + "] " + mName;
+                        itemText = "[Prop #" + std::to_string(pIdx) + "] " + mName;
                     } else if (itemIdx >= dOffset && itemIdx < lOffset) {
                         int dIdx = itemIdx - dOffset;
                         isSelected = (_selectionType == SelectionType::Door && _selectedIndex == dIdx);
-                        itemText = "[D#" + std::to_string(dIdx) + "] " + _map->doors[dIdx].name;
+                        itemText = "[Kinematic #" + std::to_string(dIdx) + "] " + _map->doors[dIdx].name;
                     } else if (itemIdx >= lOffset) {
                         int lIdx = itemIdx - lOffset;
                         isSelected = (_selectionType == SelectionType::Light && _selectedIndex == lIdx);
-                        itemText = "[LIGHT #" + std::to_string(lIdx) + "] " + _map->lights[lIdx].name;
+                        itemText = "[Light #" + std::to_string(lIdx) + "] " + _map->lights[lIdx].name;
                     }
                 }
 
@@ -2810,45 +2757,45 @@ public:
         if (_sidebarTab == SidebarTab::Properties) {
             float propY = l.rightY + 38.0f;
 
-            // Dedicated Weapon Spawner Properties when a weapon spawner is selected
+            // Dedicated Item / Pickup Node Properties
             if (_selectionType == SelectionType::WeaponSpawner && _selectedIndex >= 0 && _selectedIndex < (int)_map->weaponSpawners.size()) {
                 auto& ws = _map->weaponSpawners[_selectedIndex];
-                std::string selHeader = "Selection: Weapon Spawner #" + std::to_string(_selectedIndex);
+                std::string selHeader = "Selection: Item Pickup Node #" + std::to_string(_selectedIndex);
                 LabFont::drawText(l.rightX + 12.0f, propY, selHeader, 1.7f, orangeGlow, LabFontType::System);
 
-                std::string wepStr = "Weapon: " + ws.getWeaponName() + " (ID: " + std::to_string(ws.weaponId) + ")";
-                LabFont::drawText(l.rightX + 12.0f, propY + 24.0f, wepStr, 1.5f, greenAccent, LabFontType::System);
+                std::string itemStr = "Role: Dynamic Collectible / Pickup Entity";
+                LabFont::drawText(l.rightX + 12.0f, propY + 24.0f, itemStr, 1.5f, greenAccent, LabFontType::System);
 
                 std::string posStr = "Pos: (" + std::to_string((int)ws.position.x) + ", " + std::to_string((int)ws.position.y) + ", " + std::to_string((int)ws.position.z) + ")";
                 LabFont::drawText(l.rightX + 12.0f, propY + 46.0f, posStr, 1.5f, textLight, LabFontType::System);
 
-                std::string respStr = "Respawn Timer: " + std::to_string((int)ws.respawnTime) + "s (Default: 60s)";
+                std::string respStr = "Respawn Cooldown: " + std::to_string((int)ws.respawnTime) + "s (Default: 30s)";
                 LabFont::drawText(l.rightX + 12.0f, propY + 68.0f, respStr, 1.5f, textLight, LabFontType::System);
 
-                // Weapon Selector Buttons [< Prev Weapon] [Next Weapon >]
-                LabFont::drawText(l.rightX + 12.0f, propY + 96.0f, "Cycle Spawned Weapon:", 1.6f, textLight, LabFontType::System);
+                // Category Buttons
+                LabFont::drawText(l.rightX + 12.0f, propY + 96.0f, "Cycle Pickup Sub-Type:", 1.6f, textLight, LabFontType::System);
                 float wepBtnY = propY + 114.0f;
-                drawDarkButton(l.rightX + 10.0f, wepBtnY, 130.0f, 26.0f, "< Prev Weapon");
-                drawDarkButton(l.rightX + 150.0f, wepBtnY, 130.0f, 26.0f, "Next Weapon >");
+                drawDarkButton(l.rightX + 10.0f, wepBtnY, 130.0f, 26.0f, "< Prev Type");
+                drawDarkButton(l.rightX + 150.0f, wepBtnY, 130.0f, 26.0f, "Next Type >");
 
-                // Respawn Time Buttons [-15s] [60s (1 min)] [+15s]
+                // Respawn Time Buttons [-15s] [30s (Default)] [+15s]
                 LabFont::drawText(l.rightX + 12.0f, wepBtnY + 36.0f, "Set Respawn Delay Cooldown:", 1.6f, textLight, LabFontType::System);
                 float respBtnY = wepBtnY + 54.0f;
                 drawDarkButton(l.rightX + 10.0f, respBtnY, 70.0f, 24.0f, "-15s");
 
-                bool isDefault60 = (std::abs(ws.respawnTime - 60.0f) < 0.1f);
-                drawDarkButton(l.rightX + 90.0f, respBtnY, 100.0f, 24.0f, "60s (1 min)", isDefault60, false, isDefault60);
+                bool isDefault30 = (std::abs(ws.respawnTime - 30.0f) < 0.1f);
+                drawDarkButton(l.rightX + 90.0f, respBtnY, 100.0f, 24.0f, "30s (Default)", isDefault30, false, isDefault30);
                 drawDarkButton(l.rightX + 200.0f, respBtnY, 70.0f, 24.0f, "+15s");
 
                 // Deselect & Delete buttons
                 drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect All");
-                drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete Weapon Spawner", false, true);
+                drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete Item Node", false, true);
             } else if (_selectionType == SelectionType::Spawn && _selectedIndex >= 0 && _selectedIndex < (int)_map->spawnPoints.size()) {
                 auto& sp = _map->spawnPoints[_selectedIndex];
-                std::string selHeader = "Selection: " + sp.getDisplayName() + " #" + std::to_string(_selectedIndex);
+                std::string selHeader = "Selection: Actor / Player Start #" + std::to_string(_selectedIndex);
                 LabFont::drawText(l.rightX + 12.0f, propY, selHeader, 1.7f, orangeGlow, LabFontType::System);
 
-                std::string classStr = "Class: " + sp.entityClass;
+                std::string classStr = "Class: Character Spawn Point";
                 LabFont::drawText(l.rightX + 12.0f, propY + 24.0f, classStr, 1.5f, textLight, LabFontType::System);
 
                 std::string posStr = "Pos: (" + std::to_string((int)sp.position.x) + ", " + std::to_string((int)sp.position.y) + ", " + std::to_string((int)sp.position.z) + ")";
@@ -2857,8 +2804,8 @@ public:
                 std::string yawStr = "Facing Yaw: " + std::to_string((int)sp.yaw) + " deg";
                 LabFont::drawText(l.rightX + 12.0f, propY + 68.0f, yawStr, 1.5f, textLight, LabFontType::System);
 
-                // Team Type selector buttons
-                LabFont::drawText(l.rightX + 12.0f, propY + 98.0f, "Spawn Mode & Team Allocation:", 1.6f, textLight, LabFontType::System);
+                // Spawn Mode selector buttons
+                LabFont::drawText(l.rightX + 12.0f, propY + 98.0f, "Actor Role Allocation:", 1.6f, textLight, LabFontType::System);
                 float typeBtnY = propY + 114.0f;
                 float btnW = 94.0f;
 
@@ -2866,12 +2813,12 @@ public:
                 bool isAlpha = (sp.type == SpawnType::TeamAlpha);
                 bool isBeta = (sp.type == SpawnType::TeamBeta);
 
-                drawDarkButton(l.rightX + 10.0f, typeBtnY, btnW, 26.0f, "FFA / DM", isFFA, false, isFFA);
-                drawDarkButton(l.rightX + 110.0f, typeBtnY, btnW, 26.0f, "Team Alpha", isAlpha);
-                drawDarkButton(l.rightX + 210.0f, typeBtnY, btnW, 26.0f, "Team Beta", isBeta, isBeta);
+                drawDarkButton(l.rightX + 10.0f, typeBtnY, btnW, 26.0f, "Player 1", isFFA, false, isFFA);
+                drawDarkButton(l.rightX + 110.0f, typeBtnY, btnW, 26.0f, "Player 2", isAlpha);
+                drawDarkButton(l.rightX + 210.0f, typeBtnY, btnW, 26.0f, "AI Bot", isBeta, isBeta);
 
                 // Yaw Rotate buttons
-                LabFont::drawText(l.rightX + 12.0f, typeBtnY + 38.0f, "Rotate Spawn Facing Direction:", 1.6f, textLight, LabFontType::System);
+                LabFont::drawText(l.rightX + 12.0f, typeBtnY + 38.0f, "Rotate Facing Direction:", 1.6f, textLight, LabFontType::System);
                 float yawBtnY = typeBtnY + 58.0f;
                 float yBtnW = 55.0f;
                 const char* yLabels[5] = { "-45", "0", "90", "180", "+45" };
@@ -2882,7 +2829,7 @@ public:
 
                 // Deselect & Delete buttons
                 drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect All");
-                drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete Spawn Point", false, true);
+                drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete Actor Start", false, true);
             } else if (_selectionType == SelectionType::Light && _selectedIndex >= 0 && _selectedIndex < (int)_map->lights.size()) {
                 auto& lt = _map->lights[_selectedIndex];
                 std::string selHeader = "Selection: Lamp Light #" + std::to_string(_selectedIndex);
@@ -3313,20 +3260,20 @@ public:
         drawDarkBevel(bx, by, bw, bh, false);
 
         Renderer::drawRect(bx + 2.0f, by + 2.0f, bw - 4.0f, 28.0f, Vec3(0.14f, 0.22f, 0.34f));
-        LabFont::drawText(bx + 14.0f, by + 8.0f, "Lab Hammer 2026 - Keyboard & Mouse Reference", 1.8f, Vec3(1, 1, 1), LabFontType::System);
+        LabFont::drawText(bx + 14.0f, by + 8.0f, "Lab Engine Studio 2026 - Keyboard & Mouse Reference", 1.8f, Vec3(1, 1, 1), LabFontType::System);
 
         drawDarkButton(bx + bw - 32.0f, by + 4.0f, 24.0f, 22.0f, "X", false, true);
 
         const char* helpLines[] = {
             "Hold RMB + WASD: Free-cam flying (Shift = Boost, Space = Up, Ctrl = Down)",
-            "LMB Click in 3D: Raycast selection of Brushes, Props, Doors, Spawns",
+            "LMB Click in 3D: Raycast selection of Brushes, Props, Doors, Entities",
             "Tool 3 (Pipette): LMB applies active texture, RMB samples clicked brush texture",
-            "E Key / LMB: Place object on grid at 3D cursor (Brush, Prop, Door, Spawn)",
+            "E Key / LMB: Place object on grid at 3D cursor (Mesh, Prop, Door, Light, Actor)",
             "F Key: Center & Focus Camera on selected entity",
             "Ctrl + D: Duplicate selected entity offset on grid",
             "Delete / Backspace: Delete selected entity",
             "Arrow Keys / PageUp / PageDn: Translate selected object along grid axes",
-            "F9: Quick Save and Launch Map in Frozen-Life Engine (Lab.exe)",
+            "F9: Toggle Live In-Editor Simulation (PIE Mode)",
             "Optimization: Frustum culling skips rendering off-screen brushes and props"
         };
 
@@ -3348,8 +3295,6 @@ private:
     std::unordered_map<std::string, std::unique_ptr<Mesh>> _meshes;
     std::unordered_set<std::string> _missingTextures;
     std::unordered_set<std::string> _missingMeshes;
-    Mesh* _weaponMeshes[9] = { nullptr };
-    Texture* _weaponTextures[9] = { nullptr };
 
     std::vector<TextureEntry> _availableTextures;
     std::vector<std::string> _availableModels;
@@ -3428,7 +3373,7 @@ private:
 };
 
 int main() {
-    LabHammerStandalone hammer;
-    hammer.run();
+    LabEditorApp editor;
+    editor.run();
     return 0;
 }
