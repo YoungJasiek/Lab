@@ -5,6 +5,7 @@
 #include <ctime>
 #include <iomanip>
 #include <iostream>
+#include <unordered_set>
 
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
@@ -419,25 +420,44 @@ namespace Lab {
         // 3. Copy to custom test folder (NOT cmake's debug folder)
         std::string exeName = (gameTitle.empty() ? "LabGame" : gameTitle) + "_Test.exe";
         std::filesystem::path targetExe = testDir / exeName;
+
+#if defined(_WIN32)
+        // Terminate any running previous instance so files are never locked
+        std::string killCmd = "taskkill /F /IM \"" + exeName + "\" >nul 2>nul";
+        std::system(killCmd.c_str());
+#endif
+
         std::filesystem::copy_file(srcExe, targetExe, std::filesystem::copy_options::overwrite_existing, ec);
         result.copiedFiles++;
         result.totalBytes += std::filesystem::file_size(targetExe);
 
-        // 4. Copy all debug DLLs from source directory and candidate build folders
-        std::vector<std::filesystem::path> dllSearchDirs = {
-            srcExe.parent_path(),
-            buildDir / "Debug",
-            buildDir / "Release",
-            buildDir / "_deps" / "glfw-build" / "src" / "Debug",
-            buildDir / "_deps" / "glfw-build" / "src" / "Release"
-        };
+        // 4. Copy strictly matching configuration DLLs (never mix Debug exe with Release DLLs)
+        bool isDebugBinary = (srcExe.string().find("Debug") != std::string::npos) || (srcExe.parent_path().filename() == "Debug");
+        std::vector<std::filesystem::path> dllSearchDirs;
+        if (isDebugBinary) {
+            dllSearchDirs = {
+                srcExe.parent_path(),
+                buildDir / "Debug",
+                buildDir / "_deps" / "glfw-build" / "src" / "Debug"
+            };
+        } else {
+            dllSearchDirs = {
+                srcExe.parent_path(),
+                buildDir / "Release",
+                buildDir / "_deps" / "glfw-build" / "src" / "Release"
+            };
+        }
 
+        std::unordered_set<std::string> copiedDlls;
         for (const auto& dir : dllSearchDirs) {
             if (std::filesystem::exists(dir)) {
                 for (const auto& entry : std::filesystem::directory_iterator(dir)) {
                     if (entry.is_regular_file() && entry.path().extension() == ".dll") {
-                        auto targetDll = testDir / entry.path().filename();
+                        std::string fname = entry.path().filename().string();
+                        if (copiedDlls.contains(fname)) continue;
+                        auto targetDll = testDir / fname;
                         std::filesystem::copy_file(entry.path(), targetDll, std::filesystem::copy_options::overwrite_existing, ec);
+                        copiedDlls.insert(fname);
                         result.copiedFiles++;
                         result.totalBytes += entry.file_size();
                     }
