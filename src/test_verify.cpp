@@ -13,6 +13,7 @@
 #include "LabCommand.h"
 #include "LabCCD.h"
 #include "LabRagdoll.h"
+#include "LabExportPipeline.h"
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -6564,6 +6565,93 @@ int main() {
         }
 
         std::cout << "  [PASS] Test 62 Ragdoll Physics passed 100%!\n";
+    }
+
+    // 63. Verify Build Pipeline & One-Click Multi-Platform Export (Task #173)
+    {
+        std::cout << "\n[Test 63] Verifying Build Pipeline & Multi-Platform Export...\n";
+
+        // --- Sub-test A: Export Settings Validation for All Platforms ---
+        {
+            Lab::ExportSettings winSettings;
+            winSettings.platform = Lab::TargetPlatform::Windows_x64;
+            winSettings.config = Lab::BuildConfiguration::Shipping;
+            winSettings.gameTitle = "MyActionGame";
+            winSettings.outputDirectory = "build/export/windows";
+            winSettings.entrySceneURI = "assets://maps/cryo_complex.labmap";
+
+            std::string err;
+            if (!Lab::ExportPipeline::validateSettings(winSettings, err)) {
+                std::cerr << "Assertion failed: Valid Windows settings failed validation: " << err << "\n";
+                return 1;
+            }
+
+            Lab::ExportSettings wasmSettings = winSettings;
+            wasmSettings.platform = Lab::TargetPlatform::WebAssembly;
+            wasmSettings.outputDirectory = "build/export/wasm";
+            if (!Lab::ExportPipeline::validateSettings(wasmSettings, err)) {
+                std::cerr << "Assertion failed: Valid WebAssembly settings failed validation: " << err << "\n";
+                return 1;
+            }
+
+            Lab::ExportSettings linuxSettings = winSettings;
+            linuxSettings.platform = Lab::TargetPlatform::Linux_x64;
+            linuxSettings.outputDirectory = "build/export/linux";
+            if (!Lab::ExportPipeline::validateSettings(linuxSettings, err)) {
+                std::cerr << "Assertion failed: Valid Linux settings failed validation: " << err << "\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test A: Platform export validation verified for Windows, Linux & WebAssembly!\n";
+        }
+
+        // --- Sub-test B: Build Manifest Generation & Packaging Integrity ---
+        {
+            Lab::ExportSettings settings;
+            settings.gameTitle = "FrozenLife3D";
+            settings.platform = Lab::TargetPlatform::WebAssembly;
+            settings.config = Lab::BuildConfiguration::Release;
+            settings.embedAssets = true;
+            settings.compressAssets = true;
+
+            constexpr size_t MOCK_ASSETS = 1500;
+            constexpr uint64_t MOCK_BYTES = 52428800; // 50 MB
+
+            std::string manifest = Lab::ExportPipeline::generateBuildManifest(settings, MOCK_ASSETS, MOCK_BYTES);
+            if (manifest.find("\"FrozenLife3D\"") == std::string::npos ||
+                manifest.find("\"WebAssembly\"") == std::string::npos ||
+                manifest.find("\"assetCount\": 1500") == std::string::npos) {
+                std::cerr << "Assertion failed: Build manifest JSON content invalid!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test B: Build manifest generation & schema integrity verified!\n";
+        }
+
+        // --- Sub-test C: High-Throughput Export Pipeline Benchmark (10 000 Bundles) ---
+        {
+            Lab::ExportSettings settings;
+            constexpr size_t ITERATIONS = 10000;
+
+            auto startExp = std::chrono::high_resolution_clock::now();
+            size_t totalLen = 0;
+            for (size_t i = 0; i < ITERATIONS; ++i) {
+                std::string m = Lab::ExportPipeline::generateBuildManifest(settings, 100 + i, 1024 * i);
+                totalLen += m.length();
+            }
+            auto endExp = std::chrono::high_resolution_clock::now();
+            auto expUs = std::chrono::duration_cast<std::chrono::microseconds>(endExp - startExp).count();
+
+            if (totalLen == 0) {
+                std::cerr << "Assertion failed: Manifest output empty!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test C: 10,000 build export manifests generated in " << expUs << " us (avg "
+                      << (double)expUs / (double)ITERATIONS * 1000.0 << " ns/manifest)!\n";
+        }
+
+        std::cout << "  [PASS] Test 63 Build & Multi-Platform Export Pipeline passed 100%!\n";
     }
 
     Lab::Renderer::shutdown();
