@@ -354,22 +354,52 @@ namespace Lab {
         return result;
     }
 
+    static std::filesystem::path findProjectRoot() {
+        std::vector<std::filesystem::path> checks;
+        checks.push_back(std::filesystem::current_path());
+#if defined(_WIN32)
+        char exePath[MAX_PATH] = { 0 };
+        GetModuleFileNameA(NULL, exePath, MAX_PATH);
+        if (exePath[0] != '\0') {
+            checks.push_back(std::filesystem::path(exePath).parent_path());
+        }
+#endif
+        for (auto cur : checks) {
+            for (int i = 0; i < 5; ++i) {
+                if (std::filesystem::exists(cur / "CMakeLists.txt") && (std::filesystem::exists(cur / "assets") || std::filesystem::exists(cur / "src"))) {
+                    return cur;
+                }
+                if (!cur.has_parent_path() || cur == cur.parent_path()) break;
+                cur = cur.parent_path();
+            }
+        }
+        return std::filesystem::current_path();
+    }
+
     ExportResult ExportPipeline::buildAndPrepareTestGame(const std::string& gameTitle, const std::string& scenePath, const std::filesystem::path& customTestDir) {
         ExportResult result;
-        std::filesystem::path testDir = customTestDir.empty() ? std::filesystem::path("test_build/debug") : customTestDir;
+        std::filesystem::path root = findProjectRoot();
+        std::filesystem::path testDir = customTestDir.is_absolute() ? customTestDir : (root / customTestDir);
         std::error_code ec;
         std::filesystem::create_directories(testDir, ec);
 
         // 1. Physically compile Debug target via CMake
-        std::string buildCmd = "cmake --build build --config Debug --target LabPlayer";
-        std::system(buildCmd.c_str());
+        std::filesystem::path buildDir = root / "build";
+        if (std::filesystem::exists(root / "CMakeLists.txt")) {
+            std::string buildCmd = "cmake --build \"" + buildDir.string() + "\" --config Debug --target LabPlayer";
+            std::system(buildCmd.c_str());
+        }
 
-        // 2. Find LabPlayer.exe from build/Debug
+        // 2. Find LabPlayer.exe from candidate directories
         std::vector<std::filesystem::path> debugRunnerCandidates = {
-            "build/Debug/LabPlayer.exe",
-            "Debug/LabPlayer.exe",
-            "build/Release/LabPlayer.exe",
-            "LabPlayer.exe"
+            buildDir / "Debug" / "LabPlayer.exe",
+            buildDir / "Release" / "LabPlayer.exe",
+            root / "Debug" / "LabPlayer.exe",
+            root / "Release" / "LabPlayer.exe",
+            root / "LabPlayer.exe",
+            std::filesystem::current_path() / "build" / "Debug" / "LabPlayer.exe",
+            std::filesystem::current_path() / "build" / "Release" / "LabPlayer.exe",
+            std::filesystem::current_path() / "LabPlayer.exe"
         };
 
         std::filesystem::path srcExe;
@@ -393,28 +423,37 @@ namespace Lab {
         result.copiedFiles++;
         result.totalBytes += std::filesystem::file_size(targetExe);
 
-        // 4. Copy all debug DLLs from source directory
-        auto srcDir = srcExe.parent_path();
-        if (std::filesystem::exists(srcDir)) {
-            for (const auto& entry : std::filesystem::directory_iterator(srcDir)) {
-                if (entry.is_regular_file() && entry.path().extension() == ".dll") {
-                    auto targetDll = testDir / entry.path().filename();
-                    std::filesystem::copy_file(entry.path(), targetDll, std::filesystem::copy_options::overwrite_existing, ec);
-                    result.copiedFiles++;
-                    result.totalBytes += entry.file_size();
+        // 4. Copy all debug DLLs from source directory and candidate build folders
+        std::vector<std::filesystem::path> dllSearchDirs = {
+            srcExe.parent_path(),
+            buildDir / "Debug",
+            buildDir / "Release",
+            buildDir / "_deps" / "glfw-build" / "src" / "Debug",
+            buildDir / "_deps" / "glfw-build" / "src" / "Release"
+        };
+
+        for (const auto& dir : dllSearchDirs) {
+            if (std::filesystem::exists(dir)) {
+                for (const auto& entry : std::filesystem::directory_iterator(dir)) {
+                    if (entry.is_regular_file() && entry.path().extension() == ".dll") {
+                        auto targetDll = testDir / entry.path().filename();
+                        std::filesystem::copy_file(entry.path(), targetDll, std::filesystem::copy_options::overwrite_existing, ec);
+                        result.copiedFiles++;
+                        result.totalBytes += entry.file_size();
+                    }
                 }
             }
         }
 
         // 5. Replicate assets and fonts
-        std::vector<std::string> assetRoots = { "assets", "../assets", "../../assets" };
+        std::vector<std::filesystem::path> assetRoots = { root / "assets", "assets", "../assets", "../../assets" };
         for (const auto& aRoot : assetRoots) {
             if (std::filesystem::exists(aRoot)) {
                 copyDirectoryRecursive(aRoot, testDir / "assets", result.copiedFiles, result.totalBytes);
                 break;
             }
         }
-        std::vector<std::string> fontRoots = { "fonts", "../fonts", "../../fonts" };
+        std::vector<std::filesystem::path> fontRoots = { root / "fonts", "fonts", "../fonts", "../../fonts" };
         for (const auto& fRoot : fontRoots) {
             if (std::filesystem::exists(fRoot)) {
                 copyDirectoryRecursive(fRoot, testDir / "fonts", result.copiedFiles, result.totalBytes);
@@ -468,8 +507,8 @@ namespace Lab {
             return (reinterpret_cast<INT_PTR>(res) > 32);
         }
 
-        std::string exeStr = executablePath.string();
-        std::string dirStr = executablePath.parent_path().string();
+        std::string exeStr = std::filesystem::absolute(executablePath).string();
+        std::string dirStr = std::filesystem::absolute(executablePath.parent_path()).string();
 
         STARTUPINFOA si;
         PROCESS_INFORMATION pi;
@@ -482,14 +521,14 @@ namespace Lab {
         cmdBuf.push_back('\0');
 
         BOOL success = CreateProcessA(
-            NULL,
+            exeStr.c_str(),
             cmdBuf.data(),
             NULL,
             NULL,
             FALSE,
             0,
             NULL,
-            dirStr.empty() ? NULL : dirStr.c_str(),
+            dirStr.c_str(),
             &si,
             &pi
         );

@@ -1705,10 +1705,37 @@ public:
             }
         }
 
+        // 4.5. Dropdown Build Menu
+        if (_buildMenuOpen) {
+            float menuX = 137.0f;
+            float menuY = 24.0f;
+            float menuW = 240.0f;
+            float menuH = 100.0f;
+            if (mx >= menuX && mx <= menuX + menuW && my >= menuY && my <= menuY + menuH) {
+                int itemIdx = (int)((my - menuY) / 24.0f);
+                if (itemIdx == 0) buildGameAction(true); // Test Game (Debug Run)
+                else if (itemIdx == 1) _buildModalOpen = true; // Build & Export Game...
+                else if (itemIdx == 2) {
+                    #if defined(_WIN32)
+                    std::system("start test_build");
+                    #elif defined(__APPLE__)
+                    std::system("open test_build");
+                    #else
+                    std::system("xdg-open test_build");
+                    #endif
+                }
+                _buildMenuOpen = false;
+                return;
+            } else {
+                _buildMenuOpen = false;
+            }
+        }
+
         // 5. Top Menu Bar (y: 0..24)
         if (my >= 0.0f && my <= 24.0f) {
             if (mx >= 10.0f && mx <= 50.0f) {
                 _fileMenuOpen = !_fileMenuOpen;
+                _buildMenuOpen = false;
                 return;
             } else if (mx >= 52.0f && mx <= 90.0f) { // Edit
                 if (_selectionType != SelectionType::None) deleteSelection();
@@ -1719,10 +1746,14 @@ public:
                 glPolygonMode(GL_FRONT_AND_BACK, _wireframeMode ? GL_LINE : GL_FILL);
                 logMessage("Wireframe Mode: " + std::string(_wireframeMode ? "ON" : "OFF"));
                 return;
-            } else if (mx >= 137.0f && mx <= 185.0f) { // Tools
+            } else if (mx >= 137.0f && mx <= 185.0f) { // Build
+                _buildMenuOpen = !_buildMenuOpen;
+                _fileMenuOpen = false;
+                return;
+            } else if (mx >= 187.0f && mx <= 235.0f) { // Tools
                 _browserOpen = !_browserOpen;
                 return;
-            } else if (mx >= 187.0f && mx <= 230.0f) { // Help
+            } else if (mx >= 237.0f && mx <= 280.0f) { // Help
                 _helpModalOpen = !_helpModalOpen;
                 return;
             }
@@ -1768,26 +1799,18 @@ public:
             }
 
             // Top Toolbar Controls: Simulation, View Mode, Quick Actions
-            // 1. [ > PLAY ]
-            if (mx >= 520.0f && mx <= 582.0f) {
-                _simState = EngineSimState::Playing;
-                logMessage("Engine Simulation: STARTED [PLAY]");
+            // 1. [ > TEST GAME (F5) ]
+            if (mx >= 520.0f && mx <= 665.0f) {
+                buildGameAction(true);
                 return;
             }
-            // 2. [ || PAUSE ]
-            if (mx >= 586.0f && mx <= 650.0f) {
-                _simState = (_simState == EngineSimState::Paused) ? EngineSimState::Playing : EngineSimState::Paused;
-                logMessage(_simState == EngineSimState::Paused ? "Engine Simulation: PAUSED" : "Engine Simulation: RESUMED");
+            // 2. [ BUILD / EXPORT... ]
+            if (mx >= 672.0f && mx <= 807.0f) {
+                _buildModalOpen = true;
                 return;
             }
-            // 3. [ [] STOP ]
-            if (mx >= 654.0f && mx <= 714.0f) {
-                _simState = EngineSimState::Stopped;
-                logMessage("Engine Simulation: STOPPED");
-                return;
-            }
-            // 4. [ 3D PERSPECTIVE ] / [ 2D ORTHO ]
-            if (mx >= 720.0f && mx <= 835.0f) {
+            // 3. [ 3D PERSPECTIVE ] / [ 2D ORTHO ]
+            if (mx >= 814.0f && mx <= 909.0f) {
                 _orthoViewMode = !_orthoViewMode;
                 if (_orthoViewMode) {
                     _camera.setOrthographic(25.0f, -500.0f, 500.0f);
@@ -1802,36 +1825,26 @@ public:
                 }
                 return;
             }
-            // 5. [+ LIGHT]
-            if (mx >= 842.0f && mx <= 940.0f) {
+            // 4. [+ LIGHT]
+            if (mx >= 919.0f && mx <= 999.0f) {
                 _activeTool = 7;
                 logMessage("Tool 7: Omni Point Light Tool (Click scene or E to place)");
                 return;
             }
-            // 6. [DARK: ON/OFF]
-            if (mx >= 946.0f && mx <= 1056.0f) {
+            // 5. [DARK: ON/OFF]
+            if (mx >= 1007.0f && mx <= 1097.0f) {
                 _darknessMode = !_darknessMode;
                 logMessage(_darknessMode ? "Darkness Mode: ACTIVE (Pitch Black Ambient/Sun)" : "Darkness Mode: DISABLED (Standard Sunlight)");
                 return;
             }
-            // 7. [DARK PRESET]
-            if (mx >= 1062.0f && mx <= 1162.0f) {
+            // 6. [DARK PRESET]
+            if (mx >= 1105.0f && mx <= 1200.0f) {
                 if (_map) {
                     _map->metadata.ambientColor = Vec3(0.015f, 0.018f, 0.025f);
                     _map->metadata.sunColor = Vec3(0.0f, 0.0f, 0.0f);
                     _darknessMode = true;
                     logMessage("Applied Darkness Preset to Map Metadata (Ambient: 0.015, Sun: 0)");
                 }
-                return;
-            }
-            // 8. [ BUILD & RUN ] button (1170 .. 1294)
-            if (mx >= 1170.0f && mx <= 1294.0f) {
-                buildGameAction(true);
-                return;
-            }
-            // 9. [ EXPORT... ] button (1298 .. 1406)
-            if (mx >= 1298.0f && mx <= 1406.0f) {
-                _buildModalOpen = true;
                 return;
             }
         }
@@ -2601,23 +2614,26 @@ public:
         Renderer::drawRect(0, 0, w, 24.0f, panelDarker);
         drawDarkBevel(0, 0, w, 24.0f, false);
 
-        bool hovFile = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 10.0f && _mouseScreenX <= 50.0f);
-        bool hovEdit = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 52.0f && _mouseScreenX <= 90.0f);
-        bool hovView = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 92.0f && _mouseScreenX <= 135.0f);
-        bool hovTools = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 137.0f && _mouseScreenX <= 185.0f);
-        bool hovHelp = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 187.0f && _mouseScreenX <= 230.0f);
+        bool hovFile  = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 10.0f && _mouseScreenX <= 50.0f);
+        bool hovEdit  = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 52.0f && _mouseScreenX <= 90.0f);
+        bool hovView  = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 92.0f && _mouseScreenX <= 135.0f);
+        bool hovBuild = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 137.0f && _mouseScreenX <= 185.0f);
+        bool hovTools = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 187.0f && _mouseScreenX <= 235.0f);
+        bool hovHelp  = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 237.0f && _mouseScreenX <= 280.0f);
 
-        if (hovFile) Renderer::drawRect(10.0f, 2.0f, 40.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
-        if (hovEdit) Renderer::drawRect(52.0f, 2.0f, 38.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
-        if (hovView) Renderer::drawRect(92.0f, 2.0f, 43.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
-        if (hovTools) Renderer::drawRect(137.0f, 2.0f, 48.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
-        if (hovHelp) Renderer::drawRect(187.0f, 2.0f, 43.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
+        if (hovFile)  Renderer::drawRect(10.0f, 2.0f, 40.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
+        if (hovEdit)  Renderer::drawRect(52.0f, 2.0f, 38.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
+        if (hovView)  Renderer::drawRect(92.0f, 2.0f, 43.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
+        if (hovBuild) Renderer::drawRect(137.0f, 2.0f, 48.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
+        if (hovTools) Renderer::drawRect(187.0f, 2.0f, 48.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
+        if (hovHelp)  Renderer::drawRect(237.0f, 2.0f, 43.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
 
         LabFont::drawText(14.0f, 5.0f, "File", 1.8f, hovFile ? orangeGlow : textLight, LabFontType::System);
         LabFont::drawText(54.0f, 5.0f, "Edit", 1.8f, hovEdit ? orangeGlow : textLight, LabFontType::System);
         LabFont::drawText(94.0f, 5.0f, "View", 1.8f, hovView ? orangeGlow : textLight, LabFontType::System);
-        LabFont::drawText(140.0f, 5.0f, "Tools", 1.8f, hovTools ? orangeGlow : textLight, LabFontType::System);
-        LabFont::drawText(190.0f, 5.0f, "Help", 1.8f, hovHelp ? orangeGlow : textLight, LabFontType::System);
+        LabFont::drawText(140.0f, 5.0f, "Build", 1.8f, hovBuild ? orangeGlow : (Vec3(0.4f, 0.9f, 0.5f)), LabFontType::System);
+        LabFont::drawText(190.0f, 5.0f, "Tools", 1.8f, hovTools ? orangeGlow : textLight, LabFontType::System);
+        LabFont::drawText(240.0f, 5.0f, "Help", 1.8f, hovHelp ? orangeGlow : textLight, LabFontType::System);
 
         LabFont::drawText(w - 380.0f, 5.0f, "Lab Engine Editor 2026 (LabSDK)", 1.8f, orangeGlow, LabFontType::GeoSans);
 
@@ -2640,83 +2656,62 @@ public:
             drawToolbarIcon(i, bx + 1.0f, tbY + 5.0f, iconCol, bgCol);
         }
 
-        // ==================== ENGINE SIMULATION & VIEWPORT CONTROLS ====================
-        // 1. [ > PLAY ]
-        float playX = 520.0f;
-        bool isPlay = (_simState == EngineSimState::Playing);
-        bool isPlayHov = (_mouseScreenX >= playX && _mouseScreenX <= playX + 62.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
-        Vec3 playCol = isPlay ? greenAccent : (isPlayHov ? Vec3(0.25f, 0.38f, 0.28f) : Vec3(0.20f, 0.22f, 0.25f));
-        Renderer::drawRect(playX, tbY + 4.0f, 62.0f, 26.0f, playCol);
-        drawDarkBevel(playX, tbY + 4.0f, 62.0f, 26.0f, isPlay);
-        LabFont::drawText(playX + 10.0f, tbY + 9.0f, "> PLAY", 1.25f, isPlay ? Vec3(0, 0, 0) : Vec3(0.4f, 1.0f, 0.5f), LabFontType::System);
+        // ==================== ENGINE CONTROLS & TEST BUTTONS ====================
+        // 1. [ > TEST GAME (F5) ] - High-visibility emerald green button!
+        float bRunX = 520.0f;
+        float bRunW = 145.0f;
+        bool isBRunHov = (_mouseScreenX >= bRunX && _mouseScreenX <= bRunX + bRunW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        Vec3 bRunCol = isBRunHov ? Vec3(0.25f, 0.88f, 0.45f) : Vec3(0.18f, 0.72f, 0.38f);
+        Renderer::drawRect(bRunX, tbY + 4.0f, bRunW, 26.0f, bRunCol);
+        drawDarkBevel(bRunX, tbY + 4.0f, bRunW, 26.0f, false);
+        LabFont::drawText(bRunX + 10.0f, tbY + 9.0f, "> TEST GAME (F5)", 1.25f, Vec3(1, 1, 1), LabFontType::System);
 
-        // 2. [ || PAUSE ]
-        float pauseX = 586.0f;
-        bool isPause = (_simState == EngineSimState::Paused);
-        bool isPauseHov = (_mouseScreenX >= pauseX && _mouseScreenX <= pauseX + 64.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
-        Vec3 pauseCol = isPause ? Vec3(0.95f, 0.75f, 0.15f) : (isPauseHov ? Vec3(0.35f, 0.32f, 0.26f) : Vec3(0.20f, 0.22f, 0.25f));
-        Renderer::drawRect(pauseX, tbY + 4.0f, 64.0f, 26.0f, pauseCol);
-        drawDarkBevel(pauseX, tbY + 4.0f, 64.0f, 26.0f, isPause);
-        LabFont::drawText(pauseX + 8.0f, tbY + 9.0f, "|| PAUSE", 1.25f, isPause ? Vec3(0, 0, 0) : Vec3(1.0f, 0.85f, 0.4f), LabFontType::System);
+        // 2. [ BUILD / EXPORT... ] - High-visibility cyan button!
+        float bExpX = bRunX + bRunW + 8.0f;
+        float bExpW = 135.0f;
+        bool isBExpHov = (_mouseScreenX >= bExpX && _mouseScreenX <= bExpX + bExpW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        Vec3 bExpCol = isBExpHov ? Vec3(0.25f, 0.58f, 0.92f) : Vec3(0.18f, 0.46f, 0.76f);
+        Renderer::drawRect(bExpX, tbY + 4.0f, bExpW, 26.0f, bExpCol);
+        drawDarkBevel(bExpX, tbY + 4.0f, bExpW, 26.0f, false);
+        LabFont::drawText(bExpX + 10.0f, tbY + 9.0f, "BUILD / EXPORT", 1.25f, Vec3(1, 1, 1), LabFontType::System);
 
-        // 3. [ [] STOP ]
-        float stopX = 654.0f;
-        bool isStop = (_simState == EngineSimState::Stopped);
-        bool isStopHov = (_mouseScreenX >= stopX && _mouseScreenX <= stopX + 60.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
-        Vec3 stopCol = isStop ? Vec3(0.85f, 0.25f, 0.25f) : (isStopHov ? Vec3(0.35f, 0.26f, 0.26f) : Vec3(0.20f, 0.22f, 0.25f));
-        Renderer::drawRect(stopX, tbY + 4.0f, 60.0f, 26.0f, stopCol);
-        drawDarkBevel(stopX, tbY + 4.0f, 60.0f, 26.0f, isStop);
-        LabFont::drawText(stopX + 8.0f, tbY + 9.0f, "[] STOP", 1.25f, isStop ? Vec3(1, 1, 1) : Vec3(0.85f, 0.45f, 0.45f), LabFontType::System);
-
-        // 4. [ 3D PERSPECTIVE ] / [ 2D ORTHO ]
-        float viewModeX = 720.0f;
+        // 3. [ 3D PERSPECTIVE ] / [ 2D ORTHO ]
+        float viewModeX = bExpX + bExpW + 8.0f;
+        float viewModeW = 95.0f;
         bool isOrtho = _orthoViewMode;
-        bool isViewHov = (_mouseScreenX >= viewModeX && _mouseScreenX <= viewModeX + 115.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        bool isViewHov = (_mouseScreenX >= viewModeX && _mouseScreenX <= viewModeX + viewModeW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
         Vec3 viewCol = isOrtho ? Vec3(0.20f, 0.55f, 0.85f) : (isViewHov ? Vec3(0.28f, 0.32f, 0.38f) : Vec3(0.20f, 0.22f, 0.25f));
-        Renderer::drawRect(viewModeX, tbY + 4.0f, 115.0f, 26.0f, viewCol);
-        drawDarkBevel(viewModeX, tbY + 4.0f, 115.0f, 26.0f, isOrtho);
-        LabFont::drawText(viewModeX + 8.0f, tbY + 9.0f, isOrtho ? "2D ORTHO" : "3D PERSPECTIVE", 1.25f, isOrtho ? Vec3(1, 1, 1) : cyanGlow, LabFontType::System);
+        Renderer::drawRect(viewModeX, tbY + 4.0f, viewModeW, 26.0f, viewCol);
+        drawDarkBevel(viewModeX, tbY + 4.0f, viewModeW, 26.0f, isOrtho);
+        LabFont::drawText(viewModeX + 8.0f, tbY + 9.0f, isOrtho ? "2D ORTHO" : "3D PERSPECT", 1.25f, isOrtho ? Vec3(1, 1, 1) : cyanGlow, LabFontType::System);
 
-        // 5. [+ POINT LIGHT] button
-        float lightX = 842.0f;
+        // 4. [+ LIGHT] button
+        float lightX = viewModeX + viewModeW + 8.0f;
+        float lightW = 80.0f;
         bool isLightTool = (_activeTool == 7);
-        bool isLightHov = (_mouseScreenX >= lightX && _mouseScreenX <= lightX + 98.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        bool isLightHov = (_mouseScreenX >= lightX && _mouseScreenX <= lightX + lightW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
         Vec3 lightBtnBg = isLightTool ? Vec3(0.95f, 0.75f, 0.15f) : (isLightHov ? Vec3(0.32f, 0.35f, 0.40f) : Vec3(0.22f, 0.23f, 0.26f));
-        Renderer::drawRect(lightX, tbY + 4.0f, 98.0f, 26.0f, lightBtnBg);
-        drawDarkBevel(lightX, tbY + 4.0f, 98.0f, 26.0f, isLightTool);
+        Renderer::drawRect(lightX, tbY + 4.0f, lightW, 26.0f, lightBtnBg);
+        drawDarkBevel(lightX, tbY + 4.0f, lightW, 26.0f, isLightTool);
         LabFont::drawText(lightX + 10.0f, tbY + 9.0f, "+ LIGHT", 1.25f, isLightTool ? Vec3(0.05f, 0.05f, 0.05f) : Vec3(1.0f, 0.85f, 0.2f), LabFontType::System);
 
-        // 6. [DARKNESS: ON/OFF] button
-        float darkX = 946.0f;
-        bool isDarkHov = (_mouseScreenX >= darkX && _mouseScreenX <= darkX + 110.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        // 5. [DARK: ON/OFF] button
+        float darkX = lightX + lightW + 8.0f;
+        float darkW = 90.0f;
+        bool isDarkHov = (_mouseScreenX >= darkX && _mouseScreenX <= darkX + darkW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
         Vec3 darkBtnBg = _darknessMode ? Vec3(0.55f, 0.15f, 0.80f) : (isDarkHov ? Vec3(0.32f, 0.35f, 0.40f) : Vec3(0.22f, 0.23f, 0.26f));
-        Renderer::drawRect(darkX, tbY + 4.0f, 110.0f, 26.0f, darkBtnBg);
-        drawDarkBevel(darkX, tbY + 4.0f, 110.0f, 26.0f, _darknessMode);
-        LabFont::drawText(darkX + 10.0f, tbY + 9.0f, _darknessMode ? "DARK: ON" : "DARK: OFF", 1.25f, _darknessMode ? Vec3(1.0f, 0.95f, 0.6f) : Vec3(0.85f, 0.88f, 0.92f), LabFontType::System);
+        Renderer::drawRect(darkX, tbY + 4.0f, darkW, 26.0f, darkBtnBg);
+        drawDarkBevel(darkX, tbY + 4.0f, darkW, 26.0f, _darknessMode);
+        LabFont::drawText(darkX + 8.0f, tbY + 9.0f, _darknessMode ? "DARK: ON" : "DARK: OFF", 1.25f, _darknessMode ? Vec3(1.0f, 0.95f, 0.6f) : Vec3(0.85f, 0.88f, 0.92f), LabFontType::System);
 
-        // 7. [DARK PRESET] button
-        float presetX = 1062.0f;
-        bool isPresetHov = (_mouseScreenX >= presetX && _mouseScreenX <= presetX + 100.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        // 6. [DARK PRESET] button
+        float presetX = darkX + darkW + 8.0f;
+        float presetW = 95.0f;
+        bool isPresetHov = (_mouseScreenX >= presetX && _mouseScreenX <= presetX + presetW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
         Vec3 presetBtnBg = isPresetHov ? Vec3(0.32f, 0.35f, 0.40f) : Vec3(0.22f, 0.23f, 0.26f);
-        Renderer::drawRect(presetX, tbY + 4.0f, 100.0f, 26.0f, presetBtnBg);
-        drawDarkBevel(presetX, tbY + 4.0f, 100.0f, 26.0f, false);
-        LabFont::drawText(presetX + 10.0f, tbY + 9.0f, "DARK PRESET", 1.25f, Vec3(0.6f, 0.85f, 1.0f), LabFontType::System);
-
-        // 8. [ BUILD & RUN ] button (One-Click standalone test runner)
-        float bRunX = 1170.0f;
-        bool isBRunHov = (_mouseScreenX >= bRunX && _mouseScreenX <= bRunX + 124.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
-        Vec3 bRunCol = isBRunHov ? Vec3(0.24f, 0.82f, 0.44f) : Vec3(0.18f, 0.64f, 0.32f);
-        Renderer::drawRect(bRunX, tbY + 4.0f, 124.0f, 26.0f, bRunCol);
-        drawDarkBevel(bRunX, tbY + 4.0f, 124.0f, 26.0f, false);
-        LabFont::drawText(bRunX + 8.0f, tbY + 9.0f, "BUILD & RUN", 1.25f, Vec3(1, 1, 1), LabFontType::System);
-
-        // 9. [ EXPORT... ] button (Deploy for Windows, Linux, Web)
-        float bExpX = 1300.0f;
-        bool isBExpHov = (_mouseScreenX >= bExpX && _mouseScreenX <= bExpX + 104.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
-        Vec3 bExpCol = isBExpHov ? Vec3(0.25f, 0.50f, 0.85f) : Vec3(0.18f, 0.36f, 0.62f);
-        Renderer::drawRect(bExpX, tbY + 4.0f, 104.0f, 26.0f, bExpCol);
-        drawDarkBevel(bExpX, tbY + 4.0f, 104.0f, 26.0f, false);
-        LabFont::drawText(bExpX + 10.0f, tbY + 9.0f, "EXPORT...", 1.25f, Vec3(1, 1, 1), LabFontType::System);
+        Renderer::drawRect(presetX, tbY + 4.0f, presetW, 26.0f, presetBtnBg);
+        drawDarkBevel(presetX, tbY + 4.0f, presetW, 26.0f, false);
+        LabFont::drawText(presetX + 8.0f, tbY + 9.0f, "DARK PRESET", 1.25f, Vec3(0.6f, 0.85f, 1.0f), LabFontType::System);
 
         // ==================== 3. LEFT TOOLS PALETTE (Tools 0..7) ====================
         float leftW = 42.0f;
@@ -3306,6 +3301,41 @@ public:
             }
         }
 
+        // ==================== 8. DROPDOWN BUILD MENU ====================
+        if (_buildMenuOpen) {
+            float menuX = 137.0f;
+            float menuY = 24.0f;
+            float menuW = 240.0f;
+            float menuH = 80.0f;
+            Vec3 menuBg{ 0.16f, 0.17f, 0.20f };
+            Vec3 menuBorder{ 0.35f, 0.38f, 0.44f };
+            Vec3 menuShadow{ 0.05f, 0.05f, 0.07f };
+
+            Renderer::drawRect(menuX + 3.0f, menuY + 3.0f, menuW, menuH, menuShadow);
+            Renderer::drawRect(menuX, menuY, menuW, menuH, menuBg);
+            drawDarkBevel(menuX, menuY, menuW, menuH, false);
+
+            struct BuildMenuItem { std::string name; std::string shortcut; };
+            BuildMenuItem bItems[] = {
+                { "Test Game (Debug)", "F5" },
+                { "Build & Export Game...", "Ctrl+Shift+B" },
+                { "Open test_build Folder", "" }
+            };
+
+            for (int i = 0; i < 3; ++i) {
+                float iy = menuY + 3.0f + i * 24.0f;
+                bool isHov = (_mouseScreenX >= menuX && _mouseScreenX <= menuX + menuW && _mouseScreenY >= iy && _mouseScreenY <= iy + 22.0f);
+                if (isHov) {
+                    Renderer::drawRect(menuX + 2.0f, iy, menuW - 4.0f, 22.0f, Vec3(0.24f, 0.28f, 0.36f));
+                }
+                if (i == 2) Renderer::drawRect(menuX + 6.0f, iy - 2.0f, menuW - 12.0f, 1.0f, menuBorder);
+                LabFont::drawText(menuX + 14.0f, iy + 4.0f, bItems[i].name, 1.6f, (i == 0) ? (isHov ? Vec3(0.4f, 1.0f, 0.5f) : Vec3(0.3f, 0.9f, 0.4f)) : (isHov ? orangeGlow : textLight), LabFontType::System);
+                if (!bItems[i].shortcut.empty()) {
+                    LabFont::drawText(menuX + menuW - 90.0f, iy + 4.0f, bItems[i].shortcut, 1.4f, textDim, LabFontType::System);
+                }
+            }
+        }
+
         Renderer::endUI();
     }
 
@@ -3599,6 +3629,7 @@ private:
     std::string _lastBuildLog = "";
     bool _buildSuccess = false;
     bool _fileMenuOpen = false;
+    bool _buildMenuOpen = false;
     bool _wireframeMode = false;
     std::string _currentMapPath = "";
 
