@@ -7,6 +7,8 @@
 #include "LabSceneNode.h"
 #include "LabSpriteBatcher.h"
 #include "LabPhysics2D.h"
+#include "LabVFS.h"
+#include "LabAsset.h"
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -6058,6 +6060,107 @@ int main() {
         }
 
         std::cout << "  [PASS] Test 57 Universal 2D Engine Stack passed 100%!\n";
+    }
+
+    // 58. Verify Virtual File System (VFS) & GUID Asset Pipeline (Task #168)
+    {
+        std::cout << "\n[Test 58] Verifying VFS & 128-bit GUID Asset Pipeline...\n";
+
+        // --- Sub-test A: Virtual File System Mounting & Resolving ---
+        {
+            auto& vfs = Lab::VFS::get();
+            vfs.clear();
+            vfs.mount("assets", "assets");
+            vfs.mount("engine", "engine");
+
+            std::filesystem::path resolved = vfs.resolve("assets://maps/cryo_complex.labmap");
+            std::string pathStr = resolved.string();
+            // Path separator check (Windows \\ or Unix /)
+            if (pathStr.find("assets") == std::string::npos || pathStr.find("cryo_complex.labmap") == std::string::npos) {
+                std::cerr << "Assertion failed: VFS resolve mismatch! Got: " << pathStr << "\n";
+                return 1;
+            }
+
+            // Verify file existence check through VFS
+            if (!vfs.exists("assets://maps/cryo_complex.labmap")) {
+                std::cerr << "Assertion failed: Existing map asset was not detected by VFS!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test A: VFS mounts and path resolution verified!\n";
+        }
+
+        // --- Sub-test B: 128-bit GUID Generation, Parsing & Formatting ---
+        {
+            Lab::AssetID id1 = Lab::AssetID::generate();
+            if (!id1.isValid()) {
+                std::cerr << "Assertion failed: Generated GUID must be valid!\n";
+                return 1;
+            }
+
+            std::string guidStr = id1.toString();
+            if (guidStr.length() != 36) { // 32 hex chars + 4 hyphens
+                std::cerr << "Assertion failed: Standard canonical GUID string must be 36 characters! Got: " << guidStr << "\n";
+                return 1;
+            }
+
+            Lab::AssetID parsed = Lab::AssetID::fromString(guidStr);
+            if (parsed != id1) {
+                std::cerr << "Assertion failed: Parsed GUID mismatch! Expected " << guidStr << " got " << parsed.toString() << "\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test B: 128-bit GUID generation, string formatting & parsing verified (" << guidStr << ")!\n";
+        }
+
+        // --- Sub-test C: High-Throughput AssetRegistry Benchmark (10 000 Assets) ---
+        {
+            auto& reg = Lab::AssetRegistry::get();
+            reg.clear();
+
+            constexpr size_t ASSET_COUNT = 10000;
+            std::vector<Lab::AssetID> registeredIds;
+            registeredIds.reserve(ASSET_COUNT);
+
+            auto startReg = std::chrono::high_resolution_clock::now();
+            for (size_t i = 0; i < ASSET_COUNT; ++i) {
+                Lab::AssetMetadata meta;
+                meta.id = Lab::AssetID::generate();
+                meta.type = (i % 2 == 0) ? Lab::AssetType::Texture : Lab::AssetType::Mesh;
+                meta.virtualPath = "assets://models/prop_" + std::to_string(i) + ".stl";
+                meta.name = "Prop" + std::to_string(i);
+                meta.fileSize = 1024 + (i * 16);
+
+                reg.registerAsset(meta);
+                registeredIds.push_back(meta.id);
+            }
+            auto endReg = std::chrono::high_resolution_clock::now();
+            auto regUs = std::chrono::duration_cast<std::chrono::microseconds>(endReg - startReg).count();
+
+            if (reg.getAssetCount() != ASSET_COUNT) {
+                std::cerr << "Assertion failed: Asset count mismatch! Expected " << ASSET_COUNT
+                          << " got " << reg.getAssetCount() << "\n";
+                return 1;
+            }
+
+            // Benchmark 10,000 lookups by GUID
+            auto startLookup = std::chrono::high_resolution_clock::now();
+            for (const auto& id : registeredIds) {
+                const auto* meta = reg.getMetadata(id);
+                if (!meta) {
+                    std::cerr << "Assertion failed: Registered asset was not found by GUID!\n";
+                    return 1;
+                }
+            }
+            auto endLookup = std::chrono::high_resolution_clock::now();
+            auto lookupUs = std::chrono::duration_cast<std::chrono::microseconds>(endLookup - startLookup).count();
+
+            std::cout << "  [PASS] Sub-test C: Registered 10,000 assets in " << regUs << " us ("
+                      << (double)regUs / 1000.0 << " ms), 10,000 GUID lookups in " << lookupUs << " us (avg "
+                      << (double)lookupUs / (double)ASSET_COUNT * 1000.0 << " ns/lookup)!\n";
+        }
+
+        std::cout << "  [PASS] Test 58 VFS & GUID Asset Pipeline passed 100%!\n";
     }
 
     Lab::Renderer::shutdown();
