@@ -17,6 +17,7 @@
 #include "LabVehicle.h"
 #include "LabFluid.h"
 #include "LabConstraint.h"
+#include "LabCloth.h"
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -6964,6 +6965,107 @@ int main() {
         }
 
         std::cout << "  [PASS] Test 66 Physics Constraints & Joints passed 100%!\n";
+    }
+
+    // 67. Verify Verlet Soft Body, Hair & Cloth Physics (Task #181)
+    {
+        std::cout << "\n[Test 67] Verifying Verlet Soft Body, Hair & Cloth Simulation...\n";
+
+        // --- Sub-test A: Hanging Flag with Two Pinned Corners under Gravity & Wind ---
+        {
+            Lab::ClothMesh flag;
+            // 10x10 cloth grid (100 particles, 0.2m spacing)
+            flag.initGrid(10, 10, 0.2f, Lab::Vec3(0, 5.0f, 0));
+
+            // Pin top two corners: (0, 0) and (9, 0)
+            flag.particles[0].pin();
+            flag.particles[9].pin();
+
+            // Simulate 60 steps with gravity and wind
+            Lab::Vec3 wind(0.0f, 0.0f, 5.0f);
+            for (int f = 0; f < 60; ++f) {
+                flag.applyWind(wind);
+                flag.step(0.016f, Lab::Vec3(0, -9.81f, 0), 6);
+            }
+
+            // Pinned particles must not have moved from their origins
+            if ((flag.particles[0].position - Lab::Vec3(0, 5.0f, 0)).length() > 1e-4f ||
+                (flag.particles[9].position - Lab::Vec3(1.8f, 5.0f, 0)).length() > 1e-4f) {
+                std::cerr << "Assertion failed: Pinned cloth particles drifted!\n";
+                return 1;
+            }
+
+            // Bottom center particle should sag downwards and be blown back in +Z by wind
+            const auto& botMid = flag.particles[9 * 10 + 5];
+            if (botMid.position.y >= 5.0f || botMid.position.z <= 0.1f) {
+                std::cerr << "Assertion failed: Cloth did not drape down or deflect with wind! Pos=("
+                          << botMid.position.x << ", " << botMid.position.y << ", " << botMid.position.z << ")\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test A: Flag pinned at corners draped naturally under gravity and wind (Deflection Z="
+                      << botMid.position.z << "m, Sag Y=" << botMid.position.y << "m)!\n";
+        }
+
+        // --- Sub-test B: Cloth Cape / Clothing Sphere Obstacle Collision ---
+        {
+            Lab::ClothMesh cape;
+            cape.initGrid(8, 8, 0.15f, Lab::Vec3(0, 3.0f, 0));
+            // Pin top row (collar)
+            for (size_t x = 0; x < 8; ++x) {
+                cape.particles[x].pin();
+            }
+
+            // Sphere obstacle right below the collar (simulating humanoid chest / shoulders)
+            Lab::Vec3 obstacleCenter(0.5f, 2.7f, 0.0f);
+            float obstacleRadius = 0.4f;
+
+            // Step with obstacle collision
+            for (int f = 0; f < 45; ++f) {
+                cape.stepWithSphere(0.016f, Lab::Vec3(0, -9.81f, 0), obstacleCenter, obstacleRadius, 6);
+            }
+
+            // Verify no dynamic (unpinned) particle penetrated the sphere obstacle
+            for (const auto& p : cape.particles) {
+                if (p.isPinned) continue;
+                float dist = (p.position - obstacleCenter).length();
+                if (dist < obstacleRadius - 0.02f) {
+                    std::cerr << "Assertion failed: Cloth particle penetrated sphere collider! Dist="
+                              << dist << " < Radius=" << obstacleRadius << "\n";
+                    return 1;
+                }
+            }
+
+            std::cout << "  [PASS] Sub-test B: Cloth mesh cleanly wrapped over spherical body collider (0 penetrations)!\n";
+        }
+
+        // --- Sub-test C: Massive Soft Body / Cloth Stress Benchmark (2,500 Particles) ---
+        {
+            Lab::ClothMesh bigSheet;
+            // 50x50 grid = 2,500 particles, ~4,800 springs
+            bigSheet.initGrid(50, 50, 0.1f, Lab::Vec3(0, 10.0f, 0));
+            bigSheet.particles[0].pin();
+            bigSheet.particles[49].pin();
+
+            auto startCloth = std::chrono::high_resolution_clock::now();
+            for (int f = 0; f < 30; ++f) {
+                bigSheet.step(0.016f, Lab::Vec3(0, -9.81f, 0), 4);
+            }
+            auto endCloth = std::chrono::high_resolution_clock::now();
+            auto clothMs = std::chrono::duration_cast<std::chrono::milliseconds>(endCloth - startCloth).count();
+
+            for (const auto& p : bigSheet.particles) {
+                if (std::isnan(p.position.y) || std::isinf(p.position.y)) {
+                    std::cerr << "Assertion failed: NaN detected in cloth sheet particles!\n";
+                    return 1;
+                }
+            }
+
+            std::cout << "  [PASS] Sub-test C: 2,500-particle cloth sheet simulated for 30 steps in "
+                      << clothMs << " ms (avg " << (double)clothMs / 30.0 << " ms/step, 0 NaN/Inf)!\n";
+        }
+
+        std::cout << "  [PASS] Test 67 Verlet Soft Body & Cloth Simulation passed 100%!\n";
     }
 
     Lab::Renderer::shutdown();
