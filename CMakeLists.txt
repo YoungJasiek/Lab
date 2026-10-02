@@ -79,9 +79,11 @@ add_library(LabCore SHARED
     src/LabCore.cpp
     src/LabPlugin.cpp
     src/LabEvent.cpp
+    src/LabSceneNode.cpp
     include/LabCore.h
     include/LabPlugin.h
     include/LabEvent.h
+    include/LabSceneNode.h
     include/LabApplication.h
     include/LabMath.h
     include/LabCamera.h

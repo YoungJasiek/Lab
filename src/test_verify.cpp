@@ -4,6 +4,7 @@
 #include "LabPlugin.h"
 #include "LabApplication.h"
 #include "LabEvent.h"
+#include "LabSceneNode.h"
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -5749,6 +5750,78 @@ int main() {
 
         eb.clear();
         std::cout << "  [PASS] Test 54 Event Bus & Message Dispatcher passed 100%!\n";
+    }
+
+    // 55. Verify Scene Graph Hierarchy (Parent-Child Transforms) & Prefab Instantiation System
+    {
+        std::cout << "\n[Test 55] Verifying Scene Graph Hierarchy & Prefab System...\n";
+
+        // Create parent car chassis
+        auto carChassis = std::make_shared<Lab::SceneNode>("CarChassis");
+        carChassis->setLocalPosition(Lab::Vec3(10.0f, 1.0f, 0.0f));
+
+        // Create front-left wheel attached to chassis
+        auto wheelFL = std::make_shared<Lab::SceneNode>("Wheel_FL");
+        wheelFL->setLocalPosition(Lab::Vec3(1.5f, -0.5f, 2.0f));
+        carChassis->addChild(wheelFL);
+
+        // Verify world position computation: (10 + 1.5, 1 - 0.5, 0 + 2) = (11.5, 0.5, 2.0)
+        Lab::Vec3 wheelWorldPos = wheelFL->getWorldPosition();
+        if (std::abs(wheelWorldPos.x - 11.5f) > 0.001f ||
+            std::abs(wheelWorldPos.y - 0.5f) > 0.001f ||
+            std::abs(wheelWorldPos.z - 2.0f) > 0.001f) {
+            std::cerr << "Assertion failed: Child world position calculation mismatch!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Relative parent-child transform cascading verified!\n";
+
+        // Move parent and verify automatic dirty flag propagation
+        carChassis->setLocalPosition(Lab::Vec3(20.0f, 1.0f, 0.0f));
+        Lab::Vec3 movedWheelPos = wheelFL->getWorldPosition();
+        if (std::abs(movedWheelPos.x - 21.5f) > 0.001f) {
+            std::cerr << "Assertion failed: Dirty flag propagation failed after parent translation!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Dirty-flag transformation caching and re-computation verified!\n";
+
+        // Test Prefab template instantiation
+        Lab::Prefab vehiclePrefab(carChassis);
+        auto clonedVehicle = vehiclePrefab.instantiate();
+        if (!clonedVehicle || clonedVehicle->getChildren().size() != 1) {
+            std::cerr << "Assertion failed: Prefab instantiation failed to deep clone hierarchy!\n";
+            return 1;
+        }
+        clonedVehicle->setLocalPosition(Lab::Vec3(0.0f, 0.0f, 0.0f));
+        Lab::Vec3 cloneWheelPos = clonedVehicle->getChildren()[0]->getWorldPosition();
+        if (std::abs(cloneWheelPos.x - 1.5f) > 0.001f || std::abs(cloneWheelPos.z - 2.0f) > 0.001f) {
+            std::cerr << "Assertion failed: Cloned prefab hierarchy does not compute independent transform!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Prefab template multi-instantiation verified!\n";
+
+        // Benchmark / Stress Test: 10,000 chained SceneNodes (stressing matrix multiplication)
+        auto rootChain = std::make_shared<Lab::SceneNode>("Root");
+        auto current = rootChain;
+        const int chainDepth = 1000;
+        for (int i = 0; i < chainDepth; ++i) {
+            auto child = std::make_shared<Lab::SceneNode>("Node_" + std::to_string(i));
+            child->setLocalPosition(Lab::Vec3(0.1f, 0.0f, 0.0f));
+            current->addChild(child);
+            current = child;
+        }
+
+        auto tStart = std::chrono::high_resolution_clock::now();
+        Lab::Vec3 tipPosition = current->getWorldPosition();
+        auto tEnd = std::chrono::high_resolution_clock::now();
+        double elapsedMicros = std::chrono::duration<double, std::micro>(tEnd - tStart).count();
+
+        float expectedX = chainDepth * 0.1f;
+        if (std::abs(tipPosition.x - expectedX) > 0.01f) {
+            std::cerr << "Assertion failed: Deep hierarchy matrix accumulation mismatch!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Computed 1,000-deep SceneNode hierarchy in " << elapsedMicros << " us (Tip pos X: " << tipPosition.x << ")!\n";
+        std::cout << "  [PASS] Test 55 Scene Graph & Prefab System passed 100%!\n";
     }
 
     Lab::Renderer::shutdown();
