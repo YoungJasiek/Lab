@@ -103,10 +103,11 @@ if(WIN32)
     target_link_libraries(LabCore PUBLIC gdi32 comdlg32)
 endif()
 
-# 2. LabRender.dll - OpenGL 4.5+ DSA Renderer, Lighting, CSG, Decals, Post-process, Skeletal, 2D SpriteBatcher
+# 2. LabRender.dll - OpenGL 4.5+ DSA Renderer, Lighting, CSG, Decals, Post-process, Skeletal, 2D SpriteBatcher, RHI & Render Graph
 add_library(LabRender SHARED
     src/LabRenderer.cpp
     src/LabSpriteBatcher.cpp
+    src/LabRHI.cpp
     src/LabLight.cpp
     src/LabPostProcess.cpp
     src/LabCSG.cpp
@@ -115,6 +116,7 @@ add_library(LabRender SHARED
     src/LabSkeletal.cpp
     include/LabRenderer.h
     include/LabSpriteBatcher.h
+    include/LabRHI.h
     include/LabLight.h
     include/LabPostProcess.h
     include/LabCSG.h

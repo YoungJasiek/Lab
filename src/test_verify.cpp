@@ -9,6 +9,7 @@
 #include "LabPhysics2D.h"
 #include "LabVFS.h"
 #include "LabAsset.h"
+#include "LabRHI.h"
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -6161,6 +6162,109 @@ int main() {
         }
 
         std::cout << "  [PASS] Test 58 VFS & GUID Asset Pipeline passed 100%!\n";
+    }
+
+    // 59. Verify RHI Abstraction & Topological Render Graph (Task #169)
+    {
+        std::cout << "\n[Test 59] Verifying RHI Abstraction & Topological Render Graph...\n";
+
+        // --- Sub-test A: RHI Device & Resource Management ---
+        {
+            auto device = Lab::createRHIDevice(Lab::GraphicsBackend::HeadlessMock);
+            if (!device || device->getBackend() != Lab::GraphicsBackend::HeadlessMock) {
+                std::cerr << "Assertion failed: Failed to instantiate RHI device!\n";
+                return 1;
+            }
+
+            auto buffer = device->createBuffer(1024, Lab::BufferUsage::Vertex);
+            if (!buffer || buffer->getSize() != 1024 || buffer->getUsage() != Lab::BufferUsage::Vertex) {
+                std::cerr << "Assertion failed: RHI buffer allocation mismatch!\n";
+                return 1;
+            }
+
+            std::vector<float> mockVertices = { 0.0f, 1.0f, 2.0f, 3.0f };
+            buffer->updateData(mockVertices.data(), mockVertices.size() * sizeof(float));
+
+            auto texture = device->createTexture(1920, 1080, Lab::TextureFormat::RGBA16F);
+            if (!texture || texture->getWidth() != 1920 || texture->getHeight() != 1080) {
+                std::cerr << "Assertion failed: RHI texture creation mismatch!\n";
+                return 1;
+            }
+            std::cout << "  [PASS] Sub-test A: RHI Device, Buffer, and Texture management verified!\n";
+        }
+
+        // --- Sub-test B: Render Graph Dependency Sorting & Execution ---
+        {
+            Lab::RenderGraph graph;
+            graph.addResource("GBuffer", Lab::TextureFormat::RGBA16F);
+            graph.addResource("ShadowMap", Lab::TextureFormat::Depth24Stencil8);
+            graph.addResource("HDRColor", Lab::TextureFormat::RGBA16F);
+            graph.addResource("BloomTarget", Lab::TextureFormat::RGBA16F);
+            graph.addResource("LDRColor", Lab::TextureFormat::RGBA8);
+
+            int executedSteps = 0;
+            std::vector<std::string> executedNames;
+
+            graph.addPass("ShadowPass")
+                .write("ShadowMap")
+                .setExecute([&]() { executedSteps++; executedNames.push_back("ShadowPass"); });
+
+            graph.addPass("GBufferPass")
+                .write("GBuffer")
+                .setExecute([&]() { executedSteps++; executedNames.push_back("GBufferPass"); });
+
+            graph.addPass("LightingPass")
+                .read("GBuffer")
+                .read("ShadowMap")
+                .write("HDRColor")
+                .setExecute([&]() { executedSteps++; executedNames.push_back("LightingPass"); });
+
+            graph.addPass("BloomPass")
+                .read("HDRColor")
+                .write("BloomTarget")
+                .setExecute([&]() { executedSteps++; executedNames.push_back("BloomPass"); });
+
+            graph.addPass("TonemapPass")
+                .read("HDRColor")
+                .read("BloomTarget")
+                .write("LDRColor")
+                .setExecute([&]() { executedSteps++; executedNames.push_back("TonemapPass"); });
+
+            graph.addPass("UIPass")
+                .read("LDRColor")
+                .setExecute([&]() { executedSteps++; executedNames.push_back("UIPass"); });
+
+            if (!graph.compile()) {
+                std::cerr << "Assertion failed: Render graph compilation (topological sort) failed!\n";
+                return 1;
+            }
+
+            // Benchmark 1,000 graph executions
+            auto startGraph = std::chrono::high_resolution_clock::now();
+            for (int i = 0; i < 1000; ++i) {
+                graph.execute();
+            }
+            auto endGraph = std::chrono::high_resolution_clock::now();
+            auto graphUs = std::chrono::duration_cast<std::chrono::microseconds>(endGraph - startGraph).count();
+
+            // Verify order: LightingPass must be executed after GBuffer and ShadowPass
+            size_t gbufferIdx = 9999, shadowIdx = 9999, lightIdx = 9999;
+            for (size_t i = 0; i < executedNames.size(); ++i) {
+                if (executedNames[i] == "GBufferPass") gbufferIdx = i;
+                if (executedNames[i] == "ShadowPass") shadowIdx = i;
+                if (executedNames[i] == "LightingPass") lightIdx = i;
+            }
+
+            if (lightIdx <= gbufferIdx || lightIdx <= shadowIdx) {
+                std::cerr << "Assertion failed: Topological dependency order violated!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test B: Render Graph compiled & executed with valid topological order in "
+                      << graphUs << " us for 1,000 dispatches (avg " << (double)graphUs / 1000.0 << " us/dispatch)!\n";
+        }
+
+        std::cout << "  [PASS] Test 59 RHI & Render Graph passed 100%!\n";
     }
 
     Lab::Renderer::shutdown();
