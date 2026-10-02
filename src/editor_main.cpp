@@ -5,10 +5,12 @@
 #include "LabExportPipeline.h"
 #include "LabInput.h"
 #include "LabAsset2D.h"
+#include "LabScript.h"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <windows.h>
 #include <iostream>
+#include <sstream>
 #include <filesystem>
 #include <unordered_map>
 #include <unordered_set>
@@ -42,9 +44,19 @@ enum class EngineSimState {
     Paused
 };
 
+enum class EditorWorkspace {
+    World3D = 0,    // 3D Level & Geometry editor (CSG, Brushes, Props, Lights, 3D Camera)
+    Level2D = 1,    // 2D Orthographic editor (Tilemaps, Sprite sheets, 2D Sprites, SpriteBatcher)
+    HUD = 2,        // 2D HUD / UI Canvas designer (Labels, Timers, Bars, Lua bindings)
+    Animation = 3,  // 2D / 3D Animation timeline & playback
+    Scripting = 4   // In-engine Lua script editor & live console
+};
+
 enum class BottomDockTab {
     Console,
-    Profiler
+    Profiler,
+    ScriptEditor,
+    Timeline
 };
 
 class LabEditorApp : public Engine {
@@ -71,8 +83,16 @@ public:
         // Unlock mouse cursor for UI desktop interaction
         setCursorCaptured(false);
 
+        // Initialize Lua Script Engine & World/HUD bindings
+        _scriptEngine.init("");
+        if (_map) {
+            _scriptEngine.setActiveMap(_map.get());
+        }
+        _scriptEngine.executeString(_currentScript);
+
         logMessage("Lab Engine Studio initialized. Ready.");
         logMessage("Textures loaded: " + std::to_string(_availableTextures.size()) + " | Models: " + std::to_string(_availableModels.size()));
+        logMessage("Lua 5.4 Script Engine active. Workspaces: 3D, 2D, HUD, Animation, Scripting.");
         logMessage("Frustum Culling active: 'To czego oko nie widzi tego maszyna renderowac nie musi'");
     }
 
@@ -196,6 +216,7 @@ public:
 
         // Standard ground brush
         MapBrush floor;
+        floor.name = "Floor";
         floor.position = Vec3(0, -0.5f, 0);
         floor.size = Vec3(32.0f, 1.0f, 32.0f);
         floor.color = Vec3(1.0f, 1.0f, 1.0f);
@@ -204,10 +225,26 @@ public:
         floor.uvMode = 1;
         _map->brushes.push_back(floor);
 
+        // Standard dynamic block named "Klocek1" (can be scripted via World.getEntity('Klocek1'))
+        MapBrush block;
+        block.name = "Klocek1";
+        block.script = "assets/scripts/gameplay.lua";
+        block.position = Vec3(0, 1.0f, -4.0f);
+        block.size = Vec3(2.0f, 2.0f, 2.0f);
+        block.color = Vec3(0.95f, 0.55f, 0.15f);
+        block.texturePath = "concrete_wall.bmp";
+        block.uvScale = Vec2(0.25f, 0.25f);
+        block.uvMode = 1;
+        _map->brushes.push_back(block);
+
+        if (_map) {
+            _scriptEngine.setActiveMap(_map.get());
+        }
+
         _currentMapPath = "";
         _selectionType = SelectionType::None;
         _selectedIndex = -1;
-        logMessage("Created New Map.");
+        logMessage("Created New Map with dynamic entity 'Klocek1'.");
     }
 
     void openMapDialog() {
@@ -219,8 +256,46 @@ public:
                 _currentMapPath = openPath;
                 _selectionType = SelectionType::None;
                 _selectedIndex = -1;
+                if (_map) {
+                    _scriptEngine.setActiveMap(_map.get());
+                }
                 logMessage("Loaded Map: " + openPath);
             }
+        }
+    }
+
+    void setWorkspace(EditorWorkspace ws) {
+        _workspace = ws;
+        if (ws == EditorWorkspace::World3D) {
+            _orthoViewMode = false;
+            _camera.setPerspective(70.0f, 16.0f / 9.0f, 0.01f, 3000.0f);
+            logMessage("Workspace: [ 3D World ] (Perspective Level Design & CSG)");
+        } else if (ws == EditorWorkspace::Level2D) {
+            _orthoViewMode = true;
+            _camera.setOrthographic(25.0f, -500.0f, 500.0f);
+            _camera.setPitch(-89.9f);
+            _camera.setYaw(-90.0f);
+            logMessage("Workspace: [ 2D Level ] (Orthographic Tilemap & Sprites)");
+        } else if (ws == EditorWorkspace::HUD) {
+            logMessage("Workspace: [ HUD / UI ] (Interactive 2D HUD Canvas & Lua Bindings)");
+        } else if (ws == EditorWorkspace::Animation) {
+            _bottomDockTab = BottomDockTab::Timeline;
+            logMessage("Workspace: [ Animation ] (Timeline Scrubber & Keyframes)");
+        } else if (ws == EditorWorkspace::Scripting) {
+            _bottomDockTab = BottomDockTab::ScriptEditor;
+            logMessage("Workspace: [ Scripting ] (In-Engine Lua IDE & Live Reload)");
+        }
+    }
+
+    void runCurrentScript() {
+        if (_map) {
+            _scriptEngine.setActiveMap(_map.get());
+        }
+        bool ok = _scriptEngine.executeString(_currentScript);
+        if (ok) {
+            logMessage("Lua Script executed successfully! (OnUpdate & bindings active)");
+        } else {
+            logMessage("Lua Script execution failed (check syntax)!");
         }
     }
 
@@ -245,7 +320,10 @@ public:
             logMessage("In-Editor Simulation: STOPPED");
         } else {
             _simState = EngineSimState::Playing;
-            logMessage("In-Editor Simulation: PLAYING (Live Viewport Physics & Scene Simulation)");
+            if (_map) {
+                _scriptEngine.setActiveMap(_map.get());
+            }
+            logMessage("In-Editor Simulation: PLAYING (Live Viewport Physics & Lua Scripting)");
         }
     }
 
@@ -424,9 +502,37 @@ public:
             _rmbPressed = false;
         }
 
+        // Simulation Tick (Lua OnUpdate & in-editor game mechanics)
+        if (_simState == EngineSimState::Playing) {
+            if (_map) {
+                _scriptEngine.setActiveMap(_map.get());
+            }
+            _scriptEngine.update(time.delta);
+        }
+
+        // Timeline playback in Animation Workspace
+        if (_timelinePlaying) {
+            static float animTimer = 0.0f;
+            animTimer += time.delta;
+            if (animTimer >= 1.0f / 30.0f) {
+                animTimer = 0.0f;
+                _timelineFrame = (_timelineFrame + 1) % 60;
+            }
+        }
+
         // Keyboard Shortcuts
         bool ctrlDown = Input::isKeyPressed(341) || Input::isKeyPressed(345); // Left/Right Ctrl
         bool shiftDown = Input::isKeyPressed(340) || Input::isKeyPressed(344);
+
+        // Ctrl+R: Execute / Reload Lua Script
+        if (ctrlDown && (Input::isKeyPressed('R') || Input::isKeyPressed('r'))) {
+            if (!_ctrlRPressed) {
+                runCurrentScript();
+                _ctrlRPressed = true;
+            }
+        } else {
+            _ctrlRPressed = false;
+        }
 
         // F9: Toggle Live In-Editor Simulation
         if (Input::isKeyPressed(298)) { // GLFW_KEY_F9
@@ -1836,10 +1942,52 @@ public:
             }
         }
 
+        // 4.6. Dropdown View Menu
+        if (_viewMenuOpen) {
+            float menuX = 92.0f;
+            float menuY = 24.0f;
+            float menuW = 240.0f;
+            float menuH = 195.0f;
+            if (mx >= menuX && mx <= menuX + menuW && my >= menuY && my <= menuY + menuH) {
+                int itemIdx = (int)((my - menuY) / 24.0f);
+                if (itemIdx == 0) setWorkspace(EditorWorkspace::World3D);
+                else if (itemIdx == 1) setWorkspace(EditorWorkspace::Level2D);
+                else if (itemIdx == 2) setWorkspace(EditorWorkspace::HUD);
+                else if (itemIdx == 3) setWorkspace(EditorWorkspace::Animation);
+                else if (itemIdx == 4) setWorkspace(EditorWorkspace::Scripting);
+                else if (itemIdx == 5) {
+                    _wireframeMode = !_wireframeMode;
+                    glPolygonMode(GL_FRONT_AND_BACK, _wireframeMode ? GL_LINE : GL_FILL);
+                    logMessage("Wireframe Mode: " + std::string(_wireframeMode ? "ON" : "OFF"));
+                } else if (itemIdx == 6) {
+                    _orthoViewMode = !_orthoViewMode;
+                    if (_orthoViewMode) {
+                        _camera.setOrthographic(25.0f, -500.0f, 500.0f);
+                        _camera.setPitch(-89.9f);
+                        _camera.setYaw(-90.0f);
+                        logMessage("Viewport: Switched to 2D Orthographic Top-Down Projection");
+                    } else {
+                        _camera.setPerspective(70.0f, 16.0f / 9.0f, 0.01f, 3000.0f);
+                        _camera.setPitch(0.0f);
+                        _camera.setYaw(-90.0f);
+                        logMessage("Viewport: Switched to 3D Perspective Projection");
+                    }
+                } else if (itemIdx >= 7) {
+                    _darknessMode = !_darknessMode;
+                    logMessage(_darknessMode ? "Darkness Mode: ACTIVE" : "Darkness Mode: DISABLED");
+                }
+                _viewMenuOpen = false;
+                return;
+            } else {
+                _viewMenuOpen = false;
+            }
+        }
+
         // 5. Top Menu Bar (y: 0..24)
         if (my >= 0.0f && my <= 24.0f) {
             if (mx >= 10.0f && mx <= 50.0f) {
                 _fileMenuOpen = !_fileMenuOpen;
+                _viewMenuOpen = false;
                 _buildMenuOpen = false;
                 return;
             } else if (mx >= 52.0f && mx <= 90.0f) { // Edit
@@ -1847,13 +1995,14 @@ public:
                 else if (_map && !_map->brushes.empty()) { _map->brushes.pop_back(); logMessage("Undo: deleted last brush"); }
                 return;
             } else if (mx >= 92.0f && mx <= 135.0f) { // View
-                _wireframeMode = !_wireframeMode;
-                glPolygonMode(GL_FRONT_AND_BACK, _wireframeMode ? GL_LINE : GL_FILL);
-                logMessage("Wireframe Mode: " + std::string(_wireframeMode ? "ON" : "OFF"));
+                _viewMenuOpen = !_viewMenuOpen;
+                _fileMenuOpen = false;
+                _buildMenuOpen = false;
                 return;
             } else if (mx >= 137.0f && mx <= 185.0f) { // Build
                 _buildMenuOpen = !_buildMenuOpen;
                 _fileMenuOpen = false;
+                _viewMenuOpen = false;
                 return;
             } else if (mx >= 187.0f && mx <= 235.0f) { // Tools
                 _browserOpen = !_browserOpen;
@@ -1866,6 +2015,24 @@ public:
                 return;
             } else if (mx >= 362.0f && mx <= 405.0f) { // Help
                 _helpModalOpen = !_helpModalOpen;
+                return;
+            }
+
+            // Workspace Switcher Bar (Blender / Krita style tabs)
+            if (mx >= 420.0f && mx <= 495.0f) {
+                setWorkspace(EditorWorkspace::World3D);
+                return;
+            } else if (mx >= 500.0f && mx <= 575.0f) {
+                setWorkspace(EditorWorkspace::Level2D);
+                return;
+            } else if (mx >= 580.0f && mx <= 655.0f) {
+                setWorkspace(EditorWorkspace::HUD);
+                return;
+            } else if (mx >= 660.0f && mx <= 745.0f) {
+                setWorkspace(EditorWorkspace::Animation);
+                return;
+            } else if (mx >= 750.0f && mx <= 840.0f) {
+                setWorkspace(EditorWorkspace::Scripting);
                 return;
             }
         }
@@ -2266,6 +2433,33 @@ public:
                     }
                 }
 
+                // Entity Name & Script Assignment buttons
+                float propY = l.rightY + 38.0f;
+                if (my >= propY + 74.0f && my <= propY + 98.0f) {
+                    if (mx >= l.rightX + 10.0f && mx <= l.rightX + 145.0f) {
+                        if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
+                            _map->brushes[_selectedIndex].name = "Klocek1";
+                        } else if (_selectionType == SelectionType::Prop && _selectedIndex >= 0 && _selectedIndex < (int)_map->props.size()) {
+                            _map->props[_selectedIndex].name = "Klocek1";
+                        } else if (_selectionType == SelectionType::Sprite && _selectedIndex >= 0 && _selectedIndex < (int)_map->sprites.size()) {
+                            _map->sprites[_selectedIndex].name = "Klocek1";
+                        }
+                        logMessage("Assigned Name 'Klocek1' (Controllable in Lua via World.getEntity('Klocek1'))");
+                        return;
+                    }
+                    if (mx >= l.rightX + 155.0f && mx <= l.rightX + 295.0f) {
+                        if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
+                            _map->brushes[_selectedIndex].script = "assets/scripts/gameplay.lua";
+                        } else if (_selectionType == SelectionType::Prop && _selectedIndex >= 0 && _selectedIndex < (int)_map->props.size()) {
+                            _map->props[_selectedIndex].script = "assets/scripts/gameplay.lua";
+                        } else if (_selectionType == SelectionType::Sprite && _selectedIndex >= 0 && _selectedIndex < (int)_map->sprites.size()) {
+                            _map->sprites[_selectedIndex].script = "assets/scripts/gameplay.lua";
+                        }
+                        logMessage("Assigned Lua Script 'assets/scripts/gameplay.lua'");
+                        return;
+                    }
+                }
+
                 // UV Scale buttons [0.125] [0.25] [0.5] [1.0]
                 float scales[4] = { 0.125f, 0.25f, 0.5f, 1.0f };
                 for (int i = 0; i < 4; ++i) {
@@ -2387,6 +2581,162 @@ public:
                 }
             }
             return;
+        }
+
+        // 8.5. HUD Canvas Workspace Interactions
+        if (_workspace == EditorWorkspace::HUD) {
+            float vpX = leftW;
+            float vpW = l.rightX - vpX;
+            float vpH = (h - 22.0f) - 58.0f;
+            float cvW = std::min(vpW - 40.0f, 860.0f);
+            float cvH = std::min(vpH - 40.0f, 480.0f);
+            float cvX = vpX + (vpW - cvW) * 0.5f;
+            float cvY = 58.0f + (vpH - cvH) * 0.5f;
+            float btnY = cvY + cvH - 52.0f;
+
+            if (my >= btnY && my <= btnY + 32.0f) {
+                if (mx >= cvX + 20.0f && mx <= cvX + 170.0f) {
+                    toggleSimulation();
+                    return;
+                } else if (mx >= cvX + 180.0f && mx <= cvX + 320.0f) {
+                    static int s_hudSimSec = 0;
+                    s_hudSimSec += 1;
+                    char b[32];
+                    std::snprintf(b, sizeof(b), "TIME: %02d:%02d", s_hudSimSec / 60, s_hudSimSec % 60);
+                    ScriptEngine::setHUDText("TimerLabel", b);
+                    logMessage("HUD Timer triggered +1s: " + std::string(b));
+                    return;
+                } else if (mx >= cvX + 330.0f && mx <= cvX + 450.0f) {
+                    ScriptEngine::setHUDText("TimerLabel", "TIME: 00:00");
+                    logMessage("HUD Timer reset to 00:00.");
+                    return;
+                } else if (mx >= cvX + 460.0f && mx <= cvX + 580.0f) {
+                    float curHp = ScriptEngine::getHUDValue("Health");
+                    if (curHp <= 0.0f) curHp = 100.0f;
+                    curHp = std::max(0.0f, curHp - 15.0f);
+                    ScriptEngine::setHUDValue("Health", curHp);
+                    logMessage("Player took 15 damage! Health: " + std::to_string((int)curHp));
+                    return;
+                } else if (mx >= cvX + 590.0f && mx <= cvX + 710.0f) {
+                    float curHp = ScriptEngine::getHUDValue("Health");
+                    curHp = std::min(100.0f, curHp + 25.0f);
+                    ScriptEngine::setHUDValue("Health", curHp);
+                    logMessage("Player healed +25 HP! Health: " + std::to_string((int)curHp));
+                    return;
+                }
+            }
+        }
+
+        // 8.6. Scripting Workspace IDE Interactions
+        if (_workspace == EditorWorkspace::Scripting) {
+            float vpX = leftW;
+            float vpW = l.rightX - vpX;
+            float vpH = (h - 22.0f) - 58.0f;
+            float edW = std::min(vpW - 40.0f, 920.0f);
+            float edH = std::min(vpH - 40.0f, 520.0f);
+            float edX = vpX + (vpW - edW) * 0.5f;
+            float edY = 58.0f + (vpH - edH) * 0.5f;
+            float actY = edY + 38.0f;
+
+            if (my >= actY && my <= actY + 28.0f) {
+                if (mx >= edX + 14.0f && mx <= edX + 204.0f) {
+                    runCurrentScript();
+                    return;
+                } else if (mx >= edX + 214.0f && mx <= edX + 384.0f) {
+                    _currentScript =
+                        "-- Preset 1: Moving Klocek + HUD Timer\n"
+                        "function OnStart()\n"
+                        "    HUD.setText(\"TimerLabel\", \"TIME: 00:00\")\n"
+                        "    HUD.setValue(\"Health\", 100)\n"
+                        "end\n\n"
+                        "local timer = 0.0\n"
+                        "function OnUpdate(dt)\n"
+                        "    timer = timer + dt\n"
+                        "    local sec = math.floor(timer)\n"
+                        "    HUD.setText(\"TimerLabel\", string.format(\"TIME: %02d:%02d\", math.floor(sec/60), sec%60))\n"
+                        "    local klocek = World.getEntity(\"Klocek1\")\n"
+                        "    if klocek then\n"
+                        "        klocek:move(0, math.sin(timer * 4.0) * 0.05, 0)\n"
+                        "    end\n"
+                        "end\n";
+                    runCurrentScript();
+                    logMessage("Loaded Script Preset: Moving Klocek + HUD Timer.");
+                    return;
+                } else if (mx >= edX + 394.0f && mx <= edX + 554.0f) {
+                    _currentScript =
+                        "-- Preset 2: Player HUD Health & Ammo\n"
+                        "local health = 100.0\n"
+                        "local ammo = 60\n"
+                        "function OnStart()\n"
+                        "    HUD.setValue(\"Health\", health)\n"
+                        "    HUD.setText(\"Ammo\", tostring(ammo) .. \" / 120\")\n"
+                        "end\n\n"
+                        "function OnUpdate(dt)\n"
+                        "    HUD.setValue(\"Health\", health)\n"
+                        "    HUD.setText(\"Ammo\", tostring(ammo) .. \" / 120\")\n"
+                        "end\n";
+                    runCurrentScript();
+                    logMessage("Loaded Script Preset: Player HUD Health & Ammo.");
+                    return;
+                } else if (mx >= edX + 564.0f && mx <= edX + 714.0f) {
+                    _currentScript =
+                        "-- Preset 3: Turret & Continuous Movement\n"
+                        "local angle = 0.0\n"
+                        "function OnUpdate(dt)\n"
+                        "    angle = angle + dt * 2.0\n"
+                        "    local e = World.getEntity(\"Klocek1\")\n"
+                        "    if e then\n"
+                        "        local r = 3.0\n"
+                        "        e:setPosition(math.cos(angle)*r, 1.5, math.sin(angle)*r - 4.0)\n"
+                        "    end\n"
+                        "end\n";
+                    runCurrentScript();
+                    logMessage("Loaded Script Preset: Turret Continuous Movement.");
+                    return;
+                } else if (mx >= edX + 724.0f && mx <= edX + 904.0f) {
+                    if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
+                        _map->brushes[_selectedIndex].name = "Klocek1";
+                        _map->brushes[_selectedIndex].script = "assets/scripts/gameplay.lua";
+                    } else if (_selectionType == SelectionType::Prop && _selectedIndex >= 0 && _selectedIndex < (int)_map->props.size()) {
+                        _map->props[_selectedIndex].name = "Klocek1";
+                        _map->props[_selectedIndex].script = "assets/scripts/gameplay.lua";
+                    } else if (_selectionType == SelectionType::Sprite && _selectedIndex >= 0 && _selectedIndex < (int)_map->sprites.size()) {
+                        _map->sprites[_selectedIndex].name = "Klocek1";
+                        _map->sprites[_selectedIndex].script = "assets/scripts/gameplay.lua";
+                    }
+                    logMessage("Named selected entity 'Klocek1' (Controllable in Lua via World.getEntity('Klocek1'))");
+                    return;
+                }
+            }
+        }
+
+        // 8.7. Animation Workspace Timeline Interactions
+        if (_workspace == EditorWorkspace::Animation) {
+            float vpX = leftW;
+            float vpW = l.rightX - vpX;
+            float tlW = std::min(vpW - 40.0f, 860.0f);
+            float tlH = 75.0f;
+            float tlX = vpX + (vpW - tlW) * 0.5f;
+            float tlY = (h - 22.0f) - tlH - 15.0f;
+
+            if (my >= tlY + 10.0f && my <= tlY + 36.0f) {
+                if (mx >= tlX + 10.0f && mx <= tlX + 90.0f) {
+                    _timelineFrame = 0;
+                    return;
+                } else if (mx >= tlX + 96.0f && mx <= tlX + 196.0f) {
+                    _timelinePlaying = !_timelinePlaying;
+                    return;
+                }
+            }
+            // Scrubber bar click
+            if (my >= tlY + 44.0f && my <= tlY + 62.0f) {
+                float barX = tlX + 10.0f;
+                float barW = tlW - 20.0f;
+                if (mx >= barX && mx <= barX + barW) {
+                    _timelineFrame = std::clamp((int)((mx - barX) / barW * 60.0f), 0, 59);
+                    return;
+                }
+            }
         }
 
         // 9. 3D Viewport Raycast Picking (Selection / Texture Tool / Object placement)
@@ -2771,6 +3121,28 @@ public:
         LabFont::drawText(240.0f, 5.0f, "Input", 1.8f, hovInput ? orangeGlow : (Vec3(0.3f, 0.85f, 1.0f)), LabFontType::System);
         LabFont::drawText(292.0f, 5.0f, "2D Assets", 1.8f, hov2D ? orangeGlow : (Vec3(0.9f, 0.75f, 0.2f)), LabFontType::System);
         LabFont::drawText(368.0f, 5.0f, "Help", 1.8f, hovHelp ? orangeGlow : textLight, LabFontType::System);
+
+        // Blender / Krita style Workspaces Tab Bar: [ 3D World ] [ 2D Level ] [ HUD / UI ] [ Animation ] [ Scripting ]
+        struct WorkspaceTabDef { EditorWorkspace ws; const char* name; float x; float w; };
+        WorkspaceTabDef wsTabs[] = {
+            { EditorWorkspace::World3D,   "3D World",   420.0f, 75.0f },
+            { EditorWorkspace::Level2D,   "2D Level",   500.0f, 75.0f },
+            { EditorWorkspace::HUD,       "HUD / UI",   580.0f, 75.0f },
+            { EditorWorkspace::Animation, "Animation",  660.0f, 85.0f },
+            { EditorWorkspace::Scripting, "Scripting",  750.0f, 85.0f }
+        };
+
+        for (int i = 0; i < 5; ++i) {
+            bool isCur = (_workspace == wsTabs[i].ws);
+            bool isHov = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= wsTabs[i].x && _mouseScreenX <= wsTabs[i].x + wsTabs[i].w);
+            Vec3 tabBg = isCur ? Vec3(0.24f, 0.28f, 0.38f) : (isHov ? Vec3(0.20f, 0.22f, 0.28f) : Vec3(0.12f, 0.13f, 0.16f));
+            Renderer::drawRect(wsTabs[i].x, 2.0f, wsTabs[i].w, 20.0f, tabBg);
+            drawDarkBevel(wsTabs[i].x, 2.0f, wsTabs[i].w, 20.0f, isCur);
+            if (isCur) {
+                Renderer::drawRect(wsTabs[i].x, 20.0f, wsTabs[i].w, 2.0f, cyanGlow);
+            }
+            LabFont::drawText(wsTabs[i].x + 8.0f, 5.0f, wsTabs[i].name, 1.45f, isCur ? cyanGlow : (isHov ? orangeGlow : textLight), LabFontType::System);
+        }
 
         LabFont::drawText(w - 380.0f, 5.0f, "Lab Engine Editor 2026 (LabSDK)", 1.8f, orangeGlow, LabFontType::GeoSans);
 
@@ -3222,7 +3594,28 @@ public:
             LabFont::drawText(l.rightX + 12.0f, propY + 22.0f, posStr, 1.6f, textLight, LabFontType::System);
 
             std::string dimStr = "Size: (" + std::to_string((int)dims.x) + " x " + std::to_string((int)dims.y) + " x " + std::to_string((int)dims.z) + ")";
-            LabFont::drawText(l.rightX + 12.0f, propY + 42.0f, dimStr, 1.6f, textLight, LabFontType::System);
+            LabFont::drawText(l.rightX + 12.0f, propY + 40.0f, dimStr, 1.5f, textLight, LabFontType::System);
+
+            // Entity Name / ID & Lua Script Display
+            std::string entName = "";
+            std::string entScript = "";
+            if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
+                entName = _map->brushes[_selectedIndex].name;
+                entScript = _map->brushes[_selectedIndex].script;
+            } else if (_selectionType == SelectionType::Prop && _selectedIndex >= 0 && _selectedIndex < (int)_map->props.size()) {
+                entName = _map->props[_selectedIndex].name;
+                entScript = _map->props[_selectedIndex].script;
+            } else if (_selectionType == SelectionType::Sprite && _selectedIndex >= 0 && _selectedIndex < (int)_map->sprites.size()) {
+                entName = _map->sprites[_selectedIndex].name;
+                entScript = _map->sprites[_selectedIndex].script;
+            }
+
+            if (_selectionType != SelectionType::None) {
+                std::string nameDisplay = "Entity ID: " + (entName.empty() ? "(unnamed)" : entName);
+                LabFont::drawText(l.rightX + 12.0f, propY + 58.0f, nameDisplay, 1.45f, cyanGlow, LabFontType::System);
+                drawDarkButton(l.rightX + 10.0f, propY + 74.0f, 135.0f, 22.0f, "Set \"Klocek1\"", false, false, true);
+                drawDarkButton(l.rightX + 155.0f, propY + 74.0f, 140.0f, 22.0f, "Assign Script");
+            }
 
             // UV Scale buttons
             LabFont::drawText(l.rightX + 12.0f, l.uvBtnY - 18.0f, "Texture UV Tiling Scale:", 1.7f, textLight, LabFontType::System);
@@ -3306,6 +3699,151 @@ public:
             drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete Selected", false, true);
         }
     }
+
+    // ==================== WORKSPACE OVERLAYS (HUD, Scripting, Animation) ====================
+        float vpX = leftW;
+        float vpY = tbY + tbH;
+        float vpW = l.rightX - vpX;
+        float vpH = (h - 22.0f) - vpY;
+
+        if (_workspace == EditorWorkspace::HUD) {
+            // Interactive 2D HUD Canvas Designer
+            float cvW = std::min(vpW - 40.0f, 860.0f);
+            float cvH = std::min(vpH - 40.0f, 480.0f);
+            float cvX = vpX + (vpW - cvW) * 0.5f;
+            float cvY = vpY + (vpH - cvH) * 0.5f;
+
+            // Screen Canvas Border & Background
+            Renderer::drawRect(cvX, cvY, cvW, cvH, Vec3(0.06f, 0.08f, 0.11f));
+            drawDarkBevel(cvX, cvY, cvW, cvH, true);
+            Renderer::drawRect(cvX, cvY, cvW, 28.0f, Vec3(0.12f, 0.15f, 0.20f));
+            LabFont::drawText(cvX + 12.0f, cvY + 7.0f, "HUD CANVAS DESIGNER - Dynamic Lua 2D Screen Elements (16:9)", 1.5f, cyanGlow, LabFontType::System);
+
+            // 1. Dynamic Timer Element (Bound to ScriptEngine::getHUDText("TimerLabel"))
+            std::string curTimerText = ScriptEngine::getHUDText("TimerLabel");
+            if (curTimerText.empty()) curTimerText = "TIME: 00:00";
+
+            float timerBoxW = 260.0f;
+            float timerBoxH = 46.0f;
+            float timerBoxX = cvX + (cvW - timerBoxW) * 0.5f;
+            float timerBoxY = cvY + 45.0f;
+
+            Renderer::drawRect(timerBoxX, timerBoxY, timerBoxW, timerBoxH, Vec3(0.10f, 0.12f, 0.15f));
+            drawDarkBevel(timerBoxX, timerBoxY, timerBoxW, timerBoxH, false);
+            Renderer::drawRect(timerBoxX, timerBoxY, timerBoxW, 2.0f, Vec3(1.0f, 0.85f, 0.2f));
+            LabFont::drawText(timerBoxX + 25.0f, timerBoxY + 12.0f, curTimerText, 2.2f, Vec3(1.0f, 0.95f, 0.3f), LabFontType::GeoSans);
+
+            // 2. Health & Shield Element (Bound to ScriptEngine::getHUDValue("Health"))
+            float curHealth = ScriptEngine::getHUDValue("Health");
+            if (curHealth <= 0.0f && _simState != EngineSimState::Playing) curHealth = 100.0f;
+            float hpBarW = 200.0f;
+            float hpBarH = 22.0f;
+            float hpX = cvX + 30.0f;
+            float hpY = cvY + cvH - 120.0f;
+
+            LabFont::drawText(hpX, hpY - 18.0f, "HEALTH: " + std::to_string((int)curHealth) + " / 100", 1.5f, greenAccent, LabFontType::System);
+            Renderer::drawRect(hpX, hpY, hpBarW, hpBarH, Vec3(0.15f, 0.16f, 0.18f));
+            drawDarkBevel(hpX, hpY, hpBarW, hpBarH, true);
+            float fillW = std::clamp(curHealth / 100.0f, 0.0f, 1.0f) * (hpBarW - 4.0f);
+            Renderer::drawRect(hpX + 2.0f, hpY + 2.0f, fillW, hpBarH - 4.0f, greenAccent);
+
+            // 3. Ammo Counter Element
+            std::string curAmmo = ScriptEngine::getHUDText("Ammo");
+            if (curAmmo.empty()) curAmmo = "30 / 120";
+            float ammoX = cvX + cvW - 180.0f;
+            float ammoY = cvY + cvH - 120.0f;
+            LabFont::drawText(ammoX, ammoY - 18.0f, "AMMO: " + curAmmo, 1.6f, orangeGlow, LabFontType::System);
+
+            // Simulation Status Banner
+            bool isSim = (_simState == EngineSimState::Playing);
+            std::string simStatus = isSim ? "[ SIMULATION RUNNING: Lua OnUpdate(dt) Active ]" : "[ SIMULATION STOPPED: Press F9 or Click Play ]";
+            LabFont::drawText(cvX + 30.0f, cvY + 110.0f, simStatus, 1.4f, isSim ? greenAccent : textDim, LabFontType::System);
+
+            // Canvas Quick-Control Buttons (at bottom of canvas)
+            float btnY = cvY + cvH - 52.0f;
+            drawDarkButton(cvX + 20.0f, btnY, 150.0f, 32.0f, isSim ? "Stop Sim (F9)" : "> Play Sim (F9)", isSim, false, !isSim);
+            drawDarkButton(cvX + 180.0f, btnY, 140.0f, 32.0f, "+1s Clock", false, false, true);
+            drawDarkButton(cvX + 330.0f, btnY, 120.0f, 32.0f, "Reset Timer");
+            drawDarkButton(cvX + 460.0f, btnY, 120.0f, 32.0f, "-15 Health", false, true);
+            drawDarkButton(cvX + 590.0f, btnY, 120.0f, 32.0f, "+25 Health", false, false, true);
+        } else if (_workspace == EditorWorkspace::Scripting) {
+            // Full In-Engine Lua Script Studio IDE
+            float edW = std::min(vpW - 40.0f, 920.0f);
+            float edH = std::min(vpH - 40.0f, 520.0f);
+            float edX = vpX + (vpW - edW) * 0.5f;
+            float edY = vpY + (vpH - edH) * 0.5f;
+
+            Renderer::drawRect(edX, edY, edW, edH, Vec3(0.08f, 0.09f, 0.12f));
+            drawDarkBevel(edX, edY, edW, edH, true);
+            Renderer::drawRect(edX, edY, edW, 30.0f, Vec3(0.14f, 0.16f, 0.22f));
+            LabFont::drawText(edX + 14.0f, edY + 8.0f, "LUA SCRIPT STUDIO (LabScript v5.4) - Live In-Engine Code & Hot Reload", 1.5f, cyanGlow, LabFontType::System);
+
+            // Actions toolbar
+            float actY = edY + 38.0f;
+            drawDarkButton(edX + 14.0f, actY, 190.0f, 28.0f, "> RUN SCRIPT (Ctrl+R)", false, false, true);
+            drawDarkButton(edX + 214.0f, actY, 170.0f, 28.0f, "Preset: Klocek+Timer");
+            drawDarkButton(edX + 394.0f, actY, 160.0f, 28.0f, "Preset: Player HUD");
+            drawDarkButton(edX + 564.0f, actY, 150.0f, 28.0f, "Preset: Rotation");
+            drawDarkButton(edX + 724.0f, actY, 180.0f, 28.0f, "Name Sel 'Klocek1'", false, false, true);
+
+            // Code Display Area with Line Numbers
+            float codeX = edX + 14.0f;
+            float codeY = actY + 38.0f;
+            float codeW = edW - 28.0f;
+            float codeH = edH - 120.0f;
+            Renderer::drawRect(codeX, codeY, codeW, codeH, Vec3(0.05f, 0.06f, 0.08f));
+            drawDarkBevel(codeX, codeY, codeW, codeH, true);
+
+            // Line numbers column
+            Renderer::drawRect(codeX, codeY, 35.0f, codeH, Vec3(0.08f, 0.09f, 0.11f));
+
+            // Split and render lines
+            std::stringstream ss(_currentScript);
+            std::string line;
+            int lineNum = 1;
+            float curLineY = codeY + 8.0f;
+            while (std::getline(ss, line) && lineNum <= 24) {
+                LabFont::drawText(codeX + 6.0f, curLineY, std::to_string(lineNum), 1.25f, textDim, LabFontType::System);
+                Vec3 lineCol = (line.rfind("--", 0) == 0) ? Vec3(0.35f, 0.75f, 0.35f) :
+                               (line.find("function") != std::string::npos || line.find("end") != std::string::npos) ? orangeGlow :
+                               (line.find("World.") != std::string::npos || line.find("HUD.") != std::string::npos) ? cyanGlow :
+                               Vec3(0.9f, 0.92f, 0.95f);
+                LabFont::drawText(codeX + 42.0f, curLineY, line, 1.35f, lineCol, LabFontType::System);
+                curLineY += 16.0f;
+                lineNum++;
+            }
+
+            // Status Banner at bottom
+            std::string bindInfo = "Bindings: World.getEntity('Klocek1'):move(dx,dy,dz) | HUD.setText('TimerLabel', str) | HUD.setValue('Health', num)";
+            LabFont::drawText(edX + 14.0f, edY + edH - 24.0f, bindInfo, 1.3f, textDim, LabFontType::System);
+        } else if (_workspace == EditorWorkspace::Animation) {
+            // Timeline Scrubber Dock in Animation Workspace
+            float tlW = std::min(vpW - 40.0f, 860.0f);
+            float tlH = 75.0f;
+            float tlX = vpX + (vpW - tlW) * 0.5f;
+            float tlY = (h - 22.0f) - tlH - 15.0f;
+
+            Renderer::drawRect(tlX, tlY, tlW, tlH, Vec3(0.12f, 0.14f, 0.18f));
+            drawDarkBevel(tlX, tlY, tlW, tlH, false);
+
+            drawDarkButton(tlX + 10.0f, tlY + 10.0f, 80.0f, 26.0f, "|< Reset");
+            drawDarkButton(tlX + 96.0f, tlY + 10.0f, 100.0f, 26.0f, _timelinePlaying ? "Pause" : "> Play", _timelinePlaying, false, !_timelinePlaying);
+
+            std::string fInfo = "Frame: " + std::to_string(_timelineFrame) + " / 60  (30 FPS)";
+            LabFont::drawText(tlX + 210.0f, tlY + 15.0f, fInfo, 1.5f, cyanGlow, LabFontType::System);
+
+            // Scrubber Bar
+            float barX = tlX + 10.0f;
+            float barY = tlY + 44.0f;
+            float barW = tlW - 20.0f;
+            float barH = 18.0f;
+            Renderer::drawRect(barX, barY, barW, barH, Vec3(0.08f, 0.09f, 0.11f));
+            drawDarkBevel(barX, barY, barW, barH, true);
+
+            // Playhead indicator
+            float playheadX = barX + (_timelineFrame / 60.0f) * barW;
+            Renderer::drawRect(playheadX - 2.0f, barY, 5.0f, barH, orangeGlow);
+        }
 
     // ==================== 5. BOTTOM DOCK (Console / Profiler) ====================
         float conW = std::min(780.0f, l.rightX - leftW - 40.0f);
@@ -3469,6 +4007,47 @@ public:
                 LabFont::drawText(menuX + 14.0f, iy + 4.0f, bItems[i].name, 1.6f, (i == 0) ? (isHov ? Vec3(0.4f, 1.0f, 0.5f) : Vec3(0.3f, 0.9f, 0.4f)) : (isHov ? orangeGlow : textLight), LabFontType::System);
                 if (!bItems[i].shortcut.empty()) {
                     LabFont::drawText(menuX + menuW - 90.0f, iy + 4.0f, bItems[i].shortcut, 1.4f, textDim, LabFontType::System);
+                }
+            }
+        }
+
+        // ==================== 8.5. DROPDOWN VIEW MENU ====================
+        if (_viewMenuOpen) {
+            float menuX = 92.0f;
+            float menuY = 24.0f;
+            float menuW = 240.0f;
+            float menuH = 195.0f;
+            Vec3 menuBg{ 0.16f, 0.17f, 0.20f };
+            Vec3 menuBorder{ 0.35f, 0.38f, 0.44f };
+            Vec3 menuShadow{ 0.05f, 0.05f, 0.07f };
+
+            Renderer::drawRect(menuX + 3.0f, menuY + 3.0f, menuW, menuH, menuShadow);
+            Renderer::drawRect(menuX, menuY, menuW, menuH, menuBg);
+            drawDarkBevel(menuX, menuY, menuW, menuH, false);
+
+            struct ViewMenuItem { std::string name; std::string shortcut; bool isCurrent; };
+            ViewMenuItem vItems[] = {
+                { "Workspace: 3D World", "", _workspace == EditorWorkspace::World3D },
+                { "Workspace: 2D Level", "", _workspace == EditorWorkspace::Level2D },
+                { "Workspace: HUD / UI", "", _workspace == EditorWorkspace::HUD },
+                { "Workspace: Animation", "", _workspace == EditorWorkspace::Animation },
+                { "Workspace: Scripting", "", _workspace == EditorWorkspace::Scripting },
+                { "Toggle Wireframe", "Z", _wireframeMode },
+                { "Toggle 2D / 3D Ortho", "O", _orthoViewMode },
+                { "Toggle Darkness Mode", "L", _darknessMode }
+            };
+
+            for (int i = 0; i < 8; ++i) {
+                float iy = menuY + 3.0f + i * 24.0f;
+                bool isHov = (_mouseScreenX >= menuX && _mouseScreenX <= menuX + menuW && _mouseScreenY >= iy && _mouseScreenY <= iy + 22.0f);
+                if (isHov) {
+                    Renderer::drawRect(menuX + 2.0f, iy, menuW - 4.0f, 22.0f, Vec3(0.24f, 0.28f, 0.36f));
+                }
+                if (i == 5) Renderer::drawRect(menuX + 6.0f, iy - 2.0f, menuW - 12.0f, 1.0f, menuBorder);
+                Vec3 itemCol = vItems[i].isCurrent ? cyanGlow : (isHov ? orangeGlow : textLight);
+                LabFont::drawText(menuX + 14.0f, iy + 4.0f, vItems[i].name, 1.5f, itemCol, LabFontType::System);
+                if (!vItems[i].shortcut.empty()) {
+                    LabFont::drawText(menuX + menuW - 45.0f, iy + 4.0f, vItems[i].shortcut, 1.4f, textDim, LabFontType::System);
                 }
             }
         }
@@ -3910,6 +4489,7 @@ private:
     bool _buildSuccess = false;
     bool _fileMenuOpen = false;
     bool _buildMenuOpen = false;
+    bool _viewMenuOpen = false;
     bool _wireframeMode = false;
     std::string _currentMapPath = "";
 
@@ -3919,8 +4499,35 @@ private:
 
     // Engine Simulation & Viewport State
     EngineSimState _simState = EngineSimState::Stopped;
+    EditorWorkspace _workspace = EditorWorkspace::World3D;
     bool _orthoViewMode = false;
     BottomDockTab _bottomDockTab = BottomDockTab::Console;
+
+    // In-Engine Lua Scripting & Live Timeline
+    ScriptEngine _scriptEngine;
+    bool _ctrlRPressed = false;
+    std::string _currentScript =
+        "-- Lab Engine Lua Game Script (Lua 5.4)\n"
+        "function OnStart()\n"
+        "    HUD.setText(\"TimerLabel\", \"TIME: 00:00\")\n"
+        "    HUD.setValue(\"Health\", 100)\n"
+        "    HUD.setText(\"Ammo\", \"30 / 120\")\n"
+        "end\n\n"
+        "local timer = 0.0\n"
+        "function OnUpdate(dt)\n"
+        "    timer = timer + dt\n"
+        "    local totalSec = math.floor(timer)\n"
+        "    local mins = math.floor(totalSec / 60)\n"
+        "    local secs = totalSec % 60\n"
+        "    HUD.setText(\"TimerLabel\", string.format(\"TIME: %02d:%02d\", mins, secs))\n\n"
+        "    -- Animate dynamic block Klocek1\n"
+        "    local klocek = World.getEntity(\"Klocek1\")\n"
+        "    if klocek then\n"
+        "        klocek:move(0, math.sin(timer * 3.5) * 0.05, 0)\n"
+        "    end\n"
+        "end\n";
+    int _timelineFrame = 0;
+    bool _timelinePlaying = false;
 
     // Sidebar State
     SidebarTab _sidebarTab = SidebarTab::Properties;

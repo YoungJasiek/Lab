@@ -18,6 +18,8 @@ namespace Lab {
     };
 
     struct MapBrush {
+        std::string name = "";
+        std::string script = "";
         std::string type = "cube";
         Vec3 position = { 0, 0, 0 };
         Vec3 size = { 1, 1, 1 };
@@ -33,6 +35,8 @@ namespace Lab {
     };
 
     struct MapProp {
+        std::string name = "";
+        std::string script = "";
         std::string modelPath = "";
         Vec3 position = { 0, 0, 0 };
         Vec3 rotation = { 0, 0, 0 };
@@ -114,6 +118,8 @@ namespace Lab {
     };
 
     struct MapSprite2D {
+        std::string name = "";
+        std::string script = "";
         std::string texturePath = "";
         Vec3 position = { 0.0f, 0.0f, 0.0f };
         Vec2 size = { 1.0f, 1.0f };
@@ -125,6 +131,18 @@ namespace Lab {
         Vec2 uvMax = { 1.0f, 1.0f };
         std::string animationName = "";
         int frameIndex = 0;
+    };
+
+    struct MapEntityHandle {
+        enum class Type { None, Brush, Prop, Door, Sprite, Light };
+        Type type = Type::None;
+        size_t index = 0;
+        std::string name = "";
+        Vec3* position = nullptr;
+        Vec3* rotation = nullptr;
+        Vec3* color = nullptr;
+
+        bool isValid() const { return type != Type::None && position != nullptr; }
     };
 
     class LabMap {
@@ -141,6 +159,8 @@ namespace Lab {
 
         std::vector<MapSpawnPoint> getSpawnsForTeam(GameMode mode, int team) const;
         MapSpawnPoint selectBestSpawn(GameMode mode, int team, const std::vector<Vec3>& enemyPositions = {}) const;
+
+        MapEntityHandle findEntityByName(const std::string& name);
 
         static std::unique_ptr<LabMap> loadFromFile(const std::string& filePath);
         bool saveToFile(const std::string& filePath) const;

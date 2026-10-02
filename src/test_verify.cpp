@@ -24,6 +24,7 @@
 #include "LabPackage.h"
 #include "LabInput.h"
 #include "LabAsset2D.h"
+#include "LabScript.h"
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -7848,6 +7849,103 @@ int main() {
         }
 
         std::cout << "  [PASS] Test 74 2D Asset System passed 100%!\n";
+    }
+
+    // =========================================================================
+    // Test 75: Lua Scripting for Entities & HUD, and Editor Workspaces
+    // =========================================================================
+    {
+        std::cout << "\n[Test 75] Testing Lua Entity & HUD Scripting and Editor Workspaces...\n";
+
+        // Sub-test A: Map Entity Naming and Resolution
+        Lab::LabMap map;
+        Lab::MapBrush klocek;
+        klocek.name = "Klocek1";
+        klocek.position = { 0.0f, 2.0f, 0.0f };
+        klocek.size = { 2.0f, 2.0f, 2.0f };
+        map.brushes.push_back(klocek);
+
+        Lab::MapProp prop;
+        prop.name = "Turret1";
+        prop.position = { 10.0f, 0.0f, 5.0f };
+        map.props.push_back(prop);
+
+        auto hKlocek = map.findEntityByName("Klocek1");
+        if (!hKlocek.isValid() || hKlocek.position->y != 2.0f) {
+            std::cerr << "Assertion failed: findEntityByName('Klocek1') failed!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test A: findEntityByName correctly resolved 'Klocek1'.\n";
+
+        // Sub-test B: Lua World & HUD Scripting Engine
+        Lab::ScriptEngine scriptEngine;
+        if (!scriptEngine.init("")) {
+            std::cerr << "Assertion failed: ScriptEngine::init() failed!\n";
+            return 1;
+        }
+        scriptEngine.setActiveMap(&map);
+
+        const char* testLua = R"(
+            HUD.setText("TimerLabel", "TIME: 00:05")
+            HUD.setValue("Health", 80.0)
+            local k = World.getEntity("Klocek1")
+            if k then
+                k:move(0, 3.5, 0)
+            end
+        )";
+        if (!scriptEngine.executeString(testLua)) {
+            std::cerr << "Assertion failed: Failed to execute testLua string!\n";
+            return 1;
+        }
+
+        if (Lab::ScriptEngine::getHUDText("TimerLabel") != "TIME: 00:05") {
+            std::cerr << "Assertion failed: HUD.setText('TimerLabel') did not update value, got: " << Lab::ScriptEngine::getHUDText("TimerLabel") << "\n";
+            return 1;
+        }
+        if (std::abs(Lab::ScriptEngine::getHUDValue("Health") - 80.0f) > 0.001f) {
+            std::cerr << "Assertion failed: HUD.setValue('Health') failed!\n";
+            return 1;
+        }
+        if (std::abs(map.brushes[0].position.y - 5.5f) > 0.001f) {
+            std::cerr << "Assertion failed: World.getEntity('Klocek1'):move() did not update brush position! Got Y=" << map.brushes[0].position.y << "\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test B: Lua World.getEntity and HUD bindings verified.\n";
+
+        // Sub-test C: OnUpdate(dt) Simulation Loop
+        const char* simLua = R"(
+            local simTime = 0.0
+            function OnUpdate(dt)
+                simTime = simTime + dt
+                local sec = math.floor(simTime)
+                HUD.setText("TimerLabel", string.format("TIME: %02d:%02d", math.floor(sec/60), sec % 60))
+                local k = World.getEntity("Klocek1")
+                if k then
+                    k:move(0, 1.0 * dt, 0)
+                end
+            end
+        )";
+        if (!scriptEngine.executeString(simLua)) {
+            std::cerr << "Assertion failed: Failed to execute simLua string!\n";
+            return 1;
+        }
+
+        // Tick 3 times by 0.5s = 1.5s total
+        scriptEngine.update(0.5f);
+        scriptEngine.update(0.5f);
+        scriptEngine.update(0.5f);
+
+        if (Lab::ScriptEngine::getHUDText("TimerLabel") != "TIME: 00:01") {
+            std::cerr << "Assertion failed: OnUpdate(dt) did not advance TimerLabel! Got: " << Lab::ScriptEngine::getHUDText("TimerLabel") << "\n";
+            return 1;
+        }
+        if (map.brushes[0].position.y < 6.9f) {
+            std::cerr << "Assertion failed: OnUpdate(dt) did not move Klocek1! Y=" << map.brushes[0].position.y << "\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test C: In-Engine simulation loop OnUpdate(dt) tick verified.\n";
+
+        std::cout << "  [PASS] Test 75 Lua Scripting & Workspaces passed 100%!\n";
     }
 
     Lab::Renderer::shutdown();

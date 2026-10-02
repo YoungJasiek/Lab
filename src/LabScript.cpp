@@ -2,10 +2,12 @@
 #include "LabCore.h"
 #include "LabAudio.h"
 #include "LabInput.h"
+#include "LabMap.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <unordered_map>
 
 extern "C" {
 #include "lua.h"
@@ -15,6 +17,10 @@ extern "C" {
 
 namespace Lab {
 
+    static LabMap* s_activeMap = nullptr;
+    static std::unordered_map<std::string, std::string> s_hudTexts;
+    static std::unordered_map<std::string, float> s_hudValues;
+    static std::unordered_map<std::string, bool> s_hudVisibles;
     static std::function<void(int)> s_doorUnlockCallback = nullptr;
     static std::function<void(const std::string&, const std::string&)> s_serverChatCallback = nullptr;
 
@@ -24,6 +30,301 @@ namespace Lab {
 
     void ScriptEngine::registerServerChatCallback(std::function<void(const std::string&, const std::string&)> callback) {
         s_serverChatCallback = callback;
+    }
+
+    void ScriptEngine::setActiveMap(LabMap* map) {
+        _activeMap = map;
+        s_activeMap = map;
+    }
+
+    void ScriptEngine::setHUDText(const std::string& id, const std::string& text) {
+        s_hudTexts[id] = text;
+    }
+
+    std::string ScriptEngine::getHUDText(const std::string& id) {
+        auto it = s_hudTexts.find(id);
+        return it != s_hudTexts.end() ? it->second : "";
+    }
+
+    void ScriptEngine::setHUDValue(const std::string& id, float val) {
+        s_hudValues[id] = val;
+    }
+
+    float ScriptEngine::getHUDValue(const std::string& id) {
+        auto it = s_hudValues.find(id);
+        return it != s_hudValues.end() ? it->second : 0.0f;
+    }
+
+    void ScriptEngine::setHUDVisible(const std::string& id, bool visible) {
+        s_hudVisibles[id] = visible;
+    }
+
+    bool ScriptEngine::isHUDVisible(const std::string& id) {
+        auto it = s_hudVisibles.find(id);
+        return it != s_hudVisibles.end() ? it->second : true;
+    }
+
+    void ScriptEngine::update(float dt) {
+        if (!_L) return;
+        lua_getglobal(_L, "OnUpdate");
+        if (lua_isfunction(_L, -1)) {
+            lua_pushnumber(_L, (lua_Number)dt);
+            if (lua_pcall(_L, 1, 0, 0) != LUA_OK) {
+                const char* err = lua_tostring(_L, -1);
+                LabLog::error(std::string("[Lua OnUpdate Error] ") + (err ? err : "unknown"));
+                lua_pop(_L, 1);
+            }
+        } else {
+            lua_pop(_L, 1);
+        }
+    }
+
+    // --- HUD Lua Callbacks ---
+    static int lua_HUDSetText(lua_State* L) {
+        const char* id = luaL_checkstring(L, 1);
+        const char* text = luaL_checkstring(L, 2);
+        if (id && text) {
+            ScriptEngine::setHUDText(id, text);
+        }
+        return 0;
+    }
+
+    static int lua_HUDGetText(lua_State* L) {
+        const char* id = luaL_checkstring(L, 1);
+        std::string res = id ? ScriptEngine::getHUDText(id) : "";
+        lua_pushstring(L, res.c_str());
+        return 1;
+    }
+
+    static int lua_HUDSetValue(lua_State* L) {
+        const char* id = luaL_checkstring(L, 1);
+        float val = (float)luaL_checknumber(L, 2);
+        if (id) {
+            ScriptEngine::setHUDValue(id, val);
+        }
+        return 0;
+    }
+
+    static int lua_HUDGetValue(lua_State* L) {
+        const char* id = luaL_checkstring(L, 1);
+        float val = id ? ScriptEngine::getHUDValue(id) : 0.0f;
+        lua_pushnumber(L, (lua_Number)val);
+        return 1;
+    }
+
+    static int lua_HUDSetVisible(lua_State* L) {
+        const char* id = luaL_checkstring(L, 1);
+        bool vis = lua_toboolean(L, 2);
+        if (id) {
+            ScriptEngine::setHUDVisible(id, vis);
+        }
+        return 0;
+    }
+
+    static int lua_HUDIsVisible(lua_State* L) {
+        const char* id = luaL_checkstring(L, 1);
+        bool vis = id ? ScriptEngine::isHUDVisible(id) : true;
+        lua_pushboolean(L, vis);
+        return 1;
+    }
+
+    // --- World & Entity Lua Callbacks ---
+    static int lua_EntitySetPosition(lua_State* L) {
+        const char* name = nullptr;
+        lua_getfield(L, 1, "__name");
+        if (lua_isstring(L, -1)) name = lua_tostring(L, -1);
+        lua_pop(L, 1);
+
+        float x = (float)luaL_checknumber(L, 2);
+        float y = (float)luaL_checknumber(L, 3);
+        float z = (float)luaL_checknumber(L, 4);
+
+        if (name && s_activeMap) {
+            auto h = s_activeMap->findEntityByName(name);
+            if (h.isValid()) {
+                *h.position = { x, y, z };
+            }
+        }
+        return 0;
+    }
+
+    static int lua_EntityGetPosition(lua_State* L) {
+        const char* name = nullptr;
+        lua_getfield(L, 1, "__name");
+        if (lua_isstring(L, -1)) name = lua_tostring(L, -1);
+        lua_pop(L, 1);
+
+        float x = 0.0f, y = 0.0f, z = 0.0f;
+        if (name && s_activeMap) {
+            auto h = s_activeMap->findEntityByName(name);
+            if (h.isValid()) {
+                x = h.position->x;
+                y = h.position->y;
+                z = h.position->z;
+            }
+        }
+        lua_pushnumber(L, x);
+        lua_pushnumber(L, y);
+        lua_pushnumber(L, z);
+        return 3;
+    }
+
+    static int lua_EntityMove(lua_State* L) {
+        const char* name = nullptr;
+        lua_getfield(L, 1, "__name");
+        if (lua_isstring(L, -1)) name = lua_tostring(L, -1);
+        lua_pop(L, 1);
+
+        float dx = (float)luaL_checknumber(L, 2);
+        float dy = (float)luaL_checknumber(L, 3);
+        float dz = (float)luaL_checknumber(L, 4);
+
+        if (name && s_activeMap) {
+            auto h = s_activeMap->findEntityByName(name);
+            if (h.isValid()) {
+                h.position->x += dx;
+                h.position->y += dy;
+                h.position->z += dz;
+            }
+        }
+        return 0;
+    }
+
+    static int lua_EntityGetX(lua_State* L) {
+        const char* name = nullptr;
+        lua_getfield(L, 1, "__name");
+        if (lua_isstring(L, -1)) name = lua_tostring(L, -1);
+        lua_pop(L, 1);
+        float x = 0.0f;
+        if (name && s_activeMap) {
+            auto h = s_activeMap->findEntityByName(name);
+            if (h.isValid()) x = h.position->x;
+        }
+        lua_pushnumber(L, x);
+        return 1;
+    }
+
+    static int lua_EntityGetY(lua_State* L) {
+        const char* name = nullptr;
+        lua_getfield(L, 1, "__name");
+        if (lua_isstring(L, -1)) name = lua_tostring(L, -1);
+        lua_pop(L, 1);
+        float y = 0.0f;
+        if (name && s_activeMap) {
+            auto h = s_activeMap->findEntityByName(name);
+            if (h.isValid()) y = h.position->y;
+        }
+        lua_pushnumber(L, y);
+        return 1;
+    }
+
+    static int lua_EntityGetZ(lua_State* L) {
+        const char* name = nullptr;
+        lua_getfield(L, 1, "__name");
+        if (lua_isstring(L, -1)) name = lua_tostring(L, -1);
+        lua_pop(L, 1);
+        float z = 0.0f;
+        if (name && s_activeMap) {
+            auto h = s_activeMap->findEntityByName(name);
+            if (h.isValid()) z = h.position->z;
+        }
+        lua_pushnumber(L, z);
+        return 1;
+    }
+
+    static int lua_EntitySetX(lua_State* L) {
+        const char* name = nullptr;
+        lua_getfield(L, 1, "__name");
+        if (lua_isstring(L, -1)) name = lua_tostring(L, -1);
+        lua_pop(L, 1);
+        float x = (float)luaL_checknumber(L, 2);
+        if (name && s_activeMap) {
+            auto h = s_activeMap->findEntityByName(name);
+            if (h.isValid()) h.position->x = x;
+        }
+        return 0;
+    }
+
+    static int lua_EntitySetY(lua_State* L) {
+        const char* name = nullptr;
+        lua_getfield(L, 1, "__name");
+        if (lua_isstring(L, -1)) name = lua_tostring(L, -1);
+        lua_pop(L, 1);
+        float y = (float)luaL_checknumber(L, 2);
+        if (name && s_activeMap) {
+            auto h = s_activeMap->findEntityByName(name);
+            if (h.isValid()) h.position->y = y;
+        }
+        return 0;
+    }
+
+    static int lua_EntitySetZ(lua_State* L) {
+        const char* name = nullptr;
+        lua_getfield(L, 1, "__name");
+        if (lua_isstring(L, -1)) name = lua_tostring(L, -1);
+        lua_pop(L, 1);
+        float z = (float)luaL_checknumber(L, 2);
+        if (name && s_activeMap) {
+            auto h = s_activeMap->findEntityByName(name);
+            if (h.isValid()) h.position->z = z;
+        }
+        return 0;
+    }
+
+    static int lua_WorldGetEntity(lua_State* L) {
+        const char* name = luaL_checkstring(L, 1);
+        if (!name || !s_activeMap) {
+            lua_pushnil(L);
+            return 1;
+        }
+
+        auto handle = s_activeMap->findEntityByName(name);
+        if (!handle.isValid()) {
+            lua_pushnil(L);
+            return 1;
+        }
+
+        lua_newtable(L);
+        lua_pushstring(L, name);
+        lua_setfield(L, -2, "__name");
+
+        lua_pushcfunction(L, lua_EntitySetPosition);
+        lua_setfield(L, -2, "setPosition");
+        lua_pushcfunction(L, lua_EntityGetPosition);
+        lua_setfield(L, -2, "getPosition");
+        lua_pushcfunction(L, lua_EntityMove);
+        lua_setfield(L, -2, "move");
+        lua_pushcfunction(L, lua_EntityGetX);
+        lua_setfield(L, -2, "getX");
+        lua_pushcfunction(L, lua_EntityGetY);
+        lua_setfield(L, -2, "getY");
+        lua_pushcfunction(L, lua_EntityGetZ);
+        lua_setfield(L, -2, "getZ");
+        lua_pushcfunction(L, lua_EntitySetX);
+        lua_setfield(L, -2, "setX");
+        lua_pushcfunction(L, lua_EntitySetY);
+        lua_setfield(L, -2, "setY");
+        lua_pushcfunction(L, lua_EntitySetZ);
+        lua_setfield(L, -2, "setZ");
+
+        return 1;
+    }
+
+    static int lua_WorldMoveEntity(lua_State* L) {
+        const char* name = luaL_checkstring(L, 1);
+        float dx = (float)luaL_checknumber(L, 2);
+        float dy = (float)luaL_checknumber(L, 3);
+        float dz = (float)luaL_checknumber(L, 4);
+
+        if (name && s_activeMap) {
+            auto h = s_activeMap->findEntityByName(name);
+            if (h.isValid()) {
+                h.position->x += dx;
+                h.position->y += dy;
+                h.position->z += dz;
+            }
+        }
+        return 0;
     }
 
     // --- Input Lua Callbacks ---
@@ -262,6 +563,30 @@ namespace Lab {
         lua_pushcfunction(_L, lua_InputLoadBindings);
         lua_setfield(_L, -2, "loadBindings");
         lua_setglobal(_L, "Input");
+
+        // Register table 'HUD'
+        lua_newtable(_L);
+        lua_pushcfunction(_L, lua_HUDSetText);
+        lua_setfield(_L, -2, "setText");
+        lua_pushcfunction(_L, lua_HUDGetText);
+        lua_setfield(_L, -2, "getText");
+        lua_pushcfunction(_L, lua_HUDSetValue);
+        lua_setfield(_L, -2, "setValue");
+        lua_pushcfunction(_L, lua_HUDGetValue);
+        lua_setfield(_L, -2, "getValue");
+        lua_pushcfunction(_L, lua_HUDSetVisible);
+        lua_setfield(_L, -2, "setVisible");
+        lua_pushcfunction(_L, lua_HUDIsVisible);
+        lua_setfield(_L, -2, "isVisible");
+        lua_setglobal(_L, "HUD");
+
+        // Register table 'World'
+        lua_newtable(_L);
+        lua_pushcfunction(_L, lua_WorldGetEntity);
+        lua_setfield(_L, -2, "getEntity");
+        lua_pushcfunction(_L, lua_WorldMoveEntity);
+        lua_setfield(_L, -2, "moveEntity");
+        lua_setglobal(_L, "World");
     }
 
     void ScriptEngine::loadEmbeddedFallbackScript() {

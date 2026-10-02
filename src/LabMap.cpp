@@ -409,4 +409,35 @@ namespace Lab {
         return true;
     }
 
+    MapEntityHandle LabMap::findEntityByName(const std::string& name) {
+        if (name.empty()) return {};
+
+        for (size_t i = 0; i < brushes.size(); ++i) {
+            if (brushes[i].name == name) {
+                return { MapEntityHandle::Type::Brush, i, brushes[i].name, &brushes[i].position, nullptr, &brushes[i].color };
+            }
+        }
+        for (size_t i = 0; i < props.size(); ++i) {
+            if (props[i].name == name) {
+                return { MapEntityHandle::Type::Prop, i, props[i].name, &props[i].position, &props[i].rotation, &props[i].color };
+            }
+        }
+        for (size_t i = 0; i < doors.size(); ++i) {
+            if (doors[i].name == name) {
+                return { MapEntityHandle::Type::Door, i, doors[i].name, &doors[i].position, nullptr, &doors[i].color };
+            }
+        }
+        for (size_t i = 0; i < sprites.size(); ++i) {
+            if (sprites[i].name == name) {
+                return { MapEntityHandle::Type::Sprite, i, sprites[i].name, &sprites[i].position, nullptr, nullptr };
+            }
+        }
+        for (size_t i = 0; i < lights.size(); ++i) {
+            if (lights[i].name == name) {
+                return { MapEntityHandle::Type::Light, i, lights[i].name, &lights[i].position, nullptr, &lights[i].color };
+            }
+        }
+        return {};
+    }
+
 } // namespace Lab

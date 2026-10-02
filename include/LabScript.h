@@ -10,6 +10,8 @@ struct lua_State;
 
 namespace Lab {
 
+    class LabMap;
+
     struct DamageResult {
         float finalDamage = 0.0f;
         float absorbedByArmor = 0.0f;
@@ -79,11 +81,27 @@ namespace Lab {
         static void registerDoorUnlockCallback(std::function<void(int)> callback);
         static void registerServerChatCallback(std::function<void(const std::string&, const std::string&)> callback);
 
+        // World & Scene Integration
+        void setActiveMap(LabMap* map);
+        LabMap* getActiveMap() const { return _activeMap; }
+
+        // Per-frame script tick (invokes OnUpdate(dt) in Lua)
+        void update(float dt);
+
+        // Dynamic HUD State Bridge from Lua
+        static void setHUDText(const std::string& id, const std::string& text);
+        static std::string getHUDText(const std::string& id);
+        static void setHUDValue(const std::string& id, float val);
+        static float getHUDValue(const std::string& id);
+        static void setHUDVisible(const std::string& id, bool visible);
+        static bool isHUDVisible(const std::string& id);
+
         bool isLoaded() const { return _L != nullptr; }
 
     private:
         lua_State* _L = nullptr;
         std::string _currentScriptPath;
+        LabMap* _activeMap = nullptr;
 
         // Cached Lua game parameters
         float _maxHealth = 150.0f;
