@@ -7,17 +7,22 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
-
-    runs-on: ubuntu-latest
+  build-windows:
+    name: Windows MSVC Build & Test
+    runs-on: windows-latest
 
     steps:
     - uses: actions/checkout@v4
-    - name: configure
-      run: ./configure
-    - name: make
-      run: make
-    - name: make check
-      run: make check
-    - name: make distcheck
-      run: make distcheck
+
+    - name: Set up MSVC environment
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Configure CMake
+      run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build All Targets
+      run: cmake --build build --config Release
+
+    - name: Run Test Verification Suite
+      working-directory: build/Release
+      run: ./TestVerify.exe
