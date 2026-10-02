@@ -3,6 +3,8 @@
 #include "LabDialogs.h"
 #include "LabProfiler.h"
 #include "LabExportPipeline.h"
+#include "LabInput.h"
+#include "LabAsset2D.h"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <windows.h>
@@ -30,7 +32,8 @@ enum class SelectionType {
     Door,
     Spawn,
     WeaponSpawner,
-    Light
+    Light,
+    Sprite
 };
 
 enum class EngineSimState {
@@ -1683,6 +1686,108 @@ public:
             return;
         }
 
+        // 3.6. Input Modal Handling
+        if (_inputModalOpen) {
+            float bw = 780.0f;
+            float bh = 540.0f;
+            float bx = (w - bw) * 0.5f;
+            float by = (h - bh) * 0.5f;
+
+            // Close button [X]
+            if (mx >= bx + bw - 36.0f && mx <= bx + bw - 6.0f && my >= by + 2.0f && my <= by + 30.0f) {
+                _inputModalOpen = false;
+                return;
+            }
+
+            // Buttons: Save Bindings, Load Bindings, Reset Defaults, Close
+            float btnY = by + bh - 46.0f;
+            if (my >= btnY && my <= btnY + 34.0f) {
+                if (mx >= bx + 24.0f && mx <= bx + 184.0f) {
+                    InputActionManager::instance().saveToFile("assets/config/input_bindings.json");
+                    logMessage("Saved bindings to assets/config/input_bindings.json");
+                    return;
+                } else if (mx >= bx + 194.0f && mx <= bx + 354.0f) {
+                    InputActionManager::instance().loadFromFile("assets/config/input_bindings.json");
+                    logMessage("Loaded bindings from assets/config/input_bindings.json");
+                    return;
+                } else if (mx >= bx + 364.0f && mx <= bx + 514.0f) {
+                    InputActionManager::instance().setupDefaultBindings();
+                    logMessage("Reset input bindings to defaults.");
+                    return;
+                } else if (mx >= bx + bw - 130.0f && mx <= bx + bw - 20.0f) {
+                    _inputModalOpen = false;
+                    return;
+                }
+            }
+            return;
+        }
+
+        // 3.7. 2D Asset Browser & Spritesheet Slicer Modal Handling
+        if (_asset2DModalOpen) {
+            float bw = 840.0f;
+            float bh = 560.0f;
+            float bx = (w - bw) * 0.5f;
+            float by = (h - bh) * 0.5f;
+
+            // Close button [X]
+            if (mx >= bx + bw - 36.0f && mx <= bx + bw - 6.0f && my >= by + 2.0f && my <= by + 30.0f) {
+                _asset2DModalOpen = false;
+                return;
+            }
+
+            // Controls buttons
+            float btnY = by + 76.0f;
+            if (my >= btnY && my <= btnY + 34.0f) {
+                if (mx >= bx + 20.0f && mx <= bx + 180.0f) {
+                    _editorSpriteSheet.setTexturePath(_selectedTexture);
+                    _editorSpriteSheet.sliceGrid(_sliceCols, _sliceRows);
+                    logMessage("Sliced spritesheet into " + std::to_string(_editorSpriteSheet.getFrameCount()) + " frames.");
+                    return;
+                } else if (mx >= bx + 194.0f && mx <= bx + 384.0f) {
+                    if (_map) {
+                        MapSprite2D sp;
+                        sp.texturePath = _selectedTexture;
+                        sp.position = _cursorPos;
+                        sp.size = { 2.0f, 2.0f };
+                        const auto* f = _editorSpriteSheet.getFrame(_selectedSpriteFrame);
+                        if (f) {
+                            sp.uvMin = f->uvMin;
+                            sp.uvMax = f->uvMax;
+                        }
+                        _map->sprites.push_back(sp);
+                        logMessage("Placed 2D Sprite on Map at cursor.");
+                    }
+                    return;
+                } else if (mx >= bx + 398.0f && mx <= bx + 568.0f) {
+                    _editorSpriteSheet.saveToFile("assets/textures/spritesheet.json");
+                    logMessage("Saved spritesheet to assets/textures/spritesheet.json");
+                    return;
+                } else if (mx >= bx + bw - 130.0f && mx <= bx + bw - 20.0f) {
+                    _asset2DModalOpen = false;
+                    return;
+                }
+            }
+
+            // Frame Selection Click
+            float startY = by + 130.0f;
+            float gridY = startY + 24.0f;
+            float thumb = 60.0f;
+            float gap = 12.0f;
+            int cols = 8;
+            for (size_t i = 0; i < std::min((size_t)32, _editorSpriteSheet.getFrameCount()); ++i) {
+                int c = (int)(i % cols);
+                int r = (int)(i / cols);
+                float fx = bx + 24.0f + c * (thumb + gap);
+                float fy = gridY + r * (thumb + gap);
+                if (mx >= fx && mx <= fx + thumb && my >= fy && my <= fy + thumb) {
+                    _selectedSpriteFrame = (int)i;
+                    logMessage("Selected Frame #" + std::to_string(i));
+                    return;
+                }
+            }
+            return;
+        }
+
         // 4. Dropdown File Menu
         if (_fileMenuOpen) {
             float menuX = 10.0f;
@@ -1753,7 +1858,13 @@ public:
             } else if (mx >= 187.0f && mx <= 235.0f) { // Tools
                 _browserOpen = !_browserOpen;
                 return;
-            } else if (mx >= 237.0f && mx <= 280.0f) { // Help
+            } else if (mx >= 237.0f && mx <= 285.0f) { // Input
+                _inputModalOpen = !_inputModalOpen;
+                return;
+            } else if (mx >= 287.0f && mx <= 360.0f) { // 2D Assets
+                _asset2DModalOpen = !_asset2DModalOpen;
+                return;
+            } else if (mx >= 362.0f && mx <= 405.0f) { // Help
                 _helpModalOpen = !_helpModalOpen;
                 return;
             }
@@ -2436,6 +2547,16 @@ public:
                 // Wireframe light bulb cage / glow halo
                 Renderer::drawWireCube(lgt.position, Vec3(0.55f, 0.55f, 0.55f), lgt.color);
             }
+
+            // Render All 2D Sprites in Map
+            for (size_t i = 0; i < _map->sprites.size(); ++i) {
+                const auto& sp = _map->sprites[i];
+                Texture* tex = getTexture(sp.texturePath);
+                Renderer::drawCube(sp.position, Vec3(0.0f, sp.rotation, 0.0f),
+                                   Vec3(sp.size.x, sp.size.y, 0.05f),
+                                   Vec3(sp.color.x, sp.color.y, sp.color.z), tex, false);
+                Renderer::drawWireCube(sp.position, Vec3(sp.size.x, sp.size.y, 0.06f), Vec3(0.2f, 0.85f, 0.95f));
+            }
         }
 
         _cullingStats = "Frustum Culling: Brushes " + std::to_string(renderedBrushes) + "/" + std::to_string(totalBrushes) +
@@ -2525,6 +2646,16 @@ public:
         // 6. Render Modal Build & Export if open
         if (_buildModalOpen) {
             drawBuildModal();
+        }
+
+        // 7. Render Input Actions & Controller Bindings Modal if open
+        if (_inputModalOpen) {
+            drawInputModal();
+        }
+
+        // 8. Render 2D Asset Browser & Spritesheet Slicer Modal if open
+        if (_asset2DModalOpen) {
+            drawAsset2DModal();
         }
 
         Renderer::endFrame();
@@ -2619,21 +2750,27 @@ public:
         bool hovView  = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 92.0f && _mouseScreenX <= 135.0f);
         bool hovBuild = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 137.0f && _mouseScreenX <= 185.0f);
         bool hovTools = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 187.0f && _mouseScreenX <= 235.0f);
-        bool hovHelp  = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 237.0f && _mouseScreenX <= 280.0f);
+        bool hovInput = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 237.0f && _mouseScreenX <= 285.0f);
+        bool hov2D    = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 287.0f && _mouseScreenX <= 360.0f);
+        bool hovHelp  = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 362.0f && _mouseScreenX <= 405.0f);
 
         if (hovFile)  Renderer::drawRect(10.0f, 2.0f, 40.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
         if (hovEdit)  Renderer::drawRect(52.0f, 2.0f, 38.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
         if (hovView)  Renderer::drawRect(92.0f, 2.0f, 43.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
         if (hovBuild) Renderer::drawRect(137.0f, 2.0f, 48.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
         if (hovTools) Renderer::drawRect(187.0f, 2.0f, 48.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
-        if (hovHelp)  Renderer::drawRect(237.0f, 2.0f, 43.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
+        if (hovInput) Renderer::drawRect(237.0f, 2.0f, 48.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
+        if (hov2D)    Renderer::drawRect(287.0f, 2.0f, 73.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
+        if (hovHelp)  Renderer::drawRect(362.0f, 2.0f, 43.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
 
         LabFont::drawText(14.0f, 5.0f, "File", 1.8f, hovFile ? orangeGlow : textLight, LabFontType::System);
         LabFont::drawText(54.0f, 5.0f, "Edit", 1.8f, hovEdit ? orangeGlow : textLight, LabFontType::System);
         LabFont::drawText(94.0f, 5.0f, "View", 1.8f, hovView ? orangeGlow : textLight, LabFontType::System);
         LabFont::drawText(140.0f, 5.0f, "Build", 1.8f, hovBuild ? orangeGlow : (Vec3(0.4f, 0.9f, 0.5f)), LabFontType::System);
         LabFont::drawText(190.0f, 5.0f, "Tools", 1.8f, hovTools ? orangeGlow : textLight, LabFontType::System);
-        LabFont::drawText(240.0f, 5.0f, "Help", 1.8f, hovHelp ? orangeGlow : textLight, LabFontType::System);
+        LabFont::drawText(240.0f, 5.0f, "Input", 1.8f, hovInput ? orangeGlow : (Vec3(0.3f, 0.85f, 1.0f)), LabFontType::System);
+        LabFont::drawText(292.0f, 5.0f, "2D Assets", 1.8f, hov2D ? orangeGlow : (Vec3(0.9f, 0.75f, 0.2f)), LabFontType::System);
+        LabFont::drawText(368.0f, 5.0f, "Help", 1.8f, hovHelp ? orangeGlow : textLight, LabFontType::System);
 
         LabFont::drawText(w - 380.0f, 5.0f, "Lab Engine Editor 2026 (LabSDK)", 1.8f, orangeGlow, LabFontType::GeoSans);
 
@@ -3603,6 +3740,143 @@ public:
         Renderer::endUI();
     }
 
+    void drawInputModal() {
+        int fbW = 0, fbH = 0;
+        getFramebufferSize(fbW, fbH);
+        float w = (fbW > 0) ? (float)fbW : (float)getWidth();
+        float h = (fbH > 0) ? (float)fbH : (float)getHeight();
+
+        Renderer::beginUI((int)w, (int)h);
+
+        // Dark modal overlay
+        Renderer::drawRect(0, 0, w, h, Vec3(0.04f, 0.05f, 0.06f));
+
+        float bw = 780.0f;
+        float bh = 540.0f;
+        float bx = (w - bw) * 0.5f;
+        float by = (h - bh) * 0.5f;
+
+        Renderer::drawRect(bx, by, bw, bh, Vec3(0.16f, 0.17f, 0.20f));
+        drawDarkBevel(bx, by, bw, bh, false);
+
+        // Header Title
+        Renderer::drawRect(bx + 2.0f, by + 2.0f, bw - 4.0f, 28.0f, Vec3(0.14f, 0.22f, 0.34f));
+        LabFont::drawText(bx + 14.0f, by + 8.0f, "Input Actions & Gamepad Controller Mappings (Lua / C++)", 1.8f, Vec3(1, 1, 1), LabFontType::System);
+
+        drawDarkButton(bx + bw - 32.0f, by + 4.0f, 24.0f, 22.0f, "X", false, true);
+
+        // Gamepad Status Banner
+        auto gp = InputActionManager::instance().getGamepadState(0);
+        Vec3 gpStatusCol = gp.connected ? Vec3(0.2f, 0.85f, 0.4f) : Vec3(0.85f, 0.4f, 0.3f);
+        std::string gpText = "Gamepad (Port 0): " + gp.name + (gp.connected ? " [Connected]" : " [Disconnected]");
+        LabFont::drawText(bx + 24.0f, by + 36.0f, gpText, 1.4f, gpStatusCol, LabFontType::System);
+
+        // Table Header
+        float tableY = by + 60.0f;
+        Renderer::drawRect(bx + 20.0f, tableY, bw - 40.0f, 24.0f, Vec3(0.12f, 0.13f, 0.16f));
+        LabFont::drawText(bx + 28.0f, tableY + 5.0f, "Action / Lua Event", 1.4f, Vec3(1.0f, 0.55f, 0.10f), LabFontType::System);
+        LabFont::drawText(bx + 240.0f, tableY + 5.0f, "Keyboard / Mouse", 1.4f, Vec3(1.0f, 0.55f, 0.10f), LabFontType::System);
+        LabFont::drawText(bx + 460.0f, tableY + 5.0f, "Gamepad / Controller", 1.4f, Vec3(1.0f, 0.55f, 0.10f), LabFontType::System);
+
+        // Table Rows
+        const auto& actions = InputActionManager::instance().getActions();
+        float rowY = tableY + 28.0f;
+        int actIdx = 0;
+        for (const auto& [name, act] : actions) {
+            if (actIdx++ >= 11) break;
+            Renderer::drawRect(bx + 20.0f, rowY, bw - 40.0f, 26.0f, (actIdx % 2 == 0) ? Vec3(0.19f, 0.20f, 0.23f) : Vec3(0.22f, 0.23f, 0.26f));
+
+            std::string keyLabel = "Unassigned";
+            std::string padLabel = "Unassigned";
+            for (const auto& b : act.bindings) {
+                if (b.device == InputDevice::Keyboard) keyLabel = InputActionManager::keyToString(b.code);
+                else if (b.device == InputDevice::Mouse) keyLabel = InputActionManager::mouseButtonToString(b.code);
+                else if (b.device == InputDevice::Gamepad) padLabel = InputActionManager::gamepadButtonToString(static_cast<GamepadButton>(b.code));
+            }
+
+            LabFont::drawText(bx + 28.0f, rowY + 6.0f, name + " (" + act.description + ")", 1.35f, Vec3(0.95f, 0.95f, 0.95f), LabFontType::System);
+            LabFont::drawText(bx + 240.0f, rowY + 6.0f, keyLabel, 1.35f, Vec3(0.4f, 0.85f, 1.0f), LabFontType::System);
+            LabFont::drawText(bx + 460.0f, rowY + 6.0f, padLabel, 1.35f, Vec3(0.5f, 1.0f, 0.6f), LabFontType::System);
+
+            rowY += 28.0f;
+        }
+
+        // Action Buttons at bottom
+        float btnY = by + bh - 46.0f;
+        drawDarkButton(bx + 24.0f, btnY, 160.0f, 32.0f, "Save Bindings (.json)", false, false, true);
+        drawDarkButton(bx + 194.0f, btnY, 160.0f, 32.0f, "Load Bindings (.json)", false, false, true);
+        drawDarkButton(bx + 364.0f, btnY, 150.0f, 32.0f, "Reset Defaults", false, false, true);
+        drawDarkButton(bx + bw - 130.0f, btnY, 110.0f, 32.0f, "Close", false, false, false);
+
+        Renderer::endUI();
+    }
+
+    void drawAsset2DModal() {
+        int fbW = 0, fbH = 0;
+        getFramebufferSize(fbW, fbH);
+        float w = (fbW > 0) ? (float)fbW : (float)getWidth();
+        float h = (fbH > 0) ? (float)fbH : (float)getHeight();
+
+        Renderer::beginUI((int)w, (int)h);
+
+        // Dark modal overlay
+        Renderer::drawRect(0, 0, w, h, Vec3(0.04f, 0.05f, 0.06f));
+
+        float bw = 840.0f;
+        float bh = 560.0f;
+        float bx = (w - bw) * 0.5f;
+        float by = (h - bh) * 0.5f;
+
+        Renderer::drawRect(bx, by, bw, bh, Vec3(0.16f, 0.17f, 0.20f));
+        drawDarkBevel(bx, by, bw, bh, false);
+
+        // Header Title
+        Renderer::drawRect(bx + 2.0f, by + 2.0f, bw - 4.0f, 28.0f, Vec3(0.14f, 0.22f, 0.34f));
+        LabFont::drawText(bx + 14.0f, by + 8.0f, "2D Asset Browser & Spritesheet Slicer (Native SpriteBatcher)", 1.8f, Vec3(1, 1, 1), LabFontType::System);
+
+        drawDarkButton(bx + bw - 32.0f, by + 4.0f, 24.0f, 22.0f, "X", false, true);
+
+        // Controls bar: Texture name, grid dimensions, buttons
+        LabFont::drawText(bx + 24.0f, by + 42.0f, "Active Texture: " + _selectedTexture + " | Grid Slicing: " + std::to_string(_sliceCols) + " cols x " + std::to_string(_sliceRows) + " rows", 1.4f, Vec3(1.0f, 0.55f, 0.10f), LabFontType::System);
+
+        float btnY = by + 76.0f;
+        drawDarkButton(bx + 20.0f, btnY, 160.0f, 32.0f, "Slice Grid (4x4)", false, false, true);
+        drawDarkButton(bx + 194.0f, btnY, 190.0f, 32.0f, "Place 2D Sprite on Map", false, false, true);
+        drawDarkButton(bx + 398.0f, btnY, 170.0f, 32.0f, "Save Spritesheet (.json)", false, false, true);
+        drawDarkButton(bx + bw - 130.0f, btnY, 110.0f, 32.0f, "Close", false, false, false);
+
+        // Spritesheet preview & sliced frames gallery
+        float startY = by + 130.0f;
+        LabFont::drawText(bx + 24.0f, startY, "Sliced Frames (" + std::to_string(_editorSpriteSheet.getFrameCount()) + " frames generated):", 1.45f, Vec3(0.9f, 0.9f, 0.9f), LabFontType::System);
+
+        float thumb = 60.0f;
+        float gap = 12.0f;
+        int cols = 8;
+        float gridY = startY + 24.0f;
+
+        for (size_t i = 0; i < std::min((size_t)32, _editorSpriteSheet.getFrameCount()); ++i) {
+            int c = (int)(i % cols);
+            int r = (int)(i / cols);
+            float fx = bx + 24.0f + c * (thumb + gap);
+            float fy = gridY + r * (thumb + gap);
+
+            bool isSel = ((int)i == _selectedSpriteFrame);
+            Renderer::drawRect(fx - 2.0f, fy - 2.0f, thumb + 4.0f, thumb + 4.0f, isSel ? Vec3(1.0f, 0.55f, 0.10f) : Vec3(0.24f, 0.25f, 0.28f));
+            drawDarkBevel(fx - 2.0f, fy - 2.0f, thumb + 4.0f, thumb + 4.0f, isSel);
+
+            const auto* frame = _editorSpriteSheet.getFrame(i);
+            if (frame && _textures.contains(_selectedTexture)) {
+                Renderer::drawTextureRect(fx, fy, thumb, thumb, *_textures[_selectedTexture], frame->uvMin.x, frame->uvMin.y, frame->uvMax.x, frame->uvMax.y);
+            } else {
+                Renderer::drawRect(fx, fy, thumb, thumb, Vec3(0.1f, 0.1f, 0.1f));
+            }
+
+            LabFont::drawText(fx + 2.0f, fy + thumb - 12.0f, "#" + std::to_string(i), 1.1f, Vec3(1, 1, 1), LabFontType::System);
+        }
+
+        Renderer::endUI();
+    }
+
     void onShutdown() override {
         Renderer::shutdown();
     }
@@ -3625,6 +3899,12 @@ private:
     bool _modelBrowserOpen = false;
     bool _helpModalOpen = false;
     bool _buildModalOpen = false;
+    bool _inputModalOpen = false;
+    bool _asset2DModalOpen = false;
+    SpriteSheet2D _editorSpriteSheet;
+    int _sliceCols = 4;
+    int _sliceRows = 4;
+    int _selectedSpriteFrame = 0;
     ExportSettings _exportSettings;
     std::string _lastBuildLog = "";
     bool _buildSuccess = false;

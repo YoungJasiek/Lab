@@ -1,6 +1,7 @@
 #include "LabScript.h"
 #include "LabCore.h"
 #include "LabAudio.h"
+#include "LabInput.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -23,6 +24,117 @@ namespace Lab {
 
     void ScriptEngine::registerServerChatCallback(std::function<void(const std::string&, const std::string&)> callback) {
         s_serverChatCallback = callback;
+    }
+
+    // --- Input Lua Callbacks ---
+    static int lua_InputRegisterAction(lua_State* L) {
+        const char* name = luaL_checkstring(L, 1);
+        const char* desc = luaL_optstring(L, 2, "");
+        if (name) {
+            InputActionManager::instance().registerAction(name, desc);
+            if (lua_gettop(L) >= 3) {
+                if (lua_isstring(L, 3)) {
+                    int k = InputActionManager::stringToKey(lua_tostring(L, 3));
+                    if (k != 0) InputActionManager::instance().bindKeyToAction(name, k);
+                } else if (lua_isinteger(L, 3)) {
+                    InputActionManager::instance().bindKeyToAction(name, (int)lua_tointeger(L, 3));
+                }
+            }
+            if (lua_gettop(L) >= 4 && lua_isstring(L, 4)) {
+                GamepadButton btn = InputActionManager::stringToGamepadButton(lua_tostring(L, 4));
+                InputActionManager::instance().bindGamepadButtonToAction(name, btn);
+            }
+        }
+        return 0;
+    }
+
+    static int lua_InputRegisterAxis(lua_State* L) {
+        const char* name = luaL_checkstring(L, 1);
+        const char* desc = luaL_optstring(L, 2, "");
+        if (name) {
+            InputActionManager::instance().registerAxis(name, desc);
+            if (lua_gettop(L) >= 4) {
+                int posKey = lua_isstring(L, 3) ? InputActionManager::stringToKey(lua_tostring(L, 3)) : (int)lua_tointeger(L, 3);
+                int negKey = lua_isstring(L, 4) ? InputActionManager::stringToKey(lua_tostring(L, 4)) : (int)lua_tointeger(L, 4);
+                if (posKey != 0 || negKey != 0) {
+                    InputActionManager::instance().bindKeysToAxis(name, posKey, negKey);
+                }
+            }
+            if (lua_gettop(L) >= 5 && lua_isstring(L, 5)) {
+                GamepadAxis ga = InputActionManager::stringToGamepadAxis(lua_tostring(L, 5));
+                InputActionManager::instance().bindGamepadAxisToAxis(name, ga);
+            }
+        }
+        return 0;
+    }
+
+    static int lua_InputIsActionPressed(lua_State* L) {
+        const char* name = luaL_checkstring(L, 1);
+        bool pressed = name ? InputActionManager::instance().isActionPressed(name) : false;
+        lua_pushboolean(L, pressed);
+        return 1;
+    }
+
+    static int lua_InputIsActionJustPressed(lua_State* L) {
+        const char* name = luaL_checkstring(L, 1);
+        bool pressed = name ? InputActionManager::instance().isActionJustPressed(name) : false;
+        lua_pushboolean(L, pressed);
+        return 1;
+    }
+
+    static int lua_InputIsActionJustReleased(lua_State* L) {
+        const char* name = luaL_checkstring(L, 1);
+        bool rel = name ? InputActionManager::instance().isActionJustReleased(name) : false;
+        lua_pushboolean(L, rel);
+        return 1;
+    }
+
+    static int lua_InputGetAxis(lua_State* L) {
+        const char* name = luaL_checkstring(L, 1);
+        float val = name ? InputActionManager::instance().getAxis(name) : 0.0f;
+        lua_pushnumber(L, (lua_Number)val);
+        return 1;
+    }
+
+    static int lua_InputBindKey(lua_State* L) {
+        const char* act = luaL_checkstring(L, 1);
+        if (act) {
+            int k = lua_isstring(L, 2) ? InputActionManager::stringToKey(lua_tostring(L, 2)) : (int)lua_tointeger(L, 2);
+            InputActionManager::instance().bindKeyToAction(act, k);
+        }
+        return 0;
+    }
+
+    static int lua_InputBindGamepadButton(lua_State* L) {
+        const char* act = luaL_checkstring(L, 1);
+        const char* btn = luaL_checkstring(L, 2);
+        if (act && btn) {
+            InputActionManager::instance().bindGamepadButtonToAction(act, InputActionManager::stringToGamepadButton(btn));
+        }
+        return 0;
+    }
+
+    static int lua_InputBindGamepadAxis(lua_State* L) {
+        const char* ax = luaL_checkstring(L, 1);
+        const char* btn = luaL_checkstring(L, 2);
+        if (ax && btn) {
+            InputActionManager::instance().bindGamepadAxisToAxis(ax, InputActionManager::stringToGamepadAxis(btn));
+        }
+        return 0;
+    }
+
+    static int lua_InputSaveBindings(lua_State* L) {
+        const char* path = luaL_checkstring(L, 1);
+        bool ok = path ? InputActionManager::instance().saveToFile(path) : false;
+        lua_pushboolean(L, ok);
+        return 1;
+    }
+
+    static int lua_InputLoadBindings(lua_State* L) {
+        const char* path = luaL_checkstring(L, 1);
+        bool ok = path ? InputActionManager::instance().loadFromFile(path) : false;
+        lua_pushboolean(L, ok);
+        return 1;
     }
 
     // --- Lua C Function Callbacks ---
@@ -124,6 +236,32 @@ namespace Lab {
         lua_setfield(_L, -2, "addChatMessage");
 
         lua_setglobal(_L, "Lab");
+
+        // Register table 'Input'
+        lua_newtable(_L);
+        lua_pushcfunction(_L, lua_InputRegisterAction);
+        lua_setfield(_L, -2, "registerAction");
+        lua_pushcfunction(_L, lua_InputRegisterAxis);
+        lua_setfield(_L, -2, "registerAxis");
+        lua_pushcfunction(_L, lua_InputIsActionPressed);
+        lua_setfield(_L, -2, "isActionPressed");
+        lua_pushcfunction(_L, lua_InputIsActionJustPressed);
+        lua_setfield(_L, -2, "isActionJustPressed");
+        lua_pushcfunction(_L, lua_InputIsActionJustReleased);
+        lua_setfield(_L, -2, "isActionJustReleased");
+        lua_pushcfunction(_L, lua_InputGetAxis);
+        lua_setfield(_L, -2, "getAxis");
+        lua_pushcfunction(_L, lua_InputBindKey);
+        lua_setfield(_L, -2, "bindKey");
+        lua_pushcfunction(_L, lua_InputBindGamepadButton);
+        lua_setfield(_L, -2, "bindGamepadButton");
+        lua_pushcfunction(_L, lua_InputBindGamepadAxis);
+        lua_setfield(_L, -2, "bindGamepadAxis");
+        lua_pushcfunction(_L, lua_InputSaveBindings);
+        lua_setfield(_L, -2, "saveBindings");
+        lua_pushcfunction(_L, lua_InputLoadBindings);
+        lua_setfield(_L, -2, "loadBindings");
+        lua_setglobal(_L, "Input");
     }
 
     void ScriptEngine::loadEmbeddedFallbackScript() {

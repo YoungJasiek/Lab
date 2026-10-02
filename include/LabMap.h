@@ -113,6 +113,20 @@ namespace Lab {
         float spotAngle = 45.0f;
     };
 
+    struct MapSprite2D {
+        std::string texturePath = "";
+        Vec3 position = { 0.0f, 0.0f, 0.0f };
+        Vec2 size = { 1.0f, 1.0f };
+        float rotation = 0.0f;
+        int layer = 0;
+        bool billboard = true; // Faces camera in 3D or fixed in 2D
+        Vec4 color = { 1.0f, 1.0f, 1.0f, 1.0f };
+        Vec2 uvMin = { 0.0f, 0.0f };
+        Vec2 uvMax = { 1.0f, 1.0f };
+        std::string animationName = "";
+        int frameIndex = 0;
+    };
+
     class LabMap {
     public:
         MapMetadata metadata;
@@ -123,6 +137,7 @@ namespace Lab {
         std::vector<MapSpawnPoint> spawnPoints;
         std::vector<MapWeaponSpawner> weaponSpawners;
         std::vector<MapLight> lights;
+        std::vector<MapSprite2D> sprites;
 
         std::vector<MapSpawnPoint> getSpawnsForTeam(GameMode mode, int team) const;
         MapSpawnPoint selectBestSpawn(GameMode mode, int team, const std::vector<Vec3>& enemyPositions = {}) const;

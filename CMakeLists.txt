@@ -77,6 +77,7 @@ set(LAB_INCLUDES
 # 1. LabCore.dll - Core application lifecycle, Input, Math, Camera, Fonts, Dialogs, VFS, Asset Pipeline, Command/Undo, Export
 add_library(LabCore SHARED
     src/LabCore.cpp
+    src/LabInput.cpp
     src/LabPlugin.cpp
     src/LabEvent.cpp
     src/LabSceneNode.cpp
@@ -88,6 +89,7 @@ add_library(LabCore SHARED
     src/LabVCS.cpp
     src/LabPackage.cpp
     include/LabCore.h
+    include/LabInput.h
     include/LabPlugin.h
     include/LabEvent.h
     include/LabSceneNode.h
@@ -116,6 +118,7 @@ endif()
 # 2. LabRender.dll - OpenGL 4.5+ DSA Renderer, Lighting, CSG, Decals, Post-process, Skeletal, 2D SpriteBatcher, RHI & Render Graph
 add_library(LabRender SHARED
     src/LabRenderer.cpp
+    src/LabAsset2D.cpp
     src/LabSpriteBatcher.cpp
     src/LabRHI.cpp
     src/LabLight.cpp
@@ -125,6 +128,7 @@ add_library(LabRender SHARED
     src/LabFace.cpp
     src/LabSkeletal.cpp
     include/LabRenderer.h
+    include/LabAsset2D.h
     include/LabSpriteBatcher.h
     include/LabRHI.h
     include/LabLight.h
@@ -136,6 +140,7 @@ add_library(LabRender SHARED
 )
 target_include_directories(LabRender PUBLIC ${LAB_INCLUDES})
 target_compile_options(LabRender PRIVATE ${COMPILER_FLAGS})
+target_compile_definitions(LabRender PRIVATE LAB_RENDER_BUILD)
 target_link_libraries(LabRender PUBLIC LabCore glad OpenGL::GL)
 
 # 3. LabAudio.dll - 3D Spatial Audio Engine, Procedural WAV Synthesizer

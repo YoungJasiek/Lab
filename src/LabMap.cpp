@@ -201,6 +201,19 @@ namespace Lab {
                     if (lt.intensity <= 0.0f) lt.intensity = 2.0f;
                     if (lt.radius <= 0.0f) lt.radius = 12.0f;
                     map->lights.push_back(lt);
+                } else if (token == "sprite_2d" || token == "sprite") {
+                    MapSprite2D sp;
+                    int bb = 1;
+                    ss >> sp.texturePath
+                       >> sp.position.x >> sp.position.y >> sp.position.z
+                       >> sp.size.x >> sp.size.y
+                       >> sp.rotation >> sp.layer >> bb
+                       >> sp.color.x >> sp.color.y >> sp.color.z >> sp.color.w
+                       >> sp.uvMin.x >> sp.uvMin.y >> sp.uvMax.x >> sp.uvMax.y;
+                    sp.billboard = (bb != 0);
+                    if (sp.size.x <= 0.0f) sp.size.x = 1.0f;
+                    if (sp.size.y <= 0.0f) sp.size.y = 1.0f;
+                    map->sprites.push_back(sp);
                 }
             }
         }
@@ -380,6 +393,15 @@ namespace Lab {
                  << lt.position.x << " " << lt.position.y << " " << lt.position.z << " "
                  << lt.color.x << " " << lt.color.y << " " << lt.color.z << " "
                  << lt.intensity << " " << lt.radius << " " << typeStr << "\n";
+        }
+
+        for (const auto& sp : sprites) {
+            file << "    sprite_2d " << (sp.texturePath.empty() ? "\"\"" : sp.texturePath) << " "
+                 << sp.position.x << " " << sp.position.y << " " << sp.position.z << " "
+                 << sp.size.x << " " << sp.size.y << " "
+                 << sp.rotation << " " << sp.layer << " " << (sp.billboard ? 1 : 0) << " "
+                 << sp.color.x << " " << sp.color.y << " " << sp.color.z << " " << sp.color.w << " "
+                 << sp.uvMin.x << " " << sp.uvMin.y << " " << sp.uvMax.x << " " << sp.uvMax.y << "\n";
         }
 
         file << "END_ENTITIES\n";

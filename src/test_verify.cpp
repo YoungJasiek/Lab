@@ -22,6 +22,8 @@
 #include "LabProfiler.h"
 #include "LabVCS.h"
 #include "LabPackage.h"
+#include "LabInput.h"
+#include "LabAsset2D.h"
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -7601,6 +7603,251 @@ int main() {
         }
 
         std::cout << "  [PASS] Test 72 One-Click Build & Export Pipeline passed 100%!\n";
+    }
+
+    // =========================================================================
+    // Test 73: Input Action & Binding System (Lua API, Gamepads, Deadzones, JSON)
+    // =========================================================================
+    {
+        std::cout << "[Test 73] Validating Input Action & Binding System (Lua, Gamepads, Config)...\n";
+        auto& inputMgr = Lab::InputActionManager::instance();
+
+        // Sub-test A: Action registration and bindings
+        {
+            inputMgr.registerAction("TestDash", "Quick dodge maneuver");
+            inputMgr.bindKeyToAction("TestDash", GLFW_KEY_LEFT_SHIFT);
+            inputMgr.bindGamepadButtonToAction("TestDash", Lab::GamepadButton::B);
+
+            if (!inputMgr.hasAction("TestDash")) {
+                std::cerr << "Assertion failed: TestDash action was not registered!\n";
+                return 1;
+            }
+            const auto& act = inputMgr.getActions().at("TestDash");
+            if (act.bindings.size() != 2) {
+                std::cerr << "Assertion failed: TestDash should have 2 bindings (Keyboard and Gamepad)!\n";
+                return 1;
+            }
+            std::cout << "  [PASS] Sub-test A: Action 'TestDash' registered with multi-device bindings.\n";
+        }
+
+        // Sub-test B: Analog Axis registration and deadzone handling
+        {
+            inputMgr.registerAxis("MoveHorizontal", "Horizontal movement");
+            inputMgr.bindKeysToAxis("MoveHorizontal", GLFW_KEY_D, GLFW_KEY_A, 1.0f);
+            inputMgr.bindGamepadAxisToAxis("MoveHorizontal", Lab::GamepadAxis::LeftX, 1.0f, 0.20f, false);
+
+            if (!inputMgr.hasAxis("MoveHorizontal")) {
+                std::cerr << "Assertion failed: MoveHorizontal axis not found!\n";
+                return 1;
+            }
+            const auto& ax = inputMgr.getAxes().at("MoveHorizontal");
+            if (ax.bindings.size() != 2) {
+                std::cerr << "Assertion failed: MoveHorizontal should have 2 bindings!\n";
+                return 1;
+            }
+            std::cout << "  [PASS] Sub-test B: Analog axis 'MoveHorizontal' with deadzone configured.\n";
+        }
+
+        // Sub-test C: JSON serialization and roundtrip
+        {
+            std::string configPath = "build/test_input_bindings.json";
+            bool saved = inputMgr.saveToFile(configPath);
+            if (!saved || !std::filesystem::exists(configPath)) {
+                std::cerr << "Assertion failed: Failed to save input bindings to JSON!\n";
+                return 1;
+            }
+            bool loaded = inputMgr.loadFromFile(configPath);
+            if (!loaded) {
+                std::cerr << "Assertion failed: Failed to load input bindings from JSON!\n";
+                return 1;
+            }
+            if (!inputMgr.hasAction("TestDash") || !inputMgr.hasAxis("MoveHorizontal")) {
+                std::cerr << "Assertion failed: Actions not restored after loading from JSON!\n";
+                return 1;
+            }
+            std::cout << "  [PASS] Sub-test C: JSON serialization roundtrip verified successfully.\n";
+        }
+
+        // Sub-test D: Lua Script Engine Input API
+        {
+            Lab::ScriptEngine scriptEngine;
+            bool ok = scriptEngine.init();
+            if (!ok) {
+                std::cerr << "Assertion failed: Failed to initialize ScriptEngine for Lua input test!\n";
+                return 1;
+            }
+            const char* luaCode = R"(
+                Input.registerAction("LuaSpecialAttack", "Ultimate ability", "F", "Y")
+                Input.registerAxis("LuaThrottle", "Vehicle throttle", "W", "S", "RightTrigger")
+                Input.bindKey("LuaSpecialAttack", "Q")
+                Input.bindGamepadButton("LuaSpecialAttack", "RightBumper")
+                
+                local isPressed = Input.isActionPressed("LuaSpecialAttack")
+                local axisVal = Input.getAxis("LuaThrottle")
+                Input.saveBindings("build/test_lua_bindings.json")
+            )";
+            bool executed = scriptEngine.executeString(luaCode);
+            if (!executed) {
+                std::cerr << "Assertion failed: Lua Input API execution failed!\n";
+                return 1;
+            }
+            if (!inputMgr.hasAction("LuaSpecialAttack") || !inputMgr.hasAxis("LuaThrottle")) {
+                std::cerr << "Assertion failed: Lua defined actions not present in InputActionManager!\n";
+                return 1;
+            }
+            std::cout << "  [PASS] Sub-test D: Lua Input API declaration & binding verification passed.\n";
+        }
+
+        std::cout << "  [PASS] Test 73 Input Action & Binding System passed 100%!\n";
+    }
+
+    // =========================================================================
+    // Test 74: 2D Asset System (SpriteSheets, AnimationPlayer, Tilemap & LabMap)
+    // =========================================================================
+    {
+        std::cout << "[Test 74] Validating 2D Asset System (SpriteSheet Slicing, Animation2D, Tilemap, LabMap 2D)...\n";
+
+        // Sub-test A: SpriteSheet Grid Slicing & UV coordinates
+        {
+            Lab::SpriteSheet2D sheet("assets/textures/characters_sheet.png", 256, 256);
+            sheet.sliceGrid(4, 4, 64, 64);
+
+            if (sheet.getFrameCount() != 16) {
+                std::cerr << "Assertion failed: 4x4 grid slice should produce 16 frames, got " << sheet.getFrameCount() << "!\n";
+                return 1;
+            }
+            const auto* frame0 = sheet.getFrame(0);
+            if (!frame0 || frame0->uvMin.x != 0.0f || frame0->uvMin.y != 0.0f || frame0->uvMax.x != 0.25f || frame0->uvMax.y != 0.25f) {
+                std::cerr << "Assertion failed: Frame 0 UV calculation mismatch!\n";
+                return 1;
+            }
+            const auto* frame15 = sheet.getFrame(15);
+            if (!frame15 || frame15->uvMax.x != 1.0f || frame15->uvMax.y != 1.0f) {
+                std::cerr << "Assertion failed: Frame 15 UV calculation mismatch!\n";
+                return 1;
+            }
+
+            // Save and load roundtrip
+            std::string sheetJson = "build/test_spritesheet.json";
+            sheet.saveToFile(sheetJson);
+            Lab::SpriteSheet2D loadedSheet;
+            loadedSheet.loadFromFile(sheetJson);
+            if (loadedSheet.getFrameCount() != 16 || loadedSheet.getTexturePath() != "assets/textures/characters_sheet.png") {
+                std::cerr << "Assertion failed: Spritesheet JSON load roundtrip mismatch!\n";
+                return 1;
+            }
+            std::cout << "  [PASS] Sub-test A: SpriteSheet2D 4x4 grid slicing and UV coordinates verified.\n";
+        }
+
+        // Sub-test B: Animation2D & AnimationPlayer2D
+        {
+            Lab::SpriteSheet2D sheet("hero.png", 128, 128);
+            sheet.sliceGrid(2, 2, 64, 64); // 4 frames: 0, 1, 2, 3
+
+            Lab::Animation2D walkAnim;
+            walkAnim.name = "Walk";
+            walkAnim.frameIndices = { 0, 1, 2, 3 };
+            walkAnim.fps = 10.0f; // 0.1s per frame
+            walkAnim.loop = true;
+
+            Lab::AnimationPlayer2D player;
+            player.addAnimation(walkAnim);
+            player.play("Walk");
+
+            if (!player.isPlaying() || player.getCurrentFrameIndex() != 0) {
+                std::cerr << "Assertion failed: Animation should start playing at frame index 0!\n";
+                return 1;
+            }
+            player.update(0.12f); // advance past 0.10s
+            if (player.getCurrentFrameIndex() != 1) {
+                std::cerr << "Assertion failed: Animation did not advance to frame 1! Current=" << player.getCurrentFrameIndex() << "\n";
+                return 1;
+            }
+            player.update(0.35f); // advance through frames 2 and 3 and loops back to 0
+            if (player.getCurrentFrameIndex() != 0) {
+                std::cerr << "Assertion failed: Looping animation did not wrap back to 0! Current=" << player.getCurrentFrameIndex() << "\n";
+                return 1;
+            }
+            std::cout << "  [PASS] Sub-test B: AnimationPlayer2D playback, timeline update & looping verified.\n";
+        }
+
+        // Sub-test C: Tilemap2D creation, tile manipulation & JSON serialization
+        {
+            Lab::Tilemap2D tilemap(8, 8, 32, 32);
+            tilemap.setSpriteSheetPath("assets/textures/tileset_dungeon.png");
+            tilemap.setTile(0, 0, 0, 5); // ground tile at (0,0)
+            tilemap.setTile(0, 7, 7, 12); // ground tile at (7,7)
+
+            size_t layerDoodads = tilemap.addLayer("Doodads");
+            tilemap.setTile(layerDoodads, 3, 3, 42);
+
+            if (tilemap.getTile(0, 0, 0) != 5 || tilemap.getTile(0, 7, 7) != 12 || tilemap.getTile(layerDoodads, 3, 3) != 42) {
+                std::cerr << "Assertion failed: Tilemap tile values mismatch!\n";
+                return 1;
+            }
+
+            std::string tmapJson = "build/test_tilemap.json";
+            tilemap.saveToFile(tmapJson);
+            Lab::Tilemap2D loadedTilemap;
+            loadedTilemap.loadFromFile(tmapJson);
+            if (loadedTilemap.getLayerCount() != 2 || loadedTilemap.getTile(layerDoodads, 3, 3) != 42) {
+                std::cerr << "Assertion failed: Tilemap JSON load roundtrip mismatch!\n";
+                return 1;
+            }
+            std::cout << "  [PASS] Sub-test C: Tilemap2D multi-layer grid, tile placement and JSON serialization verified.\n";
+        }
+
+        // Sub-test D: LabMap 2D Sprite Integration (.labmap load/save)
+        {
+            Lab::LabMap map;
+            map.metadata.name = "2D Showcase Map";
+
+            Lab::MapSprite2D sp1;
+            sp1.texturePath = "assets/textures/hero_idle.png";
+            sp1.position = { 5.0f, 1.0f, 10.0f };
+            sp1.size = { 1.5f, 2.0f };
+            sp1.layer = 2;
+            sp1.billboard = true;
+            sp1.color = { 1.0f, 0.9f, 0.8f, 1.0f };
+            sp1.uvMin = { 0.0f, 0.0f };
+            sp1.uvMax = { 0.5f, 0.5f };
+            map.sprites.push_back(sp1);
+
+            Lab::MapSprite2D sp2;
+            sp2.texturePath = "assets/textures/tree_foliage.png";
+            sp2.position = { -4.0f, 0.0f, 8.0f };
+            sp2.size = { 3.0f, 4.0f };
+            sp2.layer = 1;
+            sp2.billboard = false;
+            map.sprites.push_back(sp2);
+
+            std::string mapPath = "build/test_2d_sprites.labmap";
+            bool saved = map.saveToFile(mapPath);
+            if (!saved) {
+                std::cerr << "Assertion failed: Failed to save map with 2D sprites!\n";
+                return 1;
+            }
+
+            auto loadedMap = Lab::LabMap::loadFromFile(mapPath);
+            if (!loadedMap) {
+                std::cerr << "Assertion failed: Failed to load map with 2D sprites!\n";
+                return 1;
+            }
+            if (loadedMap->sprites.size() != 2) {
+                std::cerr << "Assertion failed: Loaded map should contain 2 sprites, got " << loadedMap->sprites.size() << "!\n";
+                return 1;
+            }
+            if (loadedMap->sprites[0].texturePath != "assets/textures/hero_idle.png" ||
+                loadedMap->sprites[0].layer != 2 ||
+                !loadedMap->sprites[0].billboard ||
+                loadedMap->sprites[1].billboard) {
+                std::cerr << "Assertion failed: MapSprite2D properties mismatch after roundtrip!\n";
+                return 1;
+            }
+            std::cout << "  [PASS] Sub-test D: LabMap 2D Sprite serialization (.labmap) roundtrip passed.\n";
+        }
+
+        std::cout << "  [PASS] Test 74 2D Asset System passed 100%!\n";
     }
 
     Lab::Renderer::shutdown();
