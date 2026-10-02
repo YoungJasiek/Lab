@@ -15,6 +15,7 @@
 #include "LabRagdoll.h"
 #include "LabExportPipeline.h"
 #include "LabVehicle.h"
+#include "LabFluid.h"
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -6764,6 +6765,98 @@ int main() {
         }
 
         std::cout << "  [PASS] Test 64 Vehicle Physics passed 100%!\n";
+    }
+
+    // 65. Verify Fluid Physics: Water Volume, Archimedes Buoyancy & Dynamic Waves (Task #178)
+    {
+        std::cout << "\n[Test 65] Verifying Water Volume, Buoyancy & Dynamic Waves...\n";
+
+        Lab::WaterVolume water;
+        water.surfaceY = 0.0f;
+        water.density = 1000.0f;
+
+        // --- Sub-test A: Static Water Flotation Equilibrium ---
+        {
+            // Wooden crate (density 500 kg/m^3 -> half-submerged at equilibrium)
+            Lab::FloatingBody crate;
+            crate.mass = 50.0f;
+            crate.volume = 0.1f;
+            crate.height = 0.5f;
+            crate.position = Lab::Vec3(0.0f, 1.0f, 0.0f); // dropped from 1m
+
+            // Simulate 120 steps to reach equilibrium
+            for (int f = 0; f < 120; ++f) {
+                crate.step(0.016f, water, 0.0f);
+            }
+
+            // Expected equilibrium: crate bottom is submerged by ~0.25m (half-height), so position.y ~ 0.0m
+            if (std::abs(crate.position.y) > 0.15f) {
+                std::cerr << "Assertion failed: Buoyancy equilibrium height incorrect! Got Y=" << crate.position.y << "\n";
+                return 1;
+            }
+
+            if (crate.velocity.length() > 0.1f) {
+                std::cerr << "Assertion failed: Fluid drag did not damp crate oscillations! Velocity: " << crate.velocity.length() << "\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test A: Wooden crate reached buoyancy equilibrium at water surface Y="
+                      << crate.position.y << " with damped velocity!\n";
+        }
+
+        // --- Sub-test B: Dynamic Wave Height & Normal Evaluation ---
+        {
+            float h0 = water.getWaterHeightAt(0.0f, 0.0f, 0.0f);
+            float h1 = water.getWaterHeightAt(5.0f, 5.0f, 1.5f);
+            Lab::Vec3 norm = water.getWaterNormalAt(2.0f, 2.0f, 1.0f);
+
+            if (std::abs(h0 - h1) < 0.001f) {
+                std::cerr << "Assertion failed: Dynamic waves must produce spatial/temporal height variation!\n";
+                return 1;
+            }
+
+            if (norm.y <= 0.5f) {
+                std::cerr << "Assertion failed: Wave normal must face upwards (+Y)!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test B: Dynamic wave height and surface normal evaluations verified!\n";
+        }
+
+        // --- Sub-test C: Massive Flotation Stress Benchmark (500 Floating Bodies) ---
+        {
+            constexpr size_t BODIES_COUNT = 500;
+            std::vector<Lab::FloatingBody> bodies(BODIES_COUNT);
+
+            for (size_t i = 0; i < BODIES_COUNT; ++i) {
+                bodies[i].mass = 40.0f + (float)(i % 20);
+                bodies[i].volume = 0.1f;
+                bodies[i].height = 0.5f;
+                bodies[i].position = Lab::Vec3((float)(i % 25) * 1.5f, 0.5f, (float)(i / 25) * 1.5f);
+            }
+
+            auto startFluid = std::chrono::high_resolution_clock::now();
+            for (int f = 0; f < 60; ++f) {
+                float time = (float)f * 0.016f;
+                for (auto& b : bodies) {
+                    b.step(0.016f, water, time);
+                }
+            }
+            auto endFluid = std::chrono::high_resolution_clock::now();
+            auto fluidMs = std::chrono::duration_cast<std::chrono::milliseconds>(endFluid - startFluid).count();
+
+            for (const auto& b : bodies) {
+                if (std::isnan(b.position.x) || std::isinf(b.position.x)) {
+                    std::cerr << "Assertion failed: NaN detected in floating bodies!\n";
+                    return 1;
+                }
+            }
+
+            std::cout << "  [PASS] Sub-test C: 500 floating bodies on dynamic waves simulated for 60 steps in "
+                      << fluidMs << " ms (avg " << (double)fluidMs / 60.0 << " ms/step, 0 NaN/Inf)!\n";
+        }
+
+        std::cout << "  [PASS] Test 65 Fluid & Buoyancy Physics passed 100%!\n";
     }
 
     Lab::Renderer::shutdown();
