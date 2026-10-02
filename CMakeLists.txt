@@ -313,8 +313,13 @@ add_executable(TestVerify src/test_verify.cpp)
 target_compile_options(TestVerify PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(TestVerify PRIVATE LabEngineLib)
 
+# 7. Standalone Universal Game Player / Runner (LabPlayer.exe - Used for Exported Games)
+add_executable(LabPlayer src/player_main.cpp)
+target_compile_options(LabPlayer PRIVATE ${COMPILER_FLAGS})
+target_link_libraries(LabPlayer PRIVATE LabEngineLib)
+
 # Post-build asset replication to output directories
-set(ASSET_TARGETS LabEditor LabHammer FrozenLife LabStudio LabHUDEditor TestVerify)
+set(ASSET_TARGETS LabEditor LabHammer FrozenLife LabStudio LabHUDEditor TestVerify LabPlayer)
 foreach(tgt ${ASSET_TARGETS})
     add_custom_command(TARGET ${tgt} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory

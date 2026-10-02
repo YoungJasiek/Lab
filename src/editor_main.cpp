@@ -2,6 +2,7 @@
 #include "LabFont.h"
 #include "LabDialogs.h"
 #include "LabProfiler.h"
+#include "LabExportPipeline.h"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <windows.h>
@@ -245,6 +246,36 @@ public:
         }
     }
 
+    void buildGameAction(bool runAfterBuild) {
+        logMessage("Starting Build & Export pipeline for [" + _exportSettings.gameTitle + "] (" + ExportPipeline::platformToString(_exportSettings.platform) + ")...");
+        if (_currentMapPath.empty()) {
+            _currentMapPath = "assets/maps/export_game.labmap";
+        }
+        if (_map) {
+            _map->saveToFile(_currentMapPath);
+        }
+        _exportSettings.entrySceneURI = _currentMapPath;
+
+        ExportResult res = ExportPipeline::exportProject(_exportSettings);
+        _buildSuccess = res.success;
+        _lastBuildLog = res.logMessage;
+        if (res.success) {
+            logMessage("BUILD SUCCESS: " + res.logMessage);
+            logMessage("Files packaged: " + std::to_string(res.copiedFiles) + " | Size: " + std::to_string(res.totalBytes / 1024) + " KB");
+            if (runAfterBuild) {
+                logMessage("Launching built standalone game: " + res.exportedExecutable.string());
+                bool launched = ExportPipeline::launchGame(res.exportedExecutable);
+                if (launched) {
+                    logMessage("Game standalone process spawned successfully!");
+                } else {
+                    logMessage("Notice: Executable exported. Launch command dispatched.");
+                }
+            }
+        } else {
+            logMessage("BUILD FAILED: " + res.logMessage);
+        }
+    }
+
     void openModelDialog() {
         std::string picked = LabDialogs::openFileDialog(getWindow(), "3D STL Model (*.stl)\0*.stl\0All Files (*.*)\0*.*\0", "assets\\models");
         if (!picked.empty()) {
@@ -391,6 +422,30 @@ public:
             }
         } else {
             _f9Pressed = false;
+        }
+
+        // F5: Build & Run Game
+        if (Input::isKeyPressed(294)) { // GLFW_KEY_F5
+            if (!_f5Pressed) {
+                buildGameAction(true);
+                _f5Pressed = true;
+            }
+        } else {
+            _f5Pressed = false;
+        }
+
+        // Ctrl+B: Build & Run Game | Ctrl+Shift+B: Build Settings Dialog
+        if (ctrlDown && (Input::isKeyPressed('B') || Input::isKeyPressed('b'))) {
+            if (!_ctrlBPressed) {
+                if (shiftDown) {
+                    _buildModalOpen = !_buildModalOpen;
+                } else {
+                    buildGameAction(true);
+                }
+                _ctrlBPressed = true;
+            }
+        } else {
+            _ctrlBPressed = false;
         }
 
         // Ctrl+N: New Map
@@ -1550,19 +1605,88 @@ public:
             return;
         }
 
+        // 3.5. Build & Export Modal
+        if (_buildModalOpen) {
+            float bw = 740.0f;
+            float bh = 500.0f;
+            float bx = (w - bw) * 0.5f;
+            float by = (h - bh) * 0.5f;
+
+            // Close button [X]
+            if (mx >= bx + bw - 36.0f && mx <= bx + bw - 6.0f && my >= by + 2.0f && my <= by + 30.0f) {
+                _buildModalOpen = false;
+                return;
+            }
+
+            // Platform selection
+            float curY = by + 50.0f;
+            float py = curY + 24.0f;
+            if (my >= py && my <= py + 32.0f) {
+                if (mx >= bx + 24.0f && mx <= bx + 184.0f) {
+                    _exportSettings.platform = TargetPlatform::Windows_x64;
+                    return;
+                } else if (mx >= bx + 198.0f && mx <= bx + 358.0f) {
+                    _exportSettings.platform = TargetPlatform::Linux_x64;
+                    return;
+                } else if (mx >= bx + 372.0f && mx <= bx + 552.0f) {
+                    _exportSettings.platform = TargetPlatform::WebAssembly;
+                    return;
+                }
+            }
+
+            // Config selection
+            curY += 76.0f;
+            py = curY + 24.0f;
+            if (my >= py && my <= py + 30.0f) {
+                if (mx >= bx + 24.0f && mx <= bx + 204.0f) {
+                    _exportSettings.config = BuildConfiguration::Shipping;
+                    return;
+                } else if (mx >= bx + 218.0f && mx <= bx + 378.0f) {
+                    _exportSettings.config = BuildConfiguration::Debug;
+                    return;
+                }
+            }
+
+            // Action buttons at bottom
+            float btnY = by + bh - 52.0f;
+            if (my >= btnY && my <= btnY + 36.0f) {
+                float b1X = bx + 24.0f;
+                float b1W = 180.0f;
+                if (mx >= b1X && mx <= b1X + b1W) {
+                    buildGameAction(false);
+                    return;
+                }
+                float b2X = b1X + b1W + 14.0f;
+                float b2W = 220.0f;
+                if (mx >= b2X && mx <= b2X + b2W) {
+                    buildGameAction(true);
+                    return;
+                }
+                float b3X = bx + bw - 130.0f;
+                float b3W = 106.0f;
+                if (mx >= b3X && mx <= b3X + b3W) {
+                    _buildModalOpen = false;
+                    return;
+                }
+            }
+            return;
+        }
+
         // 4. Dropdown File Menu
         if (_fileMenuOpen) {
             float menuX = 10.0f;
             float menuY = 24.0f;
-            float menuW = 200.0f;
-            float menuH = 130.0f;
+            float menuW = 220.0f;
+            float menuH = 175.0f;
             if (mx >= menuX && mx <= menuX + menuW && my >= menuY && my <= menuY + menuH) {
-                int itemIdx = (int)((my - menuY) / 25.0f);
+                int itemIdx = (int)((my - menuY) / 24.0f);
                 if (itemIdx == 0) newMap();
                 else if (itemIdx == 1) openMapDialog();
                 else if (itemIdx == 2) saveMapAction(false);
                 else if (itemIdx == 3) saveMapAction(true);
-                else if (itemIdx >= 4) stop();
+                else if (itemIdx == 4) buildGameAction(true);
+                else if (itemIdx == 5) _buildModalOpen = true;
+                else if (itemIdx >= 6) stop();
                 _fileMenuOpen = false;
                 return;
             } else {
@@ -1687,6 +1811,16 @@ public:
                     _darknessMode = true;
                     logMessage("Applied Darkness Preset to Map Metadata (Ambient: 0.015, Sun: 0)");
                 }
+                return;
+            }
+            // 8. [ BUILD & RUN ] button (1170 .. 1294)
+            if (mx >= 1170.0f && mx <= 1294.0f) {
+                buildGameAction(true);
+                return;
+            }
+            // 9. [ EXPORT... ] button (1298 .. 1406)
+            if (mx >= 1298.0f && mx <= 1406.0f) {
+                _buildModalOpen = true;
                 return;
             }
         }
@@ -2364,6 +2498,11 @@ public:
             drawHelpModal();
         }
 
+        // 6. Render Modal Build & Export if open
+        if (_buildModalOpen) {
+            drawBuildModal();
+        }
+
         Renderer::endFrame();
         Profiler::instance().endFrame();
     }
@@ -2551,6 +2690,22 @@ public:
         Renderer::drawRect(presetX, tbY + 4.0f, 100.0f, 26.0f, presetBtnBg);
         drawDarkBevel(presetX, tbY + 4.0f, 100.0f, 26.0f, false);
         LabFont::drawText(presetX + 10.0f, tbY + 9.0f, "DARK PRESET", 1.25f, Vec3(0.6f, 0.85f, 1.0f), LabFontType::System);
+
+        // 8. [ BUILD & RUN ] button (One-Click standalone test runner)
+        float bRunX = 1170.0f;
+        bool isBRunHov = (_mouseScreenX >= bRunX && _mouseScreenX <= bRunX + 124.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        Vec3 bRunCol = isBRunHov ? Vec3(0.24f, 0.82f, 0.44f) : Vec3(0.18f, 0.64f, 0.32f);
+        Renderer::drawRect(bRunX, tbY + 4.0f, 124.0f, 26.0f, bRunCol);
+        drawDarkBevel(bRunX, tbY + 4.0f, 124.0f, 26.0f, false);
+        LabFont::drawText(bRunX + 8.0f, tbY + 9.0f, "BUILD & RUN", 1.25f, Vec3(1, 1, 1), LabFontType::System);
+
+        // 9. [ EXPORT... ] button (Deploy for Windows, Linux, Web)
+        float bExpX = 1300.0f;
+        bool isBExpHov = (_mouseScreenX >= bExpX && _mouseScreenX <= bExpX + 104.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        Vec3 bExpCol = isBExpHov ? Vec3(0.25f, 0.50f, 0.85f) : Vec3(0.18f, 0.36f, 0.62f);
+        Renderer::drawRect(bExpX, tbY + 4.0f, 104.0f, 26.0f, bExpCol);
+        drawDarkBevel(bExpX, tbY + 4.0f, 104.0f, 26.0f, false);
+        LabFont::drawText(bExpX + 10.0f, tbY + 9.0f, "EXPORT...", 1.25f, Vec3(1, 1, 1), LabFontType::System);
 
         // ==================== 3. LEFT TOOLS PALETTE (Tools 0..7) ====================
         float leftW = 42.0f;
@@ -3105,8 +3260,8 @@ public:
         if (_fileMenuOpen) {
             float menuX = 10.0f;
             float menuY = 24.0f;
-            float menuW = 190.0f;
-            float menuH = 125.0f;
+            float menuW = 230.0f;
+            float menuH = 175.0f;
             Vec3 menuBg{ 0.16f, 0.17f, 0.20f };
             Vec3 menuBorder{ 0.35f, 0.38f, 0.44f };
             Vec3 menuShadow{ 0.05f, 0.05f, 0.07f };
@@ -3121,19 +3276,21 @@ public:
                 { "Open Map...", "Ctrl+O" },
                 { "Save Map", "Ctrl+S" },
                 { "Save Map As...", "" },
+                { "Build & Run Game", "F5 / Ctrl+B" },
+                { "Build Settings...", "Ctrl+Shift+B" },
                 { "Exit", "Alt+F4" }
             };
 
-            for (int i = 0; i < 5; ++i) {
+            for (int i = 0; i < 7; ++i) {
                 float iy = menuY + 3.0f + i * 24.0f;
                 bool isHov = (_mouseScreenX >= menuX && _mouseScreenX <= menuX + menuW && _mouseScreenY >= iy && _mouseScreenY <= iy + 22.0f);
                 if (isHov) {
                     Renderer::drawRect(menuX + 2.0f, iy, menuW - 4.0f, 22.0f, Vec3(0.24f, 0.28f, 0.36f));
                 }
-                if (i == 4) Renderer::drawRect(menuX + 6.0f, iy - 2.0f, menuW - 12.0f, 1.0f, menuBorder);
-                LabFont::drawText(menuX + 14.0f, iy + 4.0f, items[i].name, 1.6f, isHov ? orangeGlow : textLight, LabFontType::System);
+                if (i == 4 || i == 6) Renderer::drawRect(menuX + 6.0f, iy - 2.0f, menuW - 12.0f, 1.0f, menuBorder);
+                LabFont::drawText(menuX + 14.0f, iy + 4.0f, items[i].name, 1.6f, (i == 4) ? (isHov ? Vec3(0.4f, 1.0f, 0.5f) : Vec3(0.3f, 0.9f, 0.4f)) : (isHov ? orangeGlow : textLight), LabFontType::System);
                 if (!items[i].shortcut.empty()) {
-                    LabFont::drawText(menuX + menuW - 65.0f, iy + 4.0f, items[i].shortcut, 1.5f, textDim, LabFontType::System);
+                    LabFont::drawText(menuX + menuW - 95.0f, iy + 4.0f, items[i].shortcut, 1.4f, textDim, LabFontType::System);
                 }
             }
         }
@@ -3284,6 +3441,127 @@ public:
         Renderer::endUI();
     }
 
+    // Modal Build & Export Pipeline Window
+    void drawBuildModal() {
+        int fbW = 0, fbH = 0;
+        getFramebufferSize(fbW, fbH);
+        float w = (fbW > 0) ? (float)fbW : (float)getWidth();
+        float h = (fbH > 0) ? (float)fbH : (float)getHeight();
+
+        Renderer::beginUI((int)w, (int)h);
+
+        // Backdrop
+        Renderer::drawRect(0, 0, w, h, Vec3(0.04f, 0.05f, 0.06f));
+
+        float bw = 740.0f;
+        float bh = 500.0f;
+        float bx = (w - bw) * 0.5f;
+        float by = (h - bh) * 0.5f;
+
+        Renderer::drawRect(bx, by, bw, bh, Vec3(0.15f, 0.16f, 0.19f));
+        drawDarkBevel(bx, by, bw, bh, false);
+
+        // Header
+        Renderer::drawRect(bx + 2.0f, by + 2.0f, bw - 4.0f, 32.0f, Vec3(0.14f, 0.22f, 0.36f));
+        LabFont::drawText(bx + 16.0f, by + 9.0f, "BUILD & EXPORT GAME - Standalone Engine Deployment", 1.8f, Vec3(1, 1, 1), LabFontType::System);
+        drawDarkButton(bx + bw - 32.0f, by + 5.0f, 24.0f, 22.0f, "X", false, true);
+
+        // Platform Selection Header
+        float curY = by + 50.0f;
+        LabFont::drawText(bx + 24.0f, curY, "Target Platform:", 1.6f, Vec3(1.0f, 0.85f, 0.4f), LabFontType::System);
+
+        // Platform buttons (Windows, Linux, WebAssembly)
+        struct PlatBtn { TargetPlatform plat; const char* label; float w; };
+        PlatBtn plats[] = {
+            { TargetPlatform::Windows_x64, "Windows (.exe)", 160.0f },
+            { TargetPlatform::Linux_x64, "Linux (.x86_64)", 160.0f },
+            { TargetPlatform::WebAssembly, "WebAssembly (HTML5)", 180.0f }
+        };
+
+        float px = bx + 24.0f;
+        float py = curY + 24.0f;
+        for (const auto& p : plats) {
+            bool isSel = (_exportSettings.platform == p.plat);
+            bool isHov = (_mouseScreenX >= px && _mouseScreenX <= px + p.w && _mouseScreenY >= py && _mouseScreenY <= py + 32.0f);
+            Vec3 bg = isSel ? Vec3(0.20f, 0.55f, 0.85f) : (isHov ? Vec3(0.28f, 0.30f, 0.36f) : Vec3(0.20f, 0.22f, 0.25f));
+            Renderer::drawRect(px, py, p.w, 32.0f, bg);
+            drawDarkBevel(px, py, p.w, 32.0f, isSel);
+            LabFont::drawText(px + 12.0f, py + 8.0f, p.label, 1.5f, isSel ? Vec3(1, 1, 1) : Vec3(0.85f, 0.88f, 0.92f), LabFontType::System);
+            px += p.w + 14.0f;
+        }
+
+        // Configuration Header
+        curY += 76.0f;
+        LabFont::drawText(bx + 24.0f, curY, "Build Configuration:", 1.6f, Vec3(1.0f, 0.85f, 0.4f), LabFontType::System);
+
+        struct CfgBtn { BuildConfiguration cfg; const char* label; float w; };
+        CfgBtn cfgs[] = {
+            { BuildConfiguration::Shipping, "Shipping (Optimized)", 180.0f },
+            { BuildConfiguration::Debug, "Debug (Symbols)", 160.0f }
+        };
+        px = bx + 24.0f;
+        py = curY + 24.0f;
+        for (const auto& c : cfgs) {
+            bool isSel = (_exportSettings.config == c.cfg);
+            bool isHov = (_mouseScreenX >= px && _mouseScreenX <= px + c.w && _mouseScreenY >= py && _mouseScreenY <= py + 30.0f);
+            Vec3 bg = isSel ? Vec3(0.22f, 0.65f, 0.40f) : (isHov ? Vec3(0.28f, 0.30f, 0.36f) : Vec3(0.20f, 0.22f, 0.25f));
+            Renderer::drawRect(px, py, c.w, 30.0f, bg);
+            drawDarkBevel(px, py, c.w, 30.0f, isSel);
+            LabFont::drawText(px + 12.0f, py + 7.0f, c.label, 1.4f, isSel ? Vec3(1, 1, 1) : Vec3(0.85f, 0.88f, 0.92f), LabFontType::System);
+            px += c.w + 14.0f;
+        }
+
+        // Project Info Box
+        curY += 76.0f;
+        Renderer::drawRect(bx + 24.0f, curY, bw - 48.0f, 96.0f, Vec3(0.12f, 0.13f, 0.16f));
+        drawDarkBevel(bx + 24.0f, curY, bw - 48.0f, 96.0f, false);
+
+        std::string scenePath = _currentMapPath.empty() ? "assets/maps/export_game.labmap (Current Scene)" : _currentMapPath;
+        LabFont::drawText(bx + 36.0f, curY + 12.0f, "Game Title:   " + _exportSettings.gameTitle, 1.45f, Vec3(0.9f, 0.9f, 0.95f), LabFontType::System);
+        LabFont::drawText(bx + 36.0f, curY + 38.0f, "Entry Scene:  " + scenePath, 1.45f, Vec3(0.9f, 0.9f, 0.95f), LabFontType::System);
+        LabFont::drawText(bx + 36.0f, curY + 64.0f, "Destination:  build/export/" + _exportSettings.gameTitle + "_" + ExportPipeline::platformToString(_exportSettings.platform), 1.45f, Vec3(0.7f, 0.8f, 0.95f), LabFontType::System);
+
+        // Status / Log Box
+        curY += 108.0f;
+        Renderer::drawRect(bx + 24.0f, curY, bw - 48.0f, 44.0f, Vec3(0.10f, 0.11f, 0.13f));
+        drawDarkBevel(bx + 24.0f, curY, bw - 48.0f, 44.0f, false);
+        if (_lastBuildLog.empty()) {
+            LabFont::drawText(bx + 36.0f, curY + 14.0f, "Ready to package project. Click [ BUILD GAME NOW ] or [ BUILD & RUN ].", 1.35f, Vec3(0.6f, 0.65f, 0.75f), LabFontType::System);
+        } else {
+            Vec3 logCol = _buildSuccess ? Vec3(0.35f, 0.95f, 0.45f) : Vec3(0.95f, 0.35f, 0.35f);
+            LabFont::drawText(bx + 36.0f, curY + 14.0f, _lastBuildLog, 1.35f, logCol, LabFontType::System);
+        }
+
+        // Action Buttons at Bottom
+        float btnY = by + bh - 52.0f;
+
+        // 1. [ BUILD GAME NOW ]
+        float b1X = bx + 24.0f;
+        float b1W = 180.0f;
+        bool b1Hov = (_mouseScreenX >= b1X && _mouseScreenX <= b1X + b1W && _mouseScreenY >= btnY && _mouseScreenY <= btnY + 36.0f);
+        Renderer::drawRect(b1X, btnY, b1W, 36.0f, b1Hov ? Vec3(0.24f, 0.52f, 0.88f) : Vec3(0.18f, 0.42f, 0.72f));
+        drawDarkBevel(b1X, btnY, b1W, 36.0f, false);
+        LabFont::drawText(b1X + 20.0f, btnY + 10.0f, "BUILD GAME NOW", 1.45f, Vec3(1, 1, 1), LabFontType::System);
+
+        // 2. [ BUILD & RUN ]
+        float b2X = b1X + b1W + 14.0f;
+        float b2W = 220.0f;
+        bool b2Hov = (_mouseScreenX >= b2X && _mouseScreenX <= b2X + b2W && _mouseScreenY >= btnY && _mouseScreenY <= btnY + 36.0f);
+        Renderer::drawRect(b2X, btnY, b2W, 36.0f, b2Hov ? Vec3(0.24f, 0.85f, 0.44f) : Vec3(0.18f, 0.68f, 0.34f));
+        drawDarkBevel(b2X, btnY, b2W, 36.0f, false);
+        LabFont::drawText(b2X + 22.0f, btnY + 10.0f, "BUILD & RUN (PLAY)", 1.45f, Vec3(1, 1, 1), LabFontType::System);
+
+        // 3. [ CLOSE ]
+        float b3X = bx + bw - 130.0f;
+        float b3W = 106.0f;
+        bool b3Hov = (_mouseScreenX >= b3X && _mouseScreenX <= b3X + b3W && _mouseScreenY >= btnY && _mouseScreenY <= btnY + 36.0f);
+        Renderer::drawRect(b3X, btnY, b3W, 36.0f, b3Hov ? Vec3(0.35f, 0.38f, 0.44f) : Vec3(0.24f, 0.26f, 0.30f));
+        drawDarkBevel(b3X, btnY, b3W, 36.0f, false);
+        LabFont::drawText(b3X + 26.0f, btnY + 10.0f, "CLOSE", 1.45f, Vec3(0.9f, 0.9f, 0.9f), LabFontType::System);
+
+        Renderer::endUI();
+    }
+
     void onShutdown() override {
         Renderer::shutdown();
     }
@@ -3305,6 +3583,10 @@ private:
     bool _browserOpen = false;
     bool _modelBrowserOpen = false;
     bool _helpModalOpen = false;
+    bool _buildModalOpen = false;
+    ExportSettings _exportSettings;
+    std::string _lastBuildLog = "";
+    bool _buildSuccess = false;
     bool _fileMenuOpen = false;
     bool _wireframeMode = false;
     std::string _currentMapPath = "";
@@ -3360,6 +3642,8 @@ private:
     bool _delPressed = false;
     bool _fPressed = false;
     bool _f9Pressed = false;
+    bool _f5Pressed = false;
+    bool _ctrlBPressed = false;
     bool _arrowLeftPressed = false;
     bool _arrowRightPressed = false;
     bool _arrowUpPressed = false;

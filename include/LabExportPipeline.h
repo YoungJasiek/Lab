@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <cstdint>
 #include <sstream>
+#include "LabExport.h"
 #include "LabAsset.h"
 
 namespace Lab {
@@ -28,60 +29,26 @@ namespace Lab {
         std::filesystem::path outputDirectory{"build/export"};
         bool embedAssets{true};
         bool compressAssets{true};
-        std::string entrySceneURI{"assets://maps/cryo_complex.labmap"};
+        std::string entrySceneURI{"assets/maps/cryo_complex.labmap"};
     };
 
-    class ExportPipeline {
+    struct ExportResult {
+        bool success{false};
+        std::filesystem::path exportedExecutable;
+        std::filesystem::path outputDirectory;
+        size_t copiedFiles{0};
+        uint64_t totalBytes{0};
+        std::string logMessage;
+    };
+
+    class LAB_CORE_API ExportPipeline {
     public:
-        static std::string platformToString(TargetPlatform p) {
-            switch (p) {
-                case TargetPlatform::Windows_x64: return "Windows_x64";
-                case TargetPlatform::Linux_x64: return "Linux_x64";
-                case TargetPlatform::WebAssembly: return "WebAssembly";
-                case TargetPlatform::macOS_ARM64: return "macOS_ARM64";
-            }
-            return "Unknown";
-        }
-
-        static std::string configToString(BuildConfiguration c) {
-            switch (c) {
-                case BuildConfiguration::Debug: return "Debug";
-                case BuildConfiguration::Release: return "Release";
-                case BuildConfiguration::Shipping: return "Shipping";
-            }
-            return "Unknown";
-        }
-
-        static bool validateSettings(const ExportSettings& settings, std::string& outError) {
-            if (settings.gameTitle.empty()) {
-                outError = "Game title cannot be empty";
-                return false;
-            }
-            if (settings.outputDirectory.empty()) {
-                outError = "Output directory cannot be empty";
-                return false;
-            }
-            if (settings.entrySceneURI.empty()) {
-                outError = "Entry scene URI cannot be empty";
-                return false;
-            }
-            return true;
-        }
-
-        static std::string generateBuildManifest(const ExportSettings& settings, size_t assetCount, uint64_t totalBytes) {
-            std::stringstream ss;
-            ss << "{\n"
-               << "  \"title\": \"" << settings.gameTitle << "\",\n"
-               << "  \"platform\": \"" << platformToString(settings.platform) << "\",\n"
-               << "  \"configuration\": \"" << configToString(settings.config) << "\",\n"
-               << "  \"entryScene\": \"" << settings.entrySceneURI << "\",\n"
-               << "  \"embedAssets\": " << (settings.embedAssets ? "true" : "false") << ",\n"
-               << "  \"compressAssets\": " << (settings.compressAssets ? "true" : "false") << ",\n"
-               << "  \"assetCount\": " << assetCount << ",\n"
-               << "  \"totalBytes\": " << totalBytes << "\n"
-               << "}";
-            return ss.str();
-        }
+        static std::string platformToString(TargetPlatform p);
+        static std::string configToString(BuildConfiguration c);
+        static bool validateSettings(const ExportSettings& settings, std::string& outError);
+        static std::string generateBuildManifest(const ExportSettings& settings, size_t assetCount, uint64_t totalBytes);
+        static ExportResult exportProject(const ExportSettings& settings);
+        static bool launchGame(const std::filesystem::path& executablePath, const std::string& args = "");
     };
 
 } // namespace Lab

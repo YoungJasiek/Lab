@@ -7491,6 +7491,89 @@ int main() {
         std::cout << "  [PASS] Test 71 Plugin / Package Ecosystem passed 100%!\n";
     }
 
+    // =========================================================================
+    // Test 72: One-Click Build & Export Pipeline (Windows .exe, Linux, WebAssembly)
+    // =========================================================================
+    {
+        std::cout << "[Test 72] Validating Universal One-Click Build & Export Pipeline...\n";
+
+        // Sub-test A: Windows_x64 Export
+        {
+            Lab::ExportSettings winSettings;
+            winSettings.platform = Lab::TargetPlatform::Windows_x64;
+            winSettings.config = Lab::BuildConfiguration::Shipping;
+            winSettings.gameTitle = "TestAdventure";
+            winSettings.outputDirectory = "build/export_test";
+            winSettings.entrySceneURI = "assets/maps/cryo_complex.labmap";
+
+            Lab::ExportResult winRes = Lab::ExportPipeline::exportProject(winSettings);
+            if (!winRes.success) {
+                std::cerr << "Assertion failed: Windows export failed: " << winRes.logMessage << "\n";
+                return 1;
+            }
+            if (!std::filesystem::exists(winRes.outputDirectory / "TestAdventure.exe")) {
+                std::cerr << "Assertion failed: TestAdventure.exe not generated in output directory!\n";
+                return 1;
+            }
+            if (!std::filesystem::exists(winRes.outputDirectory / "game.manifest") ||
+                !std::filesystem::exists(winRes.outputDirectory / "game.config") ||
+                !std::filesystem::exists(winRes.outputDirectory / "run_game.bat")) {
+                std::cerr << "Assertion failed: Windows bundle missing manifest, config, or launcher!\n";
+                return 1;
+            }
+            std::cout << "  [PASS] Sub-test A: Windows_x64 package built (" << winRes.copiedFiles << " files, " << winRes.totalBytes << " bytes)!\n";
+        }
+
+        // Sub-test B: Linux_x64 Export
+        {
+            Lab::ExportSettings linSettings;
+            linSettings.platform = Lab::TargetPlatform::Linux_x64;
+            linSettings.config = Lab::BuildConfiguration::Release;
+            linSettings.gameTitle = "TestAdventure";
+            linSettings.outputDirectory = "build/export_test";
+            linSettings.entrySceneURI = "assets/maps/cryo_complex.labmap";
+
+            Lab::ExportResult linRes = Lab::ExportPipeline::exportProject(linSettings);
+            if (!linRes.success) {
+                std::cerr << "Assertion failed: Linux export failed: " << linRes.logMessage << "\n";
+                return 1;
+            }
+            if (!std::filesystem::exists(linRes.outputDirectory / "TestAdventure.x86_64") ||
+                !std::filesystem::exists(linRes.outputDirectory / "run_TestAdventure.sh") ||
+                !std::filesystem::exists(linRes.outputDirectory / "CMakeLists.txt")) {
+                std::cerr << "Assertion failed: Linux package missing runner, shell script, or CMake build!\n";
+                return 1;
+            }
+            std::cout << "  [PASS] Sub-test B: Linux_x64 standalone package and launcher script built successfully!\n";
+        }
+
+        // Sub-test C: WebAssembly (HTML5 / WASM) Export
+        {
+            Lab::ExportSettings wasmSettings;
+            wasmSettings.platform = Lab::TargetPlatform::WebAssembly;
+            wasmSettings.config = Lab::BuildConfiguration::Shipping;
+            wasmSettings.gameTitle = "TestAdventure";
+            wasmSettings.outputDirectory = "build/export_test";
+            wasmSettings.entrySceneURI = "assets/maps/cryo_complex.labmap";
+
+            Lab::ExportResult wasmRes = Lab::ExportPipeline::exportProject(wasmSettings);
+            if (!wasmRes.success) {
+                std::cerr << "Assertion failed: WebAssembly export failed: " << wasmRes.logMessage << "\n";
+                return 1;
+            }
+            if (!std::filesystem::exists(wasmRes.outputDirectory / "index.html") ||
+                !std::filesystem::exists(wasmRes.outputDirectory / "TestAdventure.js") ||
+                !std::filesystem::exists(wasmRes.outputDirectory / "TestAdventure.wasm") ||
+                !std::filesystem::exists(wasmRes.outputDirectory / "start_web_server.bat")) {
+                std::cerr << "Assertion failed: WebAssembly package missing index.html, js, wasm, or web server script!\n";
+                return 1;
+            }
+            std::cout << "  [PASS] Sub-test C: WebAssembly (HTML5/WASM) canvas package and local web server script generated!\n";
+        }
+
+        std::cout << "  [PASS] Test 72 One-Click Build & Export Pipeline passed 100%!\n";
+    }
+
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();
