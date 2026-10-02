@@ -78,8 +78,10 @@ set(LAB_INCLUDES
 add_library(LabCore SHARED
     src/LabCore.cpp
     src/LabPlugin.cpp
+    src/LabEvent.cpp
     include/LabCore.h
     include/LabPlugin.h
+    include/LabEvent.h
     include/LabApplication.h
     include/LabMath.h
     include/LabCamera.h

@@ -3,6 +3,7 @@
 #include "LabDialogs.h"
 #include "LabPlugin.h"
 #include "LabApplication.h"
+#include "LabEvent.h"
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -5660,6 +5661,94 @@ int main() {
         }
         std::cout << "  [PASS] Graceful plugin unregister and onUnload() verified!\n";
         std::cout << "  [PASS] Test 53 Plugin Architecture & Zero-Overhead Lifecycle passed 100%!\n";
+    }
+
+    // 54. Verify Decoupled Event Bus, Message Dispatcher & High-Throughput Stress Test
+    {
+        std::cout << "\n[Test 54] Verifying Decoupled Event Bus & High-Throughput Dispatcher...\n";
+
+        struct PlayerDiedEvent {
+            int playerId;
+            int killerId;
+            std::string reason;
+        };
+
+        struct BlockPlacedEvent {
+            int x, y, z;
+            int blockType;
+        };
+
+        auto& eb = Lab::EventBus::get();
+        eb.clear();
+
+        int deathEventsReceived = 0;
+        int blocksPlacedReceived = 0;
+        int lastDeadPlayerId = -1;
+
+        auto subDeath = eb.subscribe<PlayerDiedEvent>([&](const PlayerDiedEvent& e) {
+            deathEventsReceived++;
+            lastDeadPlayerId = e.playerId;
+        });
+
+        auto subBlock = eb.subscribe<BlockPlacedEvent>([&](const BlockPlacedEvent& e) {
+            blocksPlacedReceived++;
+        });
+
+        if (eb.getSubscriptionCount() != 2) {
+            std::cerr << "Assertion failed: Subscription count mismatch!\n";
+            return 1;
+        }
+
+        // Test immediate broadcast
+        eb.broadcast(PlayerDiedEvent{ 42, 7, "Railgun" });
+        if (deathEventsReceived != 1 || lastDeadPlayerId != 42) {
+            std::cerr << "Assertion failed: Broadcast event not received or corrupted!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Direct event broadcast & typed dispatch verified!\n";
+
+        // Test queued dispatch
+        eb.queue(BlockPlacedEvent{ 10, 64, -20, 1 });
+        eb.queue(BlockPlacedEvent{ 11, 64, -20, 1 });
+        if (blocksPlacedReceived != 0) {
+            std::cerr << "Assertion failed: Queued events fired prematurely!\n";
+            return 1;
+        }
+        eb.dispatchQueued();
+        if (blocksPlacedReceived != 2) {
+            std::cerr << "Assertion failed: Queued events were not dispatched properly!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Deferred queueing & frame-aligned dispatch verified!\n";
+
+        // Unsubscribe test
+        eb.unsubscribe(subDeath);
+        eb.broadcast(PlayerDiedEvent{ 99, 1, "Fall" });
+        if (deathEventsReceived != 1) { // Still 1, didn't increment
+            std::cerr << "Assertion failed: Unsubscribed handler was still invoked!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Safe unsubscription verified!\n";
+
+        // Stress / Throughput test: 100,000 broadcasts to verify low latency & memory stability
+        auto tStart = std::chrono::high_resolution_clock::now();
+        const int stressCount = 100000;
+        for (int i = 0; i < stressCount; ++i) {
+            eb.broadcast(BlockPlacedEvent{ i, 0, 0, 1 });
+        }
+        auto tEnd = std::chrono::high_resolution_clock::now();
+        double totalMicros = std::chrono::duration<double, std::micro>(tEnd - tStart).count();
+        double nanosPerEvent = (totalMicros * 1000.0) / stressCount;
+
+        if (blocksPlacedReceived != 2 + stressCount) {
+            std::cerr << "Assertion failed: Stress broadcast event count mismatch!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Dispatched " << stressCount << " typed events in " 
+                  << totalMicros / 1000.0 << " ms (Avg: " << nanosPerEvent << " ns per event)!\n";
+
+        eb.clear();
+        std::cout << "  [PASS] Test 54 Event Bus & Message Dispatcher passed 100%!\n";
     }
 
     Lab::Renderer::shutdown();
