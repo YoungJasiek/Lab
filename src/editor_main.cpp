@@ -247,7 +247,6 @@ public:
     }
 
     void buildGameAction(bool runAfterBuild) {
-        logMessage("Starting Build & Export pipeline for [" + _exportSettings.gameTitle + "] (" + ExportPipeline::platformToString(_exportSettings.platform) + ")...");
         if (_currentMapPath.empty()) {
             _currentMapPath = "assets/maps/export_game.labmap";
         }
@@ -256,23 +255,35 @@ public:
         }
         _exportSettings.entrySceneURI = _currentMapPath;
 
-        ExportResult res = ExportPipeline::exportProject(_exportSettings);
-        _buildSuccess = res.success;
-        _lastBuildLog = res.logMessage;
-        if (res.success) {
-            logMessage("BUILD SUCCESS: " + res.logMessage);
-            logMessage("Files packaged: " + std::to_string(res.copiedFiles) + " | Size: " + std::to_string(res.totalBytes / 1024) + " KB");
-            if (runAfterBuild) {
-                logMessage("Launching built standalone game: " + res.exportedExecutable.string());
+        if (runAfterBuild) {
+            logMessage("Compiling and packaging test game in DEBUG mode (destination: test_build/debug)...");
+            ExportResult res = ExportPipeline::buildAndPrepareTestGame(_exportSettings.gameTitle, _exportSettings.entrySceneURI, "test_build/debug");
+            _buildSuccess = res.success;
+            _lastBuildLog = res.logMessage;
+            if (res.success) {
+                logMessage("TEST BUILD SUCCESS: " + res.logMessage);
+                logMessage("Files packaged: " + std::to_string(res.copiedFiles) + " | Size: " + std::to_string(res.totalBytes / 1024) + " KB");
+                logMessage("Launching test game process: " + res.exportedExecutable.string());
                 bool launched = ExportPipeline::launchGame(res.exportedExecutable);
                 if (launched) {
-                    logMessage("Game standalone process spawned successfully!");
+                    logMessage("Standalone debug test game spawned successfully!");
                 } else {
                     logMessage("Notice: Executable exported. Launch command dispatched.");
                 }
+            } else {
+                logMessage("TEST BUILD FAILED: " + res.logMessage);
             }
         } else {
-            logMessage("BUILD FAILED: " + res.logMessage);
+            logMessage("Starting Export pipeline for [" + _exportSettings.gameTitle + "] (" + ExportPipeline::platformToString(_exportSettings.platform) + ")...");
+            ExportResult res = ExportPipeline::exportProject(_exportSettings);
+            _buildSuccess = res.success;
+            _lastBuildLog = res.logMessage;
+            if (res.success) {
+                logMessage("BUILD SUCCESS: " + res.logMessage);
+                logMessage("Files packaged: " + std::to_string(res.copiedFiles) + " | Size: " + std::to_string(res.totalBytes / 1024) + " KB");
+            } else {
+                logMessage("BUILD FAILED: " + res.logMessage);
+            }
         }
     }
 

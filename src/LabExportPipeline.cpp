@@ -354,6 +354,108 @@ namespace Lab {
         return result;
     }
 
+    ExportResult ExportPipeline::buildAndPrepareTestGame(const std::string& gameTitle, const std::string& scenePath, const std::filesystem::path& customTestDir) {
+        ExportResult result;
+        std::filesystem::path testDir = customTestDir.empty() ? std::filesystem::path("test_build/debug") : customTestDir;
+        std::error_code ec;
+        std::filesystem::create_directories(testDir, ec);
+
+        // 1. Physically compile Debug target via CMake
+        std::string buildCmd = "cmake --build build --config Debug --target LabPlayer";
+        std::system(buildCmd.c_str());
+
+        // 2. Find LabPlayer.exe from build/Debug
+        std::vector<std::filesystem::path> debugRunnerCandidates = {
+            "build/Debug/LabPlayer.exe",
+            "Debug/LabPlayer.exe",
+            "build/Release/LabPlayer.exe",
+            "LabPlayer.exe"
+        };
+
+        std::filesystem::path srcExe;
+        for (const auto& c : debugRunnerCandidates) {
+            if (std::filesystem::exists(c)) {
+                srcExe = c;
+                break;
+            }
+        }
+
+        if (srcExe.empty()) {
+            result.success = false;
+            result.logMessage = "Failed to compile or find LabPlayer.exe for test run!";
+            return result;
+        }
+
+        // 3. Copy to custom test folder (NOT cmake's debug folder)
+        std::string exeName = (gameTitle.empty() ? "LabGame" : gameTitle) + "_Test.exe";
+        std::filesystem::path targetExe = testDir / exeName;
+        std::filesystem::copy_file(srcExe, targetExe, std::filesystem::copy_options::overwrite_existing, ec);
+        result.copiedFiles++;
+        result.totalBytes += std::filesystem::file_size(targetExe);
+
+        // 4. Copy all debug DLLs from source directory
+        auto srcDir = srcExe.parent_path();
+        if (std::filesystem::exists(srcDir)) {
+            for (const auto& entry : std::filesystem::directory_iterator(srcDir)) {
+                if (entry.is_regular_file() && entry.path().extension() == ".dll") {
+                    auto targetDll = testDir / entry.path().filename();
+                    std::filesystem::copy_file(entry.path(), targetDll, std::filesystem::copy_options::overwrite_existing, ec);
+                    result.copiedFiles++;
+                    result.totalBytes += entry.file_size();
+                }
+            }
+        }
+
+        // 5. Replicate assets and fonts
+        std::vector<std::string> assetRoots = { "assets", "../assets", "../../assets" };
+        for (const auto& aRoot : assetRoots) {
+            if (std::filesystem::exists(aRoot)) {
+                copyDirectoryRecursive(aRoot, testDir / "assets", result.copiedFiles, result.totalBytes);
+                break;
+            }
+        }
+        std::vector<std::string> fontRoots = { "fonts", "../fonts", "../../fonts" };
+        for (const auto& fRoot : fontRoots) {
+            if (std::filesystem::exists(fRoot)) {
+                copyDirectoryRecursive(fRoot, testDir / "fonts", result.copiedFiles, result.totalBytes);
+                break;
+            }
+        }
+
+        // 6. Write game.config & game.manifest
+        std::ofstream cfg(testDir / "game.config");
+        cfg << "title=" << gameTitle << " [DEBUG TEST RUN]\n"
+            << "scene=" << scenePath << "\n"
+            << "width=1280\n"
+            << "height=720\n"
+            << "fullscreen=0\n";
+        cfg.close();
+
+        ExportSettings s;
+        s.platform = TargetPlatform::Windows_x64;
+        s.config = BuildConfiguration::Debug;
+        s.gameTitle = gameTitle;
+        s.entrySceneURI = scenePath;
+        std::string manifestJson = generateBuildManifest(s, result.copiedFiles, result.totalBytes);
+        std::ofstream mf(testDir / "game.manifest");
+        mf << manifestJson;
+        mf.close();
+
+        // 7. Write run_test_game.bat
+        std::ofstream bat(testDir / "run_test_game.bat");
+        bat << "@echo off\r\n"
+            << "title " << gameTitle << " [DEBUG TEST]\r\n"
+            << "cd /d \"%~dp0\"\r\n"
+            << "start \"\" \"%~dp0\\" << exeName << "\"\r\n";
+        bat.close();
+
+        result.success = true;
+        result.exportedExecutable = targetExe;
+        result.outputDirectory = testDir;
+        result.logMessage = "Debug test build assembled and verified in: " + testDir.string();
+        return result;
+    }
+
     bool ExportPipeline::launchGame(const std::filesystem::path& executablePath, const std::string& args) {
         if (!std::filesystem::exists(executablePath)) {
             return false;

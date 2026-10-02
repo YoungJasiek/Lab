@@ -7571,6 +7571,22 @@ int main() {
             std::cout << "  [PASS] Sub-test C: WebAssembly (HTML5/WASM) canvas package and local web server script generated!\n";
         }
 
+        // Sub-test D: Dedicated Debug Test Build outside CMake's Debug folder
+        {
+            Lab::ExportResult testBuildRes = Lab::ExportPipeline::buildAndPrepareTestGame("TestAdventure", "assets/maps/cryo_complex.labmap", "test_build/debug");
+            if (!testBuildRes.success) {
+                std::cerr << "Assertion failed: Debug test build failed: " << testBuildRes.logMessage << "\n";
+                return 1;
+            }
+            if (!std::filesystem::exists("test_build/debug/TestAdventure_Test.exe") ||
+                !std::filesystem::exists("test_build/debug/game.config") ||
+                !std::filesystem::exists("test_build/debug/run_test_game.bat")) {
+                std::cerr << "Assertion failed: Debug test build missing exe, config, or launcher!\n";
+                return 1;
+            }
+            std::cout << "  [PASS] Sub-test D: Standalone Debug test build physically assembled in test_build/debug/ (" << testBuildRes.copiedFiles << " files)!\n";
+        }
+
         std::cout << "  [PASS] Test 72 One-Click Build & Export Pipeline passed 100%!\n";
     }
 

@@ -48,6 +48,7 @@ namespace Lab {
         static bool validateSettings(const ExportSettings& settings, std::string& outError);
         static std::string generateBuildManifest(const ExportSettings& settings, size_t assetCount, uint64_t totalBytes);
         static ExportResult exportProject(const ExportSettings& settings);
+        static ExportResult buildAndPrepareTestGame(const std::string& gameTitle, const std::string& scenePath, const std::filesystem::path& customTestDir = "test_build/debug");
         static bool launchGame(const std::filesystem::path& executablePath, const std::string& args = "");
     };
 
