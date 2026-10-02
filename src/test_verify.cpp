@@ -10,6 +10,7 @@
 #include "LabVFS.h"
 #include "LabAsset.h"
 #include "LabRHI.h"
+#include "LabCommand.h"
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -6265,6 +6266,100 @@ int main() {
         }
 
         std::cout << "  [PASS] Test 59 RHI & Render Graph passed 100%!\n";
+    }
+
+    // 60. Verify Undo / Redo Command History Stack (Task #171)
+    {
+        std::cout << "\n[Test 60] Verifying Undo / Redo Command History Stack...\n";
+
+        // --- Sub-test A: Basic Execute, Undo & Redo Lifecycle ---
+        {
+            Lab::CommandHistory history(100);
+            Lab::Vec3 objectPos(0.0f, 0.0f, 0.0f);
+
+            // Execute move to (10, 0, 0)
+            history.executeCommand(std::make_unique<Lab::ActionCommand>(
+                "Move Object",
+                [&objectPos]() { objectPos = Lab::Vec3(10.0f, 0.0f, 0.0f); },
+                [&objectPos]() { objectPos = Lab::Vec3(0.0f, 0.0f, 0.0f); }
+            ));
+
+            if (objectPos.x != 10.0f || !history.canUndo() || history.canRedo()) {
+                std::cerr << "Assertion failed: Command execution state mismatch!\n";
+                return 1;
+            }
+
+            // Undo
+            if (!history.undo() || objectPos.x != 0.0f || history.canUndo() || !history.canRedo()) {
+                std::cerr << "Assertion failed: Command undo failed!\n";
+                return 1;
+            }
+
+            // Redo
+            if (!history.redo() || objectPos.x != 10.0f || !history.canUndo() || history.canRedo()) {
+                std::cerr << "Assertion failed: Command redo failed!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test A: Command execution, undo and redo lifecycle verified!\n";
+        }
+
+        // --- Sub-test B: Redo Stack Branch Truncation on New Execution ---
+        {
+            Lab::CommandHistory history(100);
+            int value = 0;
+
+            history.executeCommand(std::make_unique<Lab::ActionCommand>("Add 1", [&value]() { value += 1; }, [&value]() { value -= 1; }));
+            history.executeCommand(std::make_unique<Lab::ActionCommand>("Add 2", [&value]() { value += 2; }, [&value]() { value -= 2; }));
+            history.undo(); // value should be 1, redo count 1
+
+            if (value != 1 || history.getRedoCount() != 1) {
+                std::cerr << "Assertion failed: Redo count should be 1 after undo!\n";
+                return 1;
+            }
+
+            // New command must discard redo branch
+            history.executeCommand(std::make_unique<Lab::ActionCommand>("Add 5", [&value]() { value += 5; }, [&value]() { value -= 5; }));
+            if (value != 6 || history.canRedo()) {
+                std::cerr << "Assertion failed: Redo branch was not truncated upon new command execution!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test B: Redo branch truncation verified!\n";
+        }
+
+        // --- Sub-test C: High-Throughput CommandHistory Benchmark (100 000 Operations) ---
+        {
+            Lab::CommandHistory history(500); // 500 max rolling stack
+            int counter = 0;
+
+            constexpr size_t OPS_COUNT = 100000;
+            auto startCmd = std::chrono::high_resolution_clock::now();
+
+            for (size_t i = 0; i < OPS_COUNT; ++i) {
+                history.executeCommand(std::make_unique<Lab::ActionCommand>(
+                    "Tick",
+                    [&counter]() { counter++; },
+                    [&counter]() { counter--; }
+                ));
+                if (i % 2 == 1) {
+                    history.undo();
+                }
+            }
+
+            auto endCmd = std::chrono::high_resolution_clock::now();
+            auto cmdUs = std::chrono::duration_cast<std::chrono::microseconds>(endCmd - startCmd).count();
+
+            if (history.getUndoCount() > history.getMaxHistory()) {
+                std::cerr << "Assertion failed: Max history limit exceeded!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test C: Executed 100,000 command ops in " << cmdUs << " us (avg "
+                      << (double)cmdUs / (double)OPS_COUNT * 1000.0 << " ns/op) with bounded rolling history!\n";
+        }
+
+        std::cout << "  [PASS] Test 60 Undo / Redo Command History passed 100%!\n";
     }
 
     Lab::Renderer::shutdown();

@@ -74,7 +74,7 @@ set(LAB_INCLUDES
 # MODULAR LAB ENGINE DYNAMIC LINK LIBRARIES (.DLL)
 # =============================================================================
 
-# 1. LabCore.dll - Core application lifecycle, Input, Math, Camera, Fonts, Dialogs, VFS, Asset Pipeline
+# 1. LabCore.dll - Core application lifecycle, Input, Math, Camera, Fonts, Dialogs, VFS, Asset Pipeline, Command/Undo
 add_library(LabCore SHARED
     src/LabCore.cpp
     src/LabPlugin.cpp
@@ -82,12 +82,14 @@ add_library(LabCore SHARED
     src/LabSceneNode.cpp
     src/LabVFS.cpp
     src/LabAsset.cpp
+    src/LabCommand.cpp
     include/LabCore.h
     include/LabPlugin.h
     include/LabEvent.h
     include/LabSceneNode.h
     include/LabVFS.h
     include/LabAsset.h
+    include/LabCommand.h
     include/LabApplication.h
     include/LabMath.h
     include/LabCamera.h
