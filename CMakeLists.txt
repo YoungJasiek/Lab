@@ -141,7 +141,7 @@ target_include_directories(LabAudio PUBLIC ${LAB_INCLUDES})
 target_compile_options(LabAudio PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabAudio PUBLIC LabCore)
 
-# 4. LabPhysics.dll - AABB Collision Detection, MoveAndSlide, Dynamic Rigid Bodies, Raycasting, PhysicsWorld2D, CCD, Ragdoll, Vehicle, Fluid
+# 4. LabPhysics.dll - AABB Collision Detection, MoveAndSlide, Dynamic Rigid Bodies, Raycasting, PhysicsWorld2D, CCD, Ragdoll, Vehicle, Fluid, Constraints
 add_library(LabPhysics SHARED
     src/LabPhysics.cpp
     src/LabPhysics2D.cpp
@@ -149,6 +149,7 @@ add_library(LabPhysics SHARED
     src/LabRagdoll.cpp
     src/LabVehicle.cpp
     src/LabFluid.cpp
+    src/LabConstraint.cpp
     src/LabCollision.cpp
     src/LabCombat.cpp
     include/LabPhysics.h
@@ -157,6 +158,7 @@ add_library(LabPhysics SHARED
     include/LabRagdoll.h
     include/LabVehicle.h
     include/LabFluid.h
+    include/LabConstraint.h
     include/LabCollision.h
     include/LabCombat.h
 )

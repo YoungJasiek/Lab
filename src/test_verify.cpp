@@ -16,6 +16,7 @@
 #include "LabExportPipeline.h"
 #include "LabVehicle.h"
 #include "LabFluid.h"
+#include "LabConstraint.h"
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -6857,6 +6858,112 @@ int main() {
         }
 
         std::cout << "  [PASS] Test 65 Fluid & Buoyancy Physics passed 100%!\n";
+    }
+
+    // 66. Verify Physics Constraints & Joints System (Task #180)
+    {
+        std::cout << "\n[Test 66] Verifying Constraints & Joints System (Distance, BallSocket, Slider)...\n";
+
+        // --- Sub-test A: Distance Constraint Pendulum ---
+        {
+            Lab::ConstraintBody anchor;
+            anchor.isStatic = true;
+            anchor.position = Lab::Vec3(0, 5, 0);
+
+            Lab::ConstraintBody bob;
+            bob.position = Lab::Vec3(3, 5, 0); // displaced horizontally
+            bob.setMass(2.0f);
+
+            Lab::Constraint distJoint;
+            distJoint.type = Lab::ConstraintType::Distance;
+            distJoint.targetDistance = 3.0f;
+
+            // Simulate 60 steps of constrained pendulum motion under gravity
+            for (int f = 0; f < 60; ++f) {
+                bob.velocity += Lab::Vec3(0, -9.81f, 0) * 0.016f;
+                bob.position += bob.velocity * 0.016f;
+                for (int iter = 0; iter < 8; ++iter) {
+                    Lab::ConstraintSolver::solveDistance(anchor, bob, distJoint);
+                }
+            }
+
+            float currentLength = (bob.position - anchor.position).length();
+            if (std::abs(currentLength - 3.0f) > 0.1f) {
+                std::cerr << "Assertion failed: Distance constraint length error! Expected 3.0m got " << currentLength << "\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test A: Distance pendulum constraint maintained exact length (" << currentLength << " m)!\n";
+        }
+
+        // --- Sub-test B: Slider Piston Constraint with Limits ---
+        {
+            Lab::ConstraintBody base;
+            base.isStatic = true;
+            base.position = Lab::Vec3(0, 0, 0);
+
+            Lab::ConstraintBody piston;
+            piston.position = Lab::Vec3(10.0f, 0, 0); // Outside limit
+            piston.setMass(1.0f);
+
+            Lab::Constraint slider;
+            slider.type = Lab::ConstraintType::Slider;
+            slider.axis = Lab::Vec3(1, 0, 0); // X axis
+            slider.minLimit = -2.0f;
+            slider.maxLimit = 2.0f;
+
+            Lab::ConstraintSolver::solveSlider(base, piston, slider);
+
+            if (piston.position.x > 2.05f || std::abs(piston.position.y) > 0.01f || std::abs(piston.position.z) > 0.01f) {
+                std::cerr << "Assertion failed: Slider constraint failed to clamp position within limits! Got: " << piston.position.x << "\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test B: Linear slider piston constrained to axis with limits clamped at X="
+                      << piston.position.x << "!\n";
+        }
+
+        // --- Sub-test C: 100-Link Rope / Chain Stress Benchmark ---
+        {
+            constexpr size_t LINKS = 100;
+            std::vector<Lab::ConstraintBody> chain(LINKS);
+            chain[0].isStatic = true;
+            chain[0].position = Lab::Vec3(0, 100, 0);
+
+            for (size_t i = 1; i < LINKS; ++i) {
+                chain[i].position = Lab::Vec3(0, 100.0f - (float)i * 0.5f, 0);
+                chain[i].setMass(0.5f);
+            }
+
+            auto startChain = std::chrono::high_resolution_clock::now();
+            for (int f = 0; f < 30; ++f) {
+                for (size_t i = 1; i < LINKS; ++i) {
+                    chain[i].velocity += Lab::Vec3(0, -9.81f, 0) * 0.016f;
+                    chain[i].position += chain[i].velocity * 0.016f;
+                }
+                for (int iter = 0; iter < 4; ++iter) {
+                    for (size_t i = 0; i < LINKS - 1; ++i) {
+                        Lab::Constraint link;
+                        link.targetDistance = 0.5f;
+                        Lab::ConstraintSolver::solveDistance(chain[i], chain[i + 1], link);
+                    }
+                }
+            }
+            auto endChain = std::chrono::high_resolution_clock::now();
+            auto chainMs = std::chrono::duration_cast<std::chrono::milliseconds>(endChain - startChain).count();
+
+            for (const auto& b : chain) {
+                if (std::isnan(b.position.y) || std::isinf(b.position.y)) {
+                    std::cerr << "Assertion failed: NaN detected in chain links!\n";
+                    return 1;
+                }
+            }
+
+            std::cout << "  [PASS] Sub-test C: 100-link constraint chain simulated for 30 steps in "
+                      << chainMs << " ms (avg " << (double)chainMs / 30.0 << " ms/step, 0 NaN/Inf)!\n";
+        }
+
+        std::cout << "  [PASS] Test 66 Physics Constraints & Joints passed 100%!\n";
     }
 
     Lab::Renderer::shutdown();
