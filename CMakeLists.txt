@@ -84,6 +84,7 @@ add_library(LabCore SHARED
     src/LabAsset.cpp
     src/LabCommand.cpp
     src/LabExportPipeline.cpp
+    src/LabProfiler.cpp
     include/LabCore.h
     include/LabPlugin.h
     include/LabEvent.h
@@ -92,6 +93,7 @@ add_library(LabCore SHARED
     include/LabAsset.h
     include/LabCommand.h
     include/LabExportPipeline.h
+    include/LabProfiler.h
     include/LabApplication.h
     include/LabMath.h
     include/LabCamera.h

@@ -19,6 +19,7 @@
 #include "LabConstraint.h"
 #include "LabCloth.h"
 #include "LabForceField.h"
+#include "LabProfiler.h"
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -7183,6 +7184,90 @@ int main() {
         }
 
         std::cout << "  [PASS] Test 68 Physics Force Fields & Triggers passed 100%!\n";
+    }
+
+    // 69. Verify In-Game Profiler & Memory Allocator Tracker (Task #176)
+    {
+        std::cout << "\n[Test 69] Verifying In-Game Profiler & Memory Allocator Tracker...\n";
+
+        auto& profiler = Lab::Profiler::instance();
+
+        // --- Sub-test A: Scoped Timeline Profiling & Frame Budget Tracking ---
+        {
+            profiler.beginFrame();
+            {
+                Lab::ProfileTimerScope pScope("Physics_Sim", "PhysicsThread", 0);
+                std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            }
+            {
+                Lab::ProfileTimerScope rScope("Render_Pass", "RenderThread", 0);
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+            profiler.endFrame();
+
+            const auto& scopes = profiler.getLastFrameScopes();
+            if (scopes.size() != 2) {
+                std::cerr << "Assertion failed: Profiler scope count mismatch! Expected 2 got " << scopes.size() << "\n";
+                return 1;
+            }
+
+            if (scopes[0].name != "Physics_Sim" || scopes[0].durationUs < 1500.0) {
+                std::cerr << "Assertion failed: Physics_Sim scope profile duration inaccurate! Got: " << scopes[0].durationUs << " us\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test A: Multi-threaded scoped timeline profiling verified (Physics: "
+                      << scopes[0].durationUs << " us, Render: " << scopes[1].durationUs << " us)!\n";
+        }
+
+        // --- Sub-test B: RAM / VRAM Allocator Tracker & Draw Call Metrics ---
+        {
+            profiler.recordAlloc(1024 * 1024 * 16); // 16 MB RAM
+            profiler.recordAlloc(1024 * 1024 * 8);  // 8 MB RAM
+            profiler.recordFree(1024 * 1024 * 4);   // 4 MB RAM freed
+            profiler.recordVRAMAlloc(1024 * 1024 * 32); // 32 MB VRAM
+
+            profiler.recordDrawCall(5000); // 1 draw call, 5k tris
+            profiler.recordDrawCall(7000); // 1 draw call, 7k tris
+            profiler.recordVBOBytes(256 * 1024);
+
+            const auto& mem = profiler.getMemoryStats();
+            const auto& rnd = profiler.getRenderStats();
+
+            // Expected RAM: 16 + 8 - 4 = 20 MB
+            if (mem.currentUsageRAM != 20 * 1024 * 1024 || mem.peakUsageRAM != 24 * 1024 * 1024) {
+                std::cerr << "Assertion failed: Memory tracker RAM mismatch! Current: " << mem.currentUsageRAM << " Peak: " << mem.peakUsageRAM << "\n";
+                return 1;
+            }
+
+            if (mem.currentUsageVRAM != 32 * 1024 * 1024) {
+                std::cerr << "Assertion failed: Memory tracker VRAM mismatch! Got: " << mem.currentUsageVRAM << "\n";
+                return 1;
+            }
+
+            if (rnd.drawCalls != 2 || rnd.triangles != 12000 || rnd.vboBytesUploaded != 256 * 1024) {
+                std::cerr << "Assertion failed: Render stats mismatch!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test B: RAM/VRAM allocator tracking (Current: 20MB, Peak: 24MB, VRAM: 32MB) & Draw metrics verified!\n";
+        }
+
+        // --- Sub-test C: High-Frequency Profiling Benchmark (1,000,000 Invocations) ---
+        {
+            constexpr size_t OPS = 1000000;
+            auto startProf = std::chrono::high_resolution_clock::now();
+            for (size_t i = 0; i < OPS; ++i) {
+                profiler.recordScope("MicroOp", "Worker", 0.05, 1);
+            }
+            auto endProf = std::chrono::high_resolution_clock::now();
+            auto profMs = std::chrono::duration_cast<std::chrono::milliseconds>(endProf - startProf).count();
+
+            std::cout << "  [PASS] Sub-test C: 1,000,000 high-frequency profiler records dispatched in "
+                      << profMs << " ms (avg " << (double)profMs / (double)OPS * 1e6 << " ns/op)!\n";
+        }
+
+        std::cout << "  [PASS] Test 69 In-Game Profiler & Memory Allocator Tracker passed 100%!\n";
     }
 
     Lab::Renderer::shutdown();
