@@ -99,9 +99,10 @@ if(WIN32)
     target_link_libraries(LabCore PUBLIC gdi32 comdlg32)
 endif()
 
-# 2. LabRender.dll - OpenGL 4.5+ DSA Renderer, Lighting, CSG, Decals, Post-process, Skeletal
+# 2. LabRender.dll - OpenGL 4.5+ DSA Renderer, Lighting, CSG, Decals, Post-process, Skeletal, 2D SpriteBatcher
 add_library(LabRender SHARED
     src/LabRenderer.cpp
+    src/LabSpriteBatcher.cpp
     src/LabLight.cpp
     src/LabPostProcess.cpp
     src/LabCSG.cpp
@@ -109,6 +110,7 @@ add_library(LabRender SHARED
     src/LabFace.cpp
     src/LabSkeletal.cpp
     include/LabRenderer.h
+    include/LabSpriteBatcher.h
     include/LabLight.h
     include/LabPostProcess.h
     include/LabCSG.h
@@ -129,12 +131,14 @@ target_include_directories(LabAudio PUBLIC ${LAB_INCLUDES})
 target_compile_options(LabAudio PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabAudio PUBLIC LabCore)
 
-# 4. LabPhysics.dll - AABB Collision Detection, MoveAndSlide, Dynamic Rigid Bodies, Raycasting
+# 4. LabPhysics.dll - AABB Collision Detection, MoveAndSlide, Dynamic Rigid Bodies, Raycasting, PhysicsWorld2D
 add_library(LabPhysics SHARED
     src/LabPhysics.cpp
+    src/LabPhysics2D.cpp
     src/LabCollision.cpp
     src/LabCombat.cpp
     include/LabPhysics.h
+    include/LabPhysics2D.h
     include/LabCollision.h
     include/LabCombat.h
 )

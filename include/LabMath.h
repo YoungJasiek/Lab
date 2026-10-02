@@ -19,6 +19,7 @@ namespace Lab {
         Vec2& operator*=(float s) { x *= s; y *= s; return *this; }
 
         float lengthSq() const { return x * x + y * y; }
+        float lengthSquared() const { return lengthSq(); }
         float length() const { return std::sqrt(lengthSq()); }
 
         Vec2 normalized() const {

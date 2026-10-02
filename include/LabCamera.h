@@ -5,11 +5,55 @@
 
 namespace Lab {
 
+    enum class CameraProjection {
+        Perspective,
+        Orthographic
+    };
+
     class Camera {
     public:
         Camera(float fov, float aspect, float near, float far)
             : _fov(fov), _aspect(aspect), _near(near), _far(far),
-              _position(0.0f, 1.8f, 0.0f), _yaw(-90.0f), _pitch(0.0f) {
+              _position(0.0f, 1.8f, 0.0f), _yaw(-90.0f), _pitch(0.0f),
+              _orthoSize(10.0f), _projection(CameraProjection::Perspective) {
+            updateVectors();
+        }
+
+        Camera(float orthoSize, float aspect, float near, float far, CameraProjection proj)
+            : _fov(60.0f), _aspect(aspect), _near(near), _far(far),
+              _position(0.0f, 0.0f, 10.0f), _yaw(-90.0f), _pitch(0.0f),
+              _orthoSize(orthoSize), _projection(proj) {
+            updateVectors();
+        }
+
+        void setOrthographic(float orthoSize, float near = -100.0f, float far = 100.0f) {
+            _projection = CameraProjection::Orthographic;
+            _orthoSize = orthoSize;
+            _near = near;
+            _far = far;
+            updateVectors();
+        }
+
+        void setPerspective(float fov, float aspect, float near = 0.1f, float far = 1000.0f) {
+            _projection = CameraProjection::Perspective;
+            _fov = fov;
+            _aspect = aspect;
+            _near = near;
+            _far = far;
+            updateVectors();
+        }
+
+        void setProjectionMode(CameraProjection proj) {
+            _projection = proj;
+            updateVectors();
+        }
+
+        CameraProjection getProjectionMode() const { return _projection; }
+        bool isOrthographic() const { return _projection == CameraProjection::Orthographic; }
+
+        float getOrthoSize() const { return _orthoSize; }
+        void setOrthoSize(float size) {
+            _orthoSize = size;
             updateVectors();
         }
 
@@ -54,6 +98,11 @@ namespace Lab {
         }
 
         Mat4 getProjectionMatrix() const {
+            if (_projection == CameraProjection::Orthographic) {
+                float halfH = _orthoSize * 0.5f;
+                float halfW = halfH * _aspect;
+                return Mat4::ortho(-halfW, halfW, -halfH, halfH, _near, _far);
+            }
             return Mat4::perspective(_fov * (3.141592f / 180.0f), _aspect, _near, _far);
         }
 
@@ -128,11 +177,30 @@ namespace Lab {
         // Unproject 2D screen coordinate to normalized 3D world ray direction
         Vec3 screenToWorldRay(float screenX, float screenY, float screenW, float screenH) const {
             if (screenW <= 0.0f || screenH <= 0.0f) return _front;
+            if (_projection == CameraProjection::Orthographic) {
+                return _front;
+            }
             float ndcX = (2.0f * screenX) / screenW - 1.0f;
             float ndcY = 1.0f - (2.0f * screenY) / screenH;
             float tanFov = std::tan((_fov * 0.5f) * (3.14159265f / 180.0f));
             Vec3 rayView(ndcX * tanFov * _aspect, ndcY * tanFov, 1.0f);
             return (_right * rayView.x + _up * rayView.y + _front * rayView.z).normalized();
+        }
+
+        // Unproject 2D screen coordinate directly to world coordinates on the 2D plane
+        Vec3 screenToWorldPoint2D(float screenX, float screenY, float screenW, float screenH) const {
+            if (screenW <= 0.0f || screenH <= 0.0f) return _position;
+            float ndcX = (2.0f * screenX) / screenW - 1.0f;
+            float ndcY = 1.0f - (2.0f * screenY) / screenH;
+            if (_projection == CameraProjection::Orthographic) {
+                float halfH = _orthoSize * 0.5f;
+                float halfW = halfH * _aspect;
+                return _position + _right * (ndcX * halfW) + _up * (ndcY * halfH);
+            }
+            float tanFov = std::tan((_fov * 0.5f) * (3.14159265f / 180.0f));
+            Vec3 rayView(ndcX * tanFov * _aspect, ndcY * tanFov, 1.0f);
+            Vec3 rayDir = (_right * rayView.x + _up * rayView.y + _front * rayView.z).normalized();
+            return _position + rayDir * 10.0f;
         }
 
         // Fast AABB vs Frustum Culling with 0.75m conservative expansion margin
@@ -174,6 +242,8 @@ namespace Lab {
 
         float _yaw, _pitch;
         float _fov, _aspect, _near, _far;
+        float _orthoSize{10.0f};
+        CameraProjection _projection{CameraProjection::Perspective};
         mutable FrustumPlane _planes[6];
     };
 }

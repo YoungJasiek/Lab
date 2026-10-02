@@ -5,6 +5,8 @@
 #include "LabApplication.h"
 #include "LabEvent.h"
 #include "LabSceneNode.h"
+#include "LabSpriteBatcher.h"
+#include "LabPhysics2D.h"
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -5882,6 +5884,180 @@ int main() {
         }
         std::cout << "  [PASS] Generic application onShutdown() cleanup verified!\n";
         std::cout << "  [PASS] Test 56 Generic ILabApplication Lifecycle passed 100%!\n";
+    }
+
+    // 57. Verify Universal 2D Engine Stack: Ortho Camera, SpriteBatcher & PhysicsWorld2D
+    {
+        std::cout << "\n[Test 57] Verifying Universal 2D Engine Stack (Ortho Camera, SpriteBatcher & PhysicsWorld2D)...\n";
+
+        // --- Sub-test A: Orthographic Camera & 2D Unprojection ---
+        {
+            Lab::Camera orthoCam(10.0f, 16.0f / 9.0f, -100.0f, 100.0f, Lab::CameraProjection::Orthographic);
+            orthoCam.setPosition(Lab::Vec3(0.0f, 0.0f, 5.0f));
+
+            if (!orthoCam.isOrthographic()) {
+                std::cerr << "Assertion failed: Camera should report orthographic mode!\n";
+                return 1;
+            }
+            if (std::abs(orthoCam.getOrthoSize() - 10.0f) > 1e-4f) {
+                std::cerr << "Assertion failed: Ortho size mismatch!\n";
+                return 1;
+            }
+
+            Lab::Mat4 orthoProj = orthoCam.getProjectionMatrix();
+            // In ortho projection, m[15] must be 1.0 (affine), unlike perspective where m[15] == 0.0
+            if (std::abs(orthoProj.m[15] - 1.0f) > 1e-4f) {
+                std::cerr << "Assertion failed: Ortho projection matrix m[15] must be 1.0!\n";
+                return 1;
+            }
+
+            // Test 2D Screen-to-World unprojection (center of 800x600 screen should unproject to camera XY)
+            Lab::Vec3 centerWorld = orthoCam.screenToWorldPoint2D(400.0f, 300.0f, 800.0f, 600.0f);
+            if (std::abs(centerWorld.x) > 0.01f || std::abs(centerWorld.y) > 0.01f) {
+                std::cerr << "Assertion failed: Screen center did not unproject to camera center!\n";
+                return 1;
+            }
+
+            // Test parallel world ray in orthographic mode
+            Lab::Vec3 ray = orthoCam.screenToWorldRay(100.0f, 100.0f, 800.0f, 600.0f);
+            if (std::abs(ray.x - orthoCam.getFront().x) > 1e-4f ||
+                std::abs(ray.y - orthoCam.getFront().y) > 1e-4f ||
+                std::abs(ray.z - orthoCam.getFront().z) > 1e-4f) {
+                std::cerr << "Assertion failed: Ortho ray must be parallel to camera front vector!\n";
+                return 1;
+            }
+            std::cout << "  [PASS] Sub-test A: Orthographic Camera projection, rays & 2D unprojection verified!\n";
+        }
+
+        // --- Sub-test B: High-Performance 2D SpriteBatcher (10 000 Sprites in 1 Draw Call) ---
+        {
+            Lab::SpriteBatcher batcher;
+            batcher.init();
+
+            Lab::Mat4 orthoVP = Lab::Mat4::ortho(-100.0f, 100.0f, -100.0f, 100.0f, -10.0f, 10.0f);
+            batcher.begin(orthoVP);
+
+            auto startBatch = std::chrono::high_resolution_clock::now();
+
+            // Submit 10,000 sprites with varied positions, rotations, colors and Z-layers
+            constexpr size_t SPRITE_COUNT = 10000;
+            for (size_t i = 0; i < SPRITE_COUNT; ++i) {
+                float posX = (float)(i % 100) * 1.5f - 75.0f;
+                float posY = (float)(i / 100) * 1.5f - 75.0f;
+                float rot = (float)(i % 360) * (3.14159f / 180.0f);
+                int layer = (int)(i % 11) - 5; // Layers from -5 to +5
+                Lab::Vec4 col((float)(i % 255) / 255.0f, 0.7f, 1.0f, 1.0f);
+
+                batcher.drawRect(Lab::Vec2(posX, posY), Lab::Vec2(1.2f, 1.2f), col, rot, Lab::Vec2(0.5f, 0.5f), layer);
+            }
+
+            batcher.flush();
+            auto endBatch = std::chrono::high_resolution_clock::now();
+            auto batchDurationUs = std::chrono::duration_cast<std::chrono::microseconds>(endBatch - startBatch).count();
+
+            const auto& stats = batcher.getStats();
+            if (stats.spriteCount != SPRITE_COUNT) {
+                std::cerr << "Assertion failed: Sprite count mismatch! Expected " << SPRITE_COUNT
+                          << " got " << stats.spriteCount << "\n";
+                return 1;
+            }
+            if (stats.drawCallCount != 1) {
+                std::cerr << "Assertion failed: 10,000 sprites should be batched into exactly 1 draw call! Got: "
+                          << stats.drawCallCount << "\n";
+                return 1;
+            }
+            if (stats.vertexCount != SPRITE_COUNT * 4) {
+                std::cerr << "Assertion failed: Vertex count mismatch! Expected " << SPRITE_COUNT * 4
+                          << " got " << stats.vertexCount << "\n";
+                return 1;
+            }
+
+            // Verify Z-sorting ordering in batched vertices
+            const auto& vertices = batcher.getBatchedVertices();
+            bool sorted = true;
+            for (size_t i = 4; i < vertices.size(); i += 4) {
+                if (vertices[i].position.z < vertices[i - 4].position.z) {
+                    sorted = false;
+                    break;
+                }
+            }
+            if (!sorted) {
+                std::cerr << "Assertion failed: Sprites were not correctly sorted by layer depth!\n";
+                return 1;
+            }
+
+            batcher.end();
+            batcher.shutdown();
+
+            std::cout << "  [PASS] Sub-test B: SpriteBatcher processed " << SPRITE_COUNT
+                      << " sprites into " << stats.drawCallCount << " draw call ("
+                      << stats.vertexCount << " vertices) in " << batchDurationUs << " us ("
+                      << (double)batchDurationUs / 1000.0 << " ms)!\n";
+        }
+
+        // --- Sub-test C: PhysicsWorld2D Stress & Stability (1 000 RigidBodies) ---
+        {
+            Lab::PhysicsWorld2D world2D(Lab::Vec2(0.0f, -9.81f));
+
+            // Static ground collider
+            size_t groundId = world2D.createBoxBody(Lab::BodyType2D::Static, Lab::Vec2(0.0f, -10.0f), Lab::Vec2(200.0f, 4.0f));
+            if (groundId == 0 || world2D.getBody(groundId) == nullptr) {
+                std::cerr << "Assertion failed: Failed to create static ground body!\n";
+                return 1;
+            }
+
+            // Create 1,000 dynamic bodies (500 boxes and 500 circles)
+            constexpr size_t BODY_COUNT = 1000;
+            for (size_t i = 0; i < BODY_COUNT; ++i) {
+                float x = -40.0f + (float)(i % 40) * 2.0f;
+                float y = 5.0f + (float)(i / 40) * 2.5f;
+
+                if (i % 2 == 0) {
+                    world2D.createBoxBody(Lab::BodyType2D::Dynamic, Lab::Vec2(x, y), Lab::Vec2(1.0f, 1.0f), 2.0f);
+                } else {
+                    world2D.createCircleBody(Lab::BodyType2D::Dynamic, Lab::Vec2(x, y), 0.5f, 1.5f);
+                }
+            }
+
+            if (world2D.getBodyCount() != BODY_COUNT + 1) {
+                std::cerr << "Assertion failed: Total 2D body count mismatch! Expected " << BODY_COUNT + 1
+                          << " got " << world2D.getBodyCount() << "\n";
+                return 1;
+            }
+
+            // Simulate 60 physics frames (1 second of real-time simulation at 60Hz)
+            auto startPhys = std::chrono::high_resolution_clock::now();
+            for (int f = 0; f < 60; ++f) {
+                world2D.step(0.016f);
+            }
+            auto endPhys = std::chrono::high_resolution_clock::now();
+            auto physDurationMs = std::chrono::duration_cast<std::chrono::milliseconds>(endPhys - startPhys).count();
+
+            // Sanity check: Ensure no NaN or infinite positions (numerical stability check)
+            for (const auto& body : world2D.getBodies()) {
+                if (std::isnan(body.position.x) || std::isnan(body.position.y) ||
+                    std::isinf(body.position.x) || std::isinf(body.position.y)) {
+                    std::cerr << "Assertion failed: Numerical instability detected in body " << body.id << "!\n";
+                    return 1;
+                }
+            }
+
+            // Raycast test: vertical ray from top to ground
+            Lab::RaycastHit2D hit;
+            bool hitDetected = world2D.raycast(Lab::Vec2(0.0f, 100.0f), Lab::Vec2(0.0f, -1.0f), 200.0f, hit);
+            if (!hitDetected || hit.point.y < -12.0f) {
+                std::cerr << "Assertion failed: 2D Raycast did not detect colliders!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test C: PhysicsWorld2D simulated " << BODY_COUNT
+                      << " rigid bodies over 60 steps in " << physDurationMs << " ms (avg "
+                      << (double)physDurationMs / 60.0 << " ms/step, 0 NaN/Inf)!\n";
+            std::cout << "  [PASS] 2D Raycast hit collider at Y=" << hit.point.y
+                      << " with normal=(" << hit.normal.x << ", " << hit.normal.y << ")!\n";
+        }
+
+        std::cout << "  [PASS] Test 57 Universal 2D Engine Stack passed 100%!\n";
     }
 
     Lab::Renderer::shutdown();
