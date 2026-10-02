@@ -134,6 +134,7 @@ public:
             _scriptEngine.setActiveMap(_map.get());
         }
         _scriptEngine.executeString(_currentScript);
+        syncStringToScriptLines();
 
         // Initialize embedded LabStudio suite
         _characterStudio.init();
@@ -267,7 +268,10 @@ public:
     }
 
     void onFixedUpdate(float fixedDelta) override {
-        // Noclip camera flight (active when holding Right Mouse Button)
+        // Noclip camera flight (active ONLY in 3D level editing when holding Right Mouse Button)
+        if (_workspace != EditorWorkspace::World3D_Level && _workspace != EditorWorkspace::World3D_Animation) {
+            return;
+        }
         if (Input::isMouseButtonPressed(1)) {
             bool isFast = Input::isKeyPressed(340); // Shift
             float flySpeed = isFast ? 35.0f : 15.0f;
@@ -420,7 +424,57 @@ public:
         logMessage("Workspace switched: [ " + getWorkspaceName(ws) + " ]");
     }
 
+    void syncStringToScriptLines() {
+        _scriptLines.clear();
+        std::stringstream ss(_currentScript);
+        std::string line;
+        while (std::getline(ss, line)) {
+            if (!line.empty() && line.back() == '\r') line.pop_back();
+            _scriptLines.push_back(line);
+        }
+        if (_scriptLines.empty()) _scriptLines.push_back("");
+        _scriptCursorLine = std::clamp(_scriptCursorLine, 0, (int)_scriptLines.size() - 1);
+        _scriptCursorCol = std::clamp(_scriptCursorCol, 0, (int)_scriptLines[_scriptCursorLine].size());
+    }
+
+    void syncScriptLinesToString() {
+        std::string res;
+        for (size_t i = 0; i < _scriptLines.size(); ++i) {
+            res += _scriptLines[i];
+            if (i + 1 < _scriptLines.size()) res += "\n";
+        }
+        _currentScript = res;
+    }
+
+    void saveScriptToFile(const std::string& path) {
+        syncScriptLinesToString();
+        try {
+            std::filesystem::create_directories(std::filesystem::path(path).parent_path());
+            std::ofstream out(path);
+            if (out.is_open()) {
+                out << _currentScript;
+                out.close();
+                logMessage("Script saved to " + path);
+            }
+        } catch (const std::exception& e) {
+            logMessage("Failed to save script: " + std::string(e.what()));
+        }
+    }
+
+    void loadScriptFromFile(const std::string& path) {
+        if (!std::filesystem::exists(path)) return;
+        std::ifstream in(path);
+        if (in.is_open()) {
+            std::stringstream ss;
+            ss << in.rdbuf();
+            _currentScript = ss.str();
+            syncStringToScriptLines();
+            logMessage("Loaded script from " + path);
+        }
+    }
+
     void runCurrentScript() {
+        syncScriptLinesToString();
         if (_map) {
             _scriptEngine.setActiveMap(_map.get());
         }
@@ -429,6 +483,229 @@ public:
             logMessage("Lua Script executed successfully! (OnUpdate & bindings active)");
         } else {
             logMessage("Lua Script execution failed (check syntax)!");
+        }
+    }
+
+    void handleScriptEditorInput(float dt) {
+        _scriptBlinkTimer += dt;
+        if (!_scriptEditorFocused) return;
+        if (_scriptLines.empty()) _scriptLines.push_back("");
+
+        _scriptCursorLine = std::clamp(_scriptCursorLine, 0, (int)_scriptLines.size() - 1);
+        _scriptCursorCol = std::clamp(_scriptCursorCol, 0, (int)_scriptLines[_scriptCursorLine].size());
+
+        bool ctrl = Input::isKeyPressed(GLFW_KEY_LEFT_CONTROL) || Input::isKeyPressed(GLFW_KEY_RIGHT_CONTROL);
+        bool shift = Input::isKeyPressed(GLFW_KEY_LEFT_SHIFT) || Input::isKeyPressed(GLFW_KEY_RIGHT_SHIFT);
+
+        // Ctrl Shortcuts
+        if (ctrl) {
+            if (Input::isKeyJustPressed(GLFW_KEY_S)) {
+                saveScriptToFile(_activeScriptPath);
+                return;
+            } else if (Input::isKeyJustPressed(GLFW_KEY_R)) {
+                runCurrentScript();
+                return;
+            } else if (Input::isKeyJustPressed(GLFW_KEY_A)) {
+                _scriptCursorLine = 0;
+                _scriptCursorCol = 0;
+                return;
+            }
+        }
+
+        // Enter: Split line
+        if (Input::isKeyJustPressed(GLFW_KEY_ENTER)) {
+            std::string cur = _scriptLines[_scriptCursorLine];
+            std::string left = cur.substr(0, _scriptCursorCol);
+            std::string right = cur.substr(_scriptCursorCol);
+
+            std::string indent = "";
+            for (char ch : left) {
+                if (ch == ' ') indent += ' ';
+                else break;
+            }
+
+            _scriptLines[_scriptCursorLine] = left;
+            _scriptLines.insert(_scriptLines.begin() + _scriptCursorLine + 1, indent + right);
+            _scriptCursorLine++;
+            _scriptCursorCol = (int)indent.size();
+            syncScriptLinesToString();
+            _scriptBlinkTimer = 0.0f;
+            return;
+        }
+
+        // Backspace: delete char or merge line
+        if (Input::isKeyJustPressed(GLFW_KEY_BACKSPACE)) {
+            if (_scriptCursorCol > 0) {
+                _scriptLines[_scriptCursorLine].erase(_scriptCursorCol - 1, 1);
+                _scriptCursorCol--;
+                syncScriptLinesToString();
+            } else if (_scriptCursorLine > 0) {
+                int prevLen = (int)_scriptLines[_scriptCursorLine - 1].size();
+                _scriptLines[_scriptCursorLine - 1] += _scriptLines[_scriptCursorLine];
+                _scriptLines.erase(_scriptLines.begin() + _scriptCursorLine);
+                _scriptCursorLine--;
+                _scriptCursorCol = prevLen;
+                syncScriptLinesToString();
+            }
+            _scriptBlinkTimer = 0.0f;
+            return;
+        }
+
+        // Delete: delete char or pull up next line
+        if (Input::isKeyJustPressed(GLFW_KEY_DELETE)) {
+            if (_scriptCursorCol < (int)_scriptLines[_scriptCursorLine].size()) {
+                _scriptLines[_scriptCursorLine].erase(_scriptCursorCol, 1);
+                syncScriptLinesToString();
+            } else if (_scriptCursorLine < (int)_scriptLines.size() - 1) {
+                _scriptLines[_scriptCursorLine] += _scriptLines[_scriptCursorLine + 1];
+                _scriptLines.erase(_scriptLines.begin() + _scriptCursorLine + 1);
+                syncScriptLinesToString();
+            }
+            _scriptBlinkTimer = 0.0f;
+            return;
+        }
+
+        // Tab: 4 spaces
+        if (Input::isKeyJustPressed(GLFW_KEY_TAB)) {
+            _scriptLines[_scriptCursorLine].insert(_scriptCursorCol, "    ");
+            _scriptCursorCol += 4;
+            syncScriptLinesToString();
+            _scriptBlinkTimer = 0.0f;
+            return;
+        }
+
+        // Arrow navigation
+        if (Input::isKeyJustPressed(GLFW_KEY_LEFT)) {
+            if (_scriptCursorCol > 0) {
+                _scriptCursorCol--;
+            } else if (_scriptCursorLine > 0) {
+                _scriptCursorLine--;
+                _scriptCursorCol = (int)_scriptLines[_scriptCursorLine].size();
+            }
+            _scriptBlinkTimer = 0.0f;
+        }
+        if (Input::isKeyJustPressed(GLFW_KEY_RIGHT)) {
+            if (_scriptCursorCol < (int)_scriptLines[_scriptCursorLine].size()) {
+                _scriptCursorCol++;
+            } else if (_scriptCursorLine < (int)_scriptLines.size() - 1) {
+                _scriptCursorLine++;
+                _scriptCursorCol = 0;
+            }
+            _scriptBlinkTimer = 0.0f;
+        }
+        if (Input::isKeyJustPressed(GLFW_KEY_UP)) {
+            if (_scriptCursorLine > 0) {
+                _scriptCursorLine--;
+                _scriptCursorCol = std::min(_scriptCursorCol, (int)_scriptLines[_scriptCursorLine].size());
+            }
+            _scriptBlinkTimer = 0.0f;
+        }
+        if (Input::isKeyJustPressed(GLFW_KEY_DOWN)) {
+            if (_scriptCursorLine < (int)_scriptLines.size() - 1) {
+                _scriptCursorLine++;
+                _scriptCursorCol = std::min(_scriptCursorCol, (int)_scriptLines[_scriptCursorLine].size());
+            }
+            _scriptBlinkTimer = 0.0f;
+        }
+        if (Input::isKeyJustPressed(GLFW_KEY_HOME)) {
+            _scriptCursorCol = 0;
+            _scriptBlinkTimer = 0.0f;
+        }
+        if (Input::isKeyJustPressed(GLFW_KEY_END)) {
+            _scriptCursorCol = (int)_scriptLines[_scriptCursorLine].size();
+            _scriptBlinkTimer = 0.0f;
+        }
+        if (Input::isKeyJustPressed(GLFW_KEY_PAGE_UP)) {
+            _scriptCursorLine = std::max(0, _scriptCursorLine - 10);
+            _scriptCursorCol = std::min(_scriptCursorCol, (int)_scriptLines[_scriptCursorLine].size());
+            _scriptBlinkTimer = 0.0f;
+        }
+        if (Input::isKeyJustPressed(GLFW_KEY_PAGE_DOWN)) {
+            _scriptCursorLine = std::min((int)_scriptLines.size() - 1, _scriptCursorLine + 10);
+            _scriptCursorCol = std::min(_scriptCursorCol, (int)_scriptLines[_scriptCursorLine].size());
+            _scriptBlinkTimer = 0.0f;
+        }
+
+        // Printable text characters
+        char typed = 0;
+        for (int k = GLFW_KEY_A; k <= GLFW_KEY_Z; ++k) {
+            if (Input::isKeyJustPressed(k)) {
+                typed = shift ? (char)k : (char)(k - 'A' + 'a');
+                break;
+            }
+        }
+        if (!typed) {
+            for (int k = GLFW_KEY_0; k <= GLFW_KEY_9; ++k) {
+                if (Input::isKeyJustPressed(k)) {
+                    if (!shift) {
+                        typed = (char)k;
+                    } else {
+                        const char* sNums = ")!@#$%^&*(";
+                        typed = sNums[k - GLFW_KEY_0];
+                    }
+                    break;
+                }
+            }
+        }
+        if (!typed && Input::isKeyJustPressed(GLFW_KEY_SPACE)) {
+            typed = ' ';
+        }
+        if (!typed) {
+            struct SymEntry { int key; char norm; char shft; };
+            SymEntry syms[] = {
+                { GLFW_KEY_MINUS, '-', '_' },
+                { GLFW_KEY_EQUAL, '=', '+' },
+                { GLFW_KEY_LEFT_BRACKET, '[', '{' },
+                { GLFW_KEY_RIGHT_BRACKET, ']', '}' },
+                { GLFW_KEY_SEMICOLON, ';', ':' },
+                { GLFW_KEY_APOSTROPHE, '\'', '"' },
+                { GLFW_KEY_COMMA, ',', '<' },
+                { GLFW_KEY_PERIOD, '.', '>' },
+                { GLFW_KEY_SLASH, '/', '?' },
+                { GLFW_KEY_BACKSLASH, '\\', '|' },
+                { GLFW_KEY_GRAVE_ACCENT, '`', '~' }
+            };
+            for (const auto& sm : syms) {
+                if (Input::isKeyJustPressed(sm.key)) {
+                    typed = shift ? sm.shft : sm.norm;
+                    break;
+                }
+            }
+        }
+
+        if (typed != 0) {
+            _scriptLines[_scriptCursorLine].insert(_scriptCursorCol, 1, typed);
+            _scriptCursorCol++;
+            syncScriptLinesToString();
+            _scriptBlinkTimer = 0.0f;
+        }
+    }
+
+    void renderTurntableModelStage(int w, int h) {
+        Camera turntableCam(60.0f, (float)w / (float)h, 0.05f, 500.0f);
+        float radYaw = _modelViewerYaw * 3.14159265f / 180.0f;
+        float radPitch = _modelViewerPitch * 3.14159265f / 180.0f;
+        float dist = _modelViewerDistance;
+        Vec3 camPos(
+            std::cos(radPitch) * std::sin(radYaw) * dist,
+            std::sin(radPitch) * dist + 0.8f,
+            std::cos(radPitch) * std::cos(radYaw) * dist
+        );
+        turntableCam.setPosition(camPos);
+        turntableCam.lookAt(Vec3(0, 0.4f, 0));
+
+        Renderer::beginFrame(turntableCam);
+        Renderer::setSunLight(Vec3(-0.5f, -0.8f, -0.4f), Vec3(1.0f, 0.98f, 0.95f), Vec3(0.35f, 0.38f, 0.45f));
+
+        // Clean pedestal
+        Renderer::drawCube(Vec3(0, -0.05f, 0), Vec3(2.5f, 0.1f, 2.5f), Vec3(0.18f, 0.20f, 0.25f));
+
+        Mesh* m = getMesh(_selectedModel);
+        if (m) {
+            Texture* tex = getTexture(_selectedTexture);
+            Renderer::drawMesh(*m, Vec3(0, 0.3f, 0), Vec3(0, 0, 0), Vec3(1, 1, 1), Vec3(0.9f, 0.9f, 0.95f), tex);
+        } else {
+            Renderer::drawCube(Vec3(0, 0.5f, 0), Vec3(1.0f, 1.0f, 1.0f), Vec3(0.3f, 0.6f, 0.9f));
         }
     }
 
@@ -552,10 +829,11 @@ public:
         float vpY = 58.0f;
         float vpW = (fbW > 0 ? (float)fbW : (float)getWidth()) - vpX - 320.0f;
         float vpH = (fbH > 0 ? (float)fbH : (float)getHeight()) - vpY - 22.0f;
-        bool in3DViewport = (mx >= vpX && mx <= vpX + vpW && my >= vpY && my <= vpY + vpH);
+        bool is3DMapEditing = (_workspace == EditorWorkspace::World3D_Level || _workspace == EditorWorkspace::World3D_Animation);
+        bool in3DViewport = is3DMapEditing && (mx >= vpX && mx <= vpX + vpW && my >= vpY && my <= vpY + vpH);
 
-        // Mouse look in 3D Viewport when holding Right Mouse Button
-        if (Input::isMouseButtonPressed(1)) {
+        // Mouse look in 3D Viewport when holding Right Mouse Button (only in 3D map workspaces)
+        if (is3DMapEditing && Input::isMouseButtonPressed(1)) {
             if (_activeTool != 3) {
                 if (!_isFlyingCamera && in3DViewport) {
                     _isFlyingCamera = true;
@@ -678,6 +956,11 @@ public:
                     _anim2DSelectedFrame = _anim2DLoop ? 0 : (_anim2DTotalFrames - 1);
                 }
             }
+        }
+
+        // In-Engine Lua Script Studio IDE Updates
+        if (_workspace == EditorWorkspace::Scripting_Editor) {
+            handleScriptEditorInput(time.delta);
         }
 
         // 4. Hierarchy Context Menu Search Input Handling
@@ -843,8 +1126,10 @@ public:
             _ctrlDPressed = false;
         }
 
-        // F: Focus camera on selection
-        if (!ctrlDown && (Input::isKeyPressed('F') || Input::isKeyPressed('f'))) {
+        // 3D Map Editing Shortcuts (strictly isolated to 3D workspaces)
+        if (is3DMapEditing) {
+            // F: Focus camera on selection
+            if (!ctrlDown && (Input::isKeyPressed('F') || Input::isKeyPressed('f'))) {
             if (!_fPressed) {
                 focusCamera();
                 _fPressed = true;
@@ -961,6 +1246,7 @@ public:
             } else _pageDownPressed = false;
         }
     }
+}
 
     static Vec3 snapToGrid(const Vec3& v, float snap) {
         if (snap <= 0.001f) return v;
@@ -1018,6 +1304,7 @@ public:
 
     void pickObjectInViewport(float mx, float my, bool isRmb = false) {
         if (!_map) return;
+        if (_workspace != EditorWorkspace::World3D_Level && _workspace != EditorWorkspace::World3D_Animation) return;
         int fbW = 0, fbH = 0;
         getFramebufferSize(fbW, fbH);
         float w = (fbW > 0) ? (float)fbW : (float)getWidth();
@@ -2930,6 +3217,30 @@ public:
             return;
         }
 
+        // Viewport Tab Bar Click Handling (Seamless one-click switching between 3D Scene, Script Studio, and HUD Canvas)
+        float vpTabX = leftW;
+        float vpTabY = 58.0f;
+        float tabH = 26.0f;
+        if (my >= vpTabY && my <= vpTabY + tabH && mx >= vpTabX && mx <= l.rightX) {
+            float tab1X = vpTabX + 6.0f;
+            float tab1W = 120.0f;
+            float tab2X = tab1X + tab1W + 6.0f;
+            float tab2W = 175.0f;
+            float tab3X = tab2X + tab2W + 6.0f;
+            float tab3W = 150.0f;
+
+            if (mx >= tab1X && mx <= tab1X + tab1W) {
+                setWorkspace(EditorWorkspace::World3D_Level);
+                return;
+            } else if (mx >= tab2X && mx <= tab2X + tab2W) {
+                setWorkspace(EditorWorkspace::Scripting_Editor);
+                return;
+            } else if (mx >= tab3X && mx <= tab3X + tab3W) {
+                setWorkspace(EditorWorkspace::Level2D_HUD);
+                return;
+            }
+        }
+
         // 8.4. 3D Model Viewer Workspace Interactions
         if (_workspace == EditorWorkspace::World3D_ModelViewer) {
             float vpX = leftW;
@@ -3120,17 +3431,18 @@ public:
             float vpX = leftW;
             float vpW = l.rightX - vpX;
             float vpH = (h - 22.0f) - 58.0f;
-            float edW = std::min(vpW - 40.0f, 920.0f);
-            float edH = std::min(vpH - 40.0f, 520.0f);
-            float edX = vpX + (vpW - edW) * 0.5f;
-            float edY = 58.0f + (vpH - edH) * 0.5f;
-            float actY = edY + 38.0f;
+            float contentY = 58.0f + 26.0f; // below Viewport Tab Bar
+            float contentH = vpH - 26.0f;
+            float actY = contentY + 3.0f;
 
             if (my >= actY && my <= actY + 28.0f) {
-                if (mx >= edX + 14.0f && mx <= edX + 204.0f) {
+                if (mx >= vpX + 6.0f && mx <= vpX + 166.0f) {
                     runCurrentScript();
                     return;
-                } else if (mx >= edX + 214.0f && mx <= edX + 384.0f) {
+                } else if (mx >= vpX + 172.0f && mx <= vpX + 292.0f) {
+                    saveScriptToFile(_activeScriptPath);
+                    return;
+                } else if (mx >= vpX + 298.0f && mx <= vpX + 448.0f) {
                     _currentScript =
                         "-- Preset 1: Moving Klocek + HUD Timer\n"
                         "function OnStart()\n"
@@ -3147,10 +3459,11 @@ public:
                         "        klocek:move(0, math.sin(timer * 4.0) * 0.05, 0)\n"
                         "    end\n"
                         "end\n";
+                    syncStringToScriptLines();
                     runCurrentScript();
                     logMessage("Loaded Script Preset: Moving Klocek + HUD Timer.");
                     return;
-                } else if (mx >= edX + 394.0f && mx <= edX + 554.0f) {
+                } else if (mx >= vpX + 454.0f && mx <= vpX + 594.0f) {
                     _currentScript =
                         "-- Preset 2: Multi-Genre HUD Game Loop\n"
                         "local health = 100.0\n"
@@ -3165,10 +3478,11 @@ public:
                         "    HUD.setValue(\"Health\", health)\n"
                         "    HUD.setValue(\"Mana\", mana)\n"
                         "end\n";
+                    syncStringToScriptLines();
                     runCurrentScript();
                     logMessage("Loaded Script Preset: Multi-Genre HUD Game Loop.");
                     return;
-                } else if (mx >= edX + 564.0f && mx <= edX + 714.0f) {
+                } else if (mx >= vpX + 600.0f && mx <= vpX + 730.0f) {
                     _currentScript =
                         "-- Preset 3: Turret & Continuous Movement\n"
                         "local angle = 0.0\n"
@@ -3180,10 +3494,11 @@ public:
                         "        e:setPosition(math.cos(angle)*r, 1.5, math.sin(angle)*r - 4.0)\n"
                         "    end\n"
                         "end\n";
+                    syncStringToScriptLines();
                     runCurrentScript();
                     logMessage("Loaded Script Preset: Turret Continuous Movement.");
                     return;
-                } else if (mx >= edX + 724.0f && mx <= edX + 904.0f) {
+                } else if (mx >= vpX + 736.0f && mx <= vpX + 886.0f) {
                     if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
                         _map->brushes[_selectedIndex].name = "Klocek1";
                         _map->brushes[_selectedIndex].script = "assets/scripts/gameplay.lua";
@@ -3198,6 +3513,28 @@ public:
                     return;
                 }
             }
+
+            // Click inside the Code Area to place cursor & focus
+            float codeX = vpX + 4.0f;
+            float codeY = contentY + 34.0f;
+            float codeW = vpW - 8.0f;
+            float codeH = contentH - 34.0f - 24.0f;
+            if (mx >= codeX && mx <= codeX + codeW && my >= codeY && my <= codeY + codeH) {
+                _scriptEditorFocused = true;
+                float relY = my - (codeY + 6.0f);
+                int lineIdx = _scriptScrollLine + (int)(relY / 18.0f);
+                if (lineIdx >= 0 && lineIdx < (int)_scriptLines.size()) {
+                    _scriptCursorLine = lineIdx;
+                    float gutterW = 46.0f;
+                    float textStartX = codeX + gutterW + 6.0f;
+                    float relX = std::max(0.0f, mx - textStartX);
+                    int colIdx = (int)std::round(relX / 8.5f);
+                    _scriptCursorCol = std::clamp(colIdx, 0, (int)_scriptLines[_scriptCursorLine].size());
+                    _scriptBlinkTimer = 0.0f;
+                }
+                return;
+            }
+            return; // Consume click so it never triggers 3D actions
         }
 
         // 8.8. 3D Animation Workspace Timeline Interactions
@@ -3229,8 +3566,10 @@ public:
             }
         }
 
-        // 9. 3D Viewport Raycast Picking (Selection / Texture Tool / Object placement)
-        pickObjectInViewport(mx, my, isRmb);
+        // 9. 3D Viewport Raycast Picking (Selection / Texture Tool / Object placement) - ONLY in 3D workspaces
+        if (_workspace == EditorWorkspace::World3D_Level || _workspace == EditorWorkspace::World3D_Animation) {
+            pickObjectInViewport(mx, my, isRmb);
+        }
     }
 
     void drawGizmo(const Vec3& pos) {
@@ -3256,15 +3595,20 @@ public:
         int w = (fbW > 0) ? fbW : getWidth();
         int h = (fbH > 0) ? fbH : getHeight();
 
-        // If in embedded Studio workspace, render CharacterStudio in central viewport
-        if (isStudioWorkspace(_workspace)) {
+        // If not in 3D level editing, render clean workspace stage without 3D map
+        bool is3DMapWorkspace = (_workspace == EditorWorkspace::World3D_Level || _workspace == EditorWorkspace::World3D_Animation);
+        if (!is3DMapWorkspace) {
             glViewport(0, 0, w, h);
-            glClearColor(0.12f, 0.13f, 0.15f, 1.0f);
+            glClearColor(0.07f, 0.08f, 0.10f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-            _characterStudio.render(w, h);
+            if (isStudioWorkspace(_workspace)) {
+                _characterStudio.render(w, h);
+            } else if (_workspace == EditorWorkspace::World3D_ModelViewer) {
+                renderTurntableModelStage(w, h);
+            }
 
-            // Draw Editor Top Bar & Overlay on top
+            // Draw Editor Top Bar, Docked Active Workspace, Sidebar, and Bottom Dock
             drawHammerInterface();
 
             if (_browserOpen) drawTextureBrowser();
@@ -4204,17 +4548,67 @@ public:
         }
     }
 
-        // ==================== WORKSPACE OVERLAYS ====================
+        // ==================== CENTRAL VIEWPORT & WORKSPACES ====================
         float vpX = leftW;
         float vpY = tbY + tbH;
         float vpW = l.rightX - vpX;
         float vpH = (h - 22.0f) - vpY;
 
+        // Viewport Tab Bar (Intuitive Workspace Switcher: 3D Scene / Lua Script Studio / HUD Canvas)
+        float tabH = 26.0f;
+        Renderer::drawRect(vpX, vpY, vpW, tabH, Vec3(0.10f, 0.11f, 0.14f));
+        drawDarkBevel(vpX, vpY, vpW, tabH, false);
+
+        bool is3D = (_workspace == EditorWorkspace::World3D_Level || _workspace == EditorWorkspace::World3D_Animation);
+        bool isScr = (_workspace == EditorWorkspace::Scripting_Editor || _workspace == EditorWorkspace::Scripting_Console);
+        bool isHud = (_workspace == EditorWorkspace::Level2D_HUD);
+        bool isMv = (_workspace == EditorWorkspace::World3D_ModelViewer);
+        bool isAnim2D = (_workspace == EditorWorkspace::Level2D_Animation);
+        bool isStud = isStudioWorkspace(_workspace);
+
+        // Tab 1: [ 3D Level Scene ]
+        float tab1X = vpX + 6.0f;
+        float tab1W = 120.0f;
+        Renderer::drawRect(tab1X, vpY + 2.0f, tab1W, tabH - 4.0f, is3D ? Vec3(0.18f, 0.22f, 0.28f) : Vec3(0.12f, 0.13f, 0.16f));
+        drawDarkBevel(tab1X, vpY + 2.0f, tab1W, tabH - 4.0f, is3D);
+        if (is3D) Renderer::drawRect(tab1X, vpY + tabH - 2.0f, tab1W, 2.0f, orangeGlow);
+        LabFont::drawText(tab1X + 12.0f, vpY + 6.0f, "3D Level Scene", 1.35f, is3D ? Vec3(1, 1, 1) : textDim, LabFontType::System);
+
+        // Tab 2: [ Lua Script Studio ]
+        float tab2X = tab1X + tab1W + 6.0f;
+        float tab2W = 175.0f;
+        Renderer::drawRect(tab2X, vpY + 2.0f, tab2W, tabH - 4.0f, isScr ? Vec3(0.18f, 0.22f, 0.28f) : Vec3(0.12f, 0.13f, 0.16f));
+        drawDarkBevel(tab2X, vpY + 2.0f, tab2W, tabH - 4.0f, isScr);
+        if (isScr) Renderer::drawRect(tab2X, vpY + tabH - 2.0f, tab2W, 2.0f, cyanGlow);
+        LabFont::drawText(tab2X + 12.0f, vpY + 6.0f, "Lua Script Studio", 1.35f, isScr ? Vec3(1, 1, 1) : textDim, LabFontType::System);
+
+        // Tab 3: [ HUD Canvas Designer ]
+        float tab3X = tab2X + tab2W + 6.0f;
+        float tab3W = 150.0f;
+        Renderer::drawRect(tab3X, vpY + 2.0f, tab3W, tabH - 4.0f, isHud ? Vec3(0.18f, 0.22f, 0.28f) : Vec3(0.12f, 0.13f, 0.16f));
+        drawDarkBevel(tab3X, vpY + 2.0f, tab3W, tabH - 4.0f, isHud);
+        if (isHud) Renderer::drawRect(tab3X, vpY + tabH - 2.0f, tab3W, 2.0f, cyanGlow);
+        LabFont::drawText(tab3X + 12.0f, vpY + 6.0f, "HUD Canvas Designer", 1.35f, isHud ? Vec3(1, 1, 1) : textDim, LabFontType::System);
+
+        // Tab 4 (Contextual: 3D Model Viewer / Studio / 2D Anim if active)
+        if (isMv || isStud || isAnim2D) {
+            float tab4X = tab3X + tab3W + 6.0f;
+            float tab4W = 160.0f;
+            std::string tab4Title = isMv ? "3D Model Viewer" : (isAnim2D ? "2D Animation" : "Character Studio");
+            Renderer::drawRect(tab4X, vpY + 2.0f, tab4W, tabH - 4.0f, Vec3(0.18f, 0.22f, 0.28f));
+            drawDarkBevel(tab4X, vpY + 2.0f, tab4W, tabH - 4.0f, true);
+            Renderer::drawRect(tab4X, vpY + tabH - 2.0f, tab4W, 2.0f, orangeGlow);
+            LabFont::drawText(tab4X + 12.0f, vpY + 6.0f, tab4Title, 1.35f, Vec3(1, 1, 1), LabFontType::System);
+        }
+
+        float contentY = vpY + tabH;
+        float contentH = vpH - tabH;
+
         if (isStudioWorkspace(_workspace)) {
             // LabStudio Embedded Viewport Overlay
             float bannerW = std::min(vpW - 40.0f, 840.0f);
             float bx = vpX + (vpW - bannerW) * 0.5f;
-            float by = vpY + 10.0f;
+            float by = contentY + 10.0f;
             Renderer::drawRect(bx, by, bannerW, 30.0f, Vec3(0.12f, 0.14f, 0.18f));
             drawDarkBevel(bx, by, bannerW, 30.0f, false);
             Renderer::drawRect(bx, by, 3.0f, 30.0f, cyanGlow);
@@ -4282,39 +4676,44 @@ public:
             drawDarkBevel(cX, mvY + mvH - 34.0f, centerW, 26.0f, false);
             LabFont::drawText(cX + 12.0f, mvY + mvH - 28.0f, "Turntable Stage: Drag LMB to rotate, Wheel to zoom, Space to toggle spin", 1.35f, textDim, LabFontType::System);
         } else if (_workspace == EditorWorkspace::Level2D_HUD) {
-            // Interactive Multi-Genre HUD Canvas Designer
-            float cvW = std::min(vpW - 40.0f, 960.0f);
-            float cvH = std::min(vpH - 40.0f, 540.0f);
-            float cvX = vpX + (vpW - cvW) * 0.5f;
-            float cvY = vpY + (vpH - cvH) * 0.5f;
-
-            // Screen Canvas Border & Background (16:9 Virtual Artboard 1920x1080)
-            Renderer::drawRect(cvX, cvY, cvW, cvH, Vec3(0.06f, 0.08f, 0.11f));
-            drawDarkBevel(cvX, cvY, cvW, cvH, true);
-            Renderer::drawRect(cvX, cvY, cvW, 28.0f, Vec3(0.12f, 0.15f, 0.20f));
-            LabFont::drawText(cvX + 12.0f, cvY + 7.0f, "HUD CANVAS DESIGNER - Multi-Genre Virtual 1920x1080 Screen Artboard", 1.45f, cyanGlow, LabFontType::System);
+            // Interactive Multi-Genre HUD Canvas Designer - full viewport stage
+            Renderer::drawRect(vpX, contentY, vpW, contentH, Vec3(0.05f, 0.06f, 0.08f));
+            drawDarkBevel(vpX, contentY, vpW, contentH, false);
 
             // Top Genre Template Toolbar
-            float htbY = cvY + 30.0f;
-            Renderer::drawRect(cvX, htbY, cvW, 26.0f, Vec3(0.10f, 0.11f, 0.14f));
-            drawDarkButton(cvX + 10.0f, htbY + 2.0f, 90.0f, 22.0f, "+ RPG Bars");
-            drawDarkButton(cvX + 105.0f, htbY + 2.0f, 80.0f, 22.0f, "+ Platform");
-            drawDarkButton(cvX + 190.0f, htbY + 2.0f, 80.0f, 22.0f, "+ RTS Bars");
-            drawDarkButton(cvX + 275.0f, htbY + 2.0f, 85.0f, 22.0f, "+ Racing");
-            drawDarkButton(cvX + 365.0f, htbY + 2.0f, 85.0f, 22.0f, "+ Story Box");
-            drawDarkButton(cvX + 455.0f, htbY + 2.0f, 80.0f, 22.0f, "+ Timer");
-            drawDarkButton(cvX + 540.0f, htbY + 2.0f, 75.0f, 22.0f, "+ Crosshair");
-            drawDarkButton(cvX + 620.0f, htbY + 2.0f, 70.0f, 22.0f, "+ Button");
+            float htbY = contentY + 2.0f;
+            Renderer::drawRect(vpX, htbY, vpW, 28.0f, Vec3(0.09f, 0.10f, 0.13f));
+            drawDarkButton(vpX + 8.0f, htbY + 2.0f, 90.0f, 24.0f, "+ RPG Bars");
+            drawDarkButton(vpX + 104.0f, htbY + 2.0f, 85.0f, 24.0f, "+ Platform");
+            drawDarkButton(vpX + 195.0f, htbY + 2.0f, 85.0f, 24.0f, "+ RTS Bars");
+            drawDarkButton(vpX + 286.0f, htbY + 2.0f, 85.0f, 24.0f, "+ Racing");
+            drawDarkButton(vpX + 377.0f, htbY + 2.0f, 85.0f, 24.0f, "+ Story Box");
+            drawDarkButton(vpX + 468.0f, htbY + 2.0f, 80.0f, 24.0f, "+ Timer");
+            drawDarkButton(vpX + 554.0f, htbY + 2.0f, 80.0f, 24.0f, "+ Crosshair");
+            drawDarkButton(vpX + 640.0f, htbY + 2.0f, 75.0f, 24.0f, "+ Button");
+
+            // Calculate centered 16:9 Virtual Artboard (1920x1080)
+            float botH = 34.0f;
+            float availW = vpW - 20.0f;
+            float availH = contentH - 32.0f - botH - 10.0f;
+            float s = std::min(availW / 1920.0f, availH / 1080.0f);
+            float cvW = 1920.0f * s;
+            float cvH = 1080.0f * s;
+            float cvX = vpX + (vpW - cvW) * 0.5f;
+            float cvY = contentY + 32.0f + (availH - cvH) * 0.5f;
+
+            Renderer::drawRect(cvX, cvY, cvW, cvH, Vec3(0.07f, 0.08f, 0.11f));
+            drawDarkBevel(cvX, cvY, cvW, cvH, true);
+            LabFont::drawText(cvX + 8.0f, cvY + 4.0f, "1920x1080 Screen Artboard", 1.25f, cyanGlow, LabFontType::System);
 
             // Render HUD Widgets onto Virtual Artboard
             float scaleX = cvW / 1920.0f;
-            float scaleY = (cvH - 85.0f) / 1080.0f;
-            float artboardY = cvY + 60.0f;
+            float scaleY = cvH / 1080.0f;
 
             for (size_t i = 0; i < _hudWidgets.size(); ++i) {
                 const auto& w = _hudWidgets[i];
                 float wx = cvX + w.x * scaleX;
-                float wy = artboardY + w.y * scaleY;
+                float wy = cvY + w.y * scaleY;
                 float ww = std::max(20.0f, w.w * scaleX);
                 float wh = std::max(12.0f, w.h * scaleY);
 
@@ -4354,13 +4753,13 @@ public:
 
             // Canvas Quick-Control Buttons (at bottom of canvas)
             bool isSim = (_simState == EngineSimState::Playing);
-            float btnY = cvY + cvH - 36.0f;
-            drawDarkButton(cvX + 10.0f, btnY, 140.0f, 26.0f, isSim ? "Stop Sim (F9)" : "> Play Sim (F9)", isSim, false, !isSim);
-            drawDarkButton(cvX + 158.0f, btnY, 110.0f, 26.0f, "+1s Clock", false, false, true);
-            drawDarkButton(cvX + 276.0f, btnY, 100.0f, 26.0f, "Reset Timer");
-            drawDarkButton(cvX + 384.0f, btnY, 100.0f, 26.0f, "-15 Health", false, true);
-            drawDarkButton(cvX + 492.0f, btnY, 100.0f, 26.0f, "+25 Health", false, false, true);
-            drawDarkButton(cvX + 600.0f, btnY, 100.0f, 26.0f, "+50 Score", false, false, true);
+            float btnY = contentY + contentH - 30.0f;
+            drawDarkButton(vpX + 8.0f, btnY, 140.0f, 24.0f, isSim ? "Stop Sim (F9)" : "> Play Sim (F9)", isSim, false, !isSim);
+            drawDarkButton(vpX + 154.0f, btnY, 110.0f, 24.0f, "+1s Clock", false, false, true);
+            drawDarkButton(vpX + 270.0f, btnY, 100.0f, 24.0f, "Reset Timer");
+            drawDarkButton(vpX + 376.0f, btnY, 100.0f, 24.0f, "-15 Health", false, true);
+            drawDarkButton(vpX + 482.0f, btnY, 100.0f, 24.0f, "+25 Health", false, false, true);
+            drawDarkButton(vpX + 588.0f, btnY, 100.0f, 24.0f, "+50 Score", false, false, true);
         } else if (_workspace == EditorWorkspace::Level2D_Animation) {
             // Dedicated 2D Spritesheet Animation Workspace
             float animW = std::min(vpW - 40.0f, 880.0f);
@@ -4437,55 +4836,70 @@ public:
             float playheadX = barX + (_timelineFrame / 60.0f) * barW;
             Renderer::drawRect(playheadX - 2.0f, barY, 5.0f, barH, orangeGlow);
         } else if (_workspace == EditorWorkspace::Scripting_Editor || _workspace == EditorWorkspace::Scripting_Console) {
-            // Full In-Engine Lua Script Studio IDE
-            float edW = std::min(vpW - 40.0f, 920.0f);
-            float edH = std::min(vpH - 40.0f, 520.0f);
-            float edX = vpX + (vpW - edW) * 0.5f;
-            float edY = vpY + (vpH - edH) * 0.5f;
-
-            Renderer::drawRect(edX, edY, edW, edH, Vec3(0.08f, 0.09f, 0.12f));
-            drawDarkBevel(edX, edY, edW, edH, true);
-            Renderer::drawRect(edX, edY, edW, 30.0f, Vec3(0.14f, 0.16f, 0.22f));
-            LabFont::drawText(edX + 14.0f, edY + 8.0f, "LUA SCRIPT STUDIO (Lua 5.4) - Live In-Engine Code IDE & Bytecode Compiler", 1.5f, cyanGlow, LabFontType::System);
+            // Full In-Engine Lua Script Studio IDE - occupies full central viewport
+            Renderer::drawRect(vpX, contentY, vpW, contentH, Vec3(0.065f, 0.075f, 0.095f));
+            drawDarkBevel(vpX, contentY, vpW, contentH, false);
 
             // Actions toolbar
-            float actY = edY + 38.0f;
-            drawDarkButton(edX + 14.0f, actY, 190.0f, 28.0f, "> RUN SCRIPT (Ctrl+R)", false, false, true);
-            drawDarkButton(edX + 214.0f, actY, 170.0f, 28.0f, "Preset: Klocek+Timer");
-            drawDarkButton(edX + 394.0f, actY, 160.0f, 28.0f, "Preset: Player HUD");
-            drawDarkButton(edX + 564.0f, actY, 150.0f, 28.0f, "Preset: Rotation");
-            drawDarkButton(edX + 724.0f, actY, 180.0f, 28.0f, "Name Sel 'Klocek1'", false, false, true);
+            float actY = contentY + 4.0f;
+            drawDarkButton(vpX + 6.0f, actY, 160.0f, 26.0f, "> RUN SCRIPT (Ctrl+R)", false, false, true);
+            drawDarkButton(vpX + 172.0f, actY, 120.0f, 26.0f, "SAVE (Ctrl+S)", false, false, true);
+            drawDarkButton(vpX + 298.0f, actY, 150.0f, 26.0f, "Preset: Klocek+Timer");
+            drawDarkButton(vpX + 454.0f, actY, 140.0f, 26.0f, "Preset: Player HUD");
+            drawDarkButton(vpX + 600.0f, actY, 130.0f, 26.0f, "Preset: Movement");
+            drawDarkButton(vpX + 736.0f, actY, 150.0f, 26.0f, "Name Sel 'Klocek1'", false, false, true);
 
-            // Code Display Area with Line Numbers
-            float codeX = edX + 14.0f;
-            float codeY = actY + 38.0f;
-            float codeW = edW - 28.0f;
-            float codeH = edH - 120.0f;
-            Renderer::drawRect(codeX, codeY, codeW, codeH, Vec3(0.05f, 0.06f, 0.08f));
+            // Interactive Code Editor Area
+            float codeX = vpX + 4.0f;
+            float codeY = contentY + 34.0f;
+            float codeW = vpW - 8.0f;
+            float codeH = contentH - 34.0f - 24.0f;
+            Renderer::drawRect(codeX, codeY, codeW, codeH, Vec3(0.045f, 0.055f, 0.075f));
             drawDarkBevel(codeX, codeY, codeW, codeH, true);
 
             // Line numbers column
-            Renderer::drawRect(codeX, codeY, 35.0f, codeH, Vec3(0.08f, 0.09f, 0.11f));
+            float gutterW = 46.0f;
+            Renderer::drawRect(codeX, codeY, gutterW, codeH, Vec3(0.07f, 0.08f, 0.10f));
 
-            // Split and render lines
-            std::stringstream ss(_currentScript);
-            std::string line;
-            int lineNum = 1;
-            float curLineY = codeY + 8.0f;
-            while (std::getline(ss, line) && lineNum <= 24) {
-                LabFont::drawText(codeX + 6.0f, curLineY, std::to_string(lineNum), 1.25f, textDim, LabFontType::System);
-                Vec3 lineCol = (line.rfind("--", 0) == 0) ? Vec3(0.35f, 0.75f, 0.35f) :
-                               (line.find("function") != std::string::npos || line.find("end") != std::string::npos) ? orangeGlow :
-                               (line.find("World.") != std::string::npos || line.find("HUD.") != std::string::npos) ? cyanGlow :
-                               Vec3(0.9f, 0.92f, 0.95f);
-                LabFont::drawText(codeX + 42.0f, curLineY, line, 1.35f, lineCol, LabFontType::System);
-                curLineY += 16.0f;
-                lineNum++;
+            // Line highlight for active cursor line
+            int curRel = _scriptCursorLine - _scriptScrollLine;
+            int maxVisible = (int)((codeH - 10.0f) / 18.0f);
+            if (curRel >= 0 && curRel < maxVisible) {
+                Renderer::drawRect(codeX + gutterW + 1.0f, codeY + 5.0f + curRel * 18.0f, codeW - gutterW - 2.0f, 18.0f, Vec3(0.11f, 0.14f, 0.18f));
             }
 
-            // Status Banner at bottom
-            std::string bindInfo = "Bindings: World.getEntity('Klocek1'):move(dx,dy,dz) | HUD.setText('TimerLabel', str) | HUD.setValue('Health', num)";
-            LabFont::drawText(edX + 14.0f, edY + edH - 24.0f, bindInfo, 1.3f, textDim, LabFontType::System);
+            // Render visible lines from _scriptLines
+            for (int i = 0; i < maxVisible; ++i) {
+                int lineIdx = _scriptScrollLine + i;
+                if (lineIdx >= (int)_scriptLines.size()) break;
+                float ly = codeY + 6.0f + i * 18.0f;
+                // Line number
+                LabFont::drawText(codeX + 6.0f, ly, std::to_string(lineIdx + 1), 1.25f, textDim, LabFontType::System);
+                // Syntax coloring
+                const std::string& lText = _scriptLines[lineIdx];
+                Vec3 lColor = textLight;
+                if (lText.rfind("--", 0) == 0) lColor = Vec3(0.35f, 0.75f, 0.35f);
+                else if (lText.find("function") != std::string::npos || lText.find("end") != std::string::npos || lText.find("local") != std::string::npos) lColor = orangeGlow;
+                else if (lText.find("World.") != std::string::npos || lText.find("HUD.") != std::string::npos || lText.find("Input.") != std::string::npos) lColor = cyanGlow;
+                LabFont::drawText(codeX + gutterW + 8.0f, ly, lText, 1.35f, lColor, LabFontType::System);
+            }
+
+            // Blinking caret
+            if (_scriptEditorFocused && ((int)(_scriptBlinkTimer * 2.0f) % 2 == 0)) {
+                if (curRel >= 0 && curRel < maxVisible) {
+                    float caretY = codeY + 6.0f + curRel * 18.0f;
+                    float caretX = codeX + gutterW + 8.0f + _scriptCursorCol * 8.5f;
+                    if (caretX < codeX + codeW - 4.0f) {
+                        Renderer::drawRect(caretX, caretY, 2.0f, 16.0f, cyanGlow);
+                    }
+                }
+            }
+
+            // Status Bar at bottom
+            float statY = contentY + contentH - 22.0f;
+            Renderer::drawRect(vpX, statY, vpW, 22.0f, Vec3(0.09f, 0.11f, 0.14f));
+            std::string statInfo = "Ln " + std::to_string(_scriptCursorLine + 1) + ", Col " + std::to_string(_scriptCursorCol + 1) + " | UTF-8 | Lua 5.4 | " + _activeScriptPath + " | Press Ctrl+R to Execute, Ctrl+S to Save";
+            LabFont::drawText(vpX + 10.0f, statY + 5.0f, statInfo, 1.25f, textDim, LabFontType::System);
         }
 
     // ==================== 5. BOTTOM DOCK (Console / Profiler) ====================
@@ -5303,6 +5717,16 @@ private:
         "end\n";
     int _timelineFrame = 0;
     bool _timelinePlaying = false;
+
+    // Interactive Lua Script Studio Text Editor State
+    std::vector<std::string> _scriptLines;
+    int _scriptCursorLine = 0;
+    int _scriptCursorCol = 0;
+    int _scriptScrollLine = 0;
+    bool _scriptEditorFocused = true;
+    float _scriptBlinkTimer = 0.0f;
+    std::string _activeScriptPath = "assets/scripts/gameplay.lua";
+    bool _scriptModified = false;
 
     // Sidebar State
     SidebarTab _sidebarTab = SidebarTab::Properties;

@@ -263,6 +263,8 @@ namespace Lab {
             if (action == GLFW_PRESS) {
                 Input::keys[key] = true;
                 Input::keysJustPressed[key] = true;
+            } else if (action == GLFW_REPEAT) {
+                Input::keysJustPressed[key] = true;
             } else if (action == GLFW_RELEASE) {
                 Input::keys[key] = false;
                 Input::keysJustReleased[key] = true;
