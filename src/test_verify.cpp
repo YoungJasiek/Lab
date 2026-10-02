@@ -11,6 +11,7 @@
 #include "LabAsset.h"
 #include "LabRHI.h"
 #include "LabCommand.h"
+#include "LabCCD.h"
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -6360,6 +6361,113 @@ int main() {
         }
 
         std::cout << "  [PASS] Test 60 Undo / Redo Command History passed 100%!\n";
+    }
+
+    // 61. Verify Complex Collision Detection: Convex Hull 3D SAT & Continuous CCD (Task #182)
+    {
+        std::cout << "\n[Test 61] Verifying Convex Hull 3D SAT & Continuous Collision Detection (CCD)...\n";
+
+        // --- Sub-test A: 3D Convex Hull Separating Axis Theorem (SAT) ---
+        {
+            // Unit box hull centered at origin
+            Lab::ConvexHull3D boxA;
+            boxA.vertices = {
+                { -0.5f, -0.5f, -0.5f }, {  0.5f, -0.5f, -0.5f },
+                {  0.5f,  0.5f, -0.5f }, { -0.5f,  0.5f, -0.5f },
+                { -0.5f, -0.5f,  0.5f }, {  0.5f, -0.5f,  0.5f },
+                {  0.5f,  0.5f,  0.5f }, { -0.5f,  0.5f,  0.5f }
+            };
+            boxA.faceNormals = {
+                {  1, 0, 0 }, { -1, 0, 0 },
+                {  0, 1, 0 }, {  0, -1, 0 },
+                {  0, 0, 1 }, {  0, 0, -1 }
+            };
+
+            Lab::ConvexHull3D boxB = boxA;
+
+            // Test 1: Overlapping hulls
+            Lab::Mat4 transA = Lab::Mat4::translate(Lab::Vec3(0.0f, 0.0f, 0.0f));
+            Lab::Mat4 transB_overlap = Lab::Mat4::translate(Lab::Vec3(0.6f, 0.0f, 0.0f));
+            if (!Lab::CCDPhysics::testConvexHullOverlap(boxA, transA, boxB, transB_overlap)) {
+                std::cerr << "Assertion failed: Overlapping hulls were reported as separated!\n";
+                return 1;
+            }
+
+            // Test 2: Separated hulls
+            Lab::Mat4 transB_separated = Lab::Mat4::translate(Lab::Vec3(2.5f, 0.0f, 0.0f));
+            if (Lab::CCDPhysics::testConvexHullOverlap(boxA, transA, boxB, transB_separated)) {
+                std::cerr << "Assertion failed: Separated hulls were reported as overlapping!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test A: 3D Convex Hull SAT overlap and separation verified!\n";
+        }
+
+        // --- Sub-test B: High-Speed Continuous Collision Detection (Anti-Tunneling) ---
+        {
+            // Thin wall at X = [9.95 .. 10.05] (thickness 0.1m)
+            Lab::Vec3 wallMin(9.95f, -10.0f, -10.0f);
+            Lab::Vec3 wallMax(10.05f, 10.0f, 10.0f);
+
+            // Projectile moves from X = 0 to X = 50m in 1 frame (50 m/frame velocity)
+            Lab::Vec3 bulletStart(0.0f, 0.0f, 0.0f);
+            Lab::Vec3 bulletEnd(50.0f, 0.0f, 0.0f);
+            float bulletRadius = 0.05f;
+
+            Lab::CCDHit hit;
+            bool detected = Lab::CCDPhysics::sweepSphereVsAABB(bulletStart, bulletEnd, bulletRadius, wallMin, wallMax, hit);
+
+            if (!detected || !hit.hit) {
+                std::cerr << "Assertion failed: High-speed projectile tunneled through thin wall!\n";
+                return 1;
+            }
+
+            // Contact should be at X ~ 9.90m (wallMin.x - radius)
+            float expectedContactX = wallMin.x - bulletRadius;
+            if (std::abs(hit.point.x - expectedContactX) > 0.02f) {
+                std::cerr << "Assertion failed: Inaccurate CCD impact point! Expected X~" << expectedContactX
+                          << " got " << hit.point.x << "\n";
+                return 1;
+            }
+
+            if (hit.normal.x >= 0.0f) {
+                std::cerr << "Assertion failed: CCD impact normal must face incoming projectile (-X)!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test B: High-speed projectile (50m/step) anti-tunneling verified (Impact X="
+                      << hit.point.x << ", TOI=" << hit.timeOfImpact << ")!\n";
+        }
+
+        // --- Sub-test C: CCD & SAT Benchmark (10 000 Sweeps) ---
+        {
+            constexpr size_t SWEEPS_COUNT = 10000;
+            Lab::Vec3 wallMin(9.9f, -10.0f, -10.0f);
+            Lab::Vec3 wallMax(10.1f, 10.0f, 10.0f);
+
+            auto startCCD = std::chrono::high_resolution_clock::now();
+            size_t hitsCount = 0;
+            for (size_t i = 0; i < SWEEPS_COUNT; ++i) {
+                Lab::Vec3 start(0.0f, (float)(i % 20) - 10.0f, 0.0f);
+                Lab::Vec3 end(20.0f, (float)(i % 20) - 10.0f, 0.0f);
+                Lab::CCDHit h;
+                if (Lab::CCDPhysics::sweepSphereVsAABB(start, end, 0.05f, wallMin, wallMax, h)) {
+                    hitsCount++;
+                }
+            }
+            auto endCCD = std::chrono::high_resolution_clock::now();
+            auto ccdUs = std::chrono::duration_cast<std::chrono::microseconds>(endCCD - startCCD).count();
+
+            if (hitsCount != SWEEPS_COUNT) {
+                std::cerr << "Assertion failed: Sweep count mismatch!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test C: 10,000 continuous sweeps computed in " << ccdUs << " us (avg "
+                      << (double)ccdUs / (double)SWEEPS_COUNT * 1000.0 << " ns/sweep)!\n";
+        }
+
+        std::cout << "  [PASS] Test 61 Complex Collision Detection & CCD passed 100%!\n";
     }
 
     Lab::Renderer::shutdown();

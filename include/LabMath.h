@@ -51,6 +51,7 @@ namespace Lab {
         Vec3& operator*=(float s) { x *= s; y *= s; z *= s; return *this; }
 
         float lengthSq() const { return x * x + y * y + z * z; }
+        float lengthSquared() const { return lengthSq(); }
         float length() const { return std::sqrt(lengthSq()); }
 
         Vec3 normalized() const {
