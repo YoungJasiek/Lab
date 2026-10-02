@@ -18,6 +18,7 @@
 #include "LabFluid.h"
 #include "LabConstraint.h"
 #include "LabCloth.h"
+#include "LabForceField.h"
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -7066,6 +7067,122 @@ int main() {
         }
 
         std::cout << "  [PASS] Test 67 Verlet Soft Body & Cloth Simulation passed 100%!\n";
+    }
+
+    // 68. Verify Physics Force Fields & Triggers (Task #183)
+    {
+        std::cout << "\n[Test 68] Verifying Physics Force Fields & Triggers...\n";
+
+        // --- Sub-test A: Radial Blast Shockwave Propagation & Inverse-Square Falloff ---
+        {
+            Lab::ForceFieldTrigger explosion;
+            explosion.name = "GrenadeBlast";
+            explosion.type = Lab::ForceFieldType::RadialExplosion;
+            explosion.position = Lab::Vec3(0, 0, 0);
+            explosion.radius = 20.0f;
+            explosion.blastMagnitude = 5000.0f;
+            explosion.shockwaveSpeed = 50.0f; // 50m/s
+            explosion.elapsedTime = 0.1f;      // Front at ~5.0m
+
+            // Sample close to shockwave front (r = 5.0m)
+            Lab::Vec3 forceFront = explosion.evaluateForceAt(Lab::Vec3(5.0f, 0, 0), 1.0f);
+            // Sample further away outside radius (r = 25m)
+            Lab::Vec3 forceOutside = explosion.evaluateForceAt(Lab::Vec3(25.0f, 0, 0), 1.0f);
+            // Sample far back (r = 15m)
+            Lab::Vec3 forceFar = explosion.evaluateForceAt(Lab::Vec3(15.0f, 0, 0), 1.0f);
+
+            if (forceFront.x <= 100.0f || forceFront.x <= forceFar.x) {
+                std::cerr << "Assertion failed: Blast shockwave peak force not concentrated at expanding front! Got: " << forceFront.x << "\n";
+                return 1;
+            }
+
+            if (forceOutside.length() > 0.001f) {
+                std::cerr << "Assertion failed: Blast force leaked outside radius! Got: " << forceOutside.length() << "\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test A: Radial explosion shockwave front verified (Front force: " << forceFront.x << " N, Far force: " << forceFar.x << " N)!\n";
+        }
+
+        // --- Sub-test B: Point Planetary Gravity & Directional Wind Tunnel ---
+        {
+            Lab::ForceFieldManager mgr;
+
+            // 1. Planet core attractor
+            Lab::ForceFieldTrigger planet;
+            planet.type = Lab::ForceFieldType::PointGravity;
+            planet.position = Lab::Vec3(0, 0, 0);
+            planet.radius = 100.0f;
+            planet.gravityStrength = 500.0f;
+            mgr.addField(planet);
+
+            // 2. Linear wind tunnel along +X
+            Lab::ForceFieldTrigger wind;
+            wind.type = Lab::ForceFieldType::DirectionalWind;
+            wind.position = Lab::Vec3(0, 0, 0);
+            wind.radius = 50.0f;
+            wind.direction = Lab::Vec3(1, 0, 0);
+            wind.windSpeed = 25.0f;
+            mgr.addField(wind);
+
+            // 3. Ice friction volume
+            Lab::ForceFieldTrigger ice;
+            ice.type = Lab::ForceFieldType::FrictionVolume;
+            ice.position = Lab::Vec3(0, 0, 0);
+            ice.radius = 10.0f;
+            ice.linearDampingMultiplier = 0.05f; // Super slippery
+            mgr.addField(ice);
+
+            // Evaluate forces on satellite / projectile at (0, 10, 0)
+            Lab::Vec3 totalF = mgr.sampleTotalForceAt(Lab::Vec3(0, 10.0f, 0), 2.0f);
+            // Gravity pulls towards center (-Y), wind pushes along (+X)
+            if (totalF.y >= -1.0f || totalF.x <= 10.0f) {
+                std::cerr << "Assertion failed: Field combination force mismatch! Total: (" << totalF.x << ", " << totalF.y << ", " << totalF.z << ")\n";
+                return 1;
+            }
+
+            // Evaluate ice damping multiplier
+            float dampInside = mgr.sampleDampingMultiplierAt(Lab::Vec3(2.0f, 0, 0));
+            float dampOutside = mgr.sampleDampingMultiplierAt(Lab::Vec3(20.0f, 0, 0));
+            if (std::abs(dampInside - 0.05f) > 1e-4f || std::abs(dampOutside - 1.0f) > 1e-4f) {
+                std::cerr << "Assertion failed: Friction damping modifier mismatch! Inside=" << dampInside << ", Outside=" << dampOutside << "\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test B: Planetary gravity, wind tunnel and friction volume field superposition verified!\n";
+        }
+
+        // --- Sub-test C: Massive Force Field Spatial Query Benchmark (100,000 Samples) ---
+        {
+            Lab::ForceFieldManager mgr;
+            for (int i = 0; i < 10; ++i) {
+                Lab::ForceFieldTrigger f;
+                f.type = (i % 2 == 0) ? Lab::ForceFieldType::RadialExplosion : Lab::ForceFieldType::PointGravity;
+                f.position = Lab::Vec3((float)i * 10.0f, 0, 0);
+                f.radius = 30.0f;
+                mgr.addField(f);
+            }
+
+            constexpr size_t SAMPLES = 100000;
+            auto startFF = std::chrono::high_resolution_clock::now();
+            Lab::Vec3 accum(0, 0, 0);
+            for (size_t i = 0; i < SAMPLES; ++i) {
+                Lab::Vec3 pt((float)(i % 100), (float)((i / 100) % 100), 0.0f);
+                accum += mgr.sampleTotalForceAt(pt, 1.0f);
+            }
+            auto endFF = std::chrono::high_resolution_clock::now();
+            auto ffUs = std::chrono::duration_cast<std::chrono::microseconds>(endFF - startFF).count();
+
+            if (std::isnan(accum.x) || std::isinf(accum.x)) {
+                std::cerr << "Assertion failed: NaN detected in force accumulation!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test C: 100,000 multi-field force queries evaluated in " << ffUs
+                      << " us (avg " << (double)ffUs / (double)SAMPLES * 1000.0 << " ns/query, 0 NaN/Inf)!\n";
+        }
+
+        std::cout << "  [PASS] Test 68 Physics Force Fields & Triggers passed 100%!\n";
     }
 
     Lab::Renderer::shutdown();

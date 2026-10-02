@@ -151,6 +151,7 @@ add_library(LabPhysics SHARED
     src/LabFluid.cpp
     src/LabConstraint.cpp
     src/LabCloth.cpp
+    src/LabForceField.cpp
     src/LabCollision.cpp
     src/LabCombat.cpp
     include/LabPhysics.h
@@ -161,6 +162,7 @@ add_library(LabPhysics SHARED
     include/LabFluid.h
     include/LabConstraint.h
     include/LabCloth.h
+    include/LabForceField.h
     include/LabCollision.h
     include/LabCombat.h
 )
