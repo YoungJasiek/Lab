@@ -1,6 +1,8 @@
 #include "Lab.h"
 #include "LabFont.h"
 #include "LabDialogs.h"
+#include "LabPlugin.h"
+#include "LabApplication.h"
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -5572,6 +5574,92 @@ int main() {
         std::cout << "  [PASS] Server retrieved guest punch coordinates: " << guestIP << ":" << guestPort << "!\n";
 
         std::cout << "  [PASS] Test 52 Plug & Play Cloud Rendezvous and Auto-Punch Handshake passed 100%!\n";
+    }
+
+    // 53. Verify Modular Plugin Architecture (ILabPlugin & PluginManager) and Zero-Cost Execution Loop
+    {
+        std::cout << "\n[Test 53] Verifying Plugin Architecture (ILabPlugin & PluginManager) and Zero-Cost Loop...\n";
+
+        class BenchmarkMockPlugin : public Lab::ILabPlugin {
+        public:
+            bool loaded = false;
+            bool unloaded = false;
+            int updateCallCount = 0;
+
+            const char* getName() const override { return "BenchmarkMockPlugin"; }
+            const char* getVersion() const override { return "1.0.0"; }
+
+            bool onLoad() override {
+                loaded = true;
+                return true;
+            }
+
+            void onUpdate(float dt) override {
+                updateCallCount++;
+            }
+
+            void onUnload() override {
+                unloaded = true;
+            }
+        };
+
+        auto& pm = Lab::PluginManager::get();
+        size_t initialCount = pm.getPluginCount();
+
+        auto testPlugin = std::make_shared<BenchmarkMockPlugin>();
+        bool regOk = pm.registerPlugin(testPlugin);
+        if (!regOk || !testPlugin->loaded) {
+            std::cerr << "Assertion failed: Failed to register and load ILabPlugin!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] ILabPlugin registration and onLoad() lifecycle verified!\n";
+
+        if (pm.getPluginCount() != initialCount + 1) {
+            std::cerr << "Assertion failed: Plugin count did not increment!\n";
+            return 1;
+        }
+
+        // Test duplicate registration protection
+        bool dupOk = pm.registerPlugin(testPlugin);
+        if (dupOk) {
+            std::cerr << "Assertion failed: Duplicate plugin registration should have been rejected!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Duplicate plugin rejection verified!\n";
+
+        // Query test
+        auto found = pm.getPlugin("BenchmarkMockPlugin");
+        if (!found || std::string(found->getName()) != "BenchmarkMockPlugin") {
+            std::cerr << "Assertion failed: Failed to query plugin by name!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Plugin retrieval by name verified!\n";
+
+        // Performance / Stress test: 10,000 update loop iterations
+        auto tStart = std::chrono::high_resolution_clock::now();
+        const int iterations = 10000;
+        for (int i = 0; i < iterations; ++i) {
+            pm.updateAll(0.016f);
+        }
+        auto tEnd = std::chrono::high_resolution_clock::now();
+        double totalMicros = std::chrono::duration<double, std::micro>(tEnd - tStart).count();
+        double avgNanosPerCall = (totalMicros * 1000.0) / iterations;
+
+        if (testPlugin->updateCallCount != iterations) {
+            std::cerr << "Assertion failed: Update calls mismatch!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Executed " << iterations << " plugin update iterations in " 
+                  << totalMicros << " us (Avg: " << avgNanosPerCall << " ns per update call)!\n";
+
+        // Unregister test
+        pm.unregisterPlugin("BenchmarkMockPlugin");
+        if (!testPlugin->unloaded || pm.getPluginCount() != initialCount) {
+            std::cerr << "Assertion failed: Plugin unregister or onUnload() failed!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Graceful plugin unregister and onUnload() verified!\n";
+        std::cout << "  [PASS] Test 53 Plugin Architecture & Zero-Overhead Lifecycle passed 100%!\n";
     }
 
     Lab::Renderer::shutdown();

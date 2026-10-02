@@ -77,7 +77,10 @@ set(LAB_INCLUDES
 # 1. LabCore.dll - Core application lifecycle, Input, Math, Camera, Fonts, Dialogs
 add_library(LabCore SHARED
     src/LabCore.cpp
+    src/LabPlugin.cpp
     include/LabCore.h
+    include/LabPlugin.h
+    include/LabApplication.h
     include/LabMath.h
     include/LabCamera.h
     include/LabFont.h
