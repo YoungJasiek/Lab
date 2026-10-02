@@ -14,6 +14,7 @@
 #include "LabCCD.h"
 #include "LabRagdoll.h"
 #include "LabExportPipeline.h"
+#include "LabVehicle.h"
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -6652,6 +6653,117 @@ int main() {
         }
 
         std::cout << "  [PASS] Test 63 Build & Multi-Platform Export Pipeline passed 100%!\n";
+    }
+
+    // 64. Verify Raycast Suspension Vehicle Physics & Controller (Task #177)
+    {
+        std::cout << "\n[Test 64] Verifying Raycast Suspension Vehicle Physics & Controller...\n";
+
+        // Mock flat ground raycast at Y = 0
+        auto mockGroundRaycast = [](const Lab::Vec3& start, const Lab::Vec3& dir, float maxDist, Lab::Vec3& outHit, Lab::Vec3& outNorm) -> bool {
+            if (dir.y >= 0.0f) return false;
+            if (start.y < 0.0f) return false;
+            float t = start.y / (-dir.y);
+            if (t <= maxDist) {
+                outHit = start + dir * t;
+                outNorm = Lab::Vec3(0.0f, 1.0f, 0.0f);
+                return true;
+            }
+            return false;
+        };
+
+        // --- Sub-test A: 4-Wheel Vehicle Suspension Equilibrium ---
+        {
+            Lab::RaycastVehicle car(1200.0f, Lab::Vec3(0.0f, 1.0f, 0.0f));
+            // Add 4 wheels: FrontLeft, FrontRight, RearLeft, RearRight
+            car.addWheel(Lab::Vec3(-0.8f, 0.0f,  1.2f), 0.35f, 0.5f, 25000.0f, 3000.0f, true,  false);
+            car.addWheel(Lab::Vec3( 0.8f, 0.0f,  1.2f), 0.35f, 0.5f, 25000.0f, 3000.0f, true,  false);
+            car.addWheel(Lab::Vec3(-0.8f, 0.0f, -1.2f), 0.35f, 0.5f, 25000.0f, 3000.0f, false, true);
+            car.addWheel(Lab::Vec3( 0.8f, 0.0f, -1.2f), 0.35f, 0.5f, 25000.0f, 3000.0f, false, true);
+
+            // Settle suspension under gravity for 60 steps
+            for (int f = 0; f < 60; ++f) {
+                car.step(0.016f, Lab::Vec3(0.0f, -9.81f, 0.0f), mockGroundRaycast);
+            }
+
+            // Chassis should float above ground at equilibrium (~0.6m - 0.9m)
+            float chassisY = car.getPosition().y;
+            if (chassisY < 0.4f || chassisY > 1.2f) {
+                std::cerr << "Assertion failed: Vehicle suspension equilibrium height incorrect! Got Y=" << chassisY << "\n";
+                return 1;
+            }
+
+            // All 4 wheels must be grounded
+            for (const auto& w : car.getWheels()) {
+                if (!w.isGrounded || w.suspensionForce <= 0.0f) {
+                    std::cerr << "Assertion failed: Vehicle wheel not properly grounded!\n";
+                    return 1;
+                }
+            }
+
+            std::cout << "  [PASS] Sub-test A: 4-wheel vehicle settled at stable equilibrium Y=" << chassisY
+                      << " with all wheels grounded and active spring forces!\n";
+        }
+
+        // --- Sub-test B: Throttle & Acceleration Dynamics ---
+        {
+            Lab::RaycastVehicle car(1200.0f, Lab::Vec3(0.0f, 0.7f, 0.0f));
+            car.addWheel(Lab::Vec3(-0.8f, 0.0f,  1.2f), 0.35f, 0.5f, 25000.0f, 3000.0f, true,  false);
+            car.addWheel(Lab::Vec3( 0.8f, 0.0f,  1.2f), 0.35f, 0.5f, 25000.0f, 3000.0f, true,  false);
+            car.addWheel(Lab::Vec3(-0.8f, 0.0f, -1.2f), 0.35f, 0.5f, 25000.0f, 3000.0f, false, true);
+            car.addWheel(Lab::Vec3( 0.8f, 0.0f, -1.2f), 0.35f, 0.5f, 25000.0f, 3000.0f, false, true);
+
+            car.setThrottle(1.0f); // Full forward throttle
+            for (int f = 0; f < 60; ++f) {
+                car.step(0.016f, Lab::Vec3(0.0f, -9.81f, 0.0f), mockGroundRaycast);
+            }
+
+            float speedZ = car.getVelocity().z;
+            if (speedZ <= 0.5f) {
+                std::cerr << "Assertion failed: Vehicle did not accelerate under throttle! Speed: " << speedZ << "\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test B: Forward acceleration verified (Speed Z=" << speedZ << " m/s)!\n";
+        }
+
+        // --- Sub-test C: Multi-Vehicle Stress Benchmark (100 Vehicles simultaneously) ---
+        {
+            constexpr size_t VEHICLES_COUNT = 100;
+            std::vector<Lab::RaycastVehicle> fleet;
+            fleet.reserve(VEHICLES_COUNT);
+
+            for (size_t i = 0; i < VEHICLES_COUNT; ++i) {
+                Lab::RaycastVehicle v(1200.0f, Lab::Vec3((float)(i % 10) * 3.0f, 0.8f, (float)(i / 10) * 5.0f));
+                v.addWheel(Lab::Vec3(-0.8f, 0,  1.2f), 0.35f, 0.5f, 25000.0f, 3000.0f, true, false);
+                v.addWheel(Lab::Vec3( 0.8f, 0,  1.2f), 0.35f, 0.5f, 25000.0f, 3000.0f, true, false);
+                v.addWheel(Lab::Vec3(-0.8f, 0, -1.2f), 0.35f, 0.5f, 25000.0f, 3000.0f, false, true);
+                v.addWheel(Lab::Vec3( 0.8f, 0, -1.2f), 0.35f, 0.5f, 25000.0f, 3000.0f, false, true);
+                v.setThrottle(0.5f);
+                fleet.push_back(v);
+            }
+
+            auto startFleet = std::chrono::high_resolution_clock::now();
+            for (int f = 0; f < 60; ++f) {
+                for (auto& v : fleet) {
+                    v.step(0.016f, Lab::Vec3(0.0f, -9.81f, 0.0f), mockGroundRaycast);
+                }
+            }
+            auto endFleet = std::chrono::high_resolution_clock::now();
+            auto fleetMs = std::chrono::duration_cast<std::chrono::milliseconds>(endFleet - startFleet).count();
+
+            for (const auto& v : fleet) {
+                if (std::isnan(v.getPosition().x) || std::isinf(v.getPosition().x)) {
+                    std::cerr << "Assertion failed: NaN detected in fleet vehicles!\n";
+                    return 1;
+                }
+            }
+
+            std::cout << "  [PASS] Sub-test C: 100 vehicles (400 wheels) simulated for 60 steps in "
+                      << fleetMs << " ms (avg " << (double)fleetMs / 60.0 << " ms/step, 0 NaN/Inf)!\n";
+        }
+
+        std::cout << "  [PASS] Test 64 Vehicle Physics passed 100%!\n";
     }
 
     Lab::Renderer::shutdown();
