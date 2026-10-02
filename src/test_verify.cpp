@@ -20,6 +20,7 @@
 #include "LabCloth.h"
 #include "LabForceField.h"
 #include "LabProfiler.h"
+#include "LabVCS.h"
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -7268,6 +7269,99 @@ int main() {
         }
 
         std::cout << "  [PASS] Test 69 In-Game Profiler & Memory Allocator Tracker passed 100%!\n";
+    }
+
+    // 70. Verify VCS / Git Integration & Asset Locking (Task #174)
+    {
+        std::cout << "\n[Test 70] Verifying VCS / Git Integration & Asset Locking...\n";
+
+        auto& vcs = Lab::VCSManager::instance();
+        vcs.clear();
+        vcs.setRepoRoot("C:/Users/jancz/Desktop/Lab");
+
+        // --- Sub-test A: File Status Tracking (.scene, .prefab, scripts) ---
+        {
+            vcs.setFileStatus("assets/scenes/facility.scene", Lab::FileVCSStatus::Modified);
+            vcs.setFileStatus("assets/prefabs/turret.prefab", Lab::FileVCSStatus::Added);
+            vcs.setFileStatus("scripts/boss_ai.lua", Lab::FileVCSStatus::Modified);
+
+            auto changed = vcs.getChangedFiles();
+            if (changed.size() != 3) {
+                std::cerr << "Assertion failed: Changed file count mismatch! Expected 3 got " << changed.size() << "\n";
+                return 1;
+            }
+
+            if (vcs.getFileStatus("assets/scenes/facility.scene") != Lab::FileVCSStatus::Modified) {
+                std::cerr << "Assertion failed: File status mismatch!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test A: Working tree status change tracking verified (3 modified/added files)!\n";
+        }
+
+        // --- Sub-test B: Git LFS Binary Asset Locking & Conflict Prevention ---
+        {
+            std::string heavyTexture = "assets/textures/character_albedo_4k.png";
+            bool lock1 = vcs.lockLFSAsset(heavyTexture, "Alice");
+            if (!lock1) {
+                std::cerr << "Assertion failed: Failed to acquire lock for Alice!\n";
+                return 1;
+            }
+
+            // Bob attempts to lock the same asset -> Must fail
+            bool lock2 = vcs.lockLFSAsset(heavyTexture, "Bob");
+            if (lock2) {
+                std::cerr << "Assertion failed: Git LFS lock collision allowed concurrent locks!\n";
+                return 1;
+            }
+
+            std::string lockedBy;
+            if (!vcs.isLFSAssetLocked(heavyTexture, &lockedBy) || lockedBy != "Alice") {
+                std::cerr << "Assertion failed: Asset lock owner mismatch! Got: " << lockedBy << "\n";
+                return 1;
+            }
+
+            // Bob attempts to unlock Alice's asset without force -> Must fail
+            bool bobUnlock = vcs.unlockLFSAsset(heavyTexture, "Bob", false);
+            if (bobUnlock) {
+                std::cerr << "Assertion failed: Unauthorized unlock by third party permitted!\n";
+                return 1;
+            }
+
+            // Alice unlocks -> Success
+            bool aliceUnlock = vcs.unlockLFSAsset(heavyTexture, "Alice");
+            if (!aliceUnlock || vcs.isLFSAssetLocked(heavyTexture)) {
+                std::cerr << "Assertion failed: Asset unlock failed!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test B: Git LFS exclusive asset locking and contention arbitration verified!\n";
+        }
+
+        // --- Sub-test C: Revision History & Massive Asset Lock Benchmark (50,000 Locks) ---
+        {
+            constexpr size_t LOCK_OPS = 50000;
+            auto startLock = std::chrono::high_resolution_clock::now();
+            for (size_t i = 0; i < LOCK_OPS; ++i) {
+                std::string path = "assets/models/prop_" + std::to_string(i) + ".fbx";
+                vcs.lockLFSAsset(path, "DevUser");
+            }
+            auto endLock = std::chrono::high_resolution_clock::now();
+            auto lockMs = std::chrono::duration_cast<std::chrono::milliseconds>(endLock - startLock).count();
+
+            vcs.addCommit("a1b2c3d", "Architect", "feat: initial commit");
+            vcs.addCommit("d4e5f6g", "Designer", "art: update textures");
+
+            if (vcs.getHistory().size() != 2) {
+                std::cerr << "Assertion failed: History log size mismatch!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test C: 50,000 LFS asset locks registered in " << lockMs
+                      << " ms (avg " << (double)lockMs / (double)LOCK_OPS * 1e6 << " ns/lock, History: 2 commits)!\n";
+        }
+
+        std::cout << "  [PASS] Test 70 VCS / Git Integration & Asset Locking passed 100%!\n";
     }
 
     Lab::Renderer::shutdown();
