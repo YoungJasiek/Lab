@@ -110,7 +110,7 @@ add_library(LabCore SHARED
 target_include_directories(LabCore PUBLIC ${LAB_INCLUDES})
 target_compile_options(LabCore PRIVATE ${COMPILER_FLAGS})
 target_compile_definitions(LabCore PRIVATE LAB_CORE_BUILD)
-target_link_libraries(LabCore PUBLIC glfw glad OpenGL::GL)
+target_link_libraries(LabCore PUBLIC glfw glad OpenGL::GL lua)
 if(WIN32)
     target_link_libraries(LabCore PUBLIC gdi32 comdlg32)
 endif()

@@ -711,6 +711,25 @@ namespace Lab {
         return true;
     }
 
+    bool ScriptEngine::executeBytecode(const std::vector<uint8_t>& bytecode, const std::string& chunkName) {
+        if (!_L || bytecode.empty()) return false;
+        int status = luaL_loadbuffer(_L, reinterpret_cast<const char*>(bytecode.data()), bytecode.size(), chunkName.c_str());
+        if (status != LUA_OK) {
+            const char* errStr = lua_tostring(_L, -1);
+            LabLog::error(std::string("Lua LoadBuffer Error: ") + (errStr ? errStr : "Unknown"));
+            lua_pop(_L, 1);
+            return false;
+        }
+        status = lua_pcall(_L, 0, LUA_MULTRET, 0);
+        if (status != LUA_OK) {
+            const char* errStr = lua_tostring(_L, -1);
+            LabLog::error(std::string("Lua PCall Error: ") + (errStr ? errStr : "Unknown"));
+            lua_pop(_L, 1);
+            return false;
+        }
+        return true;
+    }
+
     void ScriptEngine::cacheGameplayTables() {
         if (!_L) return;
 

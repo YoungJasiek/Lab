@@ -6,6 +6,8 @@
 #include "LabInput.h"
 #include "LabAsset2D.h"
 #include "LabScript.h"
+#include "LabStudio.h"
+#include "LabHUDEditor.h"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <windows.h>
@@ -45,11 +47,54 @@ enum class EngineSimState {
 };
 
 enum class EditorWorkspace {
-    World3D = 0,    // 3D Level & Geometry editor (CSG, Brushes, Props, Lights, 3D Camera)
-    Level2D = 1,    // 2D Orthographic editor (Tilemaps, Sprite sheets, 2D Sprites, SpriteBatcher)
-    HUD = 2,        // 2D HUD / UI Canvas designer (Labels, Timers, Bars, Lua bindings)
-    Animation = 3,  // 2D / 3D Animation timeline & playback
-    Scripting = 4   // In-engine Lua script editor & live console
+    // 3D Workspaces
+    World3D_Level = 0,         // 3D Level & Geometry editor (CSG, Brushes, Props, Lights, 3D Camera)
+    World3D_Animation = 1,     // 3D Prop/Model timeline & keyframe scrubber
+    World3D_ModelViewer = 2,   // Dedicated 3D Model Viewer & Inspector (Turntable, Stats, Wireframe)
+    Studio_GripPoser = 3,      // LabStudio: Weapon Grip & Hand Socket Poser
+    Studio_ReloadTimeline = 4, // LabStudio: Reload Animation Choreography Timeline
+    Studio_WeaponSkins = 5,    // LabStudio: Weapon Skins, Materials & Shaders
+    Studio_Appearance = 6,     // LabStudio: Character Outfit, Armor, Helmet & Camo
+    Studio_FaceDialogue = 7,   // LabStudio: Face Dialogue, Lip-Sync & Morph Targets
+    // 2D Workspaces
+    Level2D_Tilemap = 8,       // 2D Orthographic editor (Tilemaps, Sprite sheets, SpriteBatcher)
+    Level2D_Animation = 9,     // 2D Spritesheet Animation & Timeline Scrubber
+    Level2D_HUD = 10,          // Native Multi-Genre HUD Canvas Designer (Virtual 1920x1080 Artboard)
+    // Scripting Workspaces
+    Scripting_Editor = 11,     // In-Engine Lua 5.4 Script Editor IDE with Syntax Highlighting
+    Scripting_Console = 12,    // Interactive Lua REPL & Debug Console
+    // Aliases for backwards compatibility
+    World3D = 0,
+    Level2D = 8,
+    HUD = 10,
+    Animation = 1,
+    Scripting = 11
+};
+
+enum class HUDWidgetType {
+    TextLabel,
+    ProgressBar,
+    Button,
+    Icon,
+    Panel,
+    MinimapFrame,
+    DialogueBox
+};
+
+struct HUDDesignWidget {
+    std::string id;
+    std::string label;
+    HUDWidgetType type{ HUDWidgetType::TextLabel };
+    float x{ 100.0f };
+    float y{ 100.0f };
+    float w{ 200.0f };
+    float h{ 40.0f };
+    Vec3 color{ 1.0f, 1.0f, 1.0f };
+    Vec3 bgColor{ 0.15f, 0.18f, 0.22f };
+    float currentValue{ 100.0f };
+    float maxValue{ 100.0f };
+    std::string bindingKey{ "" };
+    std::string genreTag{ "General" }; // RPG, Platformer, RTS, Racing, Story, General
 };
 
 enum class BottomDockTab {
@@ -90,10 +135,41 @@ public:
         }
         _scriptEngine.executeString(_currentScript);
 
+        // Initialize embedded LabStudio suite
+        _characterStudio.init();
+        _characterStudio.setWindow(getWindow());
+
+        // Initialize Multi-Genre HUD Widgets (RPG, Platformer, RTS, Racing, Story)
+        initDefaultHUDWidgets();
+
         logMessage("Lab Engine Studio initialized. Ready.");
         logMessage("Textures loaded: " + std::to_string(_availableTextures.size()) + " | Models: " + std::to_string(_availableModels.size()));
         logMessage("Lua 5.4 Script Engine active. Workspaces: 3D, 2D, HUD, Animation, Scripting.");
         logMessage("Frustum Culling active: 'To czego oko nie widzi tego maszyna renderowac nie musi'");
+    }
+
+    void initDefaultHUDWidgets() {
+        _hudWidgets.clear();
+        // 1. RPG / Action Widgets
+        _hudWidgets.push_back({ "HealthBar", "HEALTH", HUDWidgetType::ProgressBar, 60.0f, 960.0f, 260.0f, 26.0f, Vec3(0.2f, 0.85f, 0.35f), Vec3(0.12f, 0.14f, 0.18f), 100.0f, 100.0f, "Health", "RPG" });
+        _hudWidgets.push_back({ "ManaBar", "MANA", HUDWidgetType::ProgressBar, 60.0f, 995.0f, 260.0f, 20.0f, Vec3(0.2f, 0.6f, 0.95f), Vec3(0.12f, 0.14f, 0.18f), 85.0f, 100.0f, "Mana", "RPG" });
+        _hudWidgets.push_back({ "XPBar", "XP", HUDWidgetType::ProgressBar, 60.0f, 1025.0f, 260.0f, 12.0f, Vec3(0.95f, 0.75f, 0.15f), Vec3(0.12f, 0.14f, 0.18f), 450.0f, 1000.0f, "XP", "RPG" });
+
+        // 2. Platformer / Arcade Widgets
+        _hudWidgets.push_back({ "ScoreText", "SCORE: 014500", HUDWidgetType::TextLabel, 60.0f, 60.0f, 220.0f, 32.0f, Vec3(1.0f, 0.95f, 0.3f), Vec3(0.10f, 0.12f, 0.16f), 14500.0f, 99999.0f, "Score", "Platformer" });
+        _hudWidgets.push_back({ "CoinCount", "COINS: x42", HUDWidgetType::TextLabel, 300.0f, 60.0f, 160.0f, 32.0f, Vec3(1.0f, 0.8f, 0.1f), Vec3(0.10f, 0.12f, 0.16f), 42.0f, 99.0f, "Coins", "Platformer" });
+        _hudWidgets.push_back({ "LivesDisplay", "LIVES: <3 <3 <3", HUDWidgetType::TextLabel, 480.0f, 60.0f, 180.0f, 32.0f, Vec3(0.95f, 0.25f, 0.35f), Vec3(0.10f, 0.12f, 0.16f), 3.0f, 3.0f, "Lives", "Platformer" });
+
+        // 3. Racing / Vehicle Widgets
+        _hudWidgets.push_back({ "Speedometer", "142 KM/H", HUDWidgetType::TextLabel, 1620.0f, 940.0f, 240.0f, 44.0f, Vec3(0.2f, 0.9f, 0.95f), Vec3(0.08f, 0.10f, 0.14f), 142.0f, 280.0f, "Speedometer", "Racing" });
+        _hudWidgets.push_back({ "LapTimer", "LAP 1 - 01:24.5", HUDWidgetType::TextLabel, 840.0f, 60.0f, 240.0f, 36.0f, Vec3(1.0f, 0.9f, 0.2f), Vec3(0.10f, 0.12f, 0.16f), 84.5f, 999.0f, "LapTimer", "Racing" });
+
+        // 4. Strategy / RTS Widgets
+        _hudWidgets.push_back({ "ResourceBar", "GOLD: 1200 | WOOD: 450 | FOOD: 80/100", HUDWidgetType::TextLabel, 1200.0f, 60.0f, 380.0f, 32.0f, Vec3(0.9f, 0.95f, 1.0f), Vec3(0.12f, 0.14f, 0.18f), 1200.0f, 5000.0f, "Resources", "RTS" });
+        _hudWidgets.push_back({ "MinimapFrame", "[ MINIMAP RADAR ]", HUDWidgetType::MinimapFrame, 60.0f, 780.0f, 180.0f, 160.0f, Vec3(0.3f, 0.85f, 0.65f), Vec3(0.06f, 0.08f, 0.10f), 1.0f, 1.0f, "Minimap", "RTS" });
+
+        // 5. Story / Adventure Widgets
+        _hudWidgets.push_back({ "DialogueBox", "Scientist: The containment field is holding.", HUDWidgetType::DialogueBox, 460.0f, 880.0f, 1000.0f, 75.0f, Vec3(0.95f, 0.95f, 0.95f), Vec3(0.08f, 0.10f, 0.14f), 1.0f, 1.0f, "DialogueText", "Story" });
     }
 
     void discoverTextures() {
@@ -264,27 +340,84 @@ public:
         }
     }
 
+    bool isStudioWorkspace(EditorWorkspace ws) const {
+        return ws == EditorWorkspace::Studio_GripPoser ||
+               ws == EditorWorkspace::Studio_ReloadTimeline ||
+               ws == EditorWorkspace::Studio_WeaponSkins ||
+               ws == EditorWorkspace::Studio_Appearance ||
+               ws == EditorWorkspace::Studio_FaceDialogue;
+    }
+
+    std::string getWorkspaceName(EditorWorkspace ws) const {
+        switch (ws) {
+            case EditorWorkspace::World3D_Level: return "3D > Level & Geometry Editor";
+            case EditorWorkspace::World3D_Animation: return "3D > Animation 3D Timeline";
+            case EditorWorkspace::World3D_ModelViewer: return "3D > 3D Model Viewer & Inspector";
+            case EditorWorkspace::Studio_GripPoser: return "3D > Character & Weapon Studio > Weapon Grip Poser";
+            case EditorWorkspace::Studio_ReloadTimeline: return "3D > Character & Weapon Studio > Reload Timeline";
+            case EditorWorkspace::Studio_WeaponSkins: return "3D > Character & Weapon Studio > Weapon Skins & Materials";
+            case EditorWorkspace::Studio_Appearance: return "3D > Character & Weapon Studio > Character Appearance";
+            case EditorWorkspace::Studio_FaceDialogue: return "3D > Character & Weapon Studio > Face Dialogue & Lip-Sync";
+            case EditorWorkspace::Level2D_Tilemap: return "2D > Level & Tilemap Editor";
+            case EditorWorkspace::Level2D_Animation: return "2D > Animation 2D Spritesheet";
+            case EditorWorkspace::Level2D_HUD: return "2D > HUD Canvas Designer";
+            case EditorWorkspace::Scripting_Editor: return "Scripting > Lua Script Editor IDE";
+            case EditorWorkspace::Scripting_Console: return "Scripting > Interactive REPL Console";
+            default: return "3D > Level & Geometry Editor";
+        }
+    }
+
+    std::string getWorkspaceBreadcrumb(EditorWorkspace ws) const {
+        switch (ws) {
+            case EditorWorkspace::World3D_Level: return "3D > Level";
+            case EditorWorkspace::World3D_Animation: return "3D > Anim 3D";
+            case EditorWorkspace::World3D_ModelViewer: return "3D > Model Viewer";
+            case EditorWorkspace::Studio_GripPoser: return "Studio > Grip Poser";
+            case EditorWorkspace::Studio_ReloadTimeline: return "Studio > Reload";
+            case EditorWorkspace::Studio_WeaponSkins: return "Studio > Skins";
+            case EditorWorkspace::Studio_Appearance: return "Studio > Appearance";
+            case EditorWorkspace::Studio_FaceDialogue: return "Studio > Dialogue";
+            case EditorWorkspace::Level2D_Tilemap: return "2D > Level";
+            case EditorWorkspace::Level2D_Animation: return "2D > Anim 2D";
+            case EditorWorkspace::Level2D_HUD: return "2D > HUD Canvas";
+            case EditorWorkspace::Scripting_Editor: return "Script > Lua IDE";
+            case EditorWorkspace::Scripting_Console: return "Script > Console";
+            default: return "3D > Level";
+        }
+    }
+
     void setWorkspace(EditorWorkspace ws) {
         _workspace = ws;
-        if (ws == EditorWorkspace::World3D) {
+        if (ws == EditorWorkspace::World3D_Level || ws == EditorWorkspace::World3D_Animation || ws == EditorWorkspace::World3D_ModelViewer) {
             _orthoViewMode = false;
             _camera.setPerspective(70.0f, 16.0f / 9.0f, 0.01f, 3000.0f);
-            logMessage("Workspace: [ 3D World ] (Perspective Level Design & CSG)");
-        } else if (ws == EditorWorkspace::Level2D) {
+        } else if (ws == EditorWorkspace::Level2D_Tilemap || ws == EditorWorkspace::Level2D_Animation || ws == EditorWorkspace::Level2D_HUD) {
             _orthoViewMode = true;
             _camera.setOrthographic(25.0f, -500.0f, 500.0f);
             _camera.setPitch(-89.9f);
             _camera.setYaw(-90.0f);
-            logMessage("Workspace: [ 2D Level ] (Orthographic Tilemap & Sprites)");
-        } else if (ws == EditorWorkspace::HUD) {
-            logMessage("Workspace: [ HUD / UI ] (Interactive 2D HUD Canvas & Lua Bindings)");
-        } else if (ws == EditorWorkspace::Animation) {
-            _bottomDockTab = BottomDockTab::Timeline;
-            logMessage("Workspace: [ Animation ] (Timeline Scrubber & Keyframes)");
-        } else if (ws == EditorWorkspace::Scripting) {
-            _bottomDockTab = BottomDockTab::ScriptEditor;
-            logMessage("Workspace: [ Scripting ] (In-Engine Lua IDE & Live Reload)");
         }
+
+        // Configure Studio tabs if in Studio workspace
+        if (ws == EditorWorkspace::Studio_GripPoser) {
+            _characterStudio.setActiveTab(StudioTab::GripPoser);
+        } else if (ws == EditorWorkspace::Studio_ReloadTimeline) {
+            _characterStudio.setActiveTab(StudioTab::ReloadTimeline);
+        } else if (ws == EditorWorkspace::Studio_WeaponSkins) {
+            _characterStudio.setActiveTab(StudioTab::WeaponSkins);
+        } else if (ws == EditorWorkspace::Studio_Appearance) {
+            _characterStudio.setActiveTab(StudioTab::Appearance);
+        } else if (ws == EditorWorkspace::Studio_FaceDialogue) {
+            _characterStudio.setActiveTab(StudioTab::FaceDialogue);
+        }
+
+        if (ws == EditorWorkspace::World3D_Animation || ws == EditorWorkspace::Level2D_Animation) {
+            _bottomDockTab = BottomDockTab::Timeline;
+        } else if (ws == EditorWorkspace::Scripting_Editor || ws == EditorWorkspace::Scripting_Console) {
+            _bottomDockTab = BottomDockTab::ScriptEditor;
+        }
+
+        logMessage("Workspace switched: [ " + getWorkspaceName(ws) + " ]");
     }
 
     void runCurrentScript() {
@@ -492,14 +625,116 @@ public:
             _lmbPressed = false;
         }
 
-        // Handle Right-Click (for Tool 3 Pipette sample)
+        // Handle Right-Click (for Tool 3 Pipette sample or Hierarchy Context Menu)
         if (Input::isMouseButtonJustPressed(1) || (Input::isMouseButtonPressed(1) && !_rmbPressed)) {
             if (_activeTool == 3) {
+                handleMouseClick(mx, my, true);
+            } else if (!in3DViewport || _contextMenuOpen || mx >= vpX + vpW) {
                 handleMouseClick(mx, my, true);
             }
             _rmbPressed = true;
         } else if (!Input::isMouseButtonPressed(1)) {
             _rmbPressed = false;
+        }
+
+        // 1. Studio Workspace Engine Tick (LabStudio character & weapon updates)
+        if (isStudioWorkspace(_workspace)) {
+            _characterStudio.update(time.delta, mx, my, Input::isMouseButtonPressed(0), Input::isMouseButtonPressed(1), Input::scrollDelta);
+            bool ctrl = Input::isKeyPressed(GLFW_KEY_LEFT_CONTROL) || Input::isKeyPressed(GLFW_KEY_RIGHT_CONTROL);
+            bool shift = Input::isKeyPressed(GLFW_KEY_LEFT_SHIFT) || Input::isKeyPressed(GLFW_KEY_RIGHT_SHIFT);
+            for (int k = 0; k < 512; ++k) {
+                if (Input::keys[k] && !_lastStudioKeys[k]) {
+                    _characterStudio.handleKeyDown(k, ctrl, shift);
+                }
+                _lastStudioKeys[k] = Input::keys[k];
+            }
+        }
+
+        // 2. 3D Model Viewer Turntable Updates
+        if (_workspace == EditorWorkspace::World3D_ModelViewer) {
+            if (_modelViewerAutoRotate) {
+                _modelViewerYaw += 25.0f * time.delta;
+                if (_modelViewerYaw >= 360.0f) _modelViewerYaw -= 360.0f;
+            }
+            if (in3DViewport && Input::isMouseButtonPressed(0)) {
+                _modelViewerYaw += (mx - _modelViewerLastMouseX) * 0.5f;
+                _modelViewerPitch = std::clamp(_modelViewerPitch + (my - _modelViewerLastMouseY) * 0.5f, -80.0f, 80.0f);
+            }
+            if (in3DViewport && std::abs(Input::scrollDelta) > 0.01f) {
+                _modelViewerDistance = std::clamp(_modelViewerDistance - Input::scrollDelta * 0.2f, 0.5f, 15.0f);
+            }
+            _modelViewerLastMouseX = mx;
+            _modelViewerLastMouseY = my;
+        }
+
+        // 3. 2D Spritesheet Animation Updates
+        if (_workspace == EditorWorkspace::Level2D_Animation && _anim2DPlaying) {
+            _anim2DTimer += time.delta;
+            float frameDuration = 1.0f / (float)std::max(1, _anim2DFPS);
+            if (_anim2DTimer >= frameDuration) {
+                _anim2DTimer = 0.0f;
+                _anim2DSelectedFrame++;
+                if (_anim2DSelectedFrame >= _anim2DTotalFrames) {
+                    _anim2DSelectedFrame = _anim2DLoop ? 0 : (_anim2DTotalFrames - 1);
+                }
+            }
+        }
+
+        // 4. Hierarchy Context Menu Search Input Handling
+        if (_contextMenuOpen) {
+            static bool s_backspacePressed = false;
+            static bool s_enterPressed = false;
+            static bool s_escPressed = false;
+            static bool s_lastKeys[512] = { false };
+
+            if (Input::isKeyPressed(259)) { // Backspace
+                if (!s_backspacePressed && !_contextMenuSearch.empty()) {
+                    _contextMenuSearch.pop_back();
+                }
+                s_backspacePressed = true;
+            } else {
+                s_backspacePressed = false;
+            }
+
+            if (Input::isKeyPressed(256)) { // Esc
+                if (!s_escPressed) {
+                    _contextMenuOpen = false;
+                }
+                s_escPressed = true;
+            } else {
+                s_escPressed = false;
+            }
+
+            if (Input::isKeyPressed(257)) { // Enter
+                if (!s_enterPressed) {
+                    std::string q = _contextMenuSearch;
+                    std::transform(q.begin(), q.end(), q.begin(), [](unsigned char c) { return (char)::tolower(c); });
+                    if (q.find("scr") != std::string::npos || q.empty()) {
+                        setWorkspace(EditorWorkspace::Scripting_Editor);
+                        logMessage("Context Menu: Attached Script (Lua) - opened Lua Script Editor IDE");
+                    } else if (q.find("lig") != std::string::npos) {
+                        logMessage("Context Menu: Added Point Light to entity");
+                    } else if (q.find("spri") != std::string::npos) {
+                        logMessage("Context Menu: Attached 2D Sprite to entity");
+                    } else {
+                        logMessage("Context Menu: Attached Component: " + _contextMenuSearch);
+                    }
+                    _contextMenuOpen = false;
+                }
+                s_enterPressed = true;
+            } else {
+                s_enterPressed = false;
+            }
+
+            for (int k = 32; k <= 90; ++k) {
+                if (Input::keys[k] && !s_lastKeys[k]) {
+                    char c = (char)k;
+                    bool shift = Input::isKeyPressed(340) || Input::isKeyPressed(344);
+                    if (!shift && c >= 'A' && c <= 'Z') c = (char)(c + 32);
+                    _contextMenuSearch += c;
+                }
+                s_lastKeys[k] = Input::keys[k];
+            }
         }
 
         // Simulation Tick (Lua OnUpdate & in-editor game mechanics)
@@ -1640,6 +1875,73 @@ public:
         float w = (fbW > 0) ? (float)fbW : (float)getWidth();
         float h = (fbH > 0) ? (float)fbH : (float)getHeight();
 
+        // 0. Hierarchy Context Menu Handling
+        if (_contextMenuOpen) {
+            float cmX = _contextMenuX;
+            float cmY = _contextMenuY;
+            float cmW = 260.0f;
+            struct CompDef { std::string name; std::string tag; };
+            CompDef compRegistry[] = {
+                { "Script (Lua)", "Script" },
+                { "Point Light", "Light" },
+                { "2D Sprite", "Sprite" },
+                { "Box Collider", "Physics" },
+                { "Audio Source", "Sound" },
+                { "Timer Trigger", "Trigger" },
+                { "Particle Emitter", "FX" },
+                { "Collectible Item (Score/Coins)", "Gameplay" },
+                { "Interactive Trigger / Switch", "Gameplay" },
+                { "Camera Rail / Anchor", "Camera" }
+            };
+
+            std::vector<CompDef> filtered;
+            std::string query = _contextMenuSearch;
+            std::transform(query.begin(), query.end(), query.begin(), [](unsigned char c) { return (char)::tolower(c); });
+            for (const auto& c : compRegistry) {
+                if (query.empty()) filtered.push_back(c);
+                else {
+                    std::string lowerName = c.name;
+                    std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(), [](unsigned char ch) { return (char)::tolower(ch); });
+                    if (lowerName.find(query) != std::string::npos) filtered.push_back(c);
+                }
+            }
+
+            int itemCount = std::min((int)filtered.size(), 7);
+            float cmH = 68.0f + itemCount * 22.0f + 65.0f;
+            int winW = 1600, winH = 900;
+            getWindowSize(winW, winH);
+            if (cmX + cmW > (float)winW) cmX = (float)winW - cmW - 10.0f;
+            if (cmY + cmH > (float)winH) cmY = (float)winH - cmH - 10.0f;
+
+            if (mx >= cmX && mx <= cmX + cmW && my >= cmY && my <= cmY + cmH) {
+                float sbY = cmY + 28.0f;
+                float curItemY = sbY + 22.0f + 6.0f;
+                for (int i = 0; i < itemCount; ++i) {
+                    if (my >= curItemY && my <= curItemY + 20.0f) {
+                        std::string picked = filtered[i].name;
+                        if (picked.find("Script") != std::string::npos) {
+                            setWorkspace(EditorWorkspace::Scripting_Editor);
+                            logMessage("Context Menu: Attached Script (Lua) - opened Lua Script Editor IDE");
+                        } else {
+                            logMessage("Context Menu: Attached " + picked + " to entity #" + std::to_string(_contextMenuTargetIndex));
+                        }
+                        _contextMenuOpen = false;
+                        return;
+                    }
+                    curItemY += 22.0f;
+                }
+                curItemY += 8.0f;
+                if (my >= curItemY && my <= curItemY + 18.0f) { duplicateSelection(); _contextMenuOpen = false; return; }
+                curItemY += 19.0f;
+                if (my >= curItemY && my <= curItemY + 18.0f) { focusCamera(); _contextMenuOpen = false; return; }
+                curItemY += 19.0f;
+                if (my >= curItemY && my <= curItemY + 18.0f) { deleteSelection(); _contextMenuOpen = false; return; }
+                return;
+            } else {
+                _contextMenuOpen = false;
+            }
+        }
+
         // 1. Texture Browser Modal
         if (_browserOpen) {
             float bw = 820.0f;
@@ -1920,13 +2222,20 @@ public:
         if (_buildMenuOpen) {
             float menuX = 137.0f;
             float menuY = 24.0f;
-            float menuW = 240.0f;
-            float menuH = 100.0f;
+            float menuW = 250.0f;
+            float menuH = 125.0f;
             if (mx >= menuX && mx <= menuX + menuW && my >= menuY && my <= menuY + menuH) {
-                int itemIdx = (int)((my - menuY) / 24.0f);
-                if (itemIdx == 0) buildGameAction(true); // Test Game (Debug Run)
-                else if (itemIdx == 1) _buildModalOpen = true; // Build & Export Game...
-                else if (itemIdx == 2) {
+                int itemIdx = (int)((my - menuY - 3.0f) / 24.0f);
+                if (itemIdx == 0) buildGameAction(true); // Test Game (Debug Run F5)
+                else if (itemIdx == 1) { // Export Game (Release Package)
+                    _exportSettings.config = BuildConfiguration::Release;
+                    buildGameAction(false);
+                } else if (itemIdx == 2) { // Export Game (Shipping Bytecode Protected)
+                    _exportSettings.config = BuildConfiguration::Shipping;
+                    buildGameAction(false);
+                } else if (itemIdx == 3) { // Build Settings Dialog
+                    _buildModalOpen = true;
+                } else if (itemIdx == 4) { // Open test_build Folder
                     #if defined(_WIN32)
                     std::system("start test_build");
                     #elif defined(__APPLE__)
@@ -1942,44 +2251,78 @@ public:
             }
         }
 
-        // 4.6. Dropdown View Menu
+        // 4.6. Dropdown View Menu (Subcategorized Architecture)
         if (_viewMenuOpen) {
             float menuX = 92.0f;
             float menuY = 24.0f;
-            float menuW = 240.0f;
-            float menuH = 195.0f;
-            if (mx >= menuX && mx <= menuX + menuW && my >= menuY && my <= menuY + menuH) {
-                int itemIdx = (int)((my - menuY) / 24.0f);
-                if (itemIdx == 0) setWorkspace(EditorWorkspace::World3D);
-                else if (itemIdx == 1) setWorkspace(EditorWorkspace::Level2D);
-                else if (itemIdx == 2) setWorkspace(EditorWorkspace::HUD);
-                else if (itemIdx == 3) setWorkspace(EditorWorkspace::Animation);
-                else if (itemIdx == 4) setWorkspace(EditorWorkspace::Scripting);
-                else if (itemIdx == 5) {
-                    _wireframeMode = !_wireframeMode;
-                    glPolygonMode(GL_FRONT_AND_BACK, _wireframeMode ? GL_LINE : GL_FILL);
-                    logMessage("Wireframe Mode: " + std::string(_wireframeMode ? "ON" : "OFF"));
-                } else if (itemIdx == 6) {
-                    _orthoViewMode = !_orthoViewMode;
-                    if (_orthoViewMode) {
-                        _camera.setOrthographic(25.0f, -500.0f, 500.0f);
-                        _camera.setPitch(-89.9f);
-                        _camera.setYaw(-90.0f);
-                        logMessage("Viewport: Switched to 2D Orthographic Top-Down Projection");
-                    } else {
-                        _camera.setPerspective(70.0f, 16.0f / 9.0f, 0.01f, 3000.0f);
-                        _camera.setPitch(0.0f);
-                        _camera.setYaw(-90.0f);
-                        logMessage("Viewport: Switched to 3D Perspective Projection");
+            float menuW = 210.0f;
+            float menuH = 104.0f;
+
+            // Check flyout subcategory menu click first if active
+            if (_viewSubmenuHover >= 0) {
+                float subX = menuX + menuW;
+                float subY = menuY + _viewSubmenuHover * 24.0f;
+                float subW = 260.0f;
+                int subCount = (_viewSubmenuHover == 0) ? 8 : ((_viewSubmenuHover == 1) ? 3 : ((_viewSubmenuHover == 2) ? 2 : 3));
+                float subH = 8.0f + subCount * 24.0f;
+
+                if (mx >= subX && mx <= subX + subW && my >= subY && my <= subY + subH) {
+                    int subIdx = (int)((my - subY - 4.0f) / 24.0f);
+                    if (_viewSubmenuHover == 0) { // 3D Workspaces
+                        if (subIdx == 0) setWorkspace(EditorWorkspace::World3D_Level);
+                        else if (subIdx == 1) setWorkspace(EditorWorkspace::World3D_Animation);
+                        else if (subIdx == 2) setWorkspace(EditorWorkspace::World3D_ModelViewer);
+                        else if (subIdx == 3) setWorkspace(EditorWorkspace::Studio_GripPoser);
+                        else if (subIdx == 4) setWorkspace(EditorWorkspace::Studio_ReloadTimeline);
+                        else if (subIdx == 5) setWorkspace(EditorWorkspace::Studio_WeaponSkins);
+                        else if (subIdx == 6) setWorkspace(EditorWorkspace::Studio_Appearance);
+                        else if (subIdx == 7) setWorkspace(EditorWorkspace::Studio_FaceDialogue);
+                    } else if (_viewSubmenuHover == 1) { // 2D Workspaces
+                        if (subIdx == 0) setWorkspace(EditorWorkspace::Level2D_Tilemap);
+                        else if (subIdx == 1) setWorkspace(EditorWorkspace::Level2D_Animation);
+                        else if (subIdx == 2) setWorkspace(EditorWorkspace::Level2D_HUD);
+                    } else if (_viewSubmenuHover == 2) { // Scripting Workspaces
+                        if (subIdx == 0) setWorkspace(EditorWorkspace::Scripting_Editor);
+                        else if (subIdx == 1) setWorkspace(EditorWorkspace::Scripting_Console);
+                    } else if (_viewSubmenuHover == 3) { // Viewport Display
+                        if (subIdx == 0) {
+                            _wireframeMode = !_wireframeMode;
+                            glPolygonMode(GL_FRONT_AND_BACK, _wireframeMode ? GL_LINE : GL_FILL);
+                            logMessage("Wireframe Mode: " + std::string(_wireframeMode ? "ON" : "OFF"));
+                        } else if (subIdx == 1) {
+                            _orthoViewMode = !_orthoViewMode;
+                            if (_orthoViewMode) {
+                                _camera.setOrthographic(25.0f, -500.0f, 500.0f);
+                                _camera.setPitch(-89.9f);
+                                _camera.setYaw(-90.0f);
+                                logMessage("Viewport: Switched to 2D Orthographic Top-Down Projection");
+                            } else {
+                                _camera.setPerspective(70.0f, 16.0f / 9.0f, 0.01f, 3000.0f);
+                                _camera.setPitch(0.0f);
+                                _camera.setYaw(-90.0f);
+                                logMessage("Viewport: Switched to 3D Perspective Projection");
+                            }
+                        } else if (subIdx == 2) {
+                            _darknessMode = !_darknessMode;
+                            logMessage(_darknessMode ? "Darkness Mode: ACTIVE" : "Darkness Mode: DISABLED");
+                        }
                     }
-                } else if (itemIdx >= 7) {
-                    _darknessMode = !_darknessMode;
-                    logMessage(_darknessMode ? "Darkness Mode: ACTIVE" : "Darkness Mode: DISABLED");
+                    _viewMenuOpen = false;
+                    _viewSubmenuHover = -1;
+                    return;
                 }
-                _viewMenuOpen = false;
+            }
+
+            // Check main categories box click
+            if (mx >= menuX && mx <= menuX + menuW && my >= menuY && my <= menuY + menuH) {
+                int catIdx = (int)((my - menuY - 4.0f) / 24.0f);
+                if (catIdx >= 0 && catIdx < 4) {
+                    _viewSubmenuHover = catIdx;
+                }
                 return;
             } else {
                 _viewMenuOpen = false;
+                _viewSubmenuHover = -1;
             }
         }
 
@@ -2018,31 +2361,22 @@ public:
                 return;
             }
 
-            // Workspace Switcher Bar (Blender / Krita style tabs)
-            if (mx >= 420.0f && mx <= 495.0f) {
-                setWorkspace(EditorWorkspace::World3D);
-                return;
-            } else if (mx >= 500.0f && mx <= 575.0f) {
-                setWorkspace(EditorWorkspace::Level2D);
-                return;
-            } else if (mx >= 580.0f && mx <= 655.0f) {
-                setWorkspace(EditorWorkspace::HUD);
-                return;
-            } else if (mx >= 660.0f && mx <= 745.0f) {
-                setWorkspace(EditorWorkspace::Animation);
-                return;
-            } else if (mx >= 750.0f && mx <= 840.0f) {
-                setWorkspace(EditorWorkspace::Scripting);
+            // Top Workspace Breadcrumb Badge click -> open View menu
+            if (mx >= 415.0f && mx <= 700.0f) {
+                _viewMenuOpen = !_viewMenuOpen;
+                _fileMenuOpen = false;
+                _buildMenuOpen = false;
                 return;
             }
         }
 
-        // 6. Top Toolbar Buttons (y: 24..58, 18 concrete functional buttons!)
+        // 6. Top Toolbar Buttons (y: 24..58, deduplicated utility buttons)
         if (my >= 24.0f && my <= 58.0f) {
-            for (int i = 0; i < 18; ++i) {
+            const int tbIcons[12] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16 };
+            for (int i = 0; i < 12; ++i) {
                 float bx = 8.0f + i * 28.0f;
                 if (mx >= bx && mx <= bx + 26.0f) {
-                    switch (i) {
+                    switch (tbIcons[i]) {
                         case 0: newMap(); break;
                         case 1: openMapDialog(); break;
                         case 2: saveMapAction(false); break;
@@ -2055,11 +2389,6 @@ public:
                         case 7: focusCamera(); break;
                         case 8: _browserOpen = true; break;
                         case 9: _modelBrowserOpen = true; break;
-                        case 10: _activeTool = 0; logMessage("Tool: Pointer / Selection Tool"); break;
-                        case 11: _activeTool = 1; logMessage("Tool: Brush / Block Tool"); break;
-                        case 12: _activeTool = 2; logMessage("Tool: Entity / Prop Tool"); break;
-                        case 13: _activeTool = 3; logMessage("Tool: Texture Pipette & Apply"); break;
-                        case 14: _activeTool = 4; logMessage("Tool: Dynamic Door Tool"); break;
                         case 15: // Grid snap down
                             _gridSnap = std::max(0.125f, _gridSnap * 0.5f);
                             logMessage("Grid Snap: " + std::to_string(_gridSnap));
@@ -2068,9 +2397,6 @@ public:
                             _gridSnap = std::min(16.0f, _gridSnap * 2.0f);
                             logMessage("Grid Snap: " + std::to_string(_gridSnap));
                             break;
-                        case 17: // Toggle In-Editor Simulation (Play/Stop)
-                            toggleSimulation();
-                            break;
                     }
                     return;
                 }
@@ -2078,17 +2404,17 @@ public:
 
             // Top Toolbar Controls: Simulation, View Mode, Quick Actions
             // 1. [ > TEST GAME (F5) ]
-            if (mx >= 520.0f && mx <= 665.0f) {
+            if (mx >= 350.0f && mx <= 495.0f) {
                 buildGameAction(true);
                 return;
             }
             // 2. [ BUILD / EXPORT... ]
-            if (mx >= 672.0f && mx <= 807.0f) {
+            if (mx >= 503.0f && mx <= 633.0f) {
                 _buildModalOpen = true;
                 return;
             }
             // 3. [ 3D PERSPECTIVE ] / [ 2D ORTHO ]
-            if (mx >= 814.0f && mx <= 909.0f) {
+            if (mx >= 641.0f && mx <= 741.0f) {
                 _orthoViewMode = !_orthoViewMode;
                 if (_orthoViewMode) {
                     _camera.setOrthographic(25.0f, -500.0f, 500.0f);
@@ -2104,19 +2430,19 @@ public:
                 return;
             }
             // 4. [+ LIGHT]
-            if (mx >= 919.0f && mx <= 999.0f) {
+            if (mx >= 749.0f && mx <= 829.0f) {
                 _activeTool = 7;
                 logMessage("Tool 7: Omni Point Light Tool (Click scene or E to place)");
                 return;
             }
             // 5. [DARK: ON/OFF]
-            if (mx >= 1007.0f && mx <= 1097.0f) {
+            if (mx >= 837.0f && mx <= 927.0f) {
                 _darknessMode = !_darknessMode;
                 logMessage(_darknessMode ? "Darkness Mode: ACTIVE (Pitch Black Ambient/Sun)" : "Darkness Mode: DISABLED (Standard Sunlight)");
                 return;
             }
             // 6. [DARK PRESET]
-            if (mx >= 1105.0f && mx <= 1200.0f) {
+            if (mx >= 935.0f && mx <= 1030.0f) {
                 if (_map) {
                     _map->metadata.ambientColor = Vec3(0.015f, 0.018f, 0.025f);
                     _map->metadata.sunColor = Vec3(0.0f, 0.0f, 0.0f);
@@ -2272,6 +2598,27 @@ public:
                                 logMessage("Outliner: Selected Lamp Light #" + std::to_string(_selectedIndex) + " (" + _map->lights[_selectedIndex].name + ")");
                             }
                         }
+
+                        // Right-Click: Open Component Context Menu with in-menu live search
+                        if (isRmb) {
+                            _contextMenuOpen = true;
+                            _contextMenuX = mx;
+                            _contextMenuY = my;
+                            _contextMenuTargetIndex = itemIdx;
+                            _contextMenuSearch = "";
+                            logMessage("Hierarchy: Right-clicked entity #" + std::to_string(itemIdx) + " - Opened In-Menu Component Search");
+                            return;
+                        }
+
+                        // Left-Click: Detect Double-Click to open in Lua Script Editor
+                        float curTime = (float)glfwGetTime();
+                        if (curTime - _lastOutlinerClickTime < 0.35f && _lastOutlinerClickIndex == itemIdx) {
+                            setWorkspace(EditorWorkspace::Scripting_Editor);
+                            logMessage("Hierarchy: Double-clicked entity #" + std::to_string(itemIdx) + " - Switched to Lua Script Editor");
+                            return;
+                        }
+                        _lastOutlinerClickTime = curTime;
+                        _lastOutlinerClickIndex = itemIdx;
                         return;
                     }
                 }
@@ -2583,52 +2930,193 @@ public:
             return;
         }
 
-        // 8.5. HUD Canvas Workspace Interactions
-        if (_workspace == EditorWorkspace::HUD) {
+        // 8.4. 3D Model Viewer Workspace Interactions
+        if (_workspace == EditorWorkspace::World3D_ModelViewer) {
             float vpX = leftW;
             float vpW = l.rightX - vpX;
             float vpH = (h - 22.0f) - 58.0f;
-            float cvW = std::min(vpW - 40.0f, 860.0f);
-            float cvH = std::min(vpH - 40.0f, 480.0f);
-            float cvX = vpX + (vpW - cvW) * 0.5f;
-            float cvY = 58.0f + (vpH - cvH) * 0.5f;
-            float btnY = cvY + cvH - 52.0f;
+            float listX = vpX + 8.0f;
+            float listY = 58.0f + 32.0f;
+            float listW = 220.0f;
+            float listH = vpH - 36.0f;
 
-            if (my >= btnY && my <= btnY + 32.0f) {
-                if (mx >= cvX + 20.0f && mx <= cvX + 170.0f) {
-                    toggleSimulation();
+            // Click model in list
+            if (mx >= listX && mx <= listX + listW && my >= listY + 28.0f && my <= listY + listH) {
+                int clickedIdx = (int)((my - (listY + 28.0f)) / 22.0f);
+                if (clickedIdx >= 0 && clickedIdx < (int)_availableModels.size()) {
+                    _selectedModel = _availableModels[clickedIdx];
+                    logMessage("3D Model Viewer: Selected model '" + _selectedModel + "'");
                     return;
-                } else if (mx >= cvX + 180.0f && mx <= cvX + 320.0f) {
-                    static int s_hudSimSec = 0;
-                    s_hudSimSec += 1;
-                    char b[32];
-                    std::snprintf(b, sizeof(b), "TIME: %02d:%02d", s_hudSimSec / 60, s_hudSimSec % 60);
-                    ScriptEngine::setHUDText("TimerLabel", b);
-                    logMessage("HUD Timer triggered +1s: " + std::string(b));
+                }
+            }
+
+            // Right inspector buttons
+            float inspW = 250.0f;
+            float inspX = vpX + vpW - inspW - 8.0f;
+            float inspY = 58.0f + 32.0f;
+            float iy = inspY + 36.0f + 92.0f;
+
+            if (my >= iy && my <= iy + 26.0f) {
+                if (mx >= inspX + 10.0f && mx <= inspX + 120.0f) {
+                    _modelViewerAutoRotate = !_modelViewerAutoRotate;
                     return;
-                } else if (mx >= cvX + 330.0f && mx <= cvX + 450.0f) {
-                    ScriptEngine::setHUDText("TimerLabel", "TIME: 00:00");
-                    logMessage("HUD Timer reset to 00:00.");
+                } else if (mx >= inspX + 128.0f && mx <= inspX + 238.0f) {
+                    _modelViewerWireframe = !_modelViewerWireframe;
                     return;
-                } else if (mx >= cvX + 460.0f && mx <= cvX + 580.0f) {
-                    float curHp = ScriptEngine::getHUDValue("Health");
-                    if (curHp <= 0.0f) curHp = 100.0f;
-                    curHp = std::max(0.0f, curHp - 15.0f);
-                    ScriptEngine::setHUDValue("Health", curHp);
-                    logMessage("Player took 15 damage! Health: " + std::to_string((int)curHp));
+                }
+            }
+            if (my >= iy + 34.0f && my <= iy + 60.0f) {
+                if (mx >= inspX + 10.0f && mx <= inspX + 238.0f) {
+                    _modelViewerYaw = 35.0f;
+                    _modelViewerPitch = 15.0f;
+                    _modelViewerDistance = 3.0f;
+                    logMessage("3D Model Viewer: Turntable reset.");
                     return;
-                } else if (mx >= cvX + 590.0f && mx <= cvX + 710.0f) {
-                    float curHp = ScriptEngine::getHUDValue("Health");
-                    curHp = std::min(100.0f, curHp + 25.0f);
-                    ScriptEngine::setHUDValue("Health", curHp);
-                    logMessage("Player healed +25 HP! Health: " + std::to_string((int)curHp));
+                }
+            }
+            if (my >= iy + 68.0f && my <= iy + 94.0f) {
+                if (mx >= inspX + 10.0f && mx <= inspX + 238.0f) {
+                    logMessage("3D Model Viewer: Applied texture '" + _selectedTexture + "' to model '" + _selectedModel + "'");
                     return;
                 }
             }
         }
 
-        // 8.6. Scripting Workspace IDE Interactions
-        if (_workspace == EditorWorkspace::Scripting) {
+        // 8.5. Native Multi-Genre HUD Canvas Workspace Interactions
+        if (_workspace == EditorWorkspace::Level2D_HUD) {
+            float vpX = leftW;
+            float vpW = l.rightX - vpX;
+            float vpH = (h - 22.0f) - 58.0f;
+            float cvW = std::min(vpW - 40.0f, 960.0f);
+            float cvH = std::min(vpH - 40.0f, 540.0f);
+            float cvX = vpX + (vpW - cvW) * 0.5f;
+            float cvY = 58.0f + (vpH - cvH) * 0.5f;
+
+            // Template Bar Clicks
+            float tbY = cvY + 30.0f;
+            if (my >= tbY && my <= tbY + 24.0f) {
+                if (mx >= cvX + 10.0f && mx <= cvX + 100.0f) {
+                    _hudWidgets.push_back({ "HealthBar" + std::to_string(_hudWidgets.size()), "HEALTH", HUDWidgetType::ProgressBar, 60.0f, 960.0f, 260.0f, 26.0f, Vec3(0.2f, 0.85f, 0.35f), Vec3(0.12f, 0.14f, 0.18f), 100.0f, 100.0f, "Health", "RPG" });
+                    logMessage("HUD: Added Health/Mana Widget Template");
+                    return;
+                } else if (mx >= cvX + 105.0f && mx <= cvX + 185.0f) {
+                    _hudWidgets.push_back({ "ScoreText" + std::to_string(_hudWidgets.size()), "SCORE: 0000", HUDWidgetType::TextLabel, 60.0f, 60.0f, 220.0f, 32.0f, Vec3(1.0f, 0.95f, 0.3f), Vec3(0.10f, 0.12f, 0.16f), 0.0f, 99999.0f, "Score", "Platformer" });
+                    logMessage("HUD: Added Score/Coin Widget Template");
+                    return;
+                } else if (mx >= cvX + 190.0f && mx <= cvX + 270.0f) {
+                    _hudWidgets.push_back({ "Resources" + std::to_string(_hudWidgets.size()), "GOLD: 500 | WOOD: 200", HUDWidgetType::TextLabel, 1200.0f, 60.0f, 320.0f, 30.0f, Vec3(0.9f, 0.95f, 1.0f), Vec3(0.12f, 0.14f, 0.18f), 500.0f, 9999.0f, "Resources", "RTS" });
+                    logMessage("HUD: Added Strategy Resource Bar Template");
+                    return;
+                } else if (mx >= cvX + 275.0f && mx <= cvX + 360.0f) {
+                    _hudWidgets.push_back({ "Speedometer" + std::to_string(_hudWidgets.size()), "0 KM/H", HUDWidgetType::TextLabel, 1620.0f, 940.0f, 220.0f, 40.0f, Vec3(0.2f, 0.9f, 0.95f), Vec3(0.08f, 0.10f, 0.14f), 0.0f, 300.0f, "Speedometer", "Racing" });
+                    logMessage("HUD: Added Racing Speedometer Template");
+                    return;
+                } else if (mx >= cvX + 365.0f && mx <= cvX + 450.0f) {
+                    _hudWidgets.push_back({ "Dialogue" + std::to_string(_hudWidgets.size()), "Narrator: Once upon a time in the Cryo Complex...", HUDWidgetType::DialogueBox, 460.0f, 880.0f, 1000.0f, 75.0f, Vec3(0.95f, 0.95f, 0.95f), Vec3(0.08f, 0.10f, 0.14f), 1.0f, 1.0f, "DialogueText", "Story" });
+                    logMessage("HUD: Added Adventure Dialogue Box Template");
+                    return;
+                } else if (mx >= cvX + 455.0f && mx <= cvX + 535.0f) {
+                    _hudWidgets.push_back({ "Timer" + std::to_string(_hudWidgets.size()), "TIME: 00:00", HUDWidgetType::TextLabel, 860.0f, 60.0f, 200.0f, 36.0f, Vec3(1.0f, 0.85f, 0.2f), Vec3(0.10f, 0.12f, 0.16f), 0.0f, 9999.0f, "TimerLabel", "General" });
+                    logMessage("HUD: Added Digital Timer Clock Template");
+                    return;
+                } else if (mx >= cvX + 540.0f && mx <= cvX + 615.0f) {
+                    _hudWidgets.push_back({ "Crosshair" + std::to_string(_hudWidgets.size()), "[ + ]", HUDWidgetType::Icon, 940.0f, 520.0f, 40.0f, 40.0f, Vec3(0.2f, 0.9f, 0.4f), Vec3(0.0f, 0.0f, 0.0f), 1.0f, 1.0f, "Crosshair", "General" });
+                    logMessage("HUD: Added Crosshair Template");
+                    return;
+                } else if (mx >= cvX + 620.0f && mx <= cvX + 690.0f) {
+                    _hudWidgets.push_back({ "ActionButton" + std::to_string(_hudWidgets.size()), "ACTION", HUDWidgetType::Button, 860.0f, 500.0f, 200.0f, 44.0f, Vec3(1.0f, 1.0f, 1.0f), Vec3(0.20f, 0.24f, 0.32f), 1.0f, 1.0f, "BtnAction", "General" });
+                    logMessage("HUD: Added Action Button Template");
+                    return;
+                }
+            }
+
+            // Bottom test controls
+            float botY = cvY + cvH - 38.0f;
+            if (my >= botY + 2.0f && my <= botY + 28.0f) {
+                if (mx >= cvX + 240.0f && mx <= cvX + 300.0f) {
+                    _hudTestSliderValue = std::max(0.0f, _hudTestSliderValue - 10.0f);
+                    ScriptEngine::setHUDValue("Health", _hudTestSliderValue);
+                    ScriptEngine::setHUDValue("Mana", _hudTestSliderValue * 0.85f);
+                    for (auto& w : _hudWidgets) {
+                        if (w.type == HUDWidgetType::ProgressBar) w.currentValue = std::min(w.maxValue, _hudTestSliderValue);
+                    }
+                    logMessage("HUD Live Test: Decreased value to " + std::to_string((int)_hudTestSliderValue));
+                    return;
+                } else if (mx >= cvX + 305.0f && mx <= cvX + 365.0f) {
+                    _hudTestSliderValue = std::min(100.0f, _hudTestSliderValue + 10.0f);
+                    ScriptEngine::setHUDValue("Health", _hudTestSliderValue);
+                    ScriptEngine::setHUDValue("Mana", _hudTestSliderValue * 0.85f);
+                    for (auto& w : _hudWidgets) {
+                        if (w.type == HUDWidgetType::ProgressBar) w.currentValue = std::min(w.maxValue, _hudTestSliderValue);
+                    }
+                    logMessage("HUD Live Test: Increased value to " + std::to_string((int)_hudTestSliderValue));
+                    return;
+                } else if (mx >= cvX + 370.0f && mx <= cvX + 470.0f) {
+                    _hudTestSliderValue = 100.0f;
+                    ScriptEngine::setHUDValue("Health", 100.0f);
+                    ScriptEngine::setHUDValue("Mana", 100.0f);
+                    for (auto& w : _hudWidgets) w.currentValue = w.maxValue;
+                    logMessage("HUD Live Test: Reset gauges to maximum.");
+                    return;
+                } else if (mx >= cvX + 475.0f && mx <= cvX + 605.0f) {
+                    toggleSimulation();
+                    return;
+                }
+            }
+        }
+
+        // 8.6. 2D Spritesheet Animation Workspace Interactions
+        if (_workspace == EditorWorkspace::Level2D_Animation) {
+            float vpX = leftW;
+            float vpW = l.rightX - vpX;
+            float vpH = (h - 22.0f) - 58.0f;
+            float anW = std::min(vpW - 40.0f, 920.0f);
+            float anH = std::min(vpH - 40.0f, 520.0f);
+            float anX = vpX + (vpW - anW) * 0.5f;
+            float anY = 58.0f + (vpH - anH) * 0.5f;
+
+            // Filmstrip click
+            float stageH = 240.0f;
+            float stripY = anY + 40.0f + stageH + 16.0f;
+            float frameSize = 56.0f;
+            float gap = 8.0f;
+            float stripX = anX + 20.0f;
+
+            if (my >= stripY && my <= stripY + frameSize) {
+                for (int i = 0; i < _anim2DTotalFrames; ++i) {
+                    float fx = stripX + i * (frameSize + gap);
+                    if (mx >= fx && mx <= fx + frameSize) {
+                        _anim2DSelectedFrame = i;
+                        logMessage("2D Animation: Selected frame #" + std::to_string(i));
+                        return;
+                    }
+                }
+            }
+
+            // Timeline buttons
+            float tlY = anY + anH - 65.0f;
+            if (my >= tlY && my <= tlY + 28.0f) {
+                if (mx >= anX + 20.0f && mx <= anX + 100.0f) {
+                    _anim2DSelectedFrame = 0;
+                    return;
+                } else if (mx >= anX + 108.0f && mx <= anX + 208.0f) {
+                    _anim2DPlaying = !_anim2DPlaying;
+                    return;
+                } else if (mx >= anX + 216.0f && mx <= anX + 306.0f) {
+                    _anim2DLoop = !_anim2DLoop;
+                    return;
+                } else if (mx >= anX + 314.0f && mx <= anX + 394.0f) {
+                    if (_anim2DFPS == 12) _anim2DFPS = 24;
+                    else if (_anim2DFPS == 24) _anim2DFPS = 30;
+                    else if (_anim2DFPS == 30) _anim2DFPS = 60;
+                    else _anim2DFPS = 12;
+                    return;
+                }
+            }
+        }
+
+        // 8.7. Scripting Workspace IDE Interactions
+        if (_workspace == EditorWorkspace::Scripting_Editor || _workspace == EditorWorkspace::Scripting_Console) {
             float vpX = leftW;
             float vpW = l.rightX - vpX;
             float vpH = (h - 22.0f) - 58.0f;
@@ -2664,19 +3152,21 @@ public:
                     return;
                 } else if (mx >= edX + 394.0f && mx <= edX + 554.0f) {
                     _currentScript =
-                        "-- Preset 2: Player HUD Health & Ammo\n"
+                        "-- Preset 2: Multi-Genre HUD Game Loop\n"
                         "local health = 100.0\n"
-                        "local ammo = 60\n"
+                        "local mana = 85.0\n"
+                        "local score = 14500\n"
                         "function OnStart()\n"
                         "    HUD.setValue(\"Health\", health)\n"
-                        "    HUD.setText(\"Ammo\", tostring(ammo) .. \" / 120\")\n"
+                        "    HUD.setValue(\"Mana\", mana)\n"
+                        "    HUD.setText(\"Score\", \"SCORE: \" .. tostring(score))\n"
                         "end\n\n"
                         "function OnUpdate(dt)\n"
                         "    HUD.setValue(\"Health\", health)\n"
-                        "    HUD.setText(\"Ammo\", tostring(ammo) .. \" / 120\")\n"
+                        "    HUD.setValue(\"Mana\", mana)\n"
                         "end\n";
                     runCurrentScript();
-                    logMessage("Loaded Script Preset: Player HUD Health & Ammo.");
+                    logMessage("Loaded Script Preset: Multi-Genre HUD Game Loop.");
                     return;
                 } else if (mx >= edX + 564.0f && mx <= edX + 714.0f) {
                     _currentScript =
@@ -2710,8 +3200,8 @@ public:
             }
         }
 
-        // 8.7. Animation Workspace Timeline Interactions
-        if (_workspace == EditorWorkspace::Animation) {
+        // 8.8. 3D Animation Workspace Timeline Interactions
+        if (_workspace == EditorWorkspace::World3D_Animation) {
             float vpX = leftW;
             float vpW = l.rightX - vpX;
             float tlW = std::min(vpW - 40.0f, 860.0f);
@@ -2760,6 +3250,33 @@ public:
 
     void onRender() override {
         Profiler::instance().beginFrame();
+
+        int fbW = 0, fbH = 0;
+        getFramebufferSize(fbW, fbH);
+        int w = (fbW > 0) ? fbW : getWidth();
+        int h = (fbH > 0) ? fbH : getHeight();
+
+        // If in embedded Studio workspace, render CharacterStudio in central viewport
+        if (isStudioWorkspace(_workspace)) {
+            glViewport(0, 0, w, h);
+            glClearColor(0.12f, 0.13f, 0.15f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+            _characterStudio.render(w, h);
+
+            // Draw Editor Top Bar & Overlay on top
+            drawHammerInterface();
+
+            if (_browserOpen) drawTextureBrowser();
+            if (_modelBrowserOpen) drawModelBrowser();
+            if (_helpModalOpen) drawHelpModal();
+            if (_buildModalOpen) drawBuildModal();
+            if (_inputModalOpen) drawInputModal();
+            if (_asset2DModalOpen) drawAsset2DModal();
+
+            Profiler::instance().endFrame();
+            return;
+        }
 
         // Darkness Mode or Map atmospheric lighting configuration
         if (_darknessMode) {
@@ -3122,52 +3639,39 @@ public:
         LabFont::drawText(292.0f, 5.0f, "2D Assets", 1.8f, hov2D ? orangeGlow : (Vec3(0.9f, 0.75f, 0.2f)), LabFontType::System);
         LabFont::drawText(368.0f, 5.0f, "Help", 1.8f, hovHelp ? orangeGlow : textLight, LabFontType::System);
 
-        // Blender / Krita style Workspaces Tab Bar: [ 3D World ] [ 2D Level ] [ HUD / UI ] [ Animation ] [ Scripting ]
-        struct WorkspaceTabDef { EditorWorkspace ws; const char* name; float x; float w; };
-        WorkspaceTabDef wsTabs[] = {
-            { EditorWorkspace::World3D,   "3D World",   420.0f, 75.0f },
-            { EditorWorkspace::Level2D,   "2D Level",   500.0f, 75.0f },
-            { EditorWorkspace::HUD,       "HUD / UI",   580.0f, 75.0f },
-            { EditorWorkspace::Animation, "Animation",  660.0f, 85.0f },
-            { EditorWorkspace::Scripting, "Scripting",  750.0f, 85.0f }
-        };
-
-        for (int i = 0; i < 5; ++i) {
-            bool isCur = (_workspace == wsTabs[i].ws);
-            bool isHov = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= wsTabs[i].x && _mouseScreenX <= wsTabs[i].x + wsTabs[i].w);
-            Vec3 tabBg = isCur ? Vec3(0.24f, 0.28f, 0.38f) : (isHov ? Vec3(0.20f, 0.22f, 0.28f) : Vec3(0.12f, 0.13f, 0.16f));
-            Renderer::drawRect(wsTabs[i].x, 2.0f, wsTabs[i].w, 20.0f, tabBg);
-            drawDarkBevel(wsTabs[i].x, 2.0f, wsTabs[i].w, 20.0f, isCur);
-            if (isCur) {
-                Renderer::drawRect(wsTabs[i].x, 20.0f, wsTabs[i].w, 2.0f, cyanGlow);
-            }
-            LabFont::drawText(wsTabs[i].x + 8.0f, 5.0f, wsTabs[i].name, 1.45f, isCur ? cyanGlow : (isHov ? orangeGlow : textLight), LabFontType::System);
-        }
+        // Active Workspace Indicator Badge (Clickable to open View menu)
+        std::string wsBreadcrumb = "Workspace: " + getWorkspaceBreadcrumb(_workspace);
+        float wsBadgeX = 415.0f;
+        float wsBadgeW = 285.0f;
+        bool isWsHov = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= wsBadgeX && _mouseScreenX <= wsBadgeX + wsBadgeW);
+        Renderer::drawRect(wsBadgeX, 2.0f, wsBadgeW, 20.0f, isWsHov ? Vec3(0.18f, 0.22f, 0.30f) : Vec3(0.12f, 0.14f, 0.18f));
+        drawDarkBevel(wsBadgeX, 2.0f, wsBadgeW, 20.0f, false);
+        Renderer::drawRect(wsBadgeX, 2.0f, 3.0f, 20.0f, cyanGlow);
+        LabFont::drawText(wsBadgeX + 10.0f, 5.0f, wsBreadcrumb, 1.4f, isWsHov ? orangeGlow : cyanGlow, LabFontType::System);
 
         LabFont::drawText(w - 380.0f, 5.0f, "Lab Engine Editor 2026 (LabSDK)", 1.8f, orangeGlow, LabFontType::GeoSans);
 
-        // ==================== 2. MAIN TOOLBAR (18 Buttons) ====================
+        // ==================== 2. MAIN TOOLBAR (12 Deduplicated Buttons) ====================
         float tbY = 24.0f;
         float tbH = 34.0f;
         Renderer::drawRect(0, tbY, w, tbH, panelDarkBg);
         drawDarkBevel(0, tbY, w, tbH, false);
 
-        for (int i = 0; i < 18; ++i) {
+        const int tbIcons[12] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16 };
+        for (int i = 0; i < 12; ++i) {
             float bx = 8.0f + i * 28.0f;
             bool isHov = (_mouseScreenX >= bx && _mouseScreenX <= bx + 26.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
-            Vec3 bgCol = (i == 17) ? (isHov ? Vec3(0.22f, 0.80f, 0.42f) : greenAccent) :
-                         (isHov ? Vec3(0.32f, 0.35f, 0.40f) : Vec3(0.22f, 0.23f, 0.26f));
-            Vec3 iconCol = (i == 17) ? Vec3(1, 1, 1) :
-                           (isHov ? Vec3(1.0f, 0.95f, 0.80f) : Vec3(0.85f, 0.88f, 0.92f));
+            Vec3 bgCol = (isHov ? Vec3(0.32f, 0.35f, 0.40f) : Vec3(0.22f, 0.23f, 0.26f));
+            Vec3 iconCol = (isHov ? Vec3(1.0f, 0.95f, 0.80f) : Vec3(0.85f, 0.88f, 0.92f));
 
             Renderer::drawRect(bx, tbY + 4.0f, 26.0f, 26.0f, bgCol);
             drawDarkBevel(bx, tbY + 4.0f, 26.0f, 26.0f, false);
-            drawToolbarIcon(i, bx + 1.0f, tbY + 5.0f, iconCol, bgCol);
+            drawToolbarIcon(tbIcons[i], bx + 1.0f, tbY + 5.0f, iconCol, bgCol);
         }
 
         // ==================== ENGINE CONTROLS & TEST BUTTONS ====================
         // 1. [ > TEST GAME (F5) ] - High-visibility emerald green button!
-        float bRunX = 520.0f;
+        float bRunX = 350.0f;
         float bRunW = 145.0f;
         bool isBRunHov = (_mouseScreenX >= bRunX && _mouseScreenX <= bRunX + bRunW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
         Vec3 bRunCol = isBRunHov ? Vec3(0.25f, 0.88f, 0.45f) : Vec3(0.18f, 0.72f, 0.38f);
@@ -3177,7 +3681,7 @@ public:
 
         // 2. [ BUILD / EXPORT... ] - High-visibility cyan button!
         float bExpX = bRunX + bRunW + 8.0f;
-        float bExpW = 135.0f;
+        float bExpW = 130.0f;
         bool isBExpHov = (_mouseScreenX >= bExpX && _mouseScreenX <= bExpX + bExpW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
         Vec3 bExpCol = isBExpHov ? Vec3(0.25f, 0.58f, 0.92f) : Vec3(0.18f, 0.46f, 0.76f);
         Renderer::drawRect(bExpX, tbY + 4.0f, bExpW, 26.0f, bExpCol);
@@ -3186,7 +3690,7 @@ public:
 
         // 3. [ 3D PERSPECTIVE ] / [ 2D ORTHO ]
         float viewModeX = bExpX + bExpW + 8.0f;
-        float viewModeW = 95.0f;
+        float viewModeW = 100.0f;
         bool isOrtho = _orthoViewMode;
         bool isViewHov = (_mouseScreenX >= viewModeX && _mouseScreenX <= viewModeX + viewModeW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
         Vec3 viewCol = isOrtho ? Vec3(0.20f, 0.55f, 0.85f) : (isViewHov ? Vec3(0.28f, 0.32f, 0.38f) : Vec3(0.20f, 0.22f, 0.25f));
@@ -3700,73 +4204,239 @@ public:
         }
     }
 
-    // ==================== WORKSPACE OVERLAYS (HUD, Scripting, Animation) ====================
+        // ==================== WORKSPACE OVERLAYS ====================
         float vpX = leftW;
         float vpY = tbY + tbH;
         float vpW = l.rightX - vpX;
         float vpH = (h - 22.0f) - vpY;
 
-        if (_workspace == EditorWorkspace::HUD) {
-            // Interactive 2D HUD Canvas Designer
-            float cvW = std::min(vpW - 40.0f, 860.0f);
-            float cvH = std::min(vpH - 40.0f, 480.0f);
+        if (isStudioWorkspace(_workspace)) {
+            // LabStudio Embedded Viewport Overlay
+            float bannerW = std::min(vpW - 40.0f, 840.0f);
+            float bx = vpX + (vpW - bannerW) * 0.5f;
+            float by = vpY + 10.0f;
+            Renderer::drawRect(bx, by, bannerW, 30.0f, Vec3(0.12f, 0.14f, 0.18f));
+            drawDarkBevel(bx, by, bannerW, 30.0f, false);
+            Renderer::drawRect(bx, by, 3.0f, 30.0f, cyanGlow);
+            std::string studioTitle = "LABSTUDIO: " + getWorkspaceName(_workspace) + " | LMB: Rotate | MMB: Pan | RMB: Zoom";
+            LabFont::drawText(bx + 12.0f, by + 7.0f, studioTitle, 1.45f, cyanGlow, LabFontType::System);
+        } else if (_workspace == EditorWorkspace::World3D_ModelViewer) {
+            // Dedicated 3D Model Viewer & Inspector Stage
+            float mvX = vpX + 10.0f;
+            float mvY = vpY + 10.0f;
+            float mvW = vpW - 20.0f;
+            float mvH = vpH - 20.0f;
+
+            // Left panel: Model Browser
+            float leftListW = 210.0f;
+            Renderer::drawRect(mvX, mvY, leftListW, mvH, Vec3(0.12f, 0.13f, 0.16f));
+            drawDarkBevel(mvX, mvY, leftListW, mvH, false);
+            Renderer::drawRect(mvX, mvY, leftListW, 26.0f, Vec3(0.14f, 0.18f, 0.25f));
+            LabFont::drawText(mvX + 8.0f, mvY + 6.0f, "Discovered Models (.stl)", 1.4f, orangeGlow, LabFontType::System);
+
+            for (size_t i = 0; i < std::min(_availableModels.size(), (size_t)14); ++i) {
+                float iy = mvY + 32.0f + i * 26.0f;
+                bool isSel = (_availableModels[i] == _selectedModel);
+                bool isHov = (_mouseScreenX >= mvX + 4.0f && _mouseScreenX <= mvX + leftListW - 4.0f && _mouseScreenY >= iy && _mouseScreenY <= iy + 24.0f);
+                Renderer::drawRect(mvX + 4.0f, iy, leftListW - 8.0f, 24.0f, isSel ? Vec3(0.20f, 0.35f, 0.52f) : (isHov ? Vec3(0.18f, 0.20f, 0.25f) : Vec3(0.14f, 0.15f, 0.18f)));
+                drawDarkBevel(mvX + 4.0f, iy, leftListW - 8.0f, 24.0f, isSel);
+                std::string mLabel = _availableModels[i];
+                if (mLabel.size() > 18) mLabel = mLabel.substr(0, 16) + "..";
+                LabFont::drawText(mvX + 10.0f, iy + 5.0f, mLabel, 1.35f, isSel ? Vec3(1, 1, 1) : textLight, LabFontType::System);
+            }
+
+            // Right panel: Inspector & Turntable Controls
+            float inspW = 240.0f;
+            float inspX = mvX + mvW - inspW;
+            Renderer::drawRect(inspX, mvY, inspW, mvH, Vec3(0.12f, 0.13f, 0.16f));
+            drawDarkBevel(inspX, mvY, inspW, mvH, false);
+            Renderer::drawRect(inspX, mvY, inspW, 26.0f, Vec3(0.14f, 0.18f, 0.25f));
+            LabFont::drawText(inspX + 8.0f, mvY + 6.0f, "Model Inspector Stats", 1.4f, cyanGlow, LabFontType::System);
+
+            float curIY = mvY + 34.0f;
+            LabFont::drawText(inspX + 10.0f, curIY, "Active: " + _selectedModel, 1.4f, Vec3(1, 1, 1), LabFontType::System);
+            curIY += 22.0f;
+            Mesh* curMesh = getMesh(_selectedModel);
+            int iCount = curMesh ? curMesh->getIndexCount() : 0;
+            int triCount = iCount / 3;
+            LabFont::drawText(inspX + 10.0f, curIY, "Triangles: " + std::to_string(triCount), 1.35f, textLight, LabFontType::System);
+            curIY += 20.0f;
+            LabFont::drawText(inspX + 10.0f, curIY, "Indices: " + std::to_string(iCount), 1.35f, textLight, LabFontType::System);
+            curIY += 20.0f;
+            LabFont::drawText(inspX + 10.0f, curIY, "Turntable: Yaw " + std::to_string((int)_modelViewerYaw) + " Pitch " + std::to_string((int)_modelViewerPitch), 1.3f, textDim, LabFontType::System);
+
+            curIY += 30.0f;
+            drawDarkButton(inspX + 10.0f, curIY, 110.0f, 26.0f, _modelViewerAutoRotate ? "Auto-Spin: ON" : "Auto-Spin: OFF", _modelViewerAutoRotate);
+            drawDarkButton(inspX + 128.0f, curIY, 102.0f, 26.0f, _modelViewerWireframe ? "Wireframe" : "Shaded", _modelViewerWireframe);
+
+            curIY += 34.0f;
+            drawDarkButton(inspX + 10.0f, curIY, 220.0f, 26.0f, "Reset Turntable Angle");
+
+            curIY += 34.0f;
+            drawDarkButton(inspX + 10.0f, curIY, 220.0f, 26.0f, "Apply Surface Material", false, false, true);
+
+            // Center: 3D Turntable view instructions banner
+            float centerW = inspX - (mvX + leftListW) - 20.0f;
+            float cX = mvX + leftListW + 10.0f;
+            Renderer::drawRect(cX, mvY + mvH - 34.0f, centerW, 26.0f, Vec3(0.10f, 0.12f, 0.15f));
+            drawDarkBevel(cX, mvY + mvH - 34.0f, centerW, 26.0f, false);
+            LabFont::drawText(cX + 12.0f, mvY + mvH - 28.0f, "Turntable Stage: Drag LMB to rotate, Wheel to zoom, Space to toggle spin", 1.35f, textDim, LabFontType::System);
+        } else if (_workspace == EditorWorkspace::Level2D_HUD) {
+            // Interactive Multi-Genre HUD Canvas Designer
+            float cvW = std::min(vpW - 40.0f, 960.0f);
+            float cvH = std::min(vpH - 40.0f, 540.0f);
             float cvX = vpX + (vpW - cvW) * 0.5f;
             float cvY = vpY + (vpH - cvH) * 0.5f;
 
-            // Screen Canvas Border & Background
+            // Screen Canvas Border & Background (16:9 Virtual Artboard 1920x1080)
             Renderer::drawRect(cvX, cvY, cvW, cvH, Vec3(0.06f, 0.08f, 0.11f));
             drawDarkBevel(cvX, cvY, cvW, cvH, true);
             Renderer::drawRect(cvX, cvY, cvW, 28.0f, Vec3(0.12f, 0.15f, 0.20f));
-            LabFont::drawText(cvX + 12.0f, cvY + 7.0f, "HUD CANVAS DESIGNER - Dynamic Lua 2D Screen Elements (16:9)", 1.5f, cyanGlow, LabFontType::System);
+            LabFont::drawText(cvX + 12.0f, cvY + 7.0f, "HUD CANVAS DESIGNER - Multi-Genre Virtual 1920x1080 Screen Artboard", 1.45f, cyanGlow, LabFontType::System);
 
-            // 1. Dynamic Timer Element (Bound to ScriptEngine::getHUDText("TimerLabel"))
-            std::string curTimerText = ScriptEngine::getHUDText("TimerLabel");
-            if (curTimerText.empty()) curTimerText = "TIME: 00:00";
+            // Top Genre Template Toolbar
+            float htbY = cvY + 30.0f;
+            Renderer::drawRect(cvX, htbY, cvW, 26.0f, Vec3(0.10f, 0.11f, 0.14f));
+            drawDarkButton(cvX + 10.0f, htbY + 2.0f, 90.0f, 22.0f, "+ RPG Bars");
+            drawDarkButton(cvX + 105.0f, htbY + 2.0f, 80.0f, 22.0f, "+ Platform");
+            drawDarkButton(cvX + 190.0f, htbY + 2.0f, 80.0f, 22.0f, "+ RTS Bars");
+            drawDarkButton(cvX + 275.0f, htbY + 2.0f, 85.0f, 22.0f, "+ Racing");
+            drawDarkButton(cvX + 365.0f, htbY + 2.0f, 85.0f, 22.0f, "+ Story Box");
+            drawDarkButton(cvX + 455.0f, htbY + 2.0f, 80.0f, 22.0f, "+ Timer");
+            drawDarkButton(cvX + 540.0f, htbY + 2.0f, 75.0f, 22.0f, "+ Crosshair");
+            drawDarkButton(cvX + 620.0f, htbY + 2.0f, 70.0f, 22.0f, "+ Button");
 
-            float timerBoxW = 260.0f;
-            float timerBoxH = 46.0f;
-            float timerBoxX = cvX + (cvW - timerBoxW) * 0.5f;
-            float timerBoxY = cvY + 45.0f;
+            // Render HUD Widgets onto Virtual Artboard
+            float scaleX = cvW / 1920.0f;
+            float scaleY = (cvH - 85.0f) / 1080.0f;
+            float artboardY = cvY + 60.0f;
 
-            Renderer::drawRect(timerBoxX, timerBoxY, timerBoxW, timerBoxH, Vec3(0.10f, 0.12f, 0.15f));
-            drawDarkBevel(timerBoxX, timerBoxY, timerBoxW, timerBoxH, false);
-            Renderer::drawRect(timerBoxX, timerBoxY, timerBoxW, 2.0f, Vec3(1.0f, 0.85f, 0.2f));
-            LabFont::drawText(timerBoxX + 25.0f, timerBoxY + 12.0f, curTimerText, 2.2f, Vec3(1.0f, 0.95f, 0.3f), LabFontType::GeoSans);
+            for (size_t i = 0; i < _hudWidgets.size(); ++i) {
+                const auto& w = _hudWidgets[i];
+                float wx = cvX + w.x * scaleX;
+                float wy = artboardY + w.y * scaleY;
+                float ww = std::max(20.0f, w.w * scaleX);
+                float wh = std::max(12.0f, w.h * scaleY);
 
-            // 2. Health & Shield Element (Bound to ScriptEngine::getHUDValue("Health"))
-            float curHealth = ScriptEngine::getHUDValue("Health");
-            if (curHealth <= 0.0f && _simState != EngineSimState::Playing) curHealth = 100.0f;
-            float hpBarW = 200.0f;
-            float hpBarH = 22.0f;
-            float hpX = cvX + 30.0f;
-            float hpY = cvY + cvH - 120.0f;
+                bool isSel = ((int)i == _selectedHUDWidgetIndex);
+                if (w.type == HUDWidgetType::ProgressBar) {
+                    Renderer::drawRect(wx, wy, ww, wh, w.bgColor);
+                    drawDarkBevel(wx, wy, ww, wh, true);
+                    float fillRatio = std::clamp(w.currentValue / std::max(1.0f, w.maxValue), 0.0f, 1.0f);
+                    Renderer::drawRect(wx + 1.0f, wy + 1.0f, (ww - 2.0f) * fillRatio, wh - 2.0f, w.color);
+                    LabFont::drawText(wx + 4.0f, wy - 14.0f, w.label + " [" + w.bindingKey + "]", 1.25f, w.color, LabFontType::System);
+                } else if (w.type == HUDWidgetType::TextLabel) {
+                    Renderer::drawRect(wx, wy, ww, wh, w.bgColor);
+                    drawDarkBevel(wx, wy, ww, wh, false);
+                    LabFont::drawText(wx + 6.0f, wy + (wh - 14.0f) * 0.5f, w.label, 1.4f, w.color, LabFontType::System);
+                } else if (w.type == HUDWidgetType::DialogueBox) {
+                    Renderer::drawRect(wx, wy, ww, wh, w.bgColor);
+                    drawDarkBevel(wx, wy, ww, wh, false);
+                    Renderer::drawRect(wx, wy, ww, 2.0f, cyanGlow);
+                    LabFont::drawText(wx + 12.0f, wy + 8.0f, w.label, 1.4f, w.color, LabFontType::System);
+                } else if (w.type == HUDWidgetType::Button) {
+                    Renderer::drawRect(wx, wy, ww, wh, w.bgColor);
+                    drawDarkBevel(wx, wy, ww, wh, false);
+                    LabFont::drawText(wx + 10.0f, wy + (wh - 14.0f) * 0.5f, w.label, 1.35f, w.color, LabFontType::System);
+                } else if (w.type == HUDWidgetType::Icon) {
+                    Renderer::drawRect(wx, wy, ww, wh, w.color);
+                    drawDarkBevel(wx, wy, ww, wh, false);
+                    LabFont::drawText(wx + 4.0f, wy + 2.0f, w.label, 1.3f, Vec3(1, 1, 1), LabFontType::System);
+                }
 
-            LabFont::drawText(hpX, hpY - 18.0f, "HEALTH: " + std::to_string((int)curHealth) + " / 100", 1.5f, greenAccent, LabFontType::System);
-            Renderer::drawRect(hpX, hpY, hpBarW, hpBarH, Vec3(0.15f, 0.16f, 0.18f));
-            drawDarkBevel(hpX, hpY, hpBarW, hpBarH, true);
-            float fillW = std::clamp(curHealth / 100.0f, 0.0f, 1.0f) * (hpBarW - 4.0f);
-            Renderer::drawRect(hpX + 2.0f, hpY + 2.0f, fillW, hpBarH - 4.0f, greenAccent);
-
-            // 3. Ammo Counter Element
-            std::string curAmmo = ScriptEngine::getHUDText("Ammo");
-            if (curAmmo.empty()) curAmmo = "30 / 120";
-            float ammoX = cvX + cvW - 180.0f;
-            float ammoY = cvY + cvH - 120.0f;
-            LabFont::drawText(ammoX, ammoY - 18.0f, "AMMO: " + curAmmo, 1.6f, orangeGlow, LabFontType::System);
-
-            // Simulation Status Banner
-            bool isSim = (_simState == EngineSimState::Playing);
-            std::string simStatus = isSim ? "[ SIMULATION RUNNING: Lua OnUpdate(dt) Active ]" : "[ SIMULATION STOPPED: Press F9 or Click Play ]";
-            LabFont::drawText(cvX + 30.0f, cvY + 110.0f, simStatus, 1.4f, isSim ? greenAccent : textDim, LabFontType::System);
+                if (isSel) {
+                    Renderer::drawRect(wx - 2.0f, wy - 2.0f, ww + 4.0f, 2.0f, orangeGlow);
+                    Renderer::drawRect(wx - 2.0f, wy + wh, ww + 4.0f, 2.0f, orangeGlow);
+                    Renderer::drawRect(wx - 2.0f, wy - 2.0f, 2.0f, wh + 4.0f, orangeGlow);
+                    Renderer::drawRect(wx + ww, wy - 2.0f, 2.0f, wh + 4.0f, orangeGlow);
+                }
+            }
 
             // Canvas Quick-Control Buttons (at bottom of canvas)
-            float btnY = cvY + cvH - 52.0f;
-            drawDarkButton(cvX + 20.0f, btnY, 150.0f, 32.0f, isSim ? "Stop Sim (F9)" : "> Play Sim (F9)", isSim, false, !isSim);
-            drawDarkButton(cvX + 180.0f, btnY, 140.0f, 32.0f, "+1s Clock", false, false, true);
-            drawDarkButton(cvX + 330.0f, btnY, 120.0f, 32.0f, "Reset Timer");
-            drawDarkButton(cvX + 460.0f, btnY, 120.0f, 32.0f, "-15 Health", false, true);
-            drawDarkButton(cvX + 590.0f, btnY, 120.0f, 32.0f, "+25 Health", false, false, true);
-        } else if (_workspace == EditorWorkspace::Scripting) {
+            bool isSim = (_simState == EngineSimState::Playing);
+            float btnY = cvY + cvH - 36.0f;
+            drawDarkButton(cvX + 10.0f, btnY, 140.0f, 26.0f, isSim ? "Stop Sim (F9)" : "> Play Sim (F9)", isSim, false, !isSim);
+            drawDarkButton(cvX + 158.0f, btnY, 110.0f, 26.0f, "+1s Clock", false, false, true);
+            drawDarkButton(cvX + 276.0f, btnY, 100.0f, 26.0f, "Reset Timer");
+            drawDarkButton(cvX + 384.0f, btnY, 100.0f, 26.0f, "-15 Health", false, true);
+            drawDarkButton(cvX + 492.0f, btnY, 100.0f, 26.0f, "+25 Health", false, false, true);
+            drawDarkButton(cvX + 600.0f, btnY, 100.0f, 26.0f, "+50 Score", false, false, true);
+        } else if (_workspace == EditorWorkspace::Level2D_Animation) {
+            // Dedicated 2D Spritesheet Animation Workspace
+            float animW = std::min(vpW - 40.0f, 880.0f);
+            float animH = std::min(vpH - 40.0f, 500.0f);
+            float animX = vpX + (vpW - animW) * 0.5f;
+            float animY = vpY + (vpH - animH) * 0.5f;
+
+            Renderer::drawRect(animX, animY, animW, animH, Vec3(0.08f, 0.09f, 0.12f));
+            drawDarkBevel(animX, animY, animW, animH, true);
+            Renderer::drawRect(animX, animY, animW, 28.0f, Vec3(0.12f, 0.15f, 0.20f));
+            LabFont::drawText(animX + 12.0f, animY + 7.0f, "2D SPRITESHEET ANIMATION STUDIO - Native Frame Sequencing & Timeline", 1.45f, orangeGlow, LabFontType::System);
+
+            // Sprite preview box
+            float prevS = 180.0f;
+            float prevX = animX + (animW - prevS) * 0.5f;
+            float prevY = animY + 45.0f;
+            Renderer::drawRect(prevX, prevY, prevS, prevS, Vec3(0.04f, 0.05f, 0.07f));
+            drawDarkBevel(prevX, prevY, prevS, prevS, true);
+
+            const auto* frame = _editorSpriteSheet.getFrame(_anim2DSelectedFrame);
+            if (frame && _textures.contains(_selectedTexture)) {
+                Renderer::drawTextureRect(prevX + 10.0f, prevY + 10.0f, prevS - 20.0f, prevS - 20.0f, *_textures[_selectedTexture], frame->uvMin.x, frame->uvMin.y, frame->uvMax.x, frame->uvMax.y);
+            }
+
+            // Filmstrip preview
+            float fsY = prevY + prevS + 20.0f;
+            LabFont::drawText(animX + 20.0f, fsY, "Filmstrip Sequence Frames:", 1.4f, textLight, LabFontType::System);
+            float stripY = fsY + 22.0f;
+            float thumbS = 48.0f;
+            for (int f = 0; f < std::min(10, (int)_editorSpriteSheet.getFrameCount()); ++f) {
+                float fx = animX + 20.0f + f * (thumbS + 8.0f);
+                bool isCurF = (f == _anim2DSelectedFrame);
+                Renderer::drawRect(fx, stripY, thumbS, thumbS, isCurF ? orangeGlow : Vec3(0.16f, 0.18f, 0.22f));
+                drawDarkBevel(fx, stripY, thumbS, thumbS, isCurF);
+                const auto* fr = _editorSpriteSheet.getFrame(f);
+                if (fr && _textures.contains(_selectedTexture)) {
+                    Renderer::drawTextureRect(fx + 2.0f, stripY + 2.0f, thumbS - 4.0f, thumbS - 4.0f, *_textures[_selectedTexture], fr->uvMin.x, fr->uvMin.y, fr->uvMax.x, fr->uvMax.y);
+                }
+                LabFont::drawText(fx + 2.0f, stripY + thumbS - 10.0f, "#" + std::to_string(f), 1.1f, Vec3(1, 1, 1), LabFontType::System);
+            }
+
+            // Bottom controls
+            float ctlY = animY + animH - 45.0f;
+            drawDarkButton(animX + 20.0f, ctlY, 90.0f, 28.0f, "|< First");
+            drawDarkButton(animX + 118.0f, ctlY, 110.0f, 28.0f, _anim2DPlaying ? "Pause" : "> Play", _anim2DPlaying, false, !_anim2DPlaying);
+            drawDarkButton(animX + 236.0f, ctlY, 90.0f, 28.0f, "Next >");
+            drawDarkButton(animX + 334.0f, ctlY, 110.0f, 28.0f, _anim2DLoop ? "Loop: ON" : "Loop: OFF", _anim2DLoop);
+            std::string frameInfo = "Frame: " + std::to_string(_anim2DSelectedFrame) + " / " + std::to_string((int)_editorSpriteSheet.getFrameCount()) + " (" + std::to_string(_anim2DFPS) + " FPS)";
+            LabFont::drawText(animX + 460.0f, ctlY + 6.0f, frameInfo, 1.45f, cyanGlow, LabFontType::System);
+        } else if (_workspace == EditorWorkspace::World3D_Animation) {
+            // 3D Animation timeline scrubber dock
+            float tlW = std::min(vpW - 40.0f, 860.0f);
+            float tlH = 75.0f;
+            float tlX = vpX + (vpW - tlW) * 0.5f;
+            float tlY = (h - 22.0f) - tlH - 15.0f;
+
+            Renderer::drawRect(tlX, tlY, tlW, tlH, Vec3(0.12f, 0.14f, 0.18f));
+            drawDarkBevel(tlX, tlY, tlW, tlH, false);
+
+            drawDarkButton(tlX + 10.0f, tlY + 10.0f, 80.0f, 26.0f, "|< Reset");
+            drawDarkButton(tlX + 96.0f, tlY + 10.0f, 100.0f, 26.0f, _timelinePlaying ? "Pause" : "> Play", _timelinePlaying, false, !_timelinePlaying);
+
+            std::string fInfo = "3D Frame: " + std::to_string(_timelineFrame) + " / 60  (30 FPS)";
+            LabFont::drawText(tlX + 210.0f, tlY + 15.0f, fInfo, 1.5f, cyanGlow, LabFontType::System);
+
+            // Scrubber Bar
+            float barX = tlX + 10.0f;
+            float barY = tlY + 44.0f;
+            float barW = tlW - 20.0f;
+            float barH = 18.0f;
+            Renderer::drawRect(barX, barY, barW, barH, Vec3(0.08f, 0.09f, 0.11f));
+            drawDarkBevel(barX, barY, barW, barH, true);
+
+            float playheadX = barX + (_timelineFrame / 60.0f) * barW;
+            Renderer::drawRect(playheadX - 2.0f, barY, 5.0f, barH, orangeGlow);
+        } else if (_workspace == EditorWorkspace::Scripting_Editor || _workspace == EditorWorkspace::Scripting_Console) {
             // Full In-Engine Lua Script Studio IDE
             float edW = std::min(vpW - 40.0f, 920.0f);
             float edH = std::min(vpH - 40.0f, 520.0f);
@@ -3776,7 +4446,7 @@ public:
             Renderer::drawRect(edX, edY, edW, edH, Vec3(0.08f, 0.09f, 0.12f));
             drawDarkBevel(edX, edY, edW, edH, true);
             Renderer::drawRect(edX, edY, edW, 30.0f, Vec3(0.14f, 0.16f, 0.22f));
-            LabFont::drawText(edX + 14.0f, edY + 8.0f, "LUA SCRIPT STUDIO (LabScript v5.4) - Live In-Engine Code & Hot Reload", 1.5f, cyanGlow, LabFontType::System);
+            LabFont::drawText(edX + 14.0f, edY + 8.0f, "LUA SCRIPT STUDIO (Lua 5.4) - Live In-Engine Code IDE & Bytecode Compiler", 1.5f, cyanGlow, LabFontType::System);
 
             // Actions toolbar
             float actY = edY + 38.0f;
@@ -3816,33 +4486,6 @@ public:
             // Status Banner at bottom
             std::string bindInfo = "Bindings: World.getEntity('Klocek1'):move(dx,dy,dz) | HUD.setText('TimerLabel', str) | HUD.setValue('Health', num)";
             LabFont::drawText(edX + 14.0f, edY + edH - 24.0f, bindInfo, 1.3f, textDim, LabFontType::System);
-        } else if (_workspace == EditorWorkspace::Animation) {
-            // Timeline Scrubber Dock in Animation Workspace
-            float tlW = std::min(vpW - 40.0f, 860.0f);
-            float tlH = 75.0f;
-            float tlX = vpX + (vpW - tlW) * 0.5f;
-            float tlY = (h - 22.0f) - tlH - 15.0f;
-
-            Renderer::drawRect(tlX, tlY, tlW, tlH, Vec3(0.12f, 0.14f, 0.18f));
-            drawDarkBevel(tlX, tlY, tlW, tlH, false);
-
-            drawDarkButton(tlX + 10.0f, tlY + 10.0f, 80.0f, 26.0f, "|< Reset");
-            drawDarkButton(tlX + 96.0f, tlY + 10.0f, 100.0f, 26.0f, _timelinePlaying ? "Pause" : "> Play", _timelinePlaying, false, !_timelinePlaying);
-
-            std::string fInfo = "Frame: " + std::to_string(_timelineFrame) + " / 60  (30 FPS)";
-            LabFont::drawText(tlX + 210.0f, tlY + 15.0f, fInfo, 1.5f, cyanGlow, LabFontType::System);
-
-            // Scrubber Bar
-            float barX = tlX + 10.0f;
-            float barY = tlY + 44.0f;
-            float barW = tlW - 20.0f;
-            float barH = 18.0f;
-            Renderer::drawRect(barX, barY, barW, barH, Vec3(0.08f, 0.09f, 0.11f));
-            drawDarkBevel(barX, barY, barW, barH, true);
-
-            // Playhead indicator
-            float playheadX = barX + (_timelineFrame / 60.0f) * barW;
-            Renderer::drawRect(playheadX - 2.0f, barY, 5.0f, barH, orangeGlow);
         }
 
     // ==================== 5. BOTTOM DOCK (Console / Profiler) ====================
@@ -3945,9 +4588,7 @@ public:
             float menuH = 175.0f;
             Vec3 menuBg{ 0.16f, 0.17f, 0.20f };
             Vec3 menuBorder{ 0.35f, 0.38f, 0.44f };
-            Vec3 menuShadow{ 0.05f, 0.05f, 0.07f };
 
-            Renderer::drawRect(menuX + 3.0f, menuY + 3.0f, menuW, menuH, menuShadow);
             Renderer::drawRect(menuX, menuY, menuW, menuH, menuBg);
             drawDarkBevel(menuX, menuY, menuW, menuH, false);
 
@@ -3980,13 +4621,11 @@ public:
         if (_buildMenuOpen) {
             float menuX = 137.0f;
             float menuY = 24.0f;
-            float menuW = 240.0f;
-            float menuH = 80.0f;
+            float menuW = 270.0f;
+            float menuH = 125.0f;
             Vec3 menuBg{ 0.16f, 0.17f, 0.20f };
             Vec3 menuBorder{ 0.35f, 0.38f, 0.44f };
-            Vec3 menuShadow{ 0.05f, 0.05f, 0.07f };
 
-            Renderer::drawRect(menuX + 3.0f, menuY + 3.0f, menuW, menuH, menuShadow);
             Renderer::drawRect(menuX, menuY, menuW, menuH, menuBg);
             drawDarkBevel(menuX, menuY, menuW, menuH, false);
 
@@ -3994,61 +4633,197 @@ public:
             BuildMenuItem bItems[] = {
                 { "Test Game (Debug)", "F5" },
                 { "Build & Export Game...", "Ctrl+Shift+B" },
+                { "Export Release Bytecode (.luac)", "" },
+                { "Export Shipping Bytecode (Stripped)", "" },
                 { "Open test_build Folder", "" }
             };
 
-            for (int i = 0; i < 3; ++i) {
+            for (int i = 0; i < 5; ++i) {
                 float iy = menuY + 3.0f + i * 24.0f;
                 bool isHov = (_mouseScreenX >= menuX && _mouseScreenX <= menuX + menuW && _mouseScreenY >= iy && _mouseScreenY <= iy + 22.0f);
                 if (isHov) {
                     Renderer::drawRect(menuX + 2.0f, iy, menuW - 4.0f, 22.0f, Vec3(0.24f, 0.28f, 0.36f));
                 }
-                if (i == 2) Renderer::drawRect(menuX + 6.0f, iy - 2.0f, menuW - 12.0f, 1.0f, menuBorder);
-                LabFont::drawText(menuX + 14.0f, iy + 4.0f, bItems[i].name, 1.6f, (i == 0) ? (isHov ? Vec3(0.4f, 1.0f, 0.5f) : Vec3(0.3f, 0.9f, 0.4f)) : (isHov ? orangeGlow : textLight), LabFontType::System);
+                if (i == 2 || i == 4) Renderer::drawRect(menuX + 6.0f, iy - 2.0f, menuW - 12.0f, 1.0f, menuBorder);
+                LabFont::drawText(menuX + 14.0f, iy + 4.0f, bItems[i].name, 1.5f, (i == 0) ? (isHov ? Vec3(0.4f, 1.0f, 0.5f) : Vec3(0.3f, 0.9f, 0.4f)) : (isHov ? orangeGlow : textLight), LabFontType::System);
                 if (!bItems[i].shortcut.empty()) {
                     LabFont::drawText(menuX + menuW - 90.0f, iy + 4.0f, bItems[i].shortcut, 1.4f, textDim, LabFontType::System);
                 }
             }
         }
 
-        // ==================== 8.5. DROPDOWN VIEW MENU ====================
+        // ==================== 8.5. DROPDOWN VIEW MENU (Categorized with Subcategories) ====================
         if (_viewMenuOpen) {
             float menuX = 92.0f;
             float menuY = 24.0f;
-            float menuW = 240.0f;
-            float menuH = 195.0f;
+            float menuW = 230.0f;
+            float menuH = 105.0f;
             Vec3 menuBg{ 0.16f, 0.17f, 0.20f };
             Vec3 menuBorder{ 0.35f, 0.38f, 0.44f };
-            Vec3 menuShadow{ 0.05f, 0.05f, 0.07f };
 
-            Renderer::drawRect(menuX + 3.0f, menuY + 3.0f, menuW, menuH, menuShadow);
             Renderer::drawRect(menuX, menuY, menuW, menuH, menuBg);
             drawDarkBevel(menuX, menuY, menuW, menuH, false);
 
-            struct ViewMenuItem { std::string name; std::string shortcut; bool isCurrent; };
-            ViewMenuItem vItems[] = {
-                { "Workspace: 3D World", "", _workspace == EditorWorkspace::World3D },
-                { "Workspace: 2D Level", "", _workspace == EditorWorkspace::Level2D },
-                { "Workspace: HUD / UI", "", _workspace == EditorWorkspace::HUD },
-                { "Workspace: Animation", "", _workspace == EditorWorkspace::Animation },
-                { "Workspace: Scripting", "", _workspace == EditorWorkspace::Scripting },
-                { "Toggle Wireframe", "Z", _wireframeMode },
-                { "Toggle 2D / 3D Ortho", "O", _orthoViewMode },
-                { "Toggle Darkness Mode", "L", _darknessMode }
+            const char* viewCats[] = {
+                "3D World & Assets      >",
+                "2D Level & UI          >",
+                "Scripting & Dev        >",
+                "Viewport Display       >"
             };
 
-            for (int i = 0; i < 8; ++i) {
+            for (int i = 0; i < 4; ++i) {
                 float iy = menuY + 3.0f + i * 24.0f;
                 bool isHov = (_mouseScreenX >= menuX && _mouseScreenX <= menuX + menuW && _mouseScreenY >= iy && _mouseScreenY <= iy + 22.0f);
                 if (isHov) {
+                    _viewSubmenuHover = i;
+                }
+                bool isCatActive = (_viewSubmenuHover == i);
+                if (isHov || isCatActive) {
                     Renderer::drawRect(menuX + 2.0f, iy, menuW - 4.0f, 22.0f, Vec3(0.24f, 0.28f, 0.36f));
                 }
-                if (i == 5) Renderer::drawRect(menuX + 6.0f, iy - 2.0f, menuW - 12.0f, 1.0f, menuBorder);
-                Vec3 itemCol = vItems[i].isCurrent ? cyanGlow : (isHov ? orangeGlow : textLight);
-                LabFont::drawText(menuX + 14.0f, iy + 4.0f, vItems[i].name, 1.5f, itemCol, LabFontType::System);
-                if (!vItems[i].shortcut.empty()) {
-                    LabFont::drawText(menuX + menuW - 45.0f, iy + 4.0f, vItems[i].shortcut, 1.4f, textDim, LabFontType::System);
+                LabFont::drawText(menuX + 14.0f, iy + 4.0f, viewCats[i], 1.5f, isCatActive ? orangeGlow : textLight, LabFontType::System);
+            }
+
+            // Draw Flyout Submenu to the right
+            if (_viewSubmenuHover >= 0 && _viewSubmenuHover <= 3) {
+                float subX = menuX + menuW;
+                float subY = menuY + _viewSubmenuHover * 24.0f;
+                float subW = 270.0f;
+
+                if (_viewSubmenuHover == 0) { // 3D Workspaces
+                    float subH = 8 * 24.0f + 6.0f;
+                    Renderer::drawRect(subX, subY, subW, subH, menuBg);
+                    drawDarkBevel(subX, subY, subW, subH, false);
+
+                    struct SubItem3D { const char* label; EditorWorkspace ws; };
+                    SubItem3D items3D[] = {
+                        { "Level & Geometry Editor", EditorWorkspace::World3D_Level },
+                        { "Animation 3D (Keyframe)", EditorWorkspace::World3D_Animation },
+                        { "3D Model Viewer & Inspector", EditorWorkspace::World3D_ModelViewer },
+                        { "Character Appearance Studio", EditorWorkspace::Studio_Appearance },
+                        { "Weapon Grip Poser", EditorWorkspace::Studio_GripPoser },
+                        { "Weapon Reload Timeline", EditorWorkspace::Studio_ReloadTimeline },
+                        { "Weapon Skins & Materials", EditorWorkspace::Studio_WeaponSkins },
+                        { "Face Dialogue & Lip-Sync", EditorWorkspace::Studio_FaceDialogue }
+                    };
+                    for (int s = 0; s < 8; ++s) {
+                        float sy = subY + 3.0f + s * 24.0f;
+                        bool isCur = (_workspace == items3D[s].ws);
+                        bool isHov = (_mouseScreenX >= subX && _mouseScreenX <= subX + subW && _mouseScreenY >= sy && _mouseScreenY <= sy + 22.0f);
+                        if (isHov) Renderer::drawRect(subX + 2.0f, sy, subW - 4.0f, 22.0f, Vec3(0.24f, 0.28f, 0.36f));
+                        LabFont::drawText(subX + 12.0f, sy + 4.0f, items3D[s].label, 1.45f, isCur ? cyanGlow : (isHov ? orangeGlow : textLight), LabFontType::System);
+                    }
+                } else if (_viewSubmenuHover == 1) { // 2D Workspaces
+                    float subH = 3 * 24.0f + 6.0f;
+                    Renderer::drawRect(subX, subY, subW, subH, menuBg);
+                    drawDarkBevel(subX, subY, subW, subH, false);
+
+                    struct SubItem2D { const char* label; EditorWorkspace ws; };
+                    SubItem2D items2D[] = {
+                        { "Level & Tilemap Editor", EditorWorkspace::Level2D_Tilemap },
+                        { "Animation 2D Spritesheet", EditorWorkspace::Level2D_Animation },
+                        { "HUD Canvas Designer", EditorWorkspace::Level2D_HUD }
+                    };
+                    for (int s = 0; s < 3; ++s) {
+                        float sy = subY + 3.0f + s * 24.0f;
+                        bool isCur = (_workspace == items2D[s].ws);
+                        bool isHov = (_mouseScreenX >= subX && _mouseScreenX <= subX + subW && _mouseScreenY >= sy && _mouseScreenY <= sy + 22.0f);
+                        if (isHov) Renderer::drawRect(subX + 2.0f, sy, subW - 4.0f, 22.0f, Vec3(0.24f, 0.28f, 0.36f));
+                        LabFont::drawText(subX + 12.0f, sy + 4.0f, items2D[s].label, 1.45f, isCur ? cyanGlow : (isHov ? orangeGlow : textLight), LabFontType::System);
+                    }
+                } else if (_viewSubmenuHover == 2) { // Scripting
+                    float subH = 2 * 24.0f + 6.0f;
+                    Renderer::drawRect(subX, subY, subW, subH, menuBg);
+                    drawDarkBevel(subX, subY, subW, subH, false);
+
+                    struct SubItemScr { const char* label; EditorWorkspace ws; };
+                    SubItemScr itemsScr[] = {
+                        { "Lua Script Editor IDE", EditorWorkspace::Scripting_Editor },
+                        { "Interactive REPL Console", EditorWorkspace::Scripting_Console }
+                    };
+                    for (int s = 0; s < 2; ++s) {
+                        float sy = subY + 3.0f + s * 24.0f;
+                        bool isCur = (_workspace == itemsScr[s].ws);
+                        bool isHov = (_mouseScreenX >= subX && _mouseScreenX <= subX + subW && _mouseScreenY >= sy && _mouseScreenY <= sy + 22.0f);
+                        if (isHov) Renderer::drawRect(subX + 2.0f, sy, subW - 4.0f, 22.0f, Vec3(0.24f, 0.28f, 0.36f));
+                        LabFont::drawText(subX + 12.0f, sy + 4.0f, itemsScr[s].label, 1.45f, isCur ? cyanGlow : (isHov ? orangeGlow : textLight), LabFontType::System);
+                    }
+                } else if (_viewSubmenuHover == 3) { // Display
+                    float subH = 3 * 24.0f + 6.0f;
+                    Renderer::drawRect(subX, subY, subW, subH, menuBg);
+                    drawDarkBevel(subX, subY, subW, subH, false);
+
+                    struct SubItemDisp { const char* label; const char* sc; bool active; };
+                    SubItemDisp itemsDisp[] = {
+                        { "Toggle Wireframe", "Z", _wireframeMode },
+                        { "Toggle 2D / 3D Ortho", "O", _orthoViewMode },
+                        { "Toggle Darkness Mode", "L", _darknessMode }
+                    };
+                    for (int s = 0; s < 3; ++s) {
+                        float sy = subY + 3.0f + s * 24.0f;
+                        bool isHov = (_mouseScreenX >= subX && _mouseScreenX <= subX + subW && _mouseScreenY >= sy && _mouseScreenY <= sy + 22.0f);
+                        if (isHov) Renderer::drawRect(subX + 2.0f, sy, subW - 4.0f, 22.0f, Vec3(0.24f, 0.28f, 0.36f));
+                        LabFont::drawText(subX + 12.0f, sy + 4.0f, itemsDisp[s].label, 1.45f, itemsDisp[s].active ? cyanGlow : (isHov ? orangeGlow : textLight), LabFontType::System);
+                        LabFont::drawText(subX + subW - 35.0f, sy + 4.0f, itemsDisp[s].sc, 1.35f, textDim, LabFontType::System);
+                    }
                 }
+            }
+        }
+
+        // ==================== 9. HIERARCHY IN-MENU CONTEXT MENU WITH LIVE SEARCH ====================
+        if (_contextMenuOpen) {
+            float ctxW = 250.0f;
+            float ctxX = std::clamp(_contextMenuX, 10.0f, w - ctxW - 10.0f);
+            float ctxY = std::clamp(_contextMenuY, 24.0f, h - 280.0f);
+            Vec3 ctxBg{ 0.14f, 0.15f, 0.18f };
+
+            const char* allComponents[] = {
+                "Script (Lua)",
+                "Point Light",
+                "Sprite 2D",
+                "Box Collider",
+                "RigidBody Dynamic",
+                "Audio Source (Sound)",
+                "Timer Event Trigger",
+                "Dialogue Trigger Area"
+            };
+
+            // Filter components
+            std::vector<std::string> filtered;
+            std::string q = _contextMenuSearch;
+            std::transform(q.begin(), q.end(), q.begin(), ::tolower);
+            for (const auto* c : allComponents) {
+                std::string s(c);
+                std::string sLow = s;
+                std::transform(sLow.begin(), sLow.end(), sLow.begin(), ::tolower);
+                if (q.empty() || sLow.find(q) != std::string::npos) {
+                    filtered.push_back(s);
+                }
+            }
+
+            float ctxH = 60.0f + (float)filtered.size() * 24.0f;
+            Renderer::drawRect(ctxX, ctxY, ctxW, ctxH, ctxBg);
+            drawDarkBevel(ctxX, ctxY, ctxW, ctxH, false);
+
+            // Title
+            Renderer::drawRect(ctxX, ctxY, ctxW, 24.0f, Vec3(0.18f, 0.22f, 0.30f));
+            LabFont::drawText(ctxX + 8.0f, ctxY + 5.0f, "Add Component (Entity #" + std::to_string(_contextMenuTargetIndex) + ")", 1.35f, cyanGlow, LabFontType::System);
+
+            // In-menu search field
+            float searchY = ctxY + 28.0f;
+            Renderer::drawRect(ctxX + 6.0f, searchY, ctxW - 12.0f, 22.0f, Vec3(0.08f, 0.09f, 0.11f));
+            drawDarkBevel(ctxX + 6.0f, searchY, ctxW - 12.0f, 22.0f, true);
+            std::string sText = _contextMenuSearch.empty() ? "Add > Type to search..." : ("Add > " + _contextMenuSearch);
+            LabFont::drawText(ctxX + 12.0f, searchY + 4.0f, sText, 1.3f, _contextMenuSearch.empty() ? textDim : Vec3(1, 1, 1), LabFontType::System);
+
+            // Filtered list
+            for (size_t i = 0; i < filtered.size(); ++i) {
+                float iy = searchY + 26.0f + i * 24.0f;
+                bool isHov = (_mouseScreenX >= ctxX && _mouseScreenX <= ctxX + ctxW && _mouseScreenY >= iy && _mouseScreenY <= iy + 22.0f);
+                if (isHov) {
+                    Renderer::drawRect(ctxX + 4.0f, iy, ctxW - 8.0f, 22.0f, Vec3(0.24f, 0.28f, 0.36f));
+                }
+                LabFont::drawText(ctxX + 14.0f, iy + 4.0f, "+ " + filtered[i], 1.4f, isHov ? orangeGlow : textLight, LabFontType::System);
             }
         }
 
@@ -4583,6 +5358,46 @@ private:
     bool _lPressed = false;
     float _mouseScreenX = 0.0f;
     float _mouseScreenY = 0.0f;
+
+    // LabStudio embedded integration
+    CharacterStudio _characterStudio;
+    bool _lastStudioKeys[512] = { false };
+
+    // Dedicated 3D Model Viewer & Inspector State
+    float _modelViewerYaw = 35.0f;
+    float _modelViewerPitch = 15.0f;
+    float _modelViewerDistance = 3.0f;
+    bool _modelViewerAutoRotate = true;
+    bool _modelViewerWireframe = false;
+    bool _modelViewerDragging = false;
+    float _modelViewerLastMouseX = 0.0f;
+    float _modelViewerLastMouseY = 0.0f;
+
+    // Dedicated 2D Spritesheet Animation State
+    int _anim2DSelectedFrame = 0;
+    int _anim2DTotalFrames = 8;
+    int _anim2DFPS = 24;
+    bool _anim2DPlaying = false;
+    float _anim2DTimer = 0.0f;
+    bool _anim2DLoop = true;
+
+    // Native Multi-Genre HUD Canvas Designer State
+    std::vector<HUDDesignWidget> _hudWidgets;
+    int _selectedHUDWidgetIndex = -1;
+    float _hudTestSliderValue = 100.0f;
+
+    // Hierarchy Context Menu with Real-Time Search Field
+    bool _contextMenuOpen = false;
+    float _contextMenuX = 0.0f;
+    float _contextMenuY = 0.0f;
+    int _contextMenuTargetIndex = -1;
+    SelectionType _contextMenuTargetType = SelectionType::None;
+    std::string _contextMenuSearch = "";
+    float _lastOutlinerClickTime = 0.0f;
+    int _lastOutlinerClickIndex = -1;
+
+    // Categorized View Menu State
+    int _viewSubmenuHover = -1; // -1 = none, 0 = 3D, 1 = 2D, 2 = Scripting, 3 = Display
 };
 
 int main() {

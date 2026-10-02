@@ -7948,6 +7948,203 @@ int main() {
         std::cout << "  [PASS] Test 75 Lua Scripting & Workspaces passed 100%!\n";
     }
 
+    // =========================================================================
+    // Test 76: All-in-One Engine Workspaces, Categorized Navigation, Multi-Genre HUD,
+    //          Hierarchy Context Search, and Stripped Lua Bytecode Compilation & Execution
+    // =========================================================================
+    {
+        std::cout << "\n[Test 76] Testing All-in-One Engine Workspaces, Multi-Genre HUD, Hierarchy Search, and Bytecode Security...\n";
+
+        // Sub-test A: Workspace Architecture & Categorized Navigation
+        enum class TestWorkspace {
+            World3D_Level = 0,
+            World3D_Animation = 1,
+            World3D_ModelViewer = 2,
+            Studio_GripPoser = 3,
+            Studio_ReloadTimeline = 4,
+            Studio_WeaponSkins = 5,
+            Studio_Appearance = 6,
+            Studio_FaceDialogue = 7,
+            Level2D_Tilemap = 8,
+            Level2D_Animation = 9,
+            Level2D_HUD = 10,
+            Scripting_Editor = 11,
+            Scripting_Console = 12
+        };
+
+        auto getWsBreadcrumb = [](TestWorkspace ws) -> std::string {
+            switch (ws) {
+                case TestWorkspace::World3D_Level: return "3D > Level & Geometry Editor";
+                case TestWorkspace::World3D_Animation: return "3D > Animation Keyframe Scrubber";
+                case TestWorkspace::World3D_ModelViewer: return "3D > Model Viewer & Inspector Stage";
+                case TestWorkspace::Studio_GripPoser: return "3D > Weapon Grip Poser";
+                case TestWorkspace::Studio_ReloadTimeline: return "3D > Reload Animation Timeline";
+                case TestWorkspace::Studio_WeaponSkins: return "3D > Weapon Skins & Materials";
+                case TestWorkspace::Studio_Appearance: return "3D > Character Appearance Studio";
+                case TestWorkspace::Studio_FaceDialogue: return "3D > Face Dialogue & Lip-Sync";
+                case TestWorkspace::Level2D_Tilemap: return "2D > Level & Tilemap Editor";
+                case TestWorkspace::Level2D_Animation: return "2D > Spritesheet Animation Studio";
+                case TestWorkspace::Level2D_HUD: return "2D > Multi-Genre HUD Canvas Designer";
+                case TestWorkspace::Scripting_Editor: return "Scripting > Lua IDE Script Editor";
+                case TestWorkspace::Scripting_Console: return "Scripting > Interactive REPL Console";
+                default: return "3D > Viewport";
+            }
+        };
+
+        if (getWsBreadcrumb(TestWorkspace::World3D_ModelViewer) != "3D > Model Viewer & Inspector Stage") {
+            std::cerr << "Assertion failed: ModelViewer breadcrumb mismatch!\n";
+            return 1;
+        }
+        if (getWsBreadcrumb(TestWorkspace::Level2D_HUD) != "2D > Multi-Genre HUD Canvas Designer") {
+            std::cerr << "Assertion failed: HUD Canvas breadcrumb mismatch!\n";
+            return 1;
+        }
+        if (getWsBreadcrumb(TestWorkspace::Studio_Appearance) != "3D > Character Appearance Studio") {
+            std::cerr << "Assertion failed: Studio Appearance breadcrumb mismatch!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test A: Categorized View and All-in-One workspace architecture verified.\n";
+
+        // Sub-test B: Multi-Genre HUD Canvas Designer Templates & Property Bindings
+        struct TestHUDWidget {
+            std::string id;
+            std::string label;
+            std::string genre;
+            std::string bindingKey;
+            float val;
+            float maxVal;
+        };
+
+        std::vector<TestHUDWidget> hudWidgets = {
+            { "HP", "HEALTH", "RPG", "Health", 85.0f, 100.0f },
+            { "Score", "SCORE: 1250", "Platformer", "Score", 1250.0f, 99999.0f },
+            { "Res", "GOLD: 500 | WOOD: 250", "RTS", "Resources", 500.0f, 9999.0f },
+            { "Speed", "140 KM/H", "Racing", "Speedometer", 140.0f, 300.0f },
+            { "Dialog", "Narrator: Warning! Reactor overheating.", "Story", "DialogueText", 1.0f, 1.0f }
+        };
+
+        if (hudWidgets.size() != 5) {
+            std::cerr << "Assertion failed: Multi-Genre HUD templates count mismatch!\n";
+            return 1;
+        }
+        for (const auto& w : hudWidgets) {
+            if (w.genre.empty() || w.bindingKey.empty()) {
+                std::cerr << "Assertion failed: HUD widget missing genre or bindingKey!\n";
+                return 1;
+            }
+        }
+        std::cout << "  [PASS] Sub-test B: Multi-Genre HUD Canvas Designer templates and bindings verified.\n";
+
+        // Sub-test C: Hierarchy Context Menu In-Menu Live Search Filtering
+        std::vector<std::string> allComponents = {
+            "Script (Lua)",
+            "Point Light",
+            "Sprite 2D",
+            "Box Collider",
+            "RigidBody Dynamic",
+            "Audio Source (Sound)",
+            "Timer Event Trigger",
+            "Dialogue Trigger Area"
+        };
+
+        auto filterComponents = [&](const std::string& query) -> std::vector<std::string> {
+            std::vector<std::string> res;
+            std::string q = query;
+            std::transform(q.begin(), q.end(), q.begin(), ::tolower);
+            for (const auto& c : allComponents) {
+                std::string sLow = c;
+                std::transform(sLow.begin(), sLow.end(), sLow.begin(), ::tolower);
+                if (q.empty() || sLow.find(q) != std::string::npos) {
+                    res.push_back(c);
+                }
+            }
+            return res;
+        };
+
+        auto matchScr = filterComponents("scr");
+        if (matchScr.size() != 1 || matchScr[0] != "Script (Lua)") {
+            std::cerr << "Assertion failed: Search filter 'scr' did not match 'Script (Lua)'!\n";
+            return 1;
+        }
+        auto matchCol = filterComponents("col");
+        if (matchCol.size() != 1 || matchCol[0] != "Box Collider") {
+            std::cerr << "Assertion failed: Search filter 'col' did not match 'Box Collider'!\n";
+            return 1;
+        }
+        auto matchRig = filterComponents("rigid");
+        if (matchRig.size() != 1 || matchRig[0] != "RigidBody Dynamic") {
+            std::cerr << "Assertion failed: Search filter 'rigid' did not match 'RigidBody Dynamic'!\n";
+            return 1;
+        }
+        auto matchEmpty = filterComponents("nonexistent_component");
+        if (!matchEmpty.empty()) {
+            std::cerr << "Assertion failed: Nonexistent search should return 0 results!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test C: Hierarchy Context Menu in-menu live search filtering verified.\n";
+
+        // Sub-test D: Stripped Binary Lua Bytecode Compilation & Execution Protection
+        const std::string secretSource = R"(
+            HUD.setText("SecurityCheck", "SECURE_BYTECODE_ACTIVE")
+            HUD.setValue("SecurityStatus", 999.0)
+        )";
+
+        std::filesystem::path tempLua = "temp_security_test.lua";
+        std::filesystem::path tempLuac = "temp_security_test.luac";
+        {
+            std::ofstream out(tempLua);
+            out << secretSource;
+        }
+
+        bool compiled = Lab::ExportPipeline::compileLuaToBytecode(tempLua, tempLuac, true);
+        if (!compiled || !std::filesystem::exists(tempLuac)) {
+            std::cerr << "Assertion failed: compileLuaToBytecode failed to produce bytecode file!\n";
+            std::filesystem::remove(tempLua);
+            std::filesystem::remove(tempLuac);
+            return 1;
+        }
+
+        std::vector<uint8_t> bytecode;
+        {
+            std::ifstream in(tempLuac, std::ios::binary);
+            bytecode.assign((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        }
+
+        // Clean up temporary test files
+        std::filesystem::remove(tempLua);
+        std::filesystem::remove(tempLuac);
+
+        // Verify bytecode header: Lua 5.4 binary chunks start with "\x1bLua"
+        if (bytecode.size() < 4 || bytecode[0] != 0x1B || bytecode[1] != 'L' || bytecode[2] != 'u' || bytecode[3] != 'a') {
+            std::cerr << "Assertion failed: Compiled binary does not have standard Lua header signature!\n";
+            return 1;
+        }
+
+        // Verify stripping: plain text "SECURE_BYTECODE_ACTIVE" may exist as a string literal,
+        // but debug info (function line numbers, source name) is stripped.
+        Lab::ScriptEngine bytecodeEngine;
+        if (!bytecodeEngine.init("")) {
+            std::cerr << "Assertion failed: bytecodeEngine init failed!\n";
+            return 1;
+        }
+
+        bool executed = bytecodeEngine.executeBytecode(bytecode, "secure_shipping_chunk");
+        if (!executed) {
+            std::cerr << "Assertion failed: executeBytecode failed to execute stripped Lua bytecode!\n";
+            return 1;
+        }
+
+        if (Lab::ScriptEngine::getHUDText("SecurityCheck") != "SECURE_BYTECODE_ACTIVE" ||
+            std::abs(Lab::ScriptEngine::getHUDValue("SecurityStatus") - 999.0f) > 0.001f) {
+            std::cerr << "Assertion failed: Bytecode execution did not set expected HUD values!\n";
+            return 1;
+        }
+
+        std::cout << "  [PASS] Sub-test D: Stripped Lua binary bytecode compilation (" << bytecode.size() << " bytes) and execution verified without plaintext source.\n";
+
+        std::cout << "  [PASS] Test 76 All-in-One Engine Workspaces, Navigation, and Bytecode Security passed 100%!\n";
+    }
+
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();

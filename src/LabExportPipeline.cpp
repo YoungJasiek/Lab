@@ -14,6 +14,12 @@
 #include <shellapi.h>
 #endif
 
+extern "C" {
+#include "lua.h"
+#include "lauxlib.h"
+#include "lualib.h"
+}
+
 namespace Lab {
 
     std::string ExportPipeline::platformToString(TargetPlatform p) {
@@ -139,6 +145,26 @@ namespace Lab {
             if (std::filesystem::exists(fRoot)) {
                 copyDirectoryRecursive(fRoot, outDir / "fonts", result.copiedFiles, result.totalBytes);
                 break;
+            }
+        }
+
+        // 1.5. Compile and protect Lua scripts for Release/Shipping
+        if (settings.config == BuildConfiguration::Shipping || settings.config == BuildConfiguration::Release) {
+            std::filesystem::path outScriptsDir = outDir / "assets" / "scripts";
+            if (std::filesystem::exists(outScriptsDir)) {
+                size_t compiledCount = compileAllScriptsInDirectory(outScriptsDir, outScriptsDir, true);
+                if (settings.config == BuildConfiguration::Shipping) {
+                    // In shipping configuration, remove plaintext .lua files so only precompiled .luac remains
+                    for (const auto& entry : std::filesystem::recursive_directory_iterator(outScriptsDir)) {
+                        if (entry.is_regular_file() && entry.path().extension() == ".lua") {
+                            std::error_code delEc;
+                            std::filesystem::remove(entry.path(), delEc);
+                        }
+                    }
+                }
+                if (compiledCount > 0) {
+                    result.logMessage += " [Compiled " + std::to_string(compiledCount) + " scripts to protected bytecode]";
+                }
             }
         }
 
@@ -566,6 +592,54 @@ namespace Lab {
         std::string cmd = executablePath.string() + " " + args + " &";
         return (system(cmd.c_str()) == 0);
 #endif
+    }
+
+    static int bytecodeWriter(lua_State* L, const void* p, size_t sz, void* ud) {
+        (void)L;
+        auto* outStream = static_cast<std::ostream*>(ud);
+        outStream->write(reinterpret_cast<const char*>(p), static_cast<std::streamsize>(sz));
+        return 0;
+    }
+
+    bool ExportPipeline::compileLuaToBytecode(const std::filesystem::path& srcPath, const std::filesystem::path& dstBytecodePath, bool stripDebug) {
+        if (!std::filesystem::exists(srcPath)) return false;
+        lua_State* L = luaL_newstate();
+        if (!L) return false;
+
+        luaL_openlibs(L);
+        if (luaL_loadfile(L, srcPath.string().c_str()) != LUA_OK) {
+            lua_close(L);
+            return false;
+        }
+
+        std::error_code ec;
+        std::filesystem::create_directories(dstBytecodePath.parent_path(), ec);
+        std::ofstream out(dstBytecodePath, std::ios::binary);
+        if (!out.is_open()) {
+            lua_close(L);
+            return false;
+        }
+
+        int res = lua_dump(L, bytecodeWriter, &out, stripDebug ? 1 : 0);
+        out.close();
+        lua_close(L);
+        return res == 0;
+    }
+
+    size_t ExportPipeline::compileAllScriptsInDirectory(const std::filesystem::path& scriptsDir, const std::filesystem::path& outputDir, bool stripDebug) {
+        if (!std::filesystem::exists(scriptsDir)) return 0;
+        size_t count = 0;
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(scriptsDir)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".lua") {
+                auto rel = std::filesystem::relative(entry.path(), scriptsDir);
+                auto dst = outputDir / rel;
+                dst.replace_extension(".luac");
+                if (compileLuaToBytecode(entry.path(), dst, stripDebug)) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 
 } // namespace Lab
