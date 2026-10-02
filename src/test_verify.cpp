@@ -85,6 +85,19 @@ int main() {
     int w = 1280, h = 720;
     GLFWwindow* window = glfwCreateWindow(w, h, "Verification Test", NULL, NULL);
     if (!window) {
+        glfwDefaultWindowHints();
+        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        window = glfwCreateWindow(w, h, "Verification Test", NULL, NULL);
+    }
+    if (!window) {
+        glfwDefaultWindowHints();
+        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+        window = glfwCreateWindow(w, h, "Verification Test", NULL, NULL);
+    }
+    if (!window) {
         std::cerr << "Failed to create window\n";
         glfwTerminate();
         return 1;

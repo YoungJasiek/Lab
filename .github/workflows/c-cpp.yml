@@ -23,6 +23,13 @@ jobs:
     - name: Build All Targets
       run: cmake --build build --config Release
 
+    - name: Setup Mesa OpenGL Driver for Headless Testing
+      shell: pwsh
+      run: |
+        curl.exe -L -o mesa.7z "https://github.com/mmozeiko/build-mesa/releases/download/26.2.4/mesa-llvmpipe-x64-26.2.4.7z"
+        7z e mesa.7z -o"build/Release" opengl32.dll -r -y
+        7z e mesa.7z -o"build/Debug" opengl32.dll -r -y
+
     - name: Run Test Verification Suite
       working-directory: build/Release
       run: ./TestVerify.exe
