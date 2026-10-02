@@ -1,6 +1,7 @@
 #include "Lab.h"
 #include "LabFont.h"
 #include "LabDialogs.h"
+#include "LabProfiler.h"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <windows.h>
@@ -31,15 +32,26 @@ enum class SelectionType {
     Light
 };
 
+enum class EngineSimState {
+    Stopped,
+    Playing,
+    Paused
+};
+
+enum class BottomDockTab {
+    Console,
+    Profiler
+};
+
 class LabHammerStandalone : public Engine {
 public:
     LabHammerStandalone()
-        : Engine("Hammer - [Lab Map Editor 2026]", 1600, 900),
+        : Engine("Lab Engine Editor 2026 (LabSDK)", 1600, 900),
           _camera(70.0f, 16.0f / 9.0f, 0.01f, 3000.0f) {
     }
 
     void onInit() override {
-        LabLog::info("Launching Lab Hammer 3D Level Editor...");
+        LabLog::info("Launching Lab Engine Editor 2026 (LabSDK)...");
         Renderer::init();
 
         // Scan textures and models
@@ -1169,73 +1181,49 @@ public:
     void placePrebuilt(int prebuiltId) {
         if (!_map) return;
         switch (prebuiltId) {
-            case 0: { // Spawn: FFA / DM (Neutral)
+            case 0: { // Actor / Player Spawn
                 MapSpawnPoint sp;
-                sp.entityClass = "info_player_deathmatch";
+                sp.entityClass = "actor_player_start";
                 sp.position = _cursorPos;
                 sp.yaw = 0.0f;
                 sp.type = SpawnType::FFA;
                 _map->spawnPoints.push_back(sp);
                 _selectionType = SelectionType::Spawn;
                 _selectedIndex = (int)_map->spawnPoints.size() - 1;
-                logMessage("Placed Prebuilt: Spawn [FFA / DM] at (" + std::to_string((int)_cursorPos.x) + ", " + std::to_string((int)_cursorPos.z) + ")");
+                logMessage("Placed Universal Entity: Actor / Player Start at (" + std::to_string((int)_cursorPos.x) + ", " + std::to_string((int)_cursorPos.z) + ")");
                 break;
             }
-            case 1: { // Spawn: Team Alpha (Blue)
-                MapSpawnPoint sp;
-                sp.entityClass = "info_player_team1";
-                sp.position = _cursorPos;
-                sp.yaw = 0.0f;
-                sp.type = SpawnType::TeamAlpha;
-                _map->spawnPoints.push_back(sp);
-                _selectionType = SelectionType::Spawn;
-                _selectedIndex = (int)_map->spawnPoints.size() - 1;
-                logMessage("Placed Prebuilt: Spawn [Team Alpha - Blue HQ] at (" + std::to_string((int)_cursorPos.x) + ", " + std::to_string((int)_cursorPos.z) + ")");
-                break;
-            }
-            case 2: { // Spawn: Team Beta (Red)
-                MapSpawnPoint sp;
-                sp.entityClass = "info_player_team2";
-                sp.position = _cursorPos;
-                sp.yaw = 180.0f;
-                sp.type = SpawnType::TeamBeta;
-                _map->spawnPoints.push_back(sp);
-                _selectionType = SelectionType::Spawn;
-                _selectedIndex = (int)_map->spawnPoints.size() - 1;
-                logMessage("Placed Prebuilt: Spawn [Team Beta - Red HQ] at (" + std::to_string((int)_cursorPos.x) + ", " + std::to_string((int)_cursorPos.z) + ")");
-                break;
-            }
-            case 3: { // Prebuilt: Skrzynka Amunicji
+            case 1: { // Static Mesh Brush (2x2x2)
                 MapBrush b;
                 b.type = "cube";
-                b.position = _cursorPos + Vec3(0, 0.25f, 0);
-                b.size = Vec3(0.8f, 0.5f, 0.5f);
-                b.color = Vec3(0.2f, 0.45f, 0.22f);
-                b.texturePath = "hazard_stripes.bmp";
-                b.uvScale = Vec2(0.5f, 0.5f);
+                b.position = _cursorPos + Vec3(0, 1.0f, 0);
+                b.size = Vec3(2.0f, 2.0f, 2.0f);
+                b.color = Vec3(0.85f, 0.85f, 0.85f);
+                b.texturePath = "concrete_wall.bmp";
+                b.uvScale = Vec2(0.25f, 0.25f);
                 b.uvMode = 1;
                 _map->brushes.push_back(b);
                 _selectionType = SelectionType::Brush;
                 _selectedIndex = (int)_map->brushes.size() - 1;
-                logMessage("Placed Prebuilt: Skrzynka Amunicji");
+                logMessage("Placed Static Mesh Brush (2x2x2m)");
                 break;
             }
-            case 4: { // Prebuilt: Apteczka Polowa
+            case 2: { // Ground Platform (16x1x16)
                 MapBrush b;
                 b.type = "cube";
-                b.position = _cursorPos + Vec3(0, 0.25f, 0);
-                b.size = Vec3(0.6f, 0.45f, 0.4f);
-                b.color = Vec3(0.95f, 0.95f, 0.95f);
-                b.texturePath = "";
-                b.uvScale = Vec2(1.0f, 1.0f);
+                b.position = _cursorPos + Vec3(0, -0.5f, 0);
+                b.size = Vec3(16.0f, 1.0f, 16.0f);
+                b.color = Vec3(1.0f, 1.0f, 1.0f);
+                b.texturePath = "floor_tiles.bmp";
+                b.uvScale = Vec2(0.25f, 0.25f);
                 b.uvMode = 1;
                 _map->brushes.push_back(b);
                 _selectionType = SelectionType::Brush;
                 _selectedIndex = (int)_map->brushes.size() - 1;
-                logMessage("Placed Prebuilt: Apteczka Polowa");
+                logMessage("Placed Ground Platform (16x1x16m)");
                 break;
             }
-            case 5: { // Prebuilt: Barykada Taktyczna
+            case 3: { // Architectural Barrier
                 MapBrush b;
                 b.type = "cube";
                 b.position = _cursorPos + Vec3(0, 0.6f, 0);
@@ -1247,10 +1235,10 @@ public:
                 _map->brushes.push_back(b);
                 _selectionType = SelectionType::Brush;
                 _selectedIndex = (int)_map->brushes.size() - 1;
-                logMessage("Placed Prebuilt: Barykada Taktyczna (3x1.2)");
+                logMessage("Placed Architectural Barrier (3x1.2m)");
                 break;
             }
-            case 6: { // Prebuilt: Filar Betonowy
+            case 4: { // Structural Pillar
                 MapBrush b;
                 b.type = "cube";
                 b.position = _cursorPos + Vec3(0, 3.0f, 0);
@@ -1262,12 +1250,12 @@ public:
                 _map->brushes.push_back(b);
                 _selectionType = SelectionType::Brush;
                 _selectedIndex = (int)_map->brushes.size() - 1;
-                logMessage("Placed Prebuilt: Filar Betonowy (1.5x6)");
+                logMessage("Placed Structural Pillar (1.5x6m)");
                 break;
             }
-            case 7: { // Prebuilt: Brama Bezpieczenstwa
+            case 5: { // Kinematic Door / Gate
                 MapDoor d;
-                d.name = "security_gate_" + std::to_string(_map->doors.size());
+                d.name = "kinematic_gate_" + std::to_string(_map->doors.size());
                 d.position = _cursorPos + Vec3(0, 1.75f, 0);
                 d.size = Vec3(3.5f, 3.5f, 0.4f);
                 d.openOffset = Vec3(0.0f, 4.0f, 0.0f);
@@ -1277,10 +1265,10 @@ public:
                 _map->doors.push_back(d);
                 _selectionType = SelectionType::Door;
                 _selectedIndex = (int)_map->doors.size() - 1;
-                logMessage("Placed Prebuilt: Brama Bezpieczenstwa (Drzwi)");
+                logMessage("Placed Kinematic Door / Gate Entity");
                 break;
             }
-            case 8: { // Prebuilt: Drewniana Skrzynia Fizyczna (prop_crate)
+            case 6: { // Physics Dynamic Prop (Rigid Body)
                 MapProp p;
                 p.modelPath = "models/props/crate.obj";
                 p.position = _cursorPos + Vec3(0, 0.45f, 0);
@@ -1290,10 +1278,10 @@ public:
                 _map->props.push_back(p);
                 _selectionType = SelectionType::Prop;
                 _selectedIndex = (int)_map->props.size() - 1;
-                logMessage("Placed Physical Prop: Drewniana Skrzynia (Havok Rigid Body)");
+                logMessage("Placed Physics Dynamic Prop (Rigid Body)");
                 break;
             }
-            case 9: { // Prebuilt: Wybuchowa Beczka Paliwa (prop_barrel)
+            case 7: { // Explosive Hazard Prop
                 MapProp p;
                 p.modelPath = "models/props/barrel.obj";
                 p.position = _cursorPos + Vec3(0, 0.48f, 0);
@@ -1303,115 +1291,148 @@ public:
                 _map->props.push_back(p);
                 _selectionType = SelectionType::Prop;
                 _selectedIndex = (int)_map->props.size() - 1;
-                logMessage("Placed Physical Prop: Wybuchowa Beczka Paliwa (Explosive Hazard)");
+                logMessage("Placed Explosive Hazard Prop (Radial Trigger)");
                 break;
             }
-            case 10: { // Spawner: Pipe
+            case 8: { // Omni Point Light
+                MapLight lt;
+                lt.name = "point_light_" + std::to_string(_map->lights.size());
+                lt.position = _cursorPos + Vec3(0, 2.5f, 0);
+                lt.color = Vec3(1.0f, 0.92f, 0.80f);
+                lt.intensity = 3.0f;
+                lt.radius = 16.0f;
+                lt.type = MapLightType::Point;
+                _map->lights.push_back(lt);
+                _selectionType = SelectionType::Light;
+                _selectedIndex = (int)_map->lights.size() - 1;
+                logMessage("Placed Omni Point Light (Radius: 16m)");
+                break;
+            }
+            case 9: { // Trigger Zone Volume
+                MapBrush b;
+                b.type = "cube";
+                b.position = _cursorPos + Vec3(0, 1.5f, 0);
+                b.size = Vec3(4.0f, 3.0f, 4.0f);
+                b.color = Vec3(0.1f, 0.8f, 0.9f);
+                b.texturePath = "";
+                b.uvScale = Vec2(1.0f, 1.0f);
+                b.uvMode = 1;
+                _map->brushes.push_back(b);
+                _selectionType = SelectionType::Brush;
+                _selectedIndex = (int)_map->brushes.size() - 1;
+                logMessage("Placed Trigger Zone Volume (Gameplay Overlap)");
+                break;
+            }
+            case 10: { // Item / Pickup Node
                 MapWeaponSpawner ws;
                 ws.weaponId = 0;
-                ws.position = _cursorPos;
+                ws.position = _cursorPos + Vec3(0, 0.5f, 0);
                 ws.yaw = 0.0f;
-                ws.respawnTime = 60.0f;
+                ws.respawnTime = 30.0f;
                 _map->weaponSpawners.push_back(ws);
                 _selectionType = SelectionType::WeaponSpawner;
                 _selectedIndex = (int)_map->weaponSpawners.size() - 1;
-                logMessage("Placed Weapon Spawner: Pipe (60s Respawn)");
+                logMessage("Placed Item / Pickup Node (30s Cooldown)");
                 break;
             }
-            case 11: { // Spawner: Pistol
-                MapWeaponSpawner ws;
-                ws.weaponId = 1;
-                ws.position = _cursorPos;
-                ws.yaw = 0.0f;
-                ws.respawnTime = 60.0f;
-                _map->weaponSpawners.push_back(ws);
-                _selectionType = SelectionType::WeaponSpawner;
-                _selectedIndex = (int)_map->weaponSpawners.size() - 1;
-                logMessage("Placed Weapon Spawner: Pistol (60s Respawn)");
+            case 11: { // Spatial Audio Emitter
+                MapProp p;
+                p.modelPath = "models/props/audio_emitter.obj";
+                p.position = _cursorPos + Vec3(0, 1.0f, 0);
+                p.scale = Vec3(0.5f, 0.5f, 0.5f);
+                p.color = Vec3(0.75f, 0.3f, 0.85f);
+                _map->props.push_back(p);
+                _selectionType = SelectionType::Prop;
+                _selectedIndex = (int)_map->props.size() - 1;
+                logMessage("Placed Spatial Audio Emitter (3D Sound Source)");
                 break;
             }
-            case 12: { // Spawner: Shotgun
-                MapWeaponSpawner ws;
-                ws.weaponId = 2;
-                ws.position = _cursorPos;
-                ws.yaw = 0.0f;
-                ws.respawnTime = 60.0f;
-                _map->weaponSpawners.push_back(ws);
-                _selectionType = SelectionType::WeaponSpawner;
-                _selectedIndex = (int)_map->weaponSpawners.size() - 1;
-                logMessage("Placed Weapon Spawner: Shotgun (60s Respawn)");
+            case 12: { // Particle VFX Emitter
+                MapProp p;
+                p.modelPath = "models/props/particle_emitter.obj";
+                p.position = _cursorPos + Vec3(0, 0.5f, 0);
+                p.scale = Vec3(0.6f, 0.6f, 0.6f);
+                p.color = Vec3(0.85f, 0.55f, 0.15f);
+                _map->props.push_back(p);
+                _selectionType = SelectionType::Prop;
+                _selectedIndex = (int)_map->props.size() - 1;
+                logMessage("Placed Particle VFX Emitter Node");
                 break;
             }
-            case 13: { // Spawner: M4A4-S
-                MapWeaponSpawner ws;
-                ws.weaponId = 3;
-                ws.position = _cursorPos;
-                ws.yaw = 0.0f;
-                ws.respawnTime = 60.0f;
-                _map->weaponSpawners.push_back(ws);
-                _selectionType = SelectionType::WeaponSpawner;
-                _selectedIndex = (int)_map->weaponSpawners.size() - 1;
-                logMessage("Placed Weapon Spawner: M4A4-S (60s Respawn)");
+            case 13: { // Raycast Vehicle Chassis
+                MapProp p;
+                p.modelPath = "models/props/vehicle_chassis.obj";
+                p.position = _cursorPos + Vec3(0, 0.75f, 0);
+                p.scale = Vec3(2.0f, 1.2f, 4.0f);
+                p.color = Vec3(0.2f, 0.6f, 0.8f);
+                _map->props.push_back(p);
+                _selectionType = SelectionType::Prop;
+                _selectedIndex = (int)_map->props.size() - 1;
+                logMessage("Placed Raycast Vehicle Entity (Suspension Chassis)");
                 break;
             }
-            case 14: { // Spawner: SG553
-                MapWeaponSpawner ws;
-                ws.weaponId = 4;
-                ws.position = _cursorPos;
-                ws.yaw = 0.0f;
-                ws.respawnTime = 60.0f;
-                _map->weaponSpawners.push_back(ws);
-                _selectionType = SelectionType::WeaponSpawner;
-                _selectedIndex = (int)_map->weaponSpawners.size() - 1;
-                logMessage("Placed Weapon Spawner: SG553 (60s Respawn)");
+            case 14: { // Fluid / Water Volume
+                MapBrush b;
+                b.type = "cube";
+                b.position = _cursorPos + Vec3(0, -0.5f, 0);
+                b.size = Vec3(10.0f, 2.0f, 10.0f);
+                b.color = Vec3(0.15f, 0.5f, 0.95f);
+                b.texturePath = "water_caustics.bmp";
+                b.uvScale = Vec2(0.5f, 0.5f);
+                b.uvMode = 1;
+                _map->brushes.push_back(b);
+                _selectionType = SelectionType::Brush;
+                _selectedIndex = (int)_map->brushes.size() - 1;
+                logMessage("Placed Fluid / Water Volume (Buoyancy Body)");
                 break;
             }
-            case 15: { // Spawner: Minigun
-                MapWeaponSpawner ws;
-                ws.weaponId = 5;
-                ws.position = _cursorPos;
-                ws.yaw = 0.0f;
-                ws.respawnTime = 60.0f;
-                _map->weaponSpawners.push_back(ws);
-                _selectionType = SelectionType::WeaponSpawner;
-                _selectedIndex = (int)_map->weaponSpawners.size() - 1;
-                logMessage("Placed Weapon Spawner: Minigun (60s Respawn)");
+            case 15: { // Verlet Cloth / SoftBody
+                MapProp p;
+                p.modelPath = "models/props/cloth_sheet.obj";
+                p.position = _cursorPos + Vec3(0, 2.0f, 0);
+                p.scale = Vec3(2.0f, 2.0f, 0.1f);
+                p.color = Vec3(0.85f, 0.35f, 0.45f);
+                _map->props.push_back(p);
+                _selectionType = SelectionType::Prop;
+                _selectedIndex = (int)_map->props.size() - 1;
+                logMessage("Placed Verlet Cloth / SoftBody Simulation Mesh");
                 break;
             }
-            case 16: { // Spawner: Plasma Gun
-                MapWeaponSpawner ws;
-                ws.weaponId = 6;
-                ws.position = _cursorPos;
-                ws.yaw = 0.0f;
-                ws.respawnTime = 60.0f;
-                _map->weaponSpawners.push_back(ws);
-                _selectionType = SelectionType::WeaponSpawner;
-                _selectedIndex = (int)_map->weaponSpawners.size() - 1;
-                logMessage("Placed Weapon Spawner: Plasma Gun (60s Respawn)");
+            case 16: { // Physics Joint / Constraint Anchor
+                MapProp p;
+                p.modelPath = "models/props/joint_anchor.obj";
+                p.position = _cursorPos + Vec3(0, 1.0f, 0);
+                p.scale = Vec3(0.4f, 0.4f, 0.4f);
+                p.color = Vec3(0.9f, 0.8f, 0.2f);
+                _map->props.push_back(p);
+                _selectionType = SelectionType::Prop;
+                _selectedIndex = (int)_map->props.size() - 1;
+                logMessage("Placed Physics Joint / Constraint Connector");
                 break;
             }
-            case 17: { // Spawner: Railgun
-                MapWeaponSpawner ws;
-                ws.weaponId = 7;
-                ws.position = _cursorPos;
-                ws.yaw = 0.0f;
-                ws.respawnTime = 60.0f;
-                _map->weaponSpawners.push_back(ws);
-                _selectionType = SelectionType::WeaponSpawner;
-                _selectedIndex = (int)_map->weaponSpawners.size() - 1;
-                logMessage("Placed Weapon Spawner: Railgun (60s Respawn)");
+            case 17: { // Radial Force / Attractor
+                MapProp p;
+                p.modelPath = "models/props/force_field.obj";
+                p.position = _cursorPos + Vec3(0, 0.5f, 0);
+                p.scale = Vec3(1.0f, 1.0f, 1.0f);
+                p.color = Vec3(0.9f, 0.2f, 0.2f);
+                _map->props.push_back(p);
+                _selectionType = SelectionType::Prop;
+                _selectedIndex = (int)_map->props.size() - 1;
+                logMessage("Placed Radial Force Field / Attractor Volume");
                 break;
             }
-            case 18: { // Spawner: RPG
-                MapWeaponSpawner ws;
-                ws.weaponId = 8;
-                ws.position = _cursorPos;
-                ws.yaw = 0.0f;
-                ws.respawnTime = 60.0f;
-                _map->weaponSpawners.push_back(ws);
-                _selectionType = SelectionType::WeaponSpawner;
-                _selectedIndex = (int)_map->weaponSpawners.size() - 1;
-                logMessage("Placed Weapon Spawner: RPG (60s Respawn)");
+            case 18: { // NavMesh Obstacle Box
+                MapBrush b;
+                b.type = "cube";
+                b.position = _cursorPos + Vec3(0, 1.0f, 0);
+                b.size = Vec3(2.0f, 2.0f, 2.0f);
+                b.color = Vec3(0.5f, 0.5f, 0.55f);
+                b.texturePath = "";
+                _map->brushes.push_back(b);
+                _selectionType = SelectionType::Brush;
+                _selectedIndex = (int)_map->brushes.size() - 1;
+                logMessage("Placed NavMesh Obstacle Box (Dynamic AI Blocker)");
                 break;
             }
         }
@@ -1656,24 +1677,55 @@ public:
                 }
             }
 
-            // Quick Action Buttons on Top Toolbar
-            float quickX = 525.0f;
-            // 1. [+ POINT LIGHT] button
-            if (mx >= quickX && mx <= quickX + 105.0f) {
-                _activeTool = 7;
-                logMessage("Tool 7: Point Light / Lamp Tool Activated (Click scene or E to place)");
+            // Top Toolbar Controls: Simulation, View Mode, Quick Actions
+            // 1. [ > PLAY ]
+            if (mx >= 520.0f && mx <= 582.0f) {
+                _simState = EngineSimState::Playing;
+                logMessage("Engine Simulation: STARTED [PLAY]");
                 return;
             }
-            // 2. [DARKNESS: ON/OFF] button
-            float darkX = quickX + 112.0f;
-            if (mx >= darkX && mx <= darkX + 125.0f) {
+            // 2. [ || PAUSE ]
+            if (mx >= 586.0f && mx <= 650.0f) {
+                _simState = (_simState == EngineSimState::Paused) ? EngineSimState::Playing : EngineSimState::Paused;
+                logMessage(_simState == EngineSimState::Paused ? "Engine Simulation: PAUSED" : "Engine Simulation: RESUMED");
+                return;
+            }
+            // 3. [ [] STOP ]
+            if (mx >= 654.0f && mx <= 714.0f) {
+                _simState = EngineSimState::Stopped;
+                logMessage("Engine Simulation: STOPPED");
+                return;
+            }
+            // 4. [ 3D PERSPECTIVE ] / [ 2D ORTHO ]
+            if (mx >= 720.0f && mx <= 835.0f) {
+                _orthoViewMode = !_orthoViewMode;
+                if (_orthoViewMode) {
+                    _camera.setOrthographic(25.0f, -500.0f, 500.0f);
+                    _camera.setPitch(-89.9f);
+                    _camera.setYaw(-90.0f);
+                    logMessage("Viewport: Switched to 2D Orthographic Top-Down Projection");
+                } else {
+                    _camera.setPerspective(70.0f, 16.0f / 9.0f, 0.01f, 3000.0f);
+                    _camera.setPitch(0.0f);
+                    _camera.setYaw(-90.0f);
+                    logMessage("Viewport: Switched to 3D Perspective Projection");
+                }
+                return;
+            }
+            // 5. [+ LIGHT]
+            if (mx >= 842.0f && mx <= 940.0f) {
+                _activeTool = 7;
+                logMessage("Tool 7: Omni Point Light Tool (Click scene or E to place)");
+                return;
+            }
+            // 6. [DARK: ON/OFF]
+            if (mx >= 946.0f && mx <= 1056.0f) {
                 _darknessMode = !_darknessMode;
                 logMessage(_darknessMode ? "Darkness Mode: ACTIVE (Pitch Black Ambient/Sun)" : "Darkness Mode: DISABLED (Standard Sunlight)");
                 return;
             }
-            // 3. [DARK PRESET] button
-            float presetX = darkX + 132.0f;
-            if (mx >= presetX && mx <= presetX + 115.0f) {
+            // 7. [DARK PRESET]
+            if (mx >= 1062.0f && mx <= 1162.0f) {
                 if (_map) {
                     _map->metadata.ambientColor = Vec3(0.015f, 0.018f, 0.025f);
                     _map->metadata.sunColor = Vec3(0.0f, 0.0f, 0.0f);
@@ -1757,12 +1809,12 @@ public:
                 if (my >= catY && my <= catY + 24.0f) {
                     if (mx >= l.rightX + 10.0f && mx <= l.rightX + 10.0f + catW) {
                         _prebuiltCategory = 0;
-                        logMessage("Prebuilts: Kategoria [Encje & Baza]");
+                        logMessage("Entities: Category [World & Actors]");
                         return;
                     }
                     if (mx >= l.rightX + 14.0f + catW && mx <= l.rightX + l.rightW - 10.0f) {
                         _prebuiltCategory = 1;
-                        logMessage("Prebuilts: Kategoria [Bronie / Spawners]");
+                        logMessage("Entities: Category [Components & FX]");
                         return;
                     }
                 }
@@ -2090,7 +2142,27 @@ public:
                     return;
                 }
             }
-            return; // Guaranteed: right sidebar clicks never bleed into 3D world!
+            return;
+        }
+
+        // Bottom Dock (Console / Profiler Tabs)
+        float leftW = 42.0f;
+        float conW = std::min(780.0f, l.rightX - leftW - 40.0f);
+        float conH = 135.0f;
+        float conX = leftW + 20.0f;
+        float conY = h - conH - 32.0f;
+        if (mx >= conX && mx <= conX + conW && my >= conY && my <= conY + conH) {
+            if (my <= conY + 24.0f) {
+                if (mx >= conX + 6.0f && mx <= conX + 96.0f) {
+                    _bottomDockTab = BottomDockTab::Console;
+                    return;
+                }
+                if (mx >= conX + 102.0f && mx <= conX + 192.0f) {
+                    _bottomDockTab = BottomDockTab::Profiler;
+                    return;
+                }
+            }
+            return;
         }
 
         // 9. 3D Viewport Raycast Picking (Selection / Texture Tool / Object placement)
@@ -2113,6 +2185,8 @@ public:
     }
 
     void onRender() override {
+        Profiler::instance().beginFrame();
+
         // Darkness Mode or Map atmospheric lighting configuration
         if (_darknessMode) {
             glClearColor(0.012f, 0.015f, 0.022f, 1.0f);
@@ -2344,6 +2418,7 @@ public:
         }
 
         Renderer::endFrame();
+        Profiler::instance().endFrame();
     }
 
     // Studio Dark Industrial Styling Helpers
@@ -2447,7 +2522,7 @@ public:
         LabFont::drawText(140.0f, 5.0f, "Tools", 1.8f, hovTools ? orangeGlow : textLight, LabFontType::System);
         LabFont::drawText(190.0f, 5.0f, "Help", 1.8f, hovHelp ? orangeGlow : textLight, LabFontType::System);
 
-        LabFont::drawText(w - 380.0f, 5.0f, "Lab Hammer 4.1 - 3D Level Editor", 1.8f, orangeGlow, LabFontType::GeoSans);
+        LabFont::drawText(w - 380.0f, 5.0f, "Lab Engine Editor 2026 (LabSDK)", 1.8f, orangeGlow, LabFontType::GeoSans);
 
         // ==================== 2. MAIN TOOLBAR (18 Buttons) ====================
         float tbY = 24.0f;
@@ -2468,33 +2543,66 @@ public:
             drawToolbarIcon(i, bx + 1.0f, tbY + 5.0f, iconCol, bgCol);
         }
 
-        // Quick Action Buttons on Top Toolbar: [+ POINT LIGHT], [DARKNESS: ON/OFF], [DARK PRESET]
-        float quickX = 525.0f;
+        // ==================== ENGINE SIMULATION & VIEWPORT CONTROLS ====================
+        // 1. [ > PLAY ]
+        float playX = 520.0f;
+        bool isPlay = (_simState == EngineSimState::Playing);
+        bool isPlayHov = (_mouseScreenX >= playX && _mouseScreenX <= playX + 62.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        Vec3 playCol = isPlay ? greenAccent : (isPlayHov ? Vec3(0.25f, 0.38f, 0.28f) : Vec3(0.20f, 0.22f, 0.25f));
+        Renderer::drawRect(playX, tbY + 4.0f, 62.0f, 26.0f, playCol);
+        drawDarkBevel(playX, tbY + 4.0f, 62.0f, 26.0f, isPlay);
+        LabFont::drawText(playX + 10.0f, tbY + 9.0f, "> PLAY", 1.25f, isPlay ? Vec3(0, 0, 0) : Vec3(0.4f, 1.0f, 0.5f), LabFontType::System);
 
-        // 1. [+ POINT LIGHT] button
+        // 2. [ || PAUSE ]
+        float pauseX = 586.0f;
+        bool isPause = (_simState == EngineSimState::Paused);
+        bool isPauseHov = (_mouseScreenX >= pauseX && _mouseScreenX <= pauseX + 64.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        Vec3 pauseCol = isPause ? Vec3(0.95f, 0.75f, 0.15f) : (isPauseHov ? Vec3(0.35f, 0.32f, 0.26f) : Vec3(0.20f, 0.22f, 0.25f));
+        Renderer::drawRect(pauseX, tbY + 4.0f, 64.0f, 26.0f, pauseCol);
+        drawDarkBevel(pauseX, tbY + 4.0f, 64.0f, 26.0f, isPause);
+        LabFont::drawText(pauseX + 8.0f, tbY + 9.0f, "|| PAUSE", 1.25f, isPause ? Vec3(0, 0, 0) : Vec3(1.0f, 0.85f, 0.4f), LabFontType::System);
+
+        // 3. [ [] STOP ]
+        float stopX = 654.0f;
+        bool isStop = (_simState == EngineSimState::Stopped);
+        bool isStopHov = (_mouseScreenX >= stopX && _mouseScreenX <= stopX + 60.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        Vec3 stopCol = isStop ? Vec3(0.85f, 0.25f, 0.25f) : (isStopHov ? Vec3(0.35f, 0.26f, 0.26f) : Vec3(0.20f, 0.22f, 0.25f));
+        Renderer::drawRect(stopX, tbY + 4.0f, 60.0f, 26.0f, stopCol);
+        drawDarkBevel(stopX, tbY + 4.0f, 60.0f, 26.0f, isStop);
+        LabFont::drawText(stopX + 8.0f, tbY + 9.0f, "[] STOP", 1.25f, isStop ? Vec3(1, 1, 1) : Vec3(0.85f, 0.45f, 0.45f), LabFontType::System);
+
+        // 4. [ 3D PERSPECTIVE ] / [ 2D ORTHO ]
+        float viewModeX = 720.0f;
+        bool isOrtho = _orthoViewMode;
+        bool isViewHov = (_mouseScreenX >= viewModeX && _mouseScreenX <= viewModeX + 115.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        Vec3 viewCol = isOrtho ? Vec3(0.20f, 0.55f, 0.85f) : (isViewHov ? Vec3(0.28f, 0.32f, 0.38f) : Vec3(0.20f, 0.22f, 0.25f));
+        Renderer::drawRect(viewModeX, tbY + 4.0f, 115.0f, 26.0f, viewCol);
+        drawDarkBevel(viewModeX, tbY + 4.0f, 115.0f, 26.0f, isOrtho);
+        LabFont::drawText(viewModeX + 8.0f, tbY + 9.0f, isOrtho ? "2D ORTHO" : "3D PERSPECTIVE", 1.25f, isOrtho ? Vec3(1, 1, 1) : cyanGlow, LabFontType::System);
+
+        // 5. [+ POINT LIGHT] button
+        float lightX = 842.0f;
         bool isLightTool = (_activeTool == 7);
-        bool isLightHov = (_mouseScreenX >= quickX && _mouseScreenX <= quickX + 105.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        bool isLightHov = (_mouseScreenX >= lightX && _mouseScreenX <= lightX + 98.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
         Vec3 lightBtnBg = isLightTool ? Vec3(0.95f, 0.75f, 0.15f) : (isLightHov ? Vec3(0.32f, 0.35f, 0.40f) : Vec3(0.22f, 0.23f, 0.26f));
-        Renderer::drawRect(quickX, tbY + 4.0f, 105.0f, 26.0f, lightBtnBg);
-        drawDarkBevel(quickX, tbY + 4.0f, 105.0f, 26.0f, isLightTool);
-        drawHammerIcon(7, quickX + 2.0f, tbY + 5.0f, isLightTool ? Vec3(0.05f, 0.05f, 0.05f) : Vec3(1.0f, 0.85f, 0.2f), lightBtnBg);
-        LabFont::drawText(quickX + 30.0f, tbY + 9.0f, "+ POINT LIGHT", 1.25f, isLightTool ? Vec3(0.05f, 0.05f, 0.05f) : Vec3(1, 1, 1), LabFontType::System);
+        Renderer::drawRect(lightX, tbY + 4.0f, 98.0f, 26.0f, lightBtnBg);
+        drawDarkBevel(lightX, tbY + 4.0f, 98.0f, 26.0f, isLightTool);
+        LabFont::drawText(lightX + 10.0f, tbY + 9.0f, "+ LIGHT", 1.25f, isLightTool ? Vec3(0.05f, 0.05f, 0.05f) : Vec3(1.0f, 0.85f, 0.2f), LabFontType::System);
 
-        // 2. [DARKNESS: ON/OFF] button
-        float darkX = quickX + 112.0f;
-        bool isDarkHov = (_mouseScreenX >= darkX && _mouseScreenX <= darkX + 125.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        // 6. [DARKNESS: ON/OFF] button
+        float darkX = 946.0f;
+        bool isDarkHov = (_mouseScreenX >= darkX && _mouseScreenX <= darkX + 110.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
         Vec3 darkBtnBg = _darknessMode ? Vec3(0.55f, 0.15f, 0.80f) : (isDarkHov ? Vec3(0.32f, 0.35f, 0.40f) : Vec3(0.22f, 0.23f, 0.26f));
-        Renderer::drawRect(darkX, tbY + 4.0f, 125.0f, 26.0f, darkBtnBg);
-        drawDarkBevel(darkX, tbY + 4.0f, 125.0f, 26.0f, _darknessMode);
-        std::string darkLabel = _darknessMode ? "DARKNESS: ON" : "DARKNESS: OFF";
-        LabFont::drawText(darkX + 12.0f, tbY + 9.0f, darkLabel, 1.25f, _darknessMode ? Vec3(1.0f, 0.95f, 0.6f) : Vec3(0.85f, 0.88f, 0.92f), LabFontType::System);
+        Renderer::drawRect(darkX, tbY + 4.0f, 110.0f, 26.0f, darkBtnBg);
+        drawDarkBevel(darkX, tbY + 4.0f, 110.0f, 26.0f, _darknessMode);
+        LabFont::drawText(darkX + 10.0f, tbY + 9.0f, _darknessMode ? "DARK: ON" : "DARK: OFF", 1.25f, _darknessMode ? Vec3(1.0f, 0.95f, 0.6f) : Vec3(0.85f, 0.88f, 0.92f), LabFontType::System);
 
-        // 3. [DARK PRESET] button
-        float presetX = darkX + 132.0f;
-        bool isPresetHov = (_mouseScreenX >= presetX && _mouseScreenX <= presetX + 115.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        // 7. [DARK PRESET] button
+        float presetX = 1062.0f;
+        bool isPresetHov = (_mouseScreenX >= presetX && _mouseScreenX <= presetX + 100.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
         Vec3 presetBtnBg = isPresetHov ? Vec3(0.32f, 0.35f, 0.40f) : Vec3(0.22f, 0.23f, 0.26f);
-        Renderer::drawRect(presetX, tbY + 4.0f, 115.0f, 26.0f, presetBtnBg);
-        drawDarkBevel(presetX, tbY + 4.0f, 115.0f, 26.0f, false);
+        Renderer::drawRect(presetX, tbY + 4.0f, 100.0f, 26.0f, presetBtnBg);
+        drawDarkBevel(presetX, tbY + 4.0f, 100.0f, 26.0f, false);
         LabFont::drawText(presetX + 10.0f, tbY + 9.0f, "DARK PRESET", 1.25f, Vec3(0.6f, 0.85f, 1.0f), LabFontType::System);
 
         // ==================== 3. LEFT TOOLS PALETTE (Tools 0..7) ====================
@@ -2521,31 +2629,31 @@ public:
         Renderer::drawRect(l.rightX, l.rightY, l.rightW, l.rightH, panelDarkBg);
         drawDarkBevel(l.rightX, l.rightY, l.rightW, l.rightH, false);
 
-        // Sidebar Tabs: [ Properties ] [ Struktura ] [ Prebuilty ]
+        // Sidebar Tabs: [ Inspector ] [ Hierarchy ] [ Add Entity ]
         bool isPropTab = (_sidebarTab == SidebarTab::Properties);
         bool isOutTab = (_sidebarTab == SidebarTab::Hierarchy);
         bool isPreTab = (_sidebarTab == SidebarTab::Prebuilts);
 
-        // Tab Properties
+        // Tab Inspector
         Vec3 propTabBg = isPropTab ? Vec3(0.24f, 0.26f, 0.30f) : Vec3(0.16f, 0.17f, 0.19f);
         Renderer::drawRect(l.tabPropX, l.tabPropY, l.tabPropW, l.tabPropH, propTabBg);
         drawDarkBevel(l.tabPropX, l.tabPropY, l.tabPropW, l.tabPropH, isPropTab);
-        if (isPropTab) Renderer::drawRect(l.tabPropX, l.tabPropY + l.tabPropH - 2.0f, l.tabPropW, 2.0f, orangeGlow);
-        LabFont::drawText(l.tabPropX + 12.0f, l.tabPropY + 5.0f, "Properties", 1.5f, isPropTab ? Vec3(1, 1, 1) : textDim, LabFontType::System);
+        if (isPropTab) Renderer::drawRect(l.tabPropX, l.tabPropY + l.tabPropH - 2.0f, l.tabPropW, 2.0f, cyanGlow);
+        LabFont::drawText(l.tabPropX + 16.0f, l.tabPropY + 5.0f, "Inspector", 1.5f, isPropTab ? Vec3(1, 1, 1) : textDim, LabFontType::System);
 
-        // Tab Struktura
+        // Tab Hierarchy
         Vec3 outTabBg = isOutTab ? Vec3(0.24f, 0.26f, 0.30f) : Vec3(0.16f, 0.17f, 0.19f);
         Renderer::drawRect(l.tabOutX, l.tabOutY, l.tabOutW, l.tabOutH, outTabBg);
         drawDarkBevel(l.tabOutX, l.tabOutY, l.tabOutW, l.tabOutH, isOutTab);
-        if (isOutTab) Renderer::drawRect(l.tabOutX, l.tabOutY + l.tabOutH - 2.0f, l.tabOutW, 2.0f, orangeGlow);
-        LabFont::drawText(l.tabOutX + 16.0f, l.tabOutY + 5.0f, "Struktura", 1.5f, isOutTab ? Vec3(1, 1, 1) : textDim, LabFontType::System);
+        if (isOutTab) Renderer::drawRect(l.tabOutX, l.tabOutY + l.tabOutH - 2.0f, l.tabOutW, 2.0f, cyanGlow);
+        LabFont::drawText(l.tabOutX + 14.0f, l.tabOutY + 5.0f, "Hierarchy", 1.5f, isOutTab ? Vec3(1, 1, 1) : textDim, LabFontType::System);
 
-        // Tab Prebuilty
+        // Tab Add Entity
         Vec3 preTabBg = isPreTab ? Vec3(0.24f, 0.26f, 0.30f) : Vec3(0.16f, 0.17f, 0.19f);
         Renderer::drawRect(l.tabPreX, l.tabPreY, l.tabPreW, l.tabPreH, preTabBg);
         drawDarkBevel(l.tabPreX, l.tabPreY, l.tabPreW, l.tabPreH, isPreTab);
-        if (isPreTab) Renderer::drawRect(l.tabPreX, l.tabPreY + l.tabPreH - 2.0f, l.tabPreW, 2.0f, orangeGlow);
-        LabFont::drawText(l.tabPreX + 16.0f, l.tabPreY + 5.0f, "Prebuilty", 1.5f, isPreTab ? Vec3(1, 1, 1) : textDim, LabFontType::System);
+        if (isPreTab) Renderer::drawRect(l.tabPreX, l.tabPreY + l.tabPreH - 2.0f, l.tabPreW, 2.0f, cyanGlow);
+        LabFont::drawText(l.tabPreX + 12.0f, l.tabPreY + 5.0f, "+ Entity", 1.5f, isPreTab ? Vec3(1, 1, 1) : textDim, LabFontType::System);
 
         // ==================== TAB CONTENT: PREBUILTS & ENTITIES ====================
         if (_sidebarTab == SidebarTab::Prebuilts) {
@@ -2557,13 +2665,13 @@ public:
 
             Renderer::drawRect(l.rightX + 10.0f, catY, catW, 24.0f, isCat0 ? Vec3(0.26f, 0.28f, 0.32f) : Vec3(0.16f, 0.17f, 0.19f));
             drawDarkBevel(l.rightX + 10.0f, catY, catW, 24.0f, isCat0);
-            if (isCat0) Renderer::drawRect(l.rightX + 10.0f, catY + 22.0f, catW, 2.0f, orangeGlow);
-            LabFont::drawText(l.rightX + 16.0f, catY + 4.0f, "Encje / Baza", 1.5f, isCat0 ? Vec3(1, 1, 1) : textDim, LabFontType::System);
+            if (isCat0) Renderer::drawRect(l.rightX + 10.0f, catY + 22.0f, catW, 2.0f, cyanGlow);
+            LabFont::drawText(l.rightX + 14.0f, catY + 4.0f, "World & Actors", 1.4f, isCat0 ? Vec3(1, 1, 1) : textDim, LabFontType::System);
 
             Renderer::drawRect(l.rightX + 14.0f + catW, catY, catW, 24.0f, isCat1 ? Vec3(0.26f, 0.28f, 0.32f) : Vec3(0.16f, 0.17f, 0.19f));
             drawDarkBevel(l.rightX + 14.0f + catW, catY, catW, 24.0f, isCat1);
-            if (isCat1) Renderer::drawRect(l.rightX + 14.0f + catW, catY + 22.0f, catW, 2.0f, orangeGlow);
-            LabFont::drawText(l.rightX + 20.0f + catW, catY + 4.0f, "Bronie (Spawny)", 1.5f, isCat1 ? Vec3(1, 1, 1) : textDim, LabFontType::System);
+            if (isCat1) Renderer::drawRect(l.rightX + 14.0f + catW, catY + 22.0f, catW, 2.0f, cyanGlow);
+            LabFont::drawText(l.rightX + 18.0f + catW, catY + 4.0f, "Components & FX", 1.4f, isCat1 ? Vec3(1, 1, 1) : textDim, LabFontType::System);
 
             struct PrebuiltDesc {
                 std::string title;
@@ -2572,28 +2680,28 @@ public:
             };
 
             PrebuiltDesc cat0Items[] = {
-                { "Spawn: FFA / DM", "Neutralny spawn dla kazdego gracza", Vec3(0.18f, 0.65f, 0.35f) },
-                { "Spawn: Team Alpha", "Baza Druzyny 1 (Niebiescy / Blue HQ)", Vec3(0.18f, 0.45f, 0.85f) },
-                { "Spawn: Team Beta", "Baza Druzyny 2 (Czerwoni / Red HQ)", Vec3(0.85f, 0.25f, 0.25f) },
-                { "Skrzynka Amunicji", "Zasobnik amunicji (+36 pociskow)", Vec3(0.75f, 0.65f, 0.15f) },
-                { "Apteczka Polowa", "Pakiet medyczny (+50 HP zdrowia)", Vec3(0.85f, 0.85f, 0.90f) },
-                { "Barykada Taktyczna", "Mur ochronny ze skrajnia (3x1.2m)", Vec3(0.45f, 0.50f, 0.58f) },
-                { "Filar Betonowy", "Cylinder nosny konstrukcji (1.5x6m)", Vec3(0.55f, 0.58f, 0.65f) },
-                { "Brama Bezpieczenstwa", "Przesuwne pancerne drzwi z czujnikiem", Vec3(0.25f, 0.35f, 0.45f) },
-                { "Fizyczna Skrzynia", "Drewniana skrzynia Havok (prop_crate)", Vec3(0.65f, 0.50f, 0.35f) },
-                { "Wybuchowa Beczka", "Czerwona beczka paliwa (prop_barrel)", Vec3(0.90f, 0.20f, 0.20f) }
+                { "Actor / Player Start", "Universal Actor / Character spawn point", Vec3(0.18f, 0.65f, 0.35f) },
+                { "Static Mesh Brush", "Solid geometric cube brush entity (2x2x2m)", Vec3(0.55f, 0.60f, 0.65f) },
+                { "Ground Platform (16x16)", "Subdivided floor geometry block", Vec3(0.40f, 0.45f, 0.50f) },
+                { "Architectural Barrier", "Tactical cover / structure barrier (3x1.2m)", Vec3(0.45f, 0.50f, 0.58f) },
+                { "Structural Pillar", "Concrete cylindrical / box column (1.5x6m)", Vec3(0.55f, 0.58f, 0.65f) },
+                { "Kinematic Door / Gate", "Sliding sensor-triggered kinematic entity", Vec3(0.25f, 0.35f, 0.45f) },
+                { "Physics Dynamic Prop", "RigidBody prop with mass and collision", Vec3(0.65f, 0.50f, 0.35f) },
+                { "Explosive Hazard Prop", "Physics barrel with radial detonation", Vec3(0.90f, 0.20f, 0.20f) },
+                { "Omni Point Light", "Omnidirectional 3D light with radius falloff", Vec3(0.95f, 0.75f, 0.15f) },
+                { "Trigger Zone Volume", "Box overlap volume for gameplay events", Vec3(0.20f, 0.75f, 0.85f) }
             };
 
             PrebuiltDesc cat1Items[] = {
-                { "Spawn: Pipe", "Bron biala rura (Melee)", Vec3(0.55f, 0.55f, 0.60f) },
-                { "Spawn: Pistol", "Pistolet taktyczny (Respawn: 60s)", Vec3(0.35f, 0.60f, 0.75f) },
-                { "Spawn: Shotgun", "Strzelba bojowa pompka (Respawn: 60s)", Vec3(0.75f, 0.45f, 0.25f) },
-                { "Spawn: M4A4-S", "Karabin szturmowy z tlumikiem (60s)", Vec3(0.25f, 0.60f, 0.40f) },
-                { "Spawn: SG553", "Karabin szturmowy z celownikiem (60s)", Vec3(0.40f, 0.50f, 0.65f) },
-                { "Spawn: Minigun", "Ciezki rotacyjny karabin (Respawn: 60s)", Vec3(0.85f, 0.55f, 0.15f) },
-                { "Spawn: Plasma Gun", "Wyrzutnia pociskow plazmowych (60s)", Vec3(0.20f, 0.75f, 0.85f) },
-                { "Spawn: Railgun", "Karabin elektromagnetyczny (Respawn: 60s)", Vec3(0.75f, 0.30f, 0.85f) },
-                { "Spawn: RPG", "Wyrzutnia rakiet eksplodujacych (60s)", Vec3(0.85f, 0.25f, 0.25f) }
+                { "Item / Pickup Node", "Collectible item entity (weapons, items)", Vec3(0.25f, 0.60f, 0.40f) },
+                { "Spatial Audio Emitter", "3D positional sound emitter node", Vec3(0.75f, 0.30f, 0.85f) },
+                { "Particle VFX Emitter", "Universal GPU particle effect system", Vec3(0.85f, 0.55f, 0.15f) },
+                { "Raycast Vehicle Entity", "4-wheel raycast suspension chassis", Vec3(0.35f, 0.60f, 0.75f) },
+                { "Fluid / Water Volume", "Archimedes buoyancy and wave water", Vec3(0.20f, 0.55f, 0.90f) },
+                { "Verlet Cloth / SoftBody", "Simulated deformable mesh / cloth", Vec3(0.75f, 0.45f, 0.25f) },
+                { "Physics Joint / Constraint", "Hinge, slider, ball-socket constraint", Vec3(0.65f, 0.40f, 0.70f) },
+                { "Radial Force / Attractor", "Explosion, wind and planetary attractor", Vec3(0.85f, 0.25f, 0.25f) },
+                { "NavMesh Obstacle Box", "Dynamic pathfinding navigation blocker", Vec3(0.50f, 0.50f, 0.55f) }
             };
 
             float startY = catY + 30.0f;
@@ -2954,21 +3062,69 @@ public:
         }
     }
 
-    // ==================== 5. BOTTOM CONSOLE / "Messages" ====================
-        float conW = std::min(720.0f, l.rightX - leftW - 40.0f);
+    // ==================== 5. BOTTOM DOCK (Console / Profiler) ====================
+        float conW = std::min(780.0f, l.rightX - leftW - 40.0f);
         float conH = 135.0f;
         float conX = leftW + 20.0f;
         float conY = h - conH - 32.0f;
 
         Renderer::drawRect(conX, conY, conW, conH, wellBg);
-        Renderer::drawRect(conX, conY, conW, 22.0f, Vec3(0.14f, 0.20f, 0.28f));
+        Renderer::drawRect(conX, conY, conW, 24.0f, Vec3(0.14f, 0.16f, 0.20f));
         drawDarkBevel(conX, conY, conW, conH, true);
 
-        LabFont::drawText(conX + 10.0f, conY + 5.0f, "Editor Messages & Optimization Log", 1.7f, cyanGlow, LabFontType::System);
+        // Bottom dock tabs: [ Console ] [ Profiler ]
+        bool isConsoleTab = (_bottomDockTab == BottomDockTab::Console);
+        bool isProfilerTab = (_bottomDockTab == BottomDockTab::Profiler);
 
-        for (int i = 0; i < (int)_consoleMessages.size(); ++i) {
-            Vec3 msgCol = (i == (int)_consoleMessages.size() - 1) ? greenAccent : Vec3(0.78f, 0.82f, 0.88f);
-            LabFont::drawText(conX + 12.0f, conY + 28.0f + i * 14.0f, _consoleMessages[i], 1.5f, msgCol, LabFontType::System);
+        Vec3 tabConsBg = isConsoleTab ? Vec3(0.20f, 0.24f, 0.32f) : Vec3(0.14f, 0.15f, 0.18f);
+        Renderer::drawRect(conX + 6.0f, conY + 2.0f, 90.0f, 20.0f, tabConsBg);
+        drawDarkBevel(conX + 6.0f, conY + 2.0f, 90.0f, 20.0f, isConsoleTab);
+        if (isConsoleTab) Renderer::drawRect(conX + 6.0f, conY + 20.0f, 90.0f, 2.0f, cyanGlow);
+        LabFont::drawText(conX + 18.0f, conY + 4.0f, "Console", 1.4f, isConsoleTab ? Vec3(1, 1, 1) : textDim, LabFontType::System);
+
+        Vec3 tabProfBg = isProfilerTab ? Vec3(0.20f, 0.24f, 0.32f) : Vec3(0.14f, 0.15f, 0.18f);
+        Renderer::drawRect(conX + 102.0f, conY + 2.0f, 90.0f, 20.0f, tabProfBg);
+        drawDarkBevel(conX + 102.0f, conY + 2.0f, 90.0f, 20.0f, isProfilerTab);
+        if (isProfilerTab) Renderer::drawRect(conX + 102.0f, conY + 20.0f, 90.0f, 2.0f, orangeGlow);
+        LabFont::drawText(conX + 114.0f, conY + 4.0f, "Profiler", 1.4f, isProfilerTab ? Vec3(1, 1, 1) : textDim, LabFontType::System);
+
+        if (isConsoleTab) {
+            for (int i = 0; i < (int)_consoleMessages.size(); ++i) {
+                Vec3 msgCol = (i == (int)_consoleMessages.size() - 1) ? greenAccent : Vec3(0.78f, 0.82f, 0.88f);
+                LabFont::drawText(conX + 12.0f, conY + 28.0f + i * 13.0f, _consoleMessages[i], 1.4f, msgCol, LabFontType::System);
+            }
+        } else {
+            // Live Profiler Telemetry
+            auto& prof = Profiler::instance();
+            auto mem = prof.getMemoryStats();
+            auto rend = prof.getRenderStats();
+            double frameMs = prof.getLastFrameTimeMs();
+            float fps = (frameMs > 0.001) ? (float)(1000.0 / frameMs) : 60.0f;
+
+            char buf1[128], buf2[128], buf3[128];
+            std::snprintf(buf1, sizeof(buf1), "Frame Time: %.2f ms | FPS: %.1f | Mode: %s",
+                          frameMs, fps, (_simState == EngineSimState::Playing ? "PLAYING" : (_simState == EngineSimState::Paused ? "PAUSED" : "STOPPED")));
+            std::snprintf(buf2, sizeof(buf2), "Draw Calls: %u | Triangles: %u | Shaders: %u | VBO Upload: %zu KB",
+                          rend.drawCalls, rend.triangles, rend.shaderBinds, rend.vboBytesUploaded / 1024);
+            std::snprintf(buf3, sizeof(buf3), "RAM Current: %.2f MB | Peak: %.2f MB | VRAM: %.2f MB | Allocs: %zu",
+                          mem.currentUsageRAM / (1024.0 * 1024.0), mem.peakUsageRAM / (1024.0 * 1024.0),
+                          mem.currentUsageVRAM / (1024.0 * 1024.0), mem.allocationCount);
+
+            LabFont::drawText(conX + 12.0f, conY + 30.0f, buf1, 1.5f, greenAccent, LabFontType::System);
+            LabFont::drawText(conX + 12.0f, conY + 52.0f, buf2, 1.4f, cyanGlow, LabFontType::System);
+            LabFont::drawText(conX + 12.0f, conY + 74.0f, buf3, 1.4f, orangeGlow, LabFontType::System);
+
+            const auto& scopes = prof.getLastFrameScopes();
+            if (!scopes.empty()) {
+                std::string scopeStr = "Active Timelines: ";
+                size_t maxScopes = std::min(size_t(3), scopes.size());
+                for (size_t s = 0; s < maxScopes; ++s) {
+                    scopeStr += "[" + scopes[s].name + ": " + std::to_string((int)scopes[s].durationUs) + "us] ";
+                }
+                LabFont::drawText(conX + 12.0f, conY + 96.0f, scopeStr, 1.3f, textLight, LabFontType::System);
+            } else {
+                LabFont::drawText(conX + 12.0f, conY + 96.0f, "Active Timelines: [MainLoop] [RenderGraph] [PhysicsStep]", 1.3f, textDim, LabFontType::System);
+            }
         }
 
         // CSG Clip Tool HUD Banner when active
@@ -3212,10 +3368,15 @@ private:
     SelectionType _selectionType = SelectionType::None;
     int _selectedIndex = -1;
 
+    // Engine Simulation & Viewport State
+    EngineSimState _simState = EngineSimState::Stopped;
+    bool _orthoViewMode = false;
+    BottomDockTab _bottomDockTab = BottomDockTab::Console;
+
     // Sidebar State
     SidebarTab _sidebarTab = SidebarTab::Properties;
     int _outlinerScroll = 0;
-    int _prebuiltCategory = 0; // 0 = Entities / Spawns, 1 = Weapon Spawners
+    int _prebuiltCategory = 0; // 0 = Entities / Geometry, 1 = Components / Items
 
     int _activeTool = 1; // 0=Select, 1=Brush, 2=Prop, 3=Texture, 4=Door, 5=Spawn, 6=Resize, 7=Sun
     SpawnType _spawnToolType = SpawnType::FFA;
