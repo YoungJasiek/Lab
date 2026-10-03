@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Project Hub &amp; Decoupled Architecture – Technical guide for Lab Engine's Main Menu, Project Manager, Virtual URI Resolution (engine:// vs game://), and Standalone Game Exporter.">
+  <meta name="keywords" content="Project Hub, Main Menu, Project Manager, Decoupled Architecture, Virtual URI, Standalone Exporter, Frozen-Life, Lab Engine">
+  <meta name="author" content="YoungJasiek">
+
+  <title>Project Hub, Main Menu &amp; Decoupled Architecture – Lab Developer Community</title>
+  <link rel="icon" type="image/webp" href="assets/img/LabLogo.webp">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <a href="#content" class="skip-link">Skip to main content</a>
+
+  <!-- TOP HEADER -->
+  <header class="vdc-top-header" role="banner">
+    <div class="vdc-header-left">
+      <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
+      <a href="index.html" class="vdc-brand">
+        <img src="assets/img/LabLogo.webp" alt="Lab Engine Logo" class="vdc-logo-img">
+        <div class="vdc-brand-text">
+          <span class="vdc-brand-title"><span class="accent">Lab</span> Developer Community</span>
+          <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LABEDITOR</span>
+        </div>
+      </a>
+    </div>
+
+    <div class="vdc-search-bar" role="search">
+      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search documentation..." aria-label="Search wiki documentation">
+      <span class="vdc-search-icon" aria-hidden="true">&#128269;</span>
+    </div>
+
+    <div class="vdc-header-right">
+      <button id="theme-toggle-btn" class="theme-toggle-btn" aria-label="Toggle theme">&#9728;&#65039; Light Mode</button>
+      <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="github-badge-btn" aria-label="GitHub repository">
+        <span>GitHub</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- WIKI CONTAINER -->
+  <div class="vdc-page-container">
+
+    <!-- Sidebar Navigation -->
+    <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
+      <div class="sidebar-block">
+        <div class="sidebar-title"><a href="modules.html" style="color:inherit; text-decoration:none;">Engine Modules (.dll)</a></div>
+        <ul class="sidebar-links">
+          <li><a href="module-core.html">LabCore.dll</a></li>
+          <li><a href="module-render.html">LabRender.dll</a></li>
+          <li><a href="module-audio.html">LabAudio.dll</a></li>
+          <li><a href="module-physics.html">LabPhysics.dll</a></li>
+          <li><a href="module-animation.html">LabAnimation.dll</a></li>
+          <li><a href="module-world.html">LabWorld.dll</a></li>
+          <li><a href="module-network.html">LabNetwork.dll</a></li>
+          <li><a href="module-ai.html">LabAI.dll</a></li>
+          <li><a href="module-script.html">LabScript.dll</a></li>
+          <li><a href="module-studio.html">LabStudioCore.dll</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Documentation</div>
+        <ul class="sidebar-links">
+          <li><a href="index.html">Main Page (Portal)</a></li>
+          <li><a href="project-hub.html" class="active">Project Hub &amp; Main Menu</a></li>
+          <li><a href="plugins.html">Modular Drop-in Plugins</a></li>
+          <li><a href="labeditor.html">LabEditor Suite</a></li>
+          <li><a href="frozen-life.html">Frozen-Life (Demo FPS)</a></li>
+          <li><a href="labhammer.html">LabHammer (3D CAD)</a></li>
+          <li><a href="lighting.html">Dynamic Lighting &amp; Lamps</a></li>
+          <li><a href="character-studio.html">Character &amp; Weapon Studio</a></li>
+          <li><a href="skeletal-animations.html">Skeletal &amp; FBX Animations</a></li>
+          <li><a href="bot-ai.html">Combat Bot AI</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></li>
+          <li><a href="multiplayer.html">UDP Multiplayer</a></li>
+          <li><a href="audio-synthesizer.html">3D Audio &amp; Synthesizer</a></li>
+          <li><a href="lua-scripting.html">Lua 5.4 Scripting &amp; IDE</a></li>
+          <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+          <li><a href="building.html">Building from Source</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Hub Topics</div>
+        <ul class="sidebar-links">
+          <li><a href="#sec-overview">Project Hub Overview</a></li>
+          <li><a href="#sec-decoupling">Engine vs Game Asset Decoupling</a></li>
+          <li><a href="#sec-virtual-uri">Virtual URI System (engine:// &amp; game://)</a></li>
+          <li><a href="#sec-management">Project Management &amp; Discovery</a></li>
+          <li><a href="#sec-exporter">One-Click Standalone Exporter</a></li>
+          <li><a href="#sec-frozen-life">Frozen-Life Flagship Showcase</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main id="content" class="vdc-main-content" role="main">
+
+      <nav class="vdc-page-tabs" aria-label="Namespace tabs">
+        <div class="tabs-left">
+          <a href="project-hub.html" class="wiki-tab active">Project Hub Article</a>
+          <a href="labeditor.html" class="wiki-tab">LabEditor Suite</a>
+          <a href="plugins.html" class="wiki-tab">Modular Plugins</a>
+        </div>
+        <div class="tabs-right">
+          <a href="project-hub.html" class="wiki-tab active">Read</a>
+          <a href="https://github.com/YoungJasiek/Lab/blob/main/src/LabProject.cpp" target="_blank" class="wiki-tab">View C++ Source</a>
+        </div>
+      </nav>
+
+      <div class="wiki-breadcrumbs">
+        <a href="index.html">Main Page</a>
+        <span class="crumb-sep">&gt;</span>
+        <span>Developer Toolset</span>
+        <span class="crumb-sep">&gt;</span>
+        <span class="crumb-current">Project Hub &amp; Decoupled Architecture</span>
+      </div>
+
+      <h1 class="firstHeading">
+        <span>Project Hub, Main Menu &amp; Decoupled Game Architecture</span>
+        <span style="font-size: 0.85rem; font-weight: normal; font-family: var(--font-mono); color: var(--wiki-accent);">[LabProject.h / editor_main.cpp]</span>
+      </h1>
+      <div class="siteSub">From Lab Developer Community &ndash; Project Manager Launcher, Isolated Asset Hierarchies (Documents/LabGames), Virtual URIs (engine:// vs game://) &amp; Standalone Game Exporter</div>
+
+      <!-- Infobox -->
+      <aside class="infobox" aria-label="Project Hub Infobox">
+        <div class="infobox-title">
+          Project Hub
+          <span class="infobox-subtitle">ENGINE MAIN MENU &amp; MANAGER</span>
+        </div>
+        <div class="infobox-image">
+          <img src="assets/img/test_host_menu.webp" alt="Project Hub Main Menu" style="max-height:140px; object-fit:contain;">
+          <div class="infobox-caption">Engine Launcher and Project Management Workspace</div>
+        </div>
+        <table class="infobox-table">
+          <tr><th>Workspace</th><td><code>EditorWorkspace::Project_Hub</code></td></tr>
+          <tr><th>Core Headers</th><td><code>include/LabProject.h</code></td></tr>
+          <tr><th>Core Source</th><td><code>src/LabProject.cpp</code></td></tr>
+          <tr><th>Project Discovery</th><td><code>games/*</code> and <code>Documents/LabGames/*</code></td></tr>
+          <tr><th>Project Manifest</th><td><code>project.labproject</code> (JSON)</td></tr>
+          <tr><th>Game Config</th><td><code>game.config</code></td></tr>
+          <tr><th>URI Resolution</th><td><code>engine://</code> &bull; <code>game://</code></td></tr>
+          <tr><th>Build Exporter</th><td>Automated standalone bundling (demo/)</td></tr>
+          <tr><th>Flagship Game</th><td>Frozen-Life (3D Showcase)</td></tr>
+        </table>
+      </aside>
+
+      <!-- TOC -->
+      <div class="toc" role="navigation" aria-labelledby="toc-heading">
+        <div class="toctitle">
+          <h2 id="toc-heading">Contents</h2>
+          <span class="toctoggle">[<a href="javascript:void(0)" id="toctogglelink">hide</a>]</span>
+        </div>
+        <ul id="toc-list">
+          <li><a href="#sec-overview"><span class="tocnumber">1</span> Overview &amp; Engine Main Menu</a></li>
+          <li><a href="#sec-decoupling"><span class="tocnumber">2</span> Engine vs Game Asset Decoupling</a></li>
+          <li><a href="#sec-virtual-uri"><span class="tocnumber">3</span> Virtual URI Resolution (engine:// vs game://)</a></li>
+          <li><a href="#sec-management"><span class="tocnumber">4</span> Project Management, Creation &amp; Discovery</a></li>
+          <li><a href="#sec-exporter"><span class="tocnumber">5</span> Automated One-Click Standalone Exporter</a></li>
+          <li><a href="#sec-frozen-life"><span class="tocnumber">6</span> Frozen-Life Decoupled Showcase &amp; Demo Bundle</a></li>
+        </ul>
+      </div>
+
+      <!-- Section 1: Overview -->
+      <section id="sec-overview" class="wiki-section">
+        <h2>1. Overview &amp; Engine Main Menu</h2>
+        <p>
+          The <strong>Project Hub</strong> acts as the central gateway and main menu for the Lab Engine. Rather than hardcoding a single game into the engine executable, Lab operates as a true general-purpose engine:
+        </p>
+        <ul>
+          <li><strong>Project Launching:</strong> Launch existing projects, continue recent sessions, or open projects from anywhere on disk.</li>
+          <li><strong>Clean Project Lifecycle:</strong> Create brand new 2D or 3D games with a single click, complete with boilerplate configs, maps, and asset folders.</li>
+          <li><strong>Non-Destructive Switching:</strong> Switch active projects inside <code>LabEditor.exe</code> seamlessly without restarting the software or losing project settings.</li>
+          <li><strong>Release Purity:</strong> Engine distribution binaries (Release builds) contain only the clean engine toolset, while games remain independently packaged.</li>
+        </ul>
+      </section>
+
+      <!-- Section 2: Decoupling -->
+      <section id="sec-decoupling" class="wiki-section">
+        <h2>2. Engine vs Game Asset Decoupling</h2>
+        <p>
+          A critical architectural milestone was achieved by strictly isolating engine-internal assets from game-specific resources:
+        </p>
+        <div class="table-wrapper">
+          <table class="wikitable">
+            <thead>
+              <tr>
+                <th>Resource Category</th>
+                <th>Physical Location</th>
+                <th>Virtual Prefix</th>
+                <th>Contents &amp; Scope</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Engine Assets</strong></td>
+                <td><code>engine/assets/</code></td>
+                <td><code>engine://</code></td>
+                <td>Default shaders (Blinn-Phong, grid, skybox), engine fallback textures (missing texture checkerboard), editor icons, and core UI fonts.</td>
+              </tr>
+              <tr>
+                <td><strong>Game Assets</strong></td>
+                <td><code>games/&lt;project&gt;/assets/</code> or <code>Documents/LabGames/&lt;project&gt;/assets/</code></td>
+                <td><code>game://</code></td>
+                <td>Levels (<code>.labmap</code>), audio, 3D models, textures, skyboxes, and HUD layouts (<code>.labhud</code>) specific to the user's game.</td>
+              </tr>
+              <tr>
+                <td><strong>Drop-in Plugins</strong></td>
+                <td><code>plugins/</code></td>
+                <td><em>filesystem</em></td>
+                <td>Standalone Lua plugins (1 file = 1 plugin) managed via the Package Manager.</td>
+              </tr>
+              <tr>
+                <td><strong>Core Scripts</strong></td>
+                <td><code>scripts/</code></td>
+                <td><em>filesystem</em></td>
+                <td>Engine-level automation and balance scripts.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          This decoupling guarantees that CMake builds never contaminate user game code with engine dependencies, and game developers can freely version control their games in separate repositories.
+        </p>
+      </section>
+
+      <!-- Section 3: Virtual URI -->
+      <section id="sec-virtual-uri" class="wiki-section">
+        <h2>3. Virtual URI Resolution (<code>engine://</code> vs <code>game://</code>)</h2>
+        <p>
+          Lab introduces a unified virtual URI abstraction implemented in <code>LabProject::resolvePath()</code>:
+        </p>
+        <pre><code class="language-cpp">// Resolving engine-internal resource
+std::string fontPath = ProjectManager::resolvePath("engine://fonts/segoeui.ttf");
+// -> "C:/Lab/engine/assets/fonts/segoeui.ttf"
+
+// Resolving game-specific level or HUD
+std::string mapPath = ProjectManager::resolvePath("game://assets/maps/cryo_complex.labmap");
+// -> "C:/Users/.../Documents/LabGames/FrozenLife/assets/maps/cryo_complex.labmap"</code></pre>
+        <p>
+          If a requested game asset does not exist, the resolver automatically falls back to the corresponding <code>engine://</code> asset, preventing runtime null-pointer crashes while logging clear diagnostic warnings.
+        </p>
+      </section>
+
+      <!-- Section 4: Management & Discovery -->
+      <section id="sec-management" class="wiki-section">
+        <h2>4. Project Management, Creation &amp; Discovery</h2>
+        <p>
+          <code>ProjectManager</code> automatically discovers available projects from two primary locations:
+        </p>
+        <ol>
+          <li><strong>Built-in Showcase Games:</strong> <code>games/*</code> located within the engine installation (e.g., <code>games/frozen_life/</code>).</li>
+          <li><strong>User Projects:</strong> <code>Documents/LabGames/*</code> on Windows (or <code>~/LabGames/*</code> on Linux), keeping user game assets entirely separate from CMake build artifacts.</li>
+        </ol>
+
+        <h3>Project Manifest Specification (<code>project.labproject</code>)</h3>
+        <p>Every project folder contains a JSON manifest detailing metadata and default parameters:</p>
+        <pre><code class="language-json">{
+  "id": "frozen_life",
+  "name": "Frozen-Life (3D Showcase)",
+  "version": "1.0.0",
+  "author": "Lab Engine Team",
+  "defaultMap": "assets/maps/cryo_complex.labmap",
+  "defaultHud": "assets/hud/frozen_life_hud.labhud",
+  "genre": "FPS",
+  "dimension": "3D",
+  "entryScript": "scripts/game_init.lua"
+}</code></pre>
+      </section>
+
+      <!-- Section 5: Exporter -->
+      <section id="sec-exporter" class="wiki-section">
+        <h2>5. Automated One-Click Standalone Exporter</h2>
+        <p>
+          Building a release game for players no longer requires manual file copying. In the Project Hub or via <code>Ctrl+B</code>, the <strong>Automated Exporter</strong> creates an independent shipping package:
+        </p>
+        <div class="build-highlight-card" style="margin: 15px 0;">
+          <h3 style="margin-top:0; color:var(--wiki-accent);">&#128640; Standalone Distribution Output</h3>
+          <p>The exporter automatically packages:</p>
+          <ul>
+            <li><code>LabPlayer.exe</code> &ndash; Stripped standalone runtime player.</li>
+            <li>All 10 Engine DLLs (<code>LabCore.dll</code>, <code>LabRender.dll</code>, etc.) &ndash; Automatically copied to the destination folder.</li>
+            <li><code>game.config</code> &ndash; Configured with default map, HUD, resolution, and audio settings.</li>
+            <li><code>assets/</code> &ndash; Cloned and optimized game assets (maps, textures, audio, HUDs).</li>
+            <li><code>run_game.bat</code> &ndash; Instant launcher script for players.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Section 6: Frozen-Life -->
+      <section id="sec-frozen-life" class="wiki-section">
+        <h2>6. Frozen-Life Decoupled Showcase &amp; Demo Bundle</h2>
+        <p>
+          <strong>Frozen-Life (FL)</strong> is the engine's premier showcase game, now completely decoupled and structured according to the new standards:
+        </p>
+        <ul>
+          <li><strong>Project Root:</strong> <code>games/frozen_life/</code></li>
+          <li><strong>Native HUD Restored:</strong> <code>assets/hud/frozen_life_hud.labhud</code> with SUIT 0%, HEALTH 150, Ammo indicators, and Cryo Complex Outpost badge.</li>
+          <li><strong>Standalone Demo Package:</strong> Pre-built standalone demo located in <code>games/frozen_life/demo/</code>. Users can run the demo directly via <code>run_demo.bat</code> without opening the editor!</li>
+          <li><strong>Continuous Verification:</strong> Test 80 in the automated suite explicitly asserts the validity of the Frozen-Life manifest, default map, and native HUD.</li>
+        </ul>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="vdc-footer" role="contentinfo">
+    <div class="footer-info">
+      <div>Official Technical Documentation &bull; Lab Engine, LabHammer &amp; Frozen-Life.</div>
+      <div>Modern C++20 and OpenGL 4.5+ Direct State Access specifications.</div>
+    </div>
+    <div>
+      <a href="#content" style="color: var(--wiki-accent);">Back to top &uarr;</a>
+    </div>
+  </footer>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

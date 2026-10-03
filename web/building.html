@@ -59,18 +59,21 @@
     <!-- Left Sidebar Navigation -->
     <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
       <div class="sidebar-block">
-                <div class="sidebar-title">Documentation</div>
+        <div class="sidebar-title">Documentation</div>
         <ul class="sidebar-links">
           <li><a href="index.html">Main Page (Portal)</a></li>
+          <li><a href="project-hub.html">Project Hub &amp; Main Menu</a></li>
+          <li><a href="plugins.html">Modular Drop-in Plugins</a></li>
+          <li><a href="labeditor.html">LabEditor Suite</a></li>
+          <li><a href="frozen-life.html">Frozen-Life (Demo FPS)</a></li>
           <li><a href="labhammer.html">LabHammer Editor</a></li>
-          <li><a href="character-studio.html">Character & Weapon Studio</a></li>
-          <li><a href="skeletal-animations.html">Skeletal & FBX Animations</a></li>
+          <li><a href="character-studio.html">Character &amp; Weapon Studio</a></li>
+          <li><a href="skeletal-animations.html">Skeletal &amp; FBX Animations</a></li>
           <li><a href="bot-ai.html">Combat Bot AI</a></li>
-          <li><a href="weapons-viewmodel.html">Weapons & Viewmodel</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></li>
           <li><a href="multiplayer.html">UDP Multiplayer</a></li>
-          <li><a href="audio-synthesizer.html">3D Audio & Synthesizer</a></li>
+          <li><a href="audio-synthesizer.html">3D Audio &amp; Synthesizer</a></li>
           <li><a href="lua-scripting.html">Lua 5.4 Scripting</a></li>
-          <li><a href="frozen-life.html">Frozen-Life Build</a></li>
           <li><a href="architecture.html">Engine Architecture</a></li>
           <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
           <li><a href="building.html" class="active">Building from Source</a></li>
@@ -298,9 +301,19 @@ ctest -C Release --output-on-failure</code></pre>
             </thead>
             <tbody>
               <tr>
-                <td><code>Lab.exe</code></td>
+                <td><code>LabEditor.exe</code></td>
                 <td>Executable</td>
-                <td>Official Playable Test Build of Frozen-Life (FPS client, menus, bots, audio).</td>
+                <td>Unified Multi-Workspace IDE (3D Level, Tilemap, Character Studio, HUD Designer, Script IDE, Project Hub).</td>
+              </tr>
+              <tr>
+                <td><code>LabPlayer.exe</code></td>
+                <td>Executable</td>
+                <td>Standalone runtime client that loads and executes game projects via <code>game.config</code>.</td>
+              </tr>
+              <tr>
+                <td><code>LabServer.exe</code></td>
+                <td>Executable</td>
+                <td>Dedicated headless authoritative UDP multiplayer server (64-128Hz).</td>
               </tr>
               <tr>
                 <td><code>LabHammer.exe</code></td>
@@ -308,17 +321,24 @@ ctest -C Release --output-on-failure</code></pre>
                 <td>Standalone 3D Level Editor CAD suite with Dear ImGui docking.</td>
               </tr>
               <tr>
-                <td><code>LabEngineLib.lib</code></td>
-                <td>Static Library</td>
-                <td>Compiled core C++20 engine subsystems (Renderer, Physics, Map Parser).</td>
+                <td><code>10 Modular DLLs</code></td>
+                <td>Dynamic Libraries</td>
+                <td>Decoupled subsystems: <code>LabCore.dll</code>, <code>LabRender.dll</code>, <code>LabAudio.dll</code>, <code>LabPhysics.dll</code>, etc.</td>
               </tr>
               <tr>
                 <td><code>TestVerify.exe</code></td>
                 <td>Test Suite</td>
-                <td>Automated tests validating Slab Ray-AABB collision math and vector operations.</td>
+                <td>Automated verification suite with 80 comprehensive tests (100% pass rate).</td>
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <div class="build-highlight-card" style="margin: 20px 0;">
+          <h3 style="margin-top:0; color:var(--wiki-accent);">&#128640; Decoupled Game Standalone Distribution</h3>
+          <p>
+            When shipping a game created with Lab, do not distribute the entire source repo or CMake project. Use the <strong>Standalone Exporter</strong> (<code>Ctrl+B</code> in LabEditor or via the Project Hub) to bundle a self-contained folder (e.g. <code>games/frozen_life/demo/</code>) containing <code>LabPlayer.exe</code>, the 10 DLLs, <code>game.config</code>, and the game's isolated <code>assets/</code>.
+          </p>
         </div>
       </section>
 

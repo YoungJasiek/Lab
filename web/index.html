@@ -78,6 +78,8 @@
         <div class="sidebar-title">Documentation</div>
         <ul class="sidebar-links">
           <li><a href="index.html" class="active">Main Page (Portal)</a></li>
+          <li><a href="project-hub.html">Project Hub &amp; Main Menu</a></li>
+          <li><a href="plugins.html">Modular Drop-in Plugins</a></li>
           <li><a href="labeditor.html">LabEditor Suite</a></li>
           <li><a href="frozen-life.html">Frozen-Life (Demo FPS)</a></li>
           <li><a href="labhammer.html">LabHammer (3D CAD)</a></li>
@@ -153,14 +155,16 @@
         </p>
         <div class="vdc-banner-badges">
           <span class="vdc-badge accent">Engine: Universal 2D &amp; 3D SDK</span>
-          <span class="vdc-badge accent">Tests: 77/77 Passed (100%)</span>
-          <span class="vdc-badge accent">Editor: LabEditor.exe (5 Workspaces)</span>
-          <span class="vdc-badge accent">Runner: LabPlayer.exe</span>
+          <span class="vdc-badge accent">Tests: 80/80 Passed (100%)</span>
+          <span class="vdc-badge accent">Editor: LabEditor.exe (Workspaces + Project Hub)</span>
+          <span class="vdc-badge accent">Plugins: Modular Drop-in (1 kod = 1 plugin)</span>
+          <span class="vdc-badge accent">Architecture: Decoupled (engine:// vs game://)</span>
+          <span class="vdc-badge">Runner: LabPlayer.exe (Standalone Demo)</span>
           <span class="vdc-badge">Platform: Windows | Linux | WASM</span>
           <span class="vdc-badge">Language: ISO C++20</span>
           <span class="vdc-badge">Renderer: OpenGL 4.5+ DSA</span>
           <span class="vdc-badge">Network: Authoritative UDP (64-128Hz)</span>
-          <span class="vdc-badge">Scripting: Lua 5.4 + Protected .luac</span>
+          <span class="vdc-badge">Scripting: Lua 5.4 + Drop-in Package Manager</span>
         </div>
       </div>
 
@@ -169,18 +173,48 @@
            ================================================================ -->
       <section class="vdc-portal-grid" aria-label="Documentation category portals">
         
+        <!-- Portal: Project Hub & Main Menu -->
+        <div class="portal-box">
+          <div class="portal-header">
+            <span class="portal-icon">&#128193;</span>
+            <h3 class="portal-title"><a href="project-hub.html">Project Hub &amp; Main Menu</a></h3>
+          </div>
+          <p class="portal-desc">Engine launcher and multi-project manager. Strict decoupling of engine assets (engine://) from user games (game:// in Documents/LabGames), project discovery, and one-click standalone demo exporter.</p>
+          <ul class="portal-links">
+            <li><a href="project-hub.html#sec-overview">&bull; Engine Main Menu &amp; Launcher</a></li>
+            <li><a href="project-hub.html#sec-decoupling">&bull; Engine vs Game Asset Decoupling</a></li>
+            <li><a href="project-hub.html#sec-virtual-uri">&bull; Virtual URI System (engine:// vs game://)</a></li>
+            <li><a href="project-hub.html#sec-exporter">&bull; Automated Standalone Exporter</a></li>
+          </ul>
+        </div>
+
+        <!-- Portal: Modular Plugins -->
+        <div class="portal-box">
+          <div class="portal-header">
+            <span class="portal-icon">&#129513;</span>
+            <h3 class="portal-title"><a href="plugins.html">Modular Drop-in Plugins</a></h3>
+          </div>
+          <p class="portal-desc">Unity/Blender-style decentralized extension system (1 kod = 1 plugin). Drop-in Lua scripts in plugins/*.lua, in-engine Package Manager GUI, instant toggle switches, and 9 built-in showcase plugins.</p>
+          <ul class="portal-links">
+            <li><a href="plugins.html#sec-philosophy">&bull; 1 Kod = 1 Plugin Philosophy</a></li>
+            <li><a href="plugins.html#sec-package-manager">&bull; In-Engine Package Manager GUI</a></li>
+            <li><a href="plugins.html#sec-showcase">&bull; 9 Showcase Drop-in Plugins</a></li>
+            <li><a href="plugins.html#sec-api">&bull; Plugin Lua API &amp; Life Cycle</a></li>
+          </ul>
+        </div>
+
         <!-- Portal 1: LabEditor -->
         <div class="portal-box">
           <div class="portal-header">
             <span class="portal-icon">&#9881;</span>
             <h3 class="portal-title"><a href="labeditor.html">LabEditor Unified Suite</a></h3>
           </div>
-          <p class="portal-desc">Centralized multi-workspace creation tool. 5 Workspaces &amp; 13 Sub-modes (3D Level, 2D Tilemap, Studio Posing, HUD Designer, Full-Viewport Scripting IDE), Play-In-Editor (PIE) simulation, Profiler dock, and Universal Export.</p>
+          <p class="portal-desc">Centralized multi-workspace creation tool. Workspaces for 3D Level, 2D Tilemap, Studio Posing, HUD Designer, Full-Viewport Scripting IDE, Project Hub, PIE simulation, and Package Manager.</p>
           <ul class="portal-links">
-            <li><a href="labeditor.html#sec-workspaces">&bull; 5 Workspaces &amp; 13 Sub-Modes</a></li>
+            <li><a href="labeditor.html#sec-workspaces">&bull; 5 Workspaces &amp; Project Hub</a></li>
             <li><a href="labeditor.html#sec-pie">&bull; Play-In-Editor (PIE) 64Hz Sim</a></li>
             <li><a href="labeditor.html#sec-script-ide">&bull; Full-Viewport Lua Scripting IDE</a></li>
-            <li><a href="labeditor.html#sec-hud-canvas">&bull; Multi-Genre HUD Canvas Designer</a></li>
+            <li><a href="labeditor.html#sec-plugins">&bull; Package Manager Integration</a></li>
           </ul>
         </div>
 
@@ -628,6 +662,18 @@
                 <td>Branchless Kay-Kajiya slab method, deterministic 60Hz accumulator</td>
                 <td>Sub-0.1&micro;s Ray-AABB</td>
                 <td><a href="architecture.html#sec-collision">Spatial Collision Math</a></td>
+              </tr>
+              <tr>
+                <td><strong>Project Architecture</strong></td>
+                <td>Decoupled Game Projects (Documents/LabGames), Virtual URIs (engine:// &amp; game://), Standalone Exporter</td>
+                <td>Project Hub &amp; Manifest (.labproject)</td>
+                <td><a href="project-hub.html">Project Hub &amp; Decoupled Architecture</a></td>
+              </tr>
+              <tr>
+                <td><strong>Plugin System</strong></td>
+                <td>Modular Drop-in Lua (1 script = 1 plugin), In-Engine Package Manager, Hot Reload, 9 Showcase Addons</td>
+                <td>Drop-in Package Standard</td>
+                <td><a href="plugins.html">Modular Drop-in Plugins</a></td>
               </tr>
               <tr>
                 <td><strong>Build System</strong></td>

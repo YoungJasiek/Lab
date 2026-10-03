@@ -99,8 +99,24 @@ function initActiveNav() {
 const WIKI_SEARCH_INDEX = [
   // index.html
   { title: "Main Page", url: "index.html", cat: "Portal", snippet: "Lab Developer Community central documentation hub and overview." },
+  { title: "Project Hub & Main Menu", url: "project-hub.html", cat: "Portal", snippet: "Engine main menu, project launcher, asset decoupling (engine:// vs game://), and standalone exporter." },
+  { title: "Modular Drop-in Plugins", url: "plugins.html", cat: "Portal", snippet: "Decentralized Unity/Blender-style Lua plugins (1 kod = 1 plugin) with in-engine Package Manager GUI." },
   { title: "Featured Subject: LabHammer", url: "labhammer.html", cat: "Portal", snippet: "The official standalone 3D level editor for the Lab Engine and Frozen-Life." },
   { title: "Latest Release: Frozen-Life Alpha", url: "frozen-life.html", cat: "Portal", snippet: "First playable test build v0.1.0-alpha featuring 2 maps and multiplayer foundation." },
+
+  // plugins.html
+  { title: "Modular Plugins: 1 Kod = 1 Plugin", url: "plugins.html#sec-philosophy", cat: "Plugins", snippet: "Decentralized single-file Lua plugin architecture without monolithic script merges." },
+  { title: "Modular Plugins: Drop-in Discovery", url: "plugins.html#sec-discovery", cat: "Plugins", snippet: "Filesystem scan of plugins/*.lua with standard metadata headers." },
+  { title: "Modular Plugins: Package Manager GUI", url: "plugins.html#sec-package-manager", cat: "Plugins", snippet: "In-engine Package Manager modal with search, category filters, and live toggle switches." },
+  { title: "Modular Plugins: 9 Showcase Plugins", url: "plugins.html#sec-showcase", cat: "Plugins", snippet: "Showcase plugins including AI Patrol, Vehicle Physics, Dialogue Quest, CRT Shaders, and Voxel Terrain." },
+  { title: "Modular Plugins: Life Cycle & API", url: "plugins.html#sec-api", cat: "Plugins", snippet: "onLoad(), onUnload(), onUpdate(dt), onRender(), and onEditorGui() life cycle callbacks." },
+
+  // project-hub.html
+  { title: "Project Hub: Main Menu & Launcher", url: "project-hub.html#sec-overview", cat: "Project Hub", snippet: "Engine main menu workspace for launching, switching, and creating independent game projects." },
+  { title: "Project Hub: Asset Decoupling", url: "project-hub.html#sec-decoupling", cat: "Project Hub", snippet: "Decoupled engine assets in engine/assets/ vs game assets in Documents/LabGames/." },
+  { title: "Project Hub: Virtual URI Resolution", url: "project-hub.html#sec-virtual-uri", cat: "Project Hub", snippet: "Unified virtual URI system resolving engine:// and game:// with automatic fallback." },
+  { title: "Project Hub: Standalone Exporter", url: "project-hub.html#sec-exporter", cat: "Project Hub", snippet: "One-click build pipeline bundling standalone demo distributions with LabPlayer.exe." },
+  { title: "Project Hub: Frozen-Life Showcase", url: "project-hub.html#sec-frozen-life", cat: "Project Hub", snippet: "Flagship 3D showcase game located in games/frozen_life/ with standalone demo and native HUD." },
   
   // labhammer.html
   { title: "LabHammer Overview", url: "labhammer.html#sec-overview", cat: "LabHammer", snippet: "Standalone 3D world creation suite linked directly to LabEngineLib." },

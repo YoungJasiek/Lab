@@ -19,7 +19,7 @@
 
 ## 🗂️ Workspaces & Specialized Sub-Modes
 
-LabEditor organizes toolsets into 5 top-level workspace categories accessible from the menu bar (`View -> Workspaces`) or via keyboard shortcuts:
+LabEditor organizes toolsets into top-level workspace categories accessible from the menu bar (`View -> Workspaces`) or via keyboard shortcuts:
 
 ```
 [ LabEditor Workspaces ]
@@ -37,9 +37,13 @@ LabEditor organizes toolsets into 5 top-level workspace categories accessible fr
 │   ├── 2D > Level & Tilemap Editor      (SpriteSheets, Tile Palettes, Parallax)
 │   ├── 2D > Animation Timeline          (2D Spritesheet Frame Sequencer)
 │   └── 2D > Multi-Genre HUD Canvas      (Virtual 1920x1080 Artboard Designer)
-└── 4. Scripting Workspaces
-    ├── Scripting > Code Editor IDE      (Full-Viewport Interactive Lua IDE)
-    └── Scripting > Interactive Console  (Lua REPL & Real-Time Engine Debug)
+├── 4. Scripting Workspaces
+│   ├── Scripting > Code Editor IDE      (Full-Viewport Interactive Lua IDE)
+│   └── Scripting > Interactive Console  (Lua REPL & Real-Time Engine Debug)
+└── 5. Project Hub Workspace
+    ├── Hub > Project Launcher           (Discover, switch, & launch projects)
+    ├── Hub > New Game Wizard            (Create isolated games in Documents/LabGames)
+    └── Hub > Standalone Exporter        (One-click standalone demo/ distribution)
 ```
 
 ### 1. 3D World & Level Editor (`World3D_Level`)

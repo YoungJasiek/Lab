@@ -43,18 +43,21 @@
   <div class="vdc-page-container">
     <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
       <div class="sidebar-block">
-                <div class="sidebar-title">Documentation</div>
+        <div class="sidebar-title">Documentation</div>
         <ul class="sidebar-links">
           <li><a href="index.html">Main Page (Portal)</a></li>
+          <li><a href="project-hub.html">Project Hub &amp; Main Menu</a></li>
+          <li><a href="plugins.html">Modular Drop-in Plugins</a></li>
+          <li><a href="labeditor.html">LabEditor Suite</a></li>
+          <li><a href="frozen-life.html">Frozen-Life (Demo FPS)</a></li>
           <li><a href="labhammer.html">LabHammer Editor</a></li>
-          <li><a href="character-studio.html">Character & Weapon Studio</a></li>
-          <li><a href="skeletal-animations.html">Skeletal & FBX Animations</a></li>
+          <li><a href="character-studio.html">Character &amp; Weapon Studio</a></li>
+          <li><a href="skeletal-animations.html">Skeletal &amp; FBX Animations</a></li>
           <li><a href="bot-ai.html">Combat Bot AI</a></li>
-          <li><a href="weapons-viewmodel.html">Weapons & Viewmodel</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></li>
           <li><a href="multiplayer.html">UDP Multiplayer</a></li>
-          <li><a href="audio-synthesizer.html">3D Audio & Synthesizer</a></li>
+          <li><a href="audio-synthesizer.html">3D Audio &amp; Synthesizer</a></li>
           <li><a href="lua-scripting.html" class="active">Lua 5.4 Scripting</a></li>
-          <li><a href="frozen-life.html">Frozen-Life Build</a></li>
           <li><a href="architecture.html">Engine Architecture</a></li>
           <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
           <li><a href="building.html">Building from Source</a></li>
@@ -229,12 +232,22 @@ Balance = {
         Executing <code>lab_reload_scripts()</code> flushes and re-evaluates all Lua files on the fly. If a script contains syntax errors or infinite loops, the pcall protected environment safely intercepts the error and logs it to the in-engine console without crashing the application.
       </p>
 
+      <div class="build-highlight-card" style="margin: 20px 0;">
+        <h3 style="margin-top:0; color:var(--wiki-accent);">&#129513; Looking for Modular Drop-in Plugins?</h3>
+        <p>
+          Lab features a decentralized Unity/Blender-style plugin architecture where single Lua files in <code>plugins/*.lua</code> act as standalone plugins with standardized metadata, life-cycle hooks (<code>onLoad</code>, <code>onUpdate</code>, <code>onRender</code>), and an integrated in-engine Package Manager GUI.
+        </p>
+        <a href="plugins.html" class="vdc-badge accent" style="text-decoration:none;">Read the Modular Drop-in Plugins Guide &rarr;</a>
+      </div>
+
       <div class="vdc-see-also">
         <h3>See Also</h3>
         <ul>
-          <li><a href="architecture.html">Engine Architecture</a> ? Subsystem registration and tick ordering.</li>
-          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a> ? Weapon ballistics tables.</li>
-          <li><a href="bot-ai.html">Combat Bot AI</a> ? Scripted combat behaviors and bot tuning.</li>
+          <li><a href="plugins.html">Modular Drop-in Plugins</a> &ndash; Unity/Blender-style Lua plugins and in-engine Package Manager.</li>
+          <li><a href="project-hub.html">Project Hub &amp; Decoupled Architecture</a> &ndash; Project manager, manifest, and asset virtualization.</li>
+          <li><a href="architecture.html">Engine Architecture</a> &ndash; Subsystem registration and tick ordering.</li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a> &ndash; Weapon ballistics tables.</li>
+          <li><a href="bot-ai.html">Combat Bot AI</a> &ndash; Scripted combat behaviors and bot tuning.</li>
         </ul>
       </div>
     </main>
@@ -243,7 +256,7 @@ Balance = {
   <footer class="vdc-footer" role="contentinfo">
     <div class="vdc-footer-content">
       <div class="footer-left">
-        <p><strong>Lab Developer Community</strong> ? The Official Technical Knowledge Hub for Lab Engine, Lab Hammer &amp; Frozen Life.</p>
+        <p><strong>Lab Developer Community</strong> &bull; The Official Technical Knowledge Hub for Lab Engine, LabHammer &amp; Frozen-Life.</p>
         <p>Crafted in ISO C++20 with OpenGL 4.5+ Direct State Access (DSA). Zero runtime external dependencies.</p>
       </div>
       <div class="footer-right">
@@ -255,6 +268,6 @@ Balance = {
       </div>
     </div>
   </footer>
-  <script src="js/main.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>

@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Modular Drop-in Plugins &amp; In-Engine Package Manager – Technical reference for Lab Engine's Unity and Blender-style standalone Lua plugin architecture (1 script = 1 plugin).">
+  <meta name="keywords" content="Lab Engine, Lua Plugins, Drop-in Plugins, Package Manager, Unity style, Blender addons, C++20, Modding, Extensibility">
+  <meta name="author" content="YoungJasiek">
+
+  <title>Modular Drop-in Plugins &amp; Package Manager – Lab Developer Community</title>
+  <link rel="icon" type="image/webp" href="assets/img/LabLogo.webp">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <a href="#content" class="skip-link">Skip to main content</a>
+
+  <!-- TOP HEADER -->
+  <header class="vdc-top-header" role="banner">
+    <div class="vdc-header-left">
+      <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
+      <a href="index.html" class="vdc-brand">
+        <img src="assets/img/LabLogo.webp" alt="Lab Engine Logo" class="vdc-logo-img">
+        <div class="vdc-brand-text">
+          <span class="vdc-brand-title"><span class="accent">Lab</span> Developer Community</span>
+          <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LABEDITOR</span>
+        </div>
+      </a>
+    </div>
+
+    <div class="vdc-search-bar" role="search">
+      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search documentation..." aria-label="Search wiki documentation">
+      <span class="vdc-search-icon" aria-hidden="true">&#128269;</span>
+    </div>
+
+    <div class="vdc-header-right">
+      <button id="theme-toggle-btn" class="theme-toggle-btn" aria-label="Toggle theme">&#9728;&#65039; Light Mode</button>
+      <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="github-badge-btn" aria-label="GitHub repository">
+        <span>GitHub</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- WIKI CONTAINER -->
+  <div class="vdc-page-container">
+
+    <!-- Sidebar Navigation -->
+    <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
+      <div class="sidebar-block">
+        <div class="sidebar-title"><a href="modules.html" style="color:inherit; text-decoration:none;">Engine Modules (.dll)</a></div>
+        <ul class="sidebar-links">
+          <li><a href="module-core.html">LabCore.dll</a></li>
+          <li><a href="module-render.html">LabRender.dll</a></li>
+          <li><a href="module-audio.html">LabAudio.dll</a></li>
+          <li><a href="module-physics.html">LabPhysics.dll</a></li>
+          <li><a href="module-animation.html">LabAnimation.dll</a></li>
+          <li><a href="module-world.html">LabWorld.dll</a></li>
+          <li><a href="module-network.html">LabNetwork.dll</a></li>
+          <li><a href="module-ai.html">LabAI.dll</a></li>
+          <li><a href="module-script.html">LabScript.dll</a></li>
+          <li><a href="module-studio.html">LabStudioCore.dll</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Documentation</div>
+        <ul class="sidebar-links">
+          <li><a href="index.html">Main Page (Portal)</a></li>
+          <li><a href="project-hub.html">Project Hub &amp; Main Menu</a></li>
+          <li><a href="plugins.html" class="active">Modular Drop-in Plugins</a></li>
+          <li><a href="labeditor.html">LabEditor Suite</a></li>
+          <li><a href="frozen-life.html">Frozen-Life (Demo FPS)</a></li>
+          <li><a href="labhammer.html">LabHammer (3D CAD)</a></li>
+          <li><a href="lighting.html">Dynamic Lighting &amp; Lamps</a></li>
+          <li><a href="character-studio.html">Character &amp; Weapon Studio</a></li>
+          <li><a href="skeletal-animations.html">Skeletal &amp; FBX Animations</a></li>
+          <li><a href="bot-ai.html">Combat Bot AI</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></li>
+          <li><a href="multiplayer.html">UDP Multiplayer</a></li>
+          <li><a href="audio-synthesizer.html">3D Audio &amp; Synthesizer</a></li>
+          <li><a href="lua-scripting.html">Lua 5.4 Scripting &amp; IDE</a></li>
+          <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+          <li><a href="building.html">Building from Source</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Plugin Topics</div>
+        <ul class="sidebar-links">
+          <li><a href="#sec-philosophy">1 Kod = 1 Plugin Philosophy</a></li>
+          <li><a href="#sec-discovery">Drop-in Auto-Discovery</a></li>
+          <li><a href="#sec-api">Plugin Lua API &amp; Life Cycle</a></li>
+          <li><a href="#sec-package-manager">In-Engine Package Manager</a></li>
+          <li><a href="#sec-showcase">9 Showcase Drop-in Plugins</a></li>
+          <li><a href="#sec-authoring">Authoring a Custom Plugin</a></li>
+          <li><a href="#sec-hotreload">Hot-Reload &amp; Sandboxing</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main id="content" class="vdc-main-content" role="main">
+
+      <nav class="vdc-page-tabs" aria-label="Namespace tabs">
+        <div class="tabs-left">
+          <a href="plugins.html" class="wiki-tab active">Plugin Architecture</a>
+          <a href="lua-scripting.html" class="wiki-tab">Lua 5.4 Runtime</a>
+          <a href="project-hub.html" class="wiki-tab">Project Hub</a>
+        </div>
+        <div class="tabs-right">
+          <a href="plugins.html" class="wiki-tab active">Read</a>
+          <a href="https://github.com/YoungJasiek/Lab/tree/main/plugins" target="_blank" class="wiki-tab">View Plugins on GitHub</a>
+        </div>
+      </nav>
+
+      <div class="wiki-breadcrumbs">
+        <a href="index.html">Main Page</a>
+        <span class="crumb-sep">&gt;</span>
+        <span>Extensibility</span>
+        <span class="crumb-sep">&gt;</span>
+        <span class="crumb-current">Modular Drop-in Plugins</span>
+      </div>
+
+      <h1 class="firstHeading">
+        <span>Modular Drop-in Plugins &amp; Package Manager</span>
+        <span style="font-size: 0.85rem; font-weight: normal; font-family: var(--font-mono); color: var(--wiki-accent);">[plugins/*.lua]</span>
+      </h1>
+      <div class="siteSub">From Lab Developer Community &ndash; Decentralized Single-File Addon Ecosystem, Unity/Blender Plugin Model, Dynamic Hot-Reloading &amp; In-Engine Package Manager</div>
+
+      <!-- Infobox -->
+      <aside class="infobox" aria-label="Plugin System Infobox">
+        <div class="infobox-title">
+          Lab Plugins
+          <span class="infobox-subtitle">DROP-IN MODULAR ADDONS</span>
+        </div>
+        <div class="infobox-image">
+          <img src="assets/img/LabLogo.webp" alt="Lab Plugins System" style="max-height:120px; object-fit:contain;">
+          <div class="infobox-caption">Decentralized single-file plugin system (Unity Package / Blender Addon model)</div>
+        </div>
+        <table class="infobox-table">
+          <tr><th>Architecture</th><td>1 File = 1 Plugin (Drop-in Lua)</td></tr>
+          <tr><th>Plugin Directory</th><td><code>plugins/*.lua</code></td></tr>
+          <tr><th>Runtime VM</th><td>Lua 5.4.6 Sandboxed Runtime</td></tr>
+          <tr><th>Discovery</th><td>Automatic filesystem scan at startup</td></tr>
+          <tr><th>GUI Tool</th><td><code>Plugins &gt; Package Manager</code></td></tr>
+          <tr><th>Built-in Plugins</th><td>9 Official Showcase Addons</td></tr>
+          <tr><th>Hot Reloading</th><td>Instant re-evaluation on disk change</td></tr>
+          <tr><th>Verification</th><td>Automated Test Suite (Test 78)</td></tr>
+        </table>
+      </aside>
+
+      <!-- TOC -->
+      <div class="toc" role="navigation" aria-labelledby="toc-heading">
+        <div class="toctitle">
+          <h2 id="toc-heading">Contents</h2>
+          <span class="toctoggle">[<a href="javascript:void(0)" id="toctogglelink">hide</a>]</span>
+        </div>
+        <ul id="toc-list">
+          <li><a href="#sec-philosophy"><span class="tocnumber">1</span> Architecture: "1 Kod = 1 Plugin"</a></li>
+          <li><a href="#sec-discovery"><span class="tocnumber">2</span> Drop-in Discovery &amp; Folder Structure</a></li>
+          <li><a href="#sec-api"><span class="tocnumber">3</span> Plugin Lua API &amp; Life Cycle Callbacks</a></li>
+          <li><a href="#sec-package-manager"><span class="tocnumber">4</span> In-Engine Package Manager GUI</a></li>
+          <li><a href="#sec-showcase"><span class="tocnumber">5</span> Built-in Showcase Plugins Overview</a></li>
+          <li><a href="#sec-authoring"><span class="tocnumber">6</span> Step-by-Step Plugin Authoring Guide</a></li>
+          <li><a href="#sec-hotreload"><span class="tocnumber">7</span> Sandboxing, Hot-Reload &amp; Safety</a></li>
+        </ul>
+      </div>
+
+      <!-- Section 1: Philosophy -->
+      <section id="sec-philosophy" class="wiki-section">
+        <h2>1. Architecture: "1 Kod = 1 Plugin" (Unity &amp; Blender Model)</h2>
+        <p>
+          In modern game engines like <strong>Unity</strong> (Package Manager) and 3D suites like <strong>Blender</strong> (Python Addons), extensibility is built upon isolated, self-contained modules. Previously, scripting logic in Lab was centralized inside shared engine script folders. 
+        </p>
+        <p>
+          The <strong>Modular Drop-in Plugin Architecture</strong> strictly separates plugins into distinct, standalone code units:
+        </p>
+        <ul>
+          <li><strong>Complete Isolation:</strong> Every plugin lives in its own dedicated <code>.lua</code> file inside the root <code>plugins/</code> directory. There are no monolithic script merges or hardcoded engine dependencies.</li>
+          <li><strong>Self-Describing Metadata:</strong> Each plugin script declares a standardized metadata dictionary (<code>name</code>, <code>id</code>, <code>version</code>, <code>author</code>, <code>category</code>, <code>description</code>) at the top of the file.</li>
+          <li><strong>No Compilation Required:</strong> Drop a new <code>.lua</code> file into <code>plugins/</code> and the engine immediately discovers, validates, and integrates it into the editor menu and simulation pipeline.</li>
+          <li><strong>Non-Intrusive Engine Core:</strong> Disabling or removing a plugin leaves the core engine and project assets completely unaffected.</li>
+        </ul>
+      </section>
+
+      <!-- Section 2: Discovery -->
+      <section id="sec-discovery" class="wiki-section">
+        <h2>2. Drop-in Discovery &amp; Folder Structure</h2>
+        <p>
+          Plugins are kept at the engine root level, cleanly separated from both game-specific assets and engine binaries:
+        </p>
+        <pre><code>Lab/
+├── engine/              # Engine-internal shaders, fonts and fallbacks
+├── games/               # Separated game projects (e.g. games/frozen_life/)
+├── plugins/             # Standalone Drop-in Lua Plugins (1 file = 1 plugin)
+│   ├── ai_patrol.lua          # Waypoint patrol &amp; bot sensory expansion
+│   ├── arcade_vehicle.lua     # Raycast suspension &amp; vehicle dynamics
+│   ├── dialogue_quest.lua     # NPC dialogue trees &amp; quest tracker
+│   ├── discord_rpc.lua        # Discord Rich Presence bridge
+│   ├── dropin_example.lua     # Minimal template for rapid prototyping
+│   ├── procedural_level.lua   # Procedural CSG room generator
+│   ├── retro_shaders.lua      # Retro CRT &amp; scanline post-processing
+│   ├── speedrun_timer.lua     # Speedrun splits &amp; HUD telemetry
+│   └── voxel_terrain.lua      # Dynamic voxel terrain &amp; volume sculptor
+├── scripts/             # Core engine utility scripts
+└── build/Release/       # Standalone executables (LabEditor.exe, LabPlayer.exe)</code></pre>
+        <p>
+          When <code>LabPluginManager::scanDirectory("plugins")</code> executes, it enumerates all <code>*.lua</code> files, parses their metadata header, and instantiates a <code>LuaDropinPlugin</code> instance without touching the underlying C++ binaries.
+        </p>
+      </section>
+
+      <!-- Section 3: API & Life Cycle -->
+      <section id="sec-api" class="wiki-section">
+        <h2>3. Plugin Lua API &amp; Life Cycle Callbacks</h2>
+        <p>
+          Every drop-in plugin defines standard life cycle hooks that the engine invokes during editing and gameplay ticks:
+        </p>
+        <table class="wikitable">
+          <thead>
+            <tr>
+              <th>Callback Function</th>
+              <th>Arguments</th>
+              <th>Trigger &amp; Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>onLoad()</code></td>
+              <td><em>none</em></td>
+              <td>Invoked when the plugin is activated or hot-reloaded. Use to initialize data structures, subscribe to engine events, or allocate state.</td>
+            </tr>
+            <tr>
+              <td><code>onUnload()</code></td>
+              <td><em>none</em></td>
+              <td>Invoked when the plugin is disabled or prior to hot-reloading. Cleans up geometry, HUD elements, or background threads.</td>
+            </tr>
+            <tr>
+              <td><code>onUpdate(dt)</code></td>
+              <td><code>dt</code> (number, seconds)</td>
+              <td>Called every physics/simulation tick during Play-In-Editor (PIE) and runtime gameplay.</td>
+            </tr>
+            <tr>
+              <td><code>onRender()</code></td>
+              <td><em>none</em></td>
+              <td>Called during the viewport rendering pass for custom gizmos, debug lines, or screen overlays.</td>
+            </tr>
+            <tr>
+              <td><code>onEditorGui()</code></td>
+              <td><em>none</em></td>
+              <td>Called when the user selects the plugin in the Package Manager or inspector to render custom controls.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Standard Metadata Schema</h3>
+        <p>A drop-in plugin starts with a declarative table returned or exported as <code>Plugin</code>:</p>
+        <pre><code class="language-lua">-- plugins/my_custom_plugin.lua
+Plugin = {
+    name        = "Custom Speed Teleport",
+    id          = "com.user.teleport",
+    version     = "1.0.0",
+    author      = "YourName",
+    category    = "Gameplay",  -- Categories: Gameplay, Rendering, AI, Tools, Audio, Network
+    description = "Adds instantaneous hotkey teleports and velocity dampening."
+}
+
+function Plugin.onLoad()
+    print("[Custom Plugin] Initialized!")
+end
+
+function Plugin.onUpdate(dt)
+    -- simulation logic
+end
+
+function Plugin.onUnload()
+    print("[Custom Plugin] Cleaned up!")
+end
+
+return Plugin</code></pre>
+      </section>
+
+      <!-- Section 4: Package Manager GUI -->
+      <section id="sec-package-manager" class="wiki-section">
+        <h2>4. In-Engine Package Manager GUI</h2>
+        <p>
+          Accessing <strong>Plugins &gt; Package Manager</strong> in <code>LabEditor.exe</code> opens the visual management suite inspired by Unity's Package Manager and Blender's Preferences &gt; Add-ons modal:
+        </p>
+        <div class="build-highlight-card" style="margin: 15px 0;">
+          <h3 style="margin-top:0; color:var(--wiki-accent);">&#128230; Package Manager Capabilities</h3>
+          <ul>
+            <li><strong>Live Search &amp; Filter:</strong> Type to search by name, ID, author, or description. Filter by category pills (<code>All</code>, <code>Gameplay</code>, <code>Rendering</code>, <code>AI</code>, <code>Tools</code>, <code>Social</code>).</li>
+            <li><strong>Instant Toggle Checkbox:</strong> Enable or disable any plugin on-the-fly. The engine immediately invokes <code>onUnload()</code> or <code>onLoad()</code> without requiring an editor restart.</li>
+            <li><strong>Hot Reload Button:</strong> Reload modified Lua files from disk immediately to iterate without closing the level.</li>
+            <li><strong>Active State Persistence:</strong> Enabled/disabled states are stored in <code>plugins.config</code>, ensuring user preferences survive editor restarts.</li>
+            <li><strong>Direct Source Jump:</strong> One-click button to open the plugin's source file in the built-in Scripting IDE.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Section 5: Showcase Plugins -->
+      <section id="sec-showcase" class="wiki-section">
+        <h2>5. Built-in Showcase Plugins Overview</h2>
+        <p>Lab ships with 9 comprehensive, production-grade drop-in plugins that serve as both powerful extensions and reference implementations:</p>
+
+        <div class="vdc-portal-grid" style="margin-top: 20px;">
+          
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#129302;</span>
+              <h3 class="portal-title">AI Navmesh &amp; Waypoint Patrol</h3>
+            </div>
+            <p class="portal-desc"><code>ai_patrol.lua</code> (Category: AI)<br>Implements autonomous closed-circuit waypoint loops, sensory radius alerts, and patrol node interpolation for bot navigation.</p>
+          </div>
+
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#128663;</span>
+              <h3 class="portal-title">Arcade Vehicle Dynamics</h3>
+            </div>
+            <p class="portal-desc"><code>arcade_vehicle.lua</code> (Category: Gameplay)<br>Raycast spring-damper suspension physics solver, tire friction curves, engine torque gears, and handbrake drifting.</p>
+          </div>
+
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#128172;</span>
+              <h3 class="portal-title">Dialogue &amp; Quest System</h3>
+            </div>
+            <p class="portal-desc"><code>dialogue_quest.lua</code> (Category: Gameplay)<br>Branching NPC dialogue nodes, choice trees, inventory prerequisites, and quest progress tracking with HUD popups.</p>
+          </div>
+
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#128172;</span>
+              <h3 class="portal-title">Discord Rich Presence</h3>
+            </div>
+            <p class="portal-desc"><code>discord_rpc.lua</code> (Category: Tools)<br>Live Discord activity bridge broadcasting current map, game mode, player kill/death stats, and party size in real-time.</p>
+          </div>
+
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#127959;</span>
+              <h3 class="portal-title">Procedural Level Generator</h3>
+            </div>
+            <p class="portal-desc"><code>procedural_level.lua</code> (Category: Tools)<br>Generates modular dungeon rooms with floors, perimeter walls, entry doorways, and structural pillars using CSG brushes.</p>
+          </div>
+
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#128250;</span>
+              <h3 class="portal-title">Retro CRT &amp; Post-Process FX</h3>
+            </div>
+            <p class="portal-desc"><code>retro_shaders.lua</code> (Category: Rendering)<br>Full-screen viewport post-process applying vintage cathode-ray scanlines, chromatic aberration, vignette, and phosphor flicker.</p>
+          </div>
+
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#9201;</span>
+              <h3 class="portal-title">Speedrun &amp; Telemetry Splits</h3>
+            </div>
+            <p class="portal-desc"><code>speedrun_timer.lua</code> (Category: Tools)<br>Millisecond-precision run timer, automatic sector trigger splits, delta time comparison against personal bests, and HUD overlay.</p>
+          </div>
+
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#129521;</span>
+              <h3 class="portal-title">Voxel Terrain &amp; Sculptor</h3>
+            </div>
+            <p class="portal-desc"><code>voxel_terrain.lua</code> (Category: Tools)<br>3D volume grid with spherical carve and deposit brushes, heightmap noise seeding, and dynamic block mesh synthesis.</p>
+          </div>
+
+          <div class="portal-box">
+            <div class="portal-header">
+              <span class="portal-icon">&#128161;</span>
+              <h3 class="portal-title">Drop-in Quickstart Example</h3>
+            </div>
+            <p class="portal-desc"><code>dropin_example.lua</code> (Category: Gameplay)<br>Clean, minimal template demonstrating event hooks, state caching, and interactive logging for community developers.</p>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- Section 6: Authoring Guide -->
+      <section id="sec-authoring" class="wiki-section">
+        <h2>6. Step-by-Step Plugin Authoring Guide</h2>
+        <p>Creating a new plugin requires only three simple steps:</p>
+        <ol>
+          <li>
+            <strong>Create a single <code>.lua</code> file</strong> inside the <code>plugins/</code> directory:
+            <pre><code>plugins/my_weather_system.lua</code></pre>
+          </li>
+          <li>
+            <strong>Declare metadata table</strong> at the top:
+            <pre><code class="language-lua">Plugin = {
+    name = "Dynamic Snow &amp; Blizzard",
+    id = "com.community.snow-fx",
+    version = "1.0.0",
+    author = "Modder",
+    category = "Rendering",
+    description = "Procedural snow particle drift with wind gusts."
+}</code></pre>
+          </li>
+          <li>
+            <strong>Implement the life cycle functions:</strong>
+            <pre><code class="language-lua">local particleCount = 200
+
+function Plugin.onLoad()
+    print("[SnowFX] Loaded with " .. particleCount .. " snow particles.")
+end
+
+function Plugin.onUpdate(dt)
+    -- update wind direction and snowfall velocities
+end
+
+function Plugin.onUnload()
+    print("[SnowFX] Unloaded and particles cleared.")
+end
+
+return Plugin</code></pre>
+          </li>
+          <li>
+            <strong>Open LabEditor:</strong> Navigate to <code>Plugins &gt; Package Manager</code>. Your plugin will appear under the <code>Rendering</code> category with a toggle switch, version badge, and full description!
+          </li>
+        </ol>
+      </section>
+
+      <!-- Section 7: Hot-Reload & Sandboxing -->
+      <section id="sec-hotreload" class="wiki-section">
+        <h2>7. Sandboxing, Hot-Reload &amp; Safety</h2>
+        <p>
+          To ensure stability, the drop-in plugin engine incorporates robust fault-isolation mechanisms:
+        </p>
+        <ul>
+          <li><strong>Protected Lua Calls (<code>lua_pcall</code>):</strong> Errors inside plugin callbacks are caught and printed to the in-engine console with full tracebacks without crashing the host engine.</li>
+          <li><strong>Sandbox Environments:</strong> Each plugin runs with its own table environment to prevent polluting the global Lua scope or overwriting variables of other plugins.</li>
+          <li><strong>Ordered Unloading:</strong> When shutting down or reloading, plugins are unloaded in strict reverse order of registration to guarantee clean teardowns of cross-dependent resources.</li>
+          <li><strong>Zero Native Recompilation:</strong> Modifying a plugin script updates the running editor or game instantly without invoking CMake or rebuilding C++ binaries.</li>
+        </ul>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="vdc-footer" role="contentinfo">
+    <div class="footer-info">
+      <div>Official Technical Documentation &bull; Lab Engine, LabHammer &amp; Frozen-Life.</div>
+      <div>Modern C++20 and OpenGL 4.5+ Direct State Access specifications.</div>
+    </div>
+    <div>
+      <a href="#content" style="color: var(--wiki-accent);">Back to top &uarr;</a>
+    </div>
+  </footer>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

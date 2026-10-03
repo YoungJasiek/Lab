@@ -55,8 +55,12 @@
         <div class="sidebar-title">Documentation</div>
         <ul class="sidebar-links">
           <li><a href="index.html">Main Page (Portal)</a></li>
+          <li><a href="project-hub.html">Project Hub &amp; Main Menu</a></li>
+          <li><a href="plugins.html">Modular Drop-in Plugins</a></li>
           <li><a href="labeditor.html" class="active">LabEditor Suite</a></li>
+          <li><a href="frozen-life.html">Frozen-Life (Demo FPS)</a></li>
           <li><a href="labhammer.html">LabHammer (3D CAD)</a></li>
+          <li><a href="lighting.html">Dynamic Lighting &amp; Lamps</a></li>
           <li><a href="character-studio.html">Character &amp; Weapon Studio</a></li>
           <li><a href="skeletal-animations.html">Skeletal &amp; FBX Animations</a></li>
           <li><a href="bot-ai.html">Combat Bot AI</a></li>
@@ -64,7 +68,6 @@
           <li><a href="multiplayer.html">UDP Multiplayer</a></li>
           <li><a href="audio-synthesizer.html">3D Audio &amp; Synthesizer</a></li>
           <li><a href="lua-scripting.html">Lua 5.4 Scripting &amp; IDE</a></li>
-          <li><a href="frozen-life.html">Frozen-Life Build</a></li>
           <li><a href="architecture.html">Engine Architecture</a></li>
           <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
           <li><a href="building.html">Building from Source</a></li>
@@ -75,12 +78,14 @@
         <div class="sidebar-title">LabEditor Topics</div>
         <ul class="sidebar-links">
           <li><a href="#sec-overview">Overview &amp; Architecture</a></li>
-          <li><a href="#sec-workspaces">5 Workspaces &amp; 13 Sub-Modes</a></li>
+          <li><a href="#sec-workspaces">5 Workspaces &amp; Project Hub</a></li>
           <li><a href="#sec-pie">Play-In-Editor (PIE) Sim</a></li>
           <li><a href="#sec-script-ide">Full-Viewport Script IDE</a></li>
           <li><a href="#sec-hud-canvas">Multi-Genre HUD Canvas</a></li>
           <li><a href="#sec-hierarchy">Hierarchy Search &amp; Undo/Redo</a></li>
-          <li><a href="#sec-export">Universal Export Modal</a></li>
+          <li><a href="#sec-plugins">Package Manager (Plugins)</a></li>
+          <li><a href="#sec-decoupling">Decoupled Assets (Virtual URIs)</a></li>
+          <li><a href="#sec-export">Standalone Game Exporter</a></li>
           <li><a href="#sec-controls">Keyboard Shortcuts</a></li>
         </ul>
       </div>
@@ -179,6 +184,14 @@
               <li><strong>Interactive Console:</strong> Real-time Lua REPL and engine debug log.</li>
             </ul>
           </div>
+          <div class="portal-box" style="padding:15px; background:var(--wiki-surface);">
+            <h3>🚀 5. Project Hub Workspace</h3>
+            <ul>
+              <li><strong>Project Launcher:</strong> Discover, switch, and launch games without restarting.</li>
+              <li><strong>New Game Wizard:</strong> Create isolated games in <code>Documents/LabGames/</code>.</li>
+              <li><strong>Project Manifest:</strong> Edit <code>defaultMap</code> and <code>defaultHud</code> metadata.</li>
+            </ul>
+          </div>
         </div>
       </section>
 
@@ -232,17 +245,51 @@
         </ul>
       </section>
 
+      <!-- Section: Package Manager -->
+      <section id="sec-plugins" class="wiki-section">
+        <h2>7. In-Engine Package Manager (Plugins &gt; Package Manager)</h2>
+        <p>
+          LabEditor includes an integrated Package Manager modeled after Unity and Blender Add-ons:
+        </p>
+        <ul>
+          <li><strong>Drop-in Lua Plugins:</strong> Automatically detects any <code>.lua</code> file placed in <code>plugins/*.lua</code>.</li>
+          <li><strong>Live Search &amp; Categories:</strong> Instant filtering by category pills (<code>Gameplay</code>, <code>Rendering</code>, <code>AI</code>, <code>Tools</code>, <code>Audio</code>).</li>
+          <li><strong>Real-Time Toggling:</strong> Checkbox switches enable or disable plugins instantly on-the-fly without restarting the editor.</li>
+          <li><strong>Hot Reload:</strong> Reload modified scripts directly from disk into the running simulation.</li>
+          <li><a href="plugins.html">Read the full Modular Plugins &amp; Package Manager Documentation &rarr;</a></li>
+        </ul>
+      </section>
+
+      <!-- Section: Decoupled Assets -->
+      <section id="sec-decoupling" class="wiki-section">
+        <h2>8. Decoupled Asset Workflows &amp; Virtual URIs</h2>
+        <p>
+          To ensure game development remains cleanly separated from engine source code and CMake build trees, LabEditor resolves assets via virtual URIs:
+        </p>
+        <ul>
+          <li><code>engine://</code> &ndash; Engine-internal shaders, debug materials, icons, and UI fonts located in <code>engine/assets/</code>.</li>
+          <li><code>game://</code> &ndash; Project-specific levels (<code>.labmap</code>), audio, textures, and HUDs located in <code>Documents/LabGames/&lt;project&gt;/assets/</code> or <code>games/&lt;project&gt;/assets/</code>.</li>
+          <li><strong>Automated Fallback:</strong> If a game asset is missing, the engine gracefully falls back to the corresponding <code>engine://</code> asset, preventing crashes.</li>
+          <li><a href="project-hub.html">Read the full Project Hub &amp; Decoupled Architecture Documentation &rarr;</a></li>
+        </ul>
+      </section>
+
       <!-- Section: Export Modal -->
       <section id="sec-export" class="wiki-section">
-        <h2>7. Universal One-Click Build &amp; Export</h2>
+        <h2>9. Universal One-Click Build &amp; Standalone Exporter</h2>
         <p>
-          Pressing <code>Ctrl + B</code> opens the Build &amp; Export dialog, enabling export to <strong>Windows x64</strong>, <strong>Linux x64</strong>, and <strong>WebAssembly (WASM)</strong>, bundling assets into <code>.labpak</code> archives and preparing standalone shipping packages.
+          Pressing <code>Ctrl + B</code> or selecting <strong>File &gt; Build &amp; Export Game</strong> bundles the active project into an isolated, standalone distribution package (e.g. <code>demo/</code>):
         </p>
+        <ul>
+          <li>Copies stripped runtime executables (<code>LabPlayer.exe</code>) and all 10 engine DLLs.</li>
+          <li>Clones and packages project assets into a clean, standalone directory structure.</li>
+          <li>Generates player configuration files (<code>game.config</code>) and one-click launch scripts (<code>run_game.bat</code>).</li>
+        </ul>
       </section>
 
       <!-- Section: Keyboard Shortcuts -->
       <section id="sec-controls" class="wiki-section">
-        <h2>8. Keyboard Shortcuts Quick Reference</h2>
+        <h2>10. Keyboard Shortcuts Quick Reference</h2>
         <table class="wiki-table">
           <thead>
             <tr><th>Shortcut</th><th>Context</th><th>Action</th></tr>
@@ -250,7 +297,8 @@
           <tbody>
             <tr><td><code>Ctrl + N / O / S</code></td><td>Global</td><td>New, Open, or Save Scene / Script Buffer</td></tr>
             <tr><td><code>Ctrl + Z / Y</code></td><td>Global</td><td>Undo / Redo Scene Command</td></tr>
-            <tr><td><code>Ctrl + B</code></td><td>Global</td><td>Open Multi-Platform Build &amp; Export Modal</td></tr>
+            <tr><td><code>Ctrl + B</code></td><td>Global</td><td>Open Multi-Platform Build &amp; Standalone Exporter Modal</td></tr>
+            <tr><td><code>Ctrl + P</code></td><td>Global</td><td>Open In-Engine Package Manager Modal</td></tr>
             <tr><td><code>F5 / F6 / F7 / F8</code></td><td>Global</td><td>Play, Pause, Step, Stop Play-In-Editor (PIE)</td></tr>
             <tr><td><code>RMB + WASD</code></td><td>3D View</td><td>Free-look First-Person Flycam Navigation</td></tr>
             <tr><td><code>1 &ndash; 6</code></td><td>3D Tools</td><td>Select Tool (1: Select, 2: Brush, 3: Spawn, 4: Weapon, 5: Light, 6: Face)</td></tr>

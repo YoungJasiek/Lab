@@ -145,9 +145,10 @@ The engine is architected into clean, decoupled headers and dynamic libraries (`
   │   └── LabInput.h / LabInput.cpp         -- Unified input action/gamepad mapping with Lua hooks
   └── Tooling, Profiling & Shipping:
       ├── LabEditor.h                       -- Multi-workspace editor suite & Play-In-Editor (PIE)
+      ├── LabProject.h / LabProject.cpp     -- Decoupled Project Hub, virtual URIs (engine:// vs game://), standalone exporter
       ├── LabProfiler.h                     -- Real-time CPU frame profiler & memory tracker
       ├── LabVCS.h                          -- Git VCS integration & Git LFS Asset Locking
-      ├── LabPackage.h / LabPlugin.h        -- Declarative package manager & C-ABI dynamic plugins
+      ├── LabPlugin.h / plugins/*.lua       -- Unity/Blender-style drop-in Lua plugins (1 file = 1 plugin) & Package Manager
       └── LabExportPipeline.h / LabExport.h -- One-click multi-platform build & shipping runner
 ```
 
