@@ -8,6 +8,7 @@
 #include <sstream>
 #include <algorithm>
 #include <unordered_map>
+#include <filesystem>
 
 extern "C" {
 #include "lua.h"
@@ -23,6 +24,8 @@ namespace Lab {
     static std::unordered_map<std::string, bool> s_hudVisibles;
     static std::function<void(int)> s_doorUnlockCallback = nullptr;
     static std::function<void(const std::string&, const std::string&)> s_serverChatCallback = nullptr;
+    static std::string s_activeCameraName = "";
+    static std::function<void(const std::string&)> s_cameraSwitchCallback = nullptr;
 
     void ScriptEngine::registerDoorUnlockCallback(std::function<void(int)> callback) {
         s_doorUnlockCallback = callback;
@@ -32,9 +35,47 @@ namespace Lab {
         s_serverChatCallback = callback;
     }
 
+    void ScriptEngine::registerCameraSwitchCallback(std::function<void(const std::string&)> callback) {
+        s_cameraSwitchCallback = callback;
+    }
+
+    void ScriptEngine::setActiveCameraName(const std::string& name) {
+        s_activeCameraName = name;
+        if (s_cameraSwitchCallback) s_cameraSwitchCallback(name);
+    }
+
+    const std::string& ScriptEngine::getActiveCameraName() {
+        return s_activeCameraName;
+    }
+
     void ScriptEngine::setActiveMap(LabMap* map) {
         _activeMap = map;
         s_activeMap = map;
+        if (!map) return;
+
+        // Auto-run scripts attached to map entities (brush, prop, door, camera, sprite)
+        auto runScriptIfAny = [this](const std::string& sPath) {
+            if (sPath.empty()) return;
+            std::string resolved = sPath;
+            if (!std::filesystem::exists(resolved)) {
+                if (std::filesystem::exists("assets/scripts/" + sPath)) resolved = "assets/scripts/" + sPath;
+                else if (std::filesystem::exists("../assets/scripts/" + sPath)) resolved = "../assets/scripts/" + sPath;
+            }
+            if (std::filesystem::exists(resolved)) {
+                std::ifstream f(resolved);
+                if (f.is_open()) {
+                    std::stringstream buf;
+                    buf << f.rdbuf();
+                    executeString(buf.str());
+                }
+            }
+        };
+
+        for (const auto& b : map->brushes) runScriptIfAny(b.script);
+        for (const auto& p : map->props) runScriptIfAny(p.script);
+        for (const auto& d : map->doors) runScriptIfAny(d.script);
+        for (const auto& c : map->cameras) runScriptIfAny(c.script);
+        for (const auto& sp : map->sprites) runScriptIfAny(sp.script);
     }
 
     void ScriptEngine::setHUDText(const std::string& id, const std::string& text) {
@@ -327,6 +368,95 @@ namespace Lab {
         return 0;
     }
 
+    // --- Camera Lua Callbacks ---
+    static int lua_CameraSetActive(lua_State* L) {
+        const char* name = luaL_checkstring(L, 1);
+        if (name) {
+            ScriptEngine::setActiveCameraName(name);
+            if (s_activeMap) {
+                for (auto& c : s_activeMap->cameras) {
+                    c.active = (c.name == name);
+                }
+            }
+        }
+        return 0;
+    }
+
+    static int lua_CameraGetActive(lua_State* L) {
+        lua_pushstring(L, ScriptEngine::getActiveCameraName().c_str());
+        return 1;
+    }
+
+    static int lua_CameraSetFov(lua_State* L) {
+        const char* name = luaL_checkstring(L, 1);
+        float fov = (float)luaL_checknumber(L, 2);
+        if (name && s_activeMap) {
+            for (auto& c : s_activeMap->cameras) {
+                if (c.name == name) {
+                    c.fov = fov;
+                    break;
+                }
+            }
+        }
+        return 0;
+    }
+
+    static int lua_CameraSetPosition(lua_State* L) {
+        const char* name = luaL_checkstring(L, 1);
+        float x = (float)luaL_checknumber(L, 2);
+        float y = (float)luaL_checknumber(L, 3);
+        float z = (float)luaL_checknumber(L, 4);
+        if (name && s_activeMap) {
+            for (auto& c : s_activeMap->cameras) {
+                if (c.name == name) {
+                    c.position = Vec3(x, y, z);
+                    break;
+                }
+            }
+        }
+        return 0;
+    }
+
+    static int lua_CameraSetRotation(lua_State* L) {
+        const char* name = luaL_checkstring(L, 1);
+        float pitch = (float)luaL_checknumber(L, 2);
+        float yaw = (float)luaL_checknumber(L, 3);
+        float roll = (float)luaL_checknumber(L, 4);
+        if (name && s_activeMap) {
+            for (auto& c : s_activeMap->cameras) {
+                if (c.name == name) {
+                    c.rotation = Vec3(pitch, yaw, roll);
+                    break;
+                }
+            }
+        }
+        return 0;
+    }
+
+    static int lua_CameraGet(lua_State* L) {
+        const char* name = luaL_checkstring(L, 1);
+        if (name && s_activeMap) {
+            for (const auto& c : s_activeMap->cameras) {
+                if (c.name == name) {
+                    lua_newtable(L);
+                    lua_pushstring(L, c.name.c_str()); lua_setfield(L, -2, "name");
+                    lua_pushnumber(L, c.fov); lua_setfield(L, -2, "fov");
+                    lua_pushboolean(L, c.active); lua_setfield(L, -2, "active");
+                    lua_pushstring(L, c.follow_target.c_str()); lua_setfield(L, -2, "follow_target");
+                    lua_pushnumber(L, c.position.x); lua_setfield(L, -2, "x");
+                    lua_pushnumber(L, c.position.y); lua_setfield(L, -2, "y");
+                    lua_pushnumber(L, c.position.z); lua_setfield(L, -2, "z");
+                    lua_pushnumber(L, c.rotation.x); lua_setfield(L, -2, "pitch");
+                    lua_pushnumber(L, c.rotation.y); lua_setfield(L, -2, "yaw");
+                    lua_pushnumber(L, c.rotation.z); lua_setfield(L, -2, "roll");
+                    return 1;
+                }
+            }
+        }
+        lua_pushnil(L);
+        return 1;
+    }
+
     // --- Input Lua Callbacks ---
     static int lua_InputRegisterAction(lua_State* L) {
         const char* name = luaL_checkstring(L, 1);
@@ -595,6 +725,28 @@ namespace Lab {
         lua_pushcfunction(_L, lua_WorldMoveEntity);
         lua_setfield(_L, -2, "moveEntity");
         lua_setglobal(_L, "World");
+
+        // Register table 'Camera'
+        lua_newtable(_L);
+        lua_pushcfunction(_L, lua_CameraSetActive);
+        lua_setfield(_L, -2, "setActive");
+        lua_pushcfunction(_L, lua_CameraGetActive);
+        lua_setfield(_L, -2, "getActive");
+        lua_pushcfunction(_L, lua_CameraSetFov);
+        lua_setfield(_L, -2, "setFov");
+        lua_pushcfunction(_L, lua_CameraSetPosition);
+        lua_setfield(_L, -2, "setPosition");
+        lua_pushcfunction(_L, lua_CameraSetRotation);
+        lua_setfield(_L, -2, "setRotation");
+        lua_pushcfunction(_L, lua_CameraGet);
+        lua_setfield(_L, -2, "get");
+        lua_setglobal(_L, "Camera");
+
+        // Global camera helpers
+        lua_pushcfunction(_L, lua_CameraSetActive);
+        lua_setglobal(_L, "setActiveCamera");
+        lua_pushcfunction(_L, lua_CameraGetActive);
+        lua_setglobal(_L, "getActiveCamera");
     }
 
     void ScriptEngine::loadEmbeddedFallbackScript() {
@@ -975,6 +1127,14 @@ namespace Lab {
             if (w.id == id) return &w;
         }
         return nullptr;
+    }
+
+    std::string ScriptEngine::getWeaponNameById(int id) const {
+        const auto* def = getWeaponDefById(id);
+        if (def && !def->name.empty()) return def->name;
+        const char* names[9] = { "Pipe", "Pistol", "Shotgun", "M4A4-S", "SG553", "Minigun", "Plasma Gun", "Railgun", "RPG" };
+        if (id >= 0 && id < 9) return names[id];
+        return "Weapon";
     }
 
 } // namespace Lab

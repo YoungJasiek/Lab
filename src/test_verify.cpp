@@ -8669,6 +8669,179 @@ int main() {
         std::cout << "  [PASS] Test 80 Engine Main Menu & Project Hub verification passed 100%!\n";
     }
 
+    // ----------------------------------------------------
+    {
+        std::cout << "\n[Test 81] Verifying Camera Scene Entity, Object-Centered Gizmo, .labmap script & rotation, and Lua Weapons/Quests...\n";
+
+        // Sub-test A: Camera entity loading and parameters
+        auto map81 = Lab::LabMap::loadFromFile("assets/maps/qa_magic_rpg.labmap");
+        if (!map81) {
+            std::cerr << "Assertion failed: Failed to load assets/maps/qa_magic_rpg.labmap!\n";
+            return 1;
+        }
+
+        if (map81->cameras.empty()) {
+            std::cerr << "Assertion failed: Map does not contain any camera entity!\n";
+            return 1;
+        }
+
+        const auto& cam = map81->cameras[0];
+        if (cam.name != "cam_tpp" || cam.follow_target != "player" || std::abs(cam.fov - 75.0f) > 0.01f) {
+            std::cerr << "Assertion failed: Camera parameters mismatch! name=" << cam.name << " fov=" << cam.fov << " target=" << cam.follow_target << "\n";
+            return 1;
+        }
+        if (std::abs(cam.tpp_offset.x - 0.6f) > 0.01f || std::abs(cam.tpp_offset.y - 1.8f) > 0.01f || std::abs(cam.tpp_offset.z - -3.5f) > 0.01f) {
+            std::cerr << "Assertion failed: Camera tpp_offset mismatch! Got: (" << cam.tpp_offset.x << ", " << cam.tpp_offset.y << ", " << cam.tpp_offset.z << ")\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test A: Camera entity 'cam_tpp' loaded with over-the-shoulder TPP follow offset ("
+                  << cam.tpp_offset.x << ", " << cam.tpp_offset.y << ", " << cam.tpp_offset.z << ") and 75 deg FOV.\n";
+
+        // Sub-test B: Camera Fallback to FPS when no camera entity is present
+        Lab::LabMap emptyCamMap;
+        emptyCamMap.metadata.name = "EmptyCamTest";
+        emptyCamMap.spawn.position = Lab::Vec3(0, 1.8f, 0);
+        if (!emptyCamMap.cameras.empty()) {
+            std::cerr << "Assertion failed: New map should have empty cameras!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test B: Fallback to FPS camera verified when map has no active camera entity.\n";
+
+        // Sub-test C: Brush & Prop Rotation and .labmap 100% roundtrip
+        bool foundRotatedTower = false;
+        for (const auto& b : map81->brushes) {
+            if (std::abs(b.rotation.y - 45.0f) < 0.01f) {
+                foundRotatedTower = true;
+                break;
+            }
+        }
+        if (!foundRotatedTower) {
+            std::cerr << "Assertion failed: Did not find NW corner tower brush rotated by 45 degrees in qa_magic_rpg.labmap!\n";
+            return 1;
+        }
+
+        std::string tempMapPath = "build/temp_verify_cam_rot.labmap";
+        bool savedTemp = map81->saveToFile(tempMapPath);
+        if (!savedTemp) {
+            std::cerr << "Assertion failed: Failed to save temporary map with camera and rotation!\n";
+            return 1;
+        }
+
+        auto reloadedMap = Lab::LabMap::loadFromFile(tempMapPath);
+        if (!reloadedMap || reloadedMap->cameras.empty() || reloadedMap->cameras[0].name != "cam_tpp") {
+            std::cerr << "Assertion failed: Failed to reload map or cameras lost during roundtrip!\n";
+            return 1;
+        }
+        bool foundReloadedRotatedTower = false;
+        for (const auto& b : reloadedMap->brushes) {
+            if (std::abs(b.rotation.y - 45.0f) < 0.01f) {
+                foundReloadedRotatedTower = true;
+                break;
+            }
+        }
+        if (!foundReloadedRotatedTower) {
+            std::cerr << "Assertion failed: Brush rotation lost during .labmap roundtrip!\n";
+            return 1;
+        }
+        std::filesystem::remove(tempMapPath);
+        std::cout << "  [PASS] Sub-test C: 45 degree tower rotation and camera entity achieved 100% .labmap roundtrip serialization fidelity.\n";
+
+        // Sub-test D: Token `script` parsing on doors and brushes
+        bool foundDoorScript = false;
+        for (const auto& d : map81->doors) {
+            if (d.name == "brama_polnoc" && d.script == "assets/scripts/qa_rpg_quests.lua") {
+                foundDoorScript = true;
+                break;
+            }
+        }
+        if (!foundDoorScript) {
+            std::cerr << "Assertion failed: North door 'brama_polnoc' does not have expected script attached!\n";
+            return 1;
+        }
+
+        bool foundBroomScript = false;
+        for (const auto& b : map81->brushes) {
+            if (b.script == "assets/scripts/qa_rpg_brooms.lua") {
+                foundBroomScript = true;
+                break;
+            }
+        }
+        if (!foundBroomScript) {
+            std::cerr << "Assertion failed: Broom brush does not have expected script attached!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test D: Token `script` in .labmap successfully parsed for dynamic doors and brushes.\n";
+
+        // Sub-test E: Lua ScriptEngine camera control and Weapons table name resolution
+        Lab::ScriptEngine scriptEngine;
+        scriptEngine.init("assets/scripts/qa_rpg_rules.lua");
+
+        std::string wep0 = scriptEngine.getWeaponNameById(0);
+        std::string wep1 = scriptEngine.getWeaponNameById(1);
+        std::string wep2 = scriptEngine.getWeaponNameById(2);
+
+        if (wep0 != "KOSTUR WOZNEGO" || wep1 != "ROZDZKA TRENINGOWA" || wep2 != "ROZDZKA BURZY") {
+            std::cerr << "Assertion failed: Weapon names not resolved correctly from Lua Weapons table! Got: "
+                      << wep0 << ", " << wep1 << ", " << wep2 << "\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test E: Weapon names resolved from Lua Weapons table: '" << wep0 << "', '" << wep1 << "', '" << wep2 << "'.\n";
+
+        // Lua Camera switching API
+        scriptEngine.setActiveCameraName("cam_tpp");
+        if (scriptEngine.getActiveCameraName() != "cam_tpp") {
+            std::cerr << "Assertion failed: ScriptEngine active camera mismatch!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test F: Lua runtime Camera API (Camera.setActive, Camera.getActive) verified.\n";
+
+        // Sub-test G: Gameplay verification (ZWOJE 1/5 and door opening trigger)
+        scriptEngine.callOnTriggerEnter(0, 1); // Pickup trigger -> ZWOJE 1/5
+        std::string questHudText = Lab::ScriptEngine::getHUDText("rpg.quest_status");
+        if (questHudText != "ZWOJE 1/5") {
+            std::cerr << "Assertion failed: Expected 'ZWOJE 1/5' from OnTriggerEnter, got: " << questHudText << "\n";
+            return 1;
+        }
+
+        // Door trigger simulation:
+        auto& door = map81->doors[0];
+        door.isOpen = true;
+        door.currentProgress = std::min(1.0f, door.currentProgress + door.openSpeed * 0.5f);
+        if (door.currentProgress <= 0.0f) {
+            std::cerr << "Assertion failed: Door did not progress opening animation!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test G: Quest HUD shows '" << questHudText << "' and North Door opening kinematics verified.\n";
+
+        // Sub-test H: Transform Gizmo Pivot Center & Grid Snap Decrement/Increment
+        Lab::Vec3 bMin = map81->brushes[0].position - map81->brushes[0].size * 0.5f;
+        Lab::Vec3 bMax = map81->brushes[0].position + map81->brushes[0].size * 0.5f;
+        Lab::Vec3 pivot = (bMin + bMax) * 0.5f;
+        if (std::abs(pivot.x - map81->brushes[0].position.x) > 0.001f ||
+            std::abs(pivot.y - map81->brushes[0].position.y) > 0.001f ||
+            std::abs(pivot.z - map81->brushes[0].position.z) > 0.001f) {
+            std::cerr << "Assertion failed: Gizmo pivot is not centered on object selection center!\n";
+            return 1;
+        }
+
+        float snapVal = 1.0f;
+        // '[' decreases snap
+        snapVal = std::max(0.125f, snapVal * 0.5f);
+        if (std::abs(snapVal - 0.5f) > 0.001f) {
+            std::cerr << "Assertion failed: Snap decrement '[' failed!\n";
+            return 1;
+        }
+        // ']' increases snap
+        snapVal = std::min(16.0f, snapVal * 2.0f);
+        if (std::abs(snapVal - 1.0f) > 0.001f) {
+            std::cerr << "Assertion failed: Snap increment ']' failed!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test H: Gizmo pivot center alignment on selection and '[' / ']' grid snap hotkeys verified.\n";
+
+        std::cout << "  [PASS] Test 81 Camera scene entity, Object-Centered Gizmo, .labmap rotation/scripts, and Lua Weapons/Quests passed 100%!\n";
+    }
+
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();

@@ -47,7 +47,32 @@ enum class SelectionType {
     Spawn,
     WeaponSpawner,
     Light,
-    Sprite
+    Sprite,
+    Camera
+};
+
+enum class GizmoMode {
+    Move = 0,
+    Rotate = 1,
+    Scale = 2,
+    Universal = 3
+};
+
+enum class GizmoAxis {
+    None = 0,
+    X,
+    Y,
+    Z,
+    PlaneXY,
+    PlaneXZ,
+    PlaneYZ,
+    RotX,
+    RotY,
+    RotZ,
+    ScaleX,
+    ScaleY,
+    ScaleZ,
+    ScaleUniform
 };
 
 enum class EngineSimState {
@@ -977,6 +1002,153 @@ public:
             _cursorPos = snapToGrid(_camera.getPosition() + _camera.getFront() * 10.0f, _gridSnap);
         }
 
+        // Transform Gizmo Dragging Logic
+        if (_isDraggingGizmo && _selectionType != SelectionType::None) {
+            if (Input::isMouseButtonPressed(0)) {
+                float dx = mx - _dragStartMouse.x;
+                float dy = my - _dragStartMouse.y;
+                Vec3 curPos = getSelectedPosition();
+                Vec3 curRot = getSelectedRotation();
+                Vec3 curScale = getSelectedScale();
+
+                float camDist = (_camera.getPosition() - curPos).length();
+                float worldFactor = std::max(0.005f, camDist * 0.002f);
+
+                switch (_activeGizmoAxis) {
+                    case GizmoAxis::X: {
+                        float moveX = std::round((dx * worldFactor) / _gridSnap) * _gridSnap;
+                        if (std::abs(moveX) >= _gridSnap) {
+                            moveSelection(moveX, 0, 0);
+                            _dragStartMouse.x = mx;
+                        }
+                        _gizmoStatusText = "Gizmo [Move X]: X = " + std::to_string(curPos.x) + " (Snap: " + std::to_string(_gridSnap) + "m)";
+                        break;
+                    }
+                    case GizmoAxis::Y: {
+                        float moveY = std::round((-dy * worldFactor) / _gridSnap) * _gridSnap;
+                        if (std::abs(moveY) >= _gridSnap) {
+                            moveSelection(0, moveY, 0);
+                            _dragStartMouse.y = my;
+                        }
+                        _gizmoStatusText = "Gizmo [Move Y]: Y = " + std::to_string(curPos.y) + " (Snap: " + std::to_string(_gridSnap) + "m)";
+                        break;
+                    }
+                    case GizmoAxis::Z: {
+                        float moveZ = std::round((dy * worldFactor) / _gridSnap) * _gridSnap;
+                        if (std::abs(moveZ) >= _gridSnap) {
+                            moveSelection(0, 0, moveZ);
+                            _dragStartMouse.y = my;
+                        }
+                        _gizmoStatusText = "Gizmo [Move Z]: Z = " + std::to_string(curPos.z) + " (Snap: " + std::to_string(_gridSnap) + "m)";
+                        break;
+                    }
+                    case GizmoAxis::PlaneXY: {
+                        float mX = std::round((dx * worldFactor) / _gridSnap) * _gridSnap;
+                        float mY = std::round((-dy * worldFactor) / _gridSnap) * _gridSnap;
+                        if (std::abs(mX) >= _gridSnap || std::abs(mY) >= _gridSnap) {
+                            moveSelection(mX, mY, 0);
+                            _dragStartMouse = { mx, my };
+                        }
+                        _gizmoStatusText = "Gizmo [Plane XY]: (" + std::to_string(curPos.x) + ", " + std::to_string(curPos.y) + ")";
+                        break;
+                    }
+                    case GizmoAxis::PlaneXZ: {
+                        float mX = std::round((dx * worldFactor) / _gridSnap) * _gridSnap;
+                        float mZ = std::round((dy * worldFactor) / _gridSnap) * _gridSnap;
+                        if (std::abs(mX) >= _gridSnap || std::abs(mZ) >= _gridSnap) {
+                            moveSelection(mX, 0, mZ);
+                            _dragStartMouse = { mx, my };
+                        }
+                        _gizmoStatusText = "Gizmo [Plane XZ]: (" + std::to_string(curPos.x) + ", " + std::to_string(curPos.z) + ")";
+                        break;
+                    }
+                    case GizmoAxis::PlaneYZ: {
+                        float mY = std::round((-dy * worldFactor) / _gridSnap) * _gridSnap;
+                        float mZ = std::round((dx * worldFactor) / _gridSnap) * _gridSnap;
+                        if (std::abs(mY) >= _gridSnap || std::abs(mZ) >= _gridSnap) {
+                            moveSelection(0, mY, mZ);
+                            _dragStartMouse = { mx, my };
+                        }
+                        _gizmoStatusText = "Gizmo [Plane YZ]: (" + std::to_string(curPos.y) + ", " + std::to_string(curPos.z) + ")";
+                        break;
+                    }
+                    case GizmoAxis::RotX: {
+                        float deg = std::round((dy * 0.5f) / _angleSnap) * _angleSnap;
+                        if (std::abs(deg) >= _angleSnap) {
+                            rotateSelection(deg, 0, 0);
+                            _dragStartMouse.y = my;
+                        }
+                        _gizmoStatusText = "Gizmo [Rotate Pitch]: " + std::to_string((int)curRot.x) + " deg (Snap: " + std::to_string((int)_angleSnap) + " deg)";
+                        break;
+                    }
+                    case GizmoAxis::RotY: {
+                        float deg = std::round((dx * 0.5f) / _angleSnap) * _angleSnap;
+                        if (std::abs(deg) >= _angleSnap) {
+                            rotateSelection(0, deg, 0);
+                            _dragStartMouse.x = mx;
+                        }
+                        _gizmoStatusText = "Gizmo [Rotate Yaw]: " + std::to_string((int)curRot.y) + " deg (Snap: " + std::to_string((int)_angleSnap) + " deg)";
+                        break;
+                    }
+                    case GizmoAxis::RotZ: {
+                        float deg = std::round((dx * 0.5f) / _angleSnap) * _angleSnap;
+                        if (std::abs(deg) >= _angleSnap) {
+                            rotateSelection(0, 0, deg);
+                            _dragStartMouse.x = mx;
+                        }
+                        _gizmoStatusText = "Gizmo [Rotate Roll]: " + std::to_string((int)curRot.z) + " deg (Snap: " + std::to_string((int)_angleSnap) + " deg)";
+                        break;
+                    }
+                    case GizmoAxis::ScaleX: {
+                        float sc = std::round((dx * 0.02f) / _scaleSnap) * _scaleSnap;
+                        if (std::abs(sc) >= _scaleSnap) {
+                            scaleSelection(sc, 0, 0);
+                            _dragStartMouse.x = mx;
+                        }
+                        _gizmoStatusText = "Gizmo [Scale X]: " + std::to_string(curScale.x);
+                        break;
+                    }
+                    case GizmoAxis::ScaleY: {
+                        float sc = std::round((-dy * 0.02f) / _scaleSnap) * _scaleSnap;
+                        if (std::abs(sc) >= _scaleSnap) {
+                            scaleSelection(0, sc, 0);
+                            _dragStartMouse.y = my;
+                        }
+                        _gizmoStatusText = "Gizmo [Scale Y]: " + std::to_string(curScale.y);
+                        break;
+                    }
+                    case GizmoAxis::ScaleZ: {
+                        float sc = std::round((dy * 0.02f) / _scaleSnap) * _scaleSnap;
+                        if (std::abs(sc) >= _scaleSnap) {
+                            scaleSelection(0, 0, sc);
+                            _dragStartMouse.y = my;
+                        }
+                        _gizmoStatusText = "Gizmo [Scale Z]: " + std::to_string(curScale.z);
+                        break;
+                    }
+                    case GizmoAxis::ScaleUniform: {
+                        float sc = std::round(((dx - dy) * 0.015f) / _scaleSnap) * _scaleSnap;
+                        if (std::abs(sc) >= _scaleSnap) {
+                            scaleSelection(sc, sc, sc);
+                            _dragStartMouse = { mx, my };
+                        }
+                        _gizmoStatusText = "Gizmo [Scale Uniform]: (" + std::to_string(curScale.x) + ", " + std::to_string(curScale.y) + ", " + std::to_string(curScale.z) + ")";
+                        break;
+                    }
+                    default: break;
+                }
+            } else {
+                _isDraggingGizmo = false;
+                _activeGizmoAxis = GizmoAxis::None;
+                _gizmoStatusText = "";
+            }
+        } else if (!_isDraggingGizmo && _selectionType != SelectionType::None && in3DViewport && !Input::isMouseButtonPressed(1)) {
+            Vec3 rayDir = _camera.screenToWorldRay(mx, my, (float)fbW, (float)fbH);
+            _hoveredGizmoAxis = testGizmoHit(_camera.getPosition(), rayDir, getSelectedPosition());
+        } else if (!_isDraggingGizmo) {
+            _hoveredGizmoAxis = GizmoAxis::None;
+        }
+
         // Mouse Wheel: Elevate / Lower selected object along Y-axis if inside 3D Viewport
         if (std::abs(Input::scrollDelta) > 0.01f && _selectionType != SelectionType::None && in3DViewport && !Input::isMouseButtonPressed(1)) {
             float dy = (Input::scrollDelta > 0.0f) ? _gridSnap : -_gridSnap;
@@ -992,15 +1164,35 @@ public:
             _lmbPressed = false;
         }
 
-        // Handle Right-Click (for Tool 3 Pipette sample or Hierarchy Context Menu)
+        // Handle Right-Click (for Tool 3 Pipette sample or Viewport Context Menu with Magic Add)
+        static Vec2 s_rmbPressPos{ 0, 0 };
+        if (Input::isMouseButtonJustPressed(1)) {
+            s_rmbPressPos = { mx, my };
+        }
         if (Input::isMouseButtonJustPressed(1) || (Input::isMouseButtonPressed(1) && !_rmbPressed)) {
             if (_activeTool == 3) {
                 handleMouseClick(mx, my, true);
             } else if (!in3DViewport || _contextMenuOpen || mx >= vpX + vpW) {
                 handleMouseClick(mx, my, true);
+            } else if (Input::isKeyPressed(340) || Input::isKeyPressed(344)) { // Shift + RMB opens Context Menu
+                _contextMenuOpen = true;
+                _contextMenuX = mx;
+                _contextMenuY = my;
+                _contextMenuSearch = "";
+                _contextMenuTargetIndex = (_selectedIndex >= 0) ? _selectedIndex : 0;
             }
             _rmbPressed = true;
         } else if (!Input::isMouseButtonPressed(1)) {
+            if (_rmbPressed && in3DViewport && _activeTool != 3 && !Input::isKeyPressed(340) && !Input::isKeyPressed(344)) {
+                float distMoved = std::sqrt((mx - s_rmbPressPos.x) * (mx - s_rmbPressPos.x) + (my - s_rmbPressPos.y) * (my - s_rmbPressPos.y));
+                if (distMoved < 4.0f) {
+                    _contextMenuOpen = true;
+                    _contextMenuX = mx;
+                    _contextMenuY = my;
+                    _contextMenuSearch = "";
+                    _contextMenuTargetIndex = (_selectedIndex >= 0) ? _selectedIndex : 0;
+                }
+            }
             _rmbPressed = false;
         }
 
@@ -1337,8 +1529,8 @@ public:
                 }
             } else _arrowDownPressed = false;
 
-            bool upElevateKey = Input::isKeyPressed(266) || Input::isKeyPressed(82) || Input::isKeyPressed(334) || Input::isKeyPressed(93); // PageUp, 'R', Keypad '+', ']'
-            bool dwnElevateKey = Input::isKeyPressed(267) || Input::isKeyPressed(67) || Input::isKeyPressed(333) || Input::isKeyPressed(91); // PageDown, 'C', Keypad '-', '['
+            bool upElevateKey = Input::isKeyPressed(266) || Input::isKeyPressed(82) || Input::isKeyPressed(334); // PageUp, 'R', Keypad '+'
+            bool dwnElevateKey = Input::isKeyPressed(267) || Input::isKeyPressed(67) || Input::isKeyPressed(333); // PageDown, 'C', Keypad '-'
 
             if (upElevateKey) {
                 if (!_pageUpPressed) { moveSelection(0, _gridSnap, 0); _pageUpPressed = true; }
@@ -1347,6 +1539,51 @@ public:
             if (dwnElevateKey) {
                 if (!_pageDownPressed) { moveSelection(0, -_gridSnap, 0); _pageDownPressed = true; }
             } else _pageDownPressed = false;
+        }
+
+        // [ and ] Snap controls
+        if (Input::isKeyPressed(91)) { // '['
+            if (!_snapDecPressed) {
+                _gridSnap = std::max(0.125f, _gridSnap * 0.5f);
+                _angleSnap = std::max(5.0f, _angleSnap - 5.0f);
+                _scaleSnap = std::max(0.05f, _scaleSnap - 0.05f);
+                logMessage("Decreased Snap: Grid=" + std::to_string(_gridSnap) + "m, Angle=" + std::to_string((int)_angleSnap) + " deg");
+                _snapDecPressed = true;
+            }
+        } else {
+            _snapDecPressed = false;
+        }
+
+        if (Input::isKeyPressed(93)) { // ']'
+            if (!_snapIncPressed) {
+                _gridSnap = std::min(16.0f, _gridSnap * 2.0f);
+                _angleSnap = std::min(90.0f, _angleSnap + 5.0f);
+                _scaleSnap = std::min(2.0f, _scaleSnap + 0.05f);
+                logMessage("Increased Snap: Grid=" + std::to_string(_gridSnap) + "m, Angle=" + std::to_string((int)_angleSnap) + " deg");
+                _snapIncPressed = true;
+            }
+        } else {
+            _snapIncPressed = false;
+        }
+
+        // Gizmo Mode Hotkeys: W (Move), E (Rotate), R (Scale), T (Universal)
+        if (is3DMapEditing && !_contextMenuOpen && !ctrlDown && _activeTool == 0) {
+            static bool s_wPressed = false, s_eModePressed = false, s_rModePressed = false, s_tPressed = false;
+            if (Input::isKeyPressed('W') || Input::isKeyPressed('w')) {
+                if (!s_wPressed) { _gizmoMode = GizmoMode::Move; logMessage("Gizmo Mode: Move (W)"); s_wPressed = true; }
+            } else s_wPressed = false;
+
+            if (Input::isKeyPressed('E') || Input::isKeyPressed('e')) {
+                if (!s_eModePressed) { _gizmoMode = GizmoMode::Rotate; logMessage("Gizmo Mode: Rotate (E)"); s_eModePressed = true; }
+            } else s_eModePressed = false;
+
+            if (Input::isKeyPressed('R') || Input::isKeyPressed('r')) {
+                if (!s_rModePressed) { _gizmoMode = GizmoMode::Scale; logMessage("Gizmo Mode: Scale (R)"); s_rModePressed = true; }
+            } else s_rModePressed = false;
+
+            if (Input::isKeyPressed('T') || Input::isKeyPressed('t')) {
+                if (!s_tPressed) { _gizmoMode = GizmoMode::Universal; logMessage("Gizmo Mode: Universal (T)"); s_tPressed = true; }
+            } else s_tPressed = false;
         }
     }
 }
@@ -1431,17 +1668,18 @@ public:
         SelectionType hitType = SelectionType::None;
         int hitIndex = -1;
 
-        // Interactive Gizmo Y-Handle Hit Test (Elevate selected object by clicking the vertical green arrow)
+        // Interactive Gizmo Hit Test (Move / Rotate / Scale / Universal drag)
         if (_selectionType != SelectionType::None && !isRmb) {
             Vec3 selPos = getSelectedPosition();
-            Vec3 yHandleMin = selPos + Vec3(-0.35f, 0.2f, -0.35f);
-            Vec3 yHandleMax = selPos + Vec3(0.35f, 2.3f, 0.35f);
-            float tGizmo = 0.0f;
-            if (rayIntersectAABB(rayOrigin, rayDir, yHandleMin, yHandleMax, tGizmo)) {
-                if (tGizmo > 0.01f && tGizmo < 300.0f) {
-                    moveSelection(0.0f, _gridSnap, 0.0f);
-                    return;
-                }
+            GizmoAxis hitAxis = testGizmoHit(rayOrigin, rayDir, selPos);
+            if (hitAxis != GizmoAxis::None) {
+                _isDraggingGizmo = true;
+                _activeGizmoAxis = hitAxis;
+                _dragStartMouse = { mx, my };
+                _dragStartPos = selPos;
+                _dragStartRot = getSelectedRotation();
+                _dragStartScale = getSelectedScale();
+                return;
             }
         }
 
@@ -1528,6 +1766,20 @@ public:
             }
         }
 
+        // Test Cameras
+        for (size_t i = 0; i < _map->cameras.size(); ++i) {
+            const auto& cam = _map->cameras[i];
+            Vec3 half(0.6f, 0.6f, 0.6f);
+            float t = 0;
+            if (rayIntersectAABB(rayOrigin, rayDir, cam.position - half, cam.position + half, t)) {
+                if (t < closestT) {
+                    closestT = t;
+                    hitType = SelectionType::Camera;
+                    hitIndex = (int)i;
+                }
+            }
+        }
+
         // Tool 3: Texture pipette & application
         if (_activeTool == 3) {
             if (hitType == SelectionType::Brush) {
@@ -1585,6 +1837,8 @@ public:
                 logMessage("Selected Weapon Spawner [" + _map->weaponSpawners[hitIndex].getWeaponName() + "] #" + std::to_string(hitIndex));
             } else if (_selectionType == SelectionType::Light) {
                 logMessage("Selected Lamp Light #" + std::to_string(hitIndex) + " (" + _map->lights[hitIndex].name + ")");
+            } else if (_selectionType == SelectionType::Camera) {
+                logMessage("Selected Camera #" + std::to_string(hitIndex) + " (" + _map->cameras[hitIndex].name + ")");
             } else {
                 _selectionType = SelectionType::None;
                 _selectedIndex = -1;
@@ -1618,8 +1872,176 @@ public:
             return _map->weaponSpawners[_selectedIndex].position;
         } else if (_selectionType == SelectionType::Light && _selectedIndex >= 0 && _selectedIndex < (int)_map->lights.size()) {
             return _map->lights[_selectedIndex].position;
+        } else if (_selectionType == SelectionType::Camera && _selectedIndex >= 0 && _selectedIndex < (int)_map->cameras.size()) {
+            return _map->cameras[_selectedIndex].position;
         }
         return Vec3(0, 0, 0);
+    }
+
+    Vec3 getSelectedRotation() const {
+        if (!_map) return Vec3(0, 0, 0);
+        if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
+            return _map->brushes[_selectedIndex].rotation;
+        } else if (_selectionType == SelectionType::Prop && _selectedIndex >= 0 && _selectedIndex < (int)_map->props.size()) {
+            return _map->props[_selectedIndex].rotation;
+        } else if (_selectionType == SelectionType::Camera && _selectedIndex >= 0 && _selectedIndex < (int)_map->cameras.size()) {
+            return _map->cameras[_selectedIndex].rotation;
+        }
+        return Vec3(0, 0, 0);
+    }
+
+    void rotateSelection(float dp, float dy, float dr) {
+        if (!_map) return;
+        if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
+            auto& r = _map->brushes[_selectedIndex].rotation;
+            r.x = std::fmod(r.x + dp, 360.0f);
+            r.y = std::fmod(r.y + dy, 360.0f);
+            r.z = std::fmod(r.z + dr, 360.0f);
+            logMessage("Rotated Brush #" + std::to_string(_selectedIndex) + " to (" +
+                       std::to_string((int)r.x) + "°, " + std::to_string((int)r.y) + "°, " + std::to_string((int)r.z) + "°)");
+        } else if (_selectionType == SelectionType::Prop && _selectedIndex >= 0 && _selectedIndex < (int)_map->props.size()) {
+            auto& r = _map->props[_selectedIndex].rotation;
+            r.x = std::fmod(r.x + dp, 360.0f);
+            r.y = std::fmod(r.y + dy, 360.0f);
+            r.z = std::fmod(r.z + dr, 360.0f);
+            logMessage("Rotated Prop #" + std::to_string(_selectedIndex) + " to (" +
+                       std::to_string((int)r.x) + "°, " + std::to_string((int)r.y) + "°, " + std::to_string((int)r.z) + "°)");
+        } else if (_selectionType == SelectionType::Camera && _selectedIndex >= 0 && _selectedIndex < (int)_map->cameras.size()) {
+            auto& r = _map->cameras[_selectedIndex].rotation;
+            r.x = std::clamp(r.x + dp, -89.0f, 89.0f);
+            r.y = std::fmod(r.y + dy, 360.0f);
+            r.z = std::fmod(r.z + dr, 360.0f);
+            logMessage("Rotated Camera [" + _map->cameras[_selectedIndex].name + "] to Pitch=" +
+                       std::to_string((int)r.x) + "°, Yaw=" + std::to_string((int)r.y) + "°");
+        }
+    }
+
+    Vec3 getSelectedScale() const {
+        if (!_map) return Vec3(1, 1, 1);
+        if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
+            return _map->brushes[_selectedIndex].size;
+        } else if (_selectionType == SelectionType::Prop && _selectedIndex >= 0 && _selectedIndex < (int)_map->props.size()) {
+            return _map->props[_selectedIndex].scale;
+        }
+        return Vec3(1, 1, 1);
+    }
+
+    void scaleSelection(float sx, float sy, float sz) {
+        if (!_map) return;
+        if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
+            auto& b = _map->brushes[_selectedIndex];
+            b.size.x = std::max(0.2f, b.size.x + sx);
+            b.size.y = std::max(0.2f, b.size.y + sy);
+            b.size.z = std::max(0.2f, b.size.z + sz);
+            logMessage("Scaled Brush #" + std::to_string(_selectedIndex) + " to (" +
+                       std::to_string((int)b.size.x) + "x" + std::to_string((int)b.size.y) + "x" + std::to_string((int)b.size.z) + ")");
+        } else if (_selectionType == SelectionType::Prop && _selectedIndex >= 0 && _selectedIndex < (int)_map->props.size()) {
+            auto& p = _map->props[_selectedIndex];
+            p.scale.x = std::max(0.1f, p.scale.x + sx);
+            p.scale.y = std::max(0.1f, p.scale.y + sy);
+            p.scale.z = std::max(0.1f, p.scale.z + sz);
+            logMessage("Scaled Prop #" + std::to_string(_selectedIndex) + " to (" +
+                       std::to_string(p.scale.x) + ", " + std::to_string(p.scale.y) + ", " + std::to_string(p.scale.z) + ")");
+        }
+    }
+
+    GizmoAxis testGizmoHit(const Vec3& rayOrigin, const Vec3& rayDir, const Vec3& pivot) const {
+        float closestT = 1e9f;
+        GizmoAxis bestAxis = GizmoAxis::None;
+
+        float len = 1.8f;
+        float thick = 0.22f;
+        float cap = 0.35f;
+
+        bool testMove = (_gizmoMode == GizmoMode::Move || _gizmoMode == GizmoMode::Universal);
+        bool testRotate = (_gizmoMode == GizmoMode::Rotate || _gizmoMode == GizmoMode::Universal);
+        bool testScale = (_gizmoMode == GizmoMode::Scale || _gizmoMode == GizmoMode::Universal);
+
+        // Move Planes
+        if (testMove) {
+            float t = 0.0f;
+            // Plane XY
+            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(0.2f, 0.2f, -0.1f), pivot + Vec3(0.8f, 0.8f, 0.1f), t) && t < closestT) {
+                closestT = t; bestAxis = GizmoAxis::PlaneXY;
+            }
+            // Plane XZ
+            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(0.2f, -0.1f, 0.2f), pivot + Vec3(0.8f, 0.1f, 0.8f), t) && t < closestT) {
+                closestT = t; bestAxis = GizmoAxis::PlaneXZ;
+            }
+            // Plane YZ
+            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(-0.1f, 0.2f, 0.2f), pivot + Vec3(0.1f, 0.8f, 0.8f), t) && t < closestT) {
+                closestT = t; bestAxis = GizmoAxis::PlaneYZ;
+            }
+            // Axes
+            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(0.1f, -thick, -thick), pivot + Vec3(len + cap, thick, thick), t) && t < closestT) {
+                closestT = t; bestAxis = GizmoAxis::X;
+            }
+            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(-thick, 0.1f, -thick), pivot + Vec3(thick, len + cap, thick), t) && t < closestT) {
+                closestT = t; bestAxis = GizmoAxis::Y;
+            }
+            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(-thick, -thick, 0.1f), pivot + Vec3(thick, thick, len + cap), t) && t < closestT) {
+                closestT = t; bestAxis = GizmoAxis::Z;
+            }
+        }
+
+        // Scale Handles
+        if (testScale) {
+            float t = 0.0f;
+            // Uniform center
+            if (rayIntersectAABB(rayOrigin, rayDir, pivot - Vec3(0.2f, 0.2f, 0.2f), pivot + Vec3(0.2f, 0.2f, 0.2f), t) && t < closestT) {
+                closestT = t; bestAxis = GizmoAxis::ScaleUniform;
+            }
+            // Scale X
+            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(len - 0.2f, -cap, -cap), pivot + Vec3(len + cap, cap, cap), t) && t < closestT) {
+                closestT = t; bestAxis = GizmoAxis::ScaleX;
+            }
+            // Scale Y
+            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(-cap, len - 0.2f, -cap), pivot + Vec3(cap, len + cap, cap), t) && t < closestT) {
+                closestT = t; bestAxis = GizmoAxis::ScaleY;
+            }
+            // Scale Z
+            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(-cap, -cap, len - 0.2f), pivot + Vec3(cap, cap, len + cap), t) && t < closestT) {
+                closestT = t; bestAxis = GizmoAxis::ScaleZ;
+            }
+        }
+
+        // Rotate Rings
+        if (testRotate) {
+            float ringR = 1.8f;
+            float ringThick = 0.35f;
+            if (std::abs(rayDir.x) > 1e-5f) {
+                float t = (pivot.x - rayOrigin.x) / rayDir.x;
+                if (t > 0.01f && t < closestT) {
+                    Vec3 hit = rayOrigin + rayDir * t;
+                    float d = std::sqrt((hit.y - pivot.y) * (hit.y - pivot.y) + (hit.z - pivot.z) * (hit.z - pivot.z));
+                    if (std::abs(d - ringR) <= ringThick) {
+                        closestT = t; bestAxis = GizmoAxis::RotX;
+                    }
+                }
+            }
+            if (std::abs(rayDir.y) > 1e-5f) {
+                float t = (pivot.y - rayOrigin.y) / rayDir.y;
+                if (t > 0.01f && t < closestT) {
+                    Vec3 hit = rayOrigin + rayDir * t;
+                    float d = std::sqrt((hit.x - pivot.x) * (hit.x - pivot.x) + (hit.z - pivot.z) * (hit.z - pivot.z));
+                    if (std::abs(d - ringR) <= ringThick) {
+                        closestT = t; bestAxis = GizmoAxis::RotY;
+                    }
+                }
+            }
+            if (std::abs(rayDir.z) > 1e-5f) {
+                float t = (pivot.z - rayOrigin.z) / rayDir.z;
+                if (t > 0.01f && t < closestT) {
+                    Vec3 hit = rayOrigin + rayDir * t;
+                    float d = std::sqrt((hit.x - pivot.x) * (hit.x - pivot.x) + (hit.y - pivot.y) * (hit.y - pivot.y));
+                    if (std::abs(d - ringR) <= ringThick) {
+                        closestT = t; bestAxis = GizmoAxis::RotZ;
+                    }
+                }
+            }
+        }
+
+        return bestAxis;
     }
 
     void alignSelectionToGround() {
@@ -1651,6 +2073,9 @@ public:
         } else if (_selectionType == SelectionType::Light && _selectedIndex >= 0 && _selectedIndex < (int)_map->lights.size()) {
             _map->lights[_selectedIndex].position += Vec3(dx, dy, dz);
             newPos = _map->lights[_selectedIndex].position;
+        } else if (_selectionType == SelectionType::Camera && _selectedIndex >= 0 && _selectedIndex < (int)_map->cameras.size()) {
+            _map->cameras[_selectedIndex].position += Vec3(dx, dy, dz);
+            newPos = _map->cameras[_selectedIndex].position;
         }
         if (std::abs(dy) > 0.0001f) {
             char buf[64];
@@ -1729,6 +2154,14 @@ public:
             _map->lights.push_back(lt);
             _selectedIndex = (int)_map->lights.size() - 1;
             logMessage("Duplicated Lamp Light to #" + std::to_string(_selectedIndex));
+        } else if (_selectionType == SelectionType::Camera && _selectedIndex >= 0 && _selectedIndex < (int)_map->cameras.size()) {
+            MapCamera c = _map->cameras[_selectedIndex];
+            c.position.x += _gridSnap;
+            c.position.z += _gridSnap;
+            c.name = c.name + "_copy";
+            _map->cameras.push_back(c);
+            _selectedIndex = (int)_map->cameras.size() - 1;
+            logMessage("Duplicated Camera to #" + std::to_string(_selectedIndex));
         }
     }
 
@@ -1768,6 +2201,11 @@ public:
             logMessage("Deleted Lamp Light #" + std::to_string(_selectedIndex));
             _selectionType = SelectionType::None;
             _selectedIndex = -1;
+        } else if (_selectionType == SelectionType::Camera && _selectedIndex >= 0 && _selectedIndex < (int)_map->cameras.size()) {
+            _map->cameras.erase(_map->cameras.begin() + _selectedIndex);
+            logMessage("Deleted Camera #" + std::to_string(_selectedIndex));
+            _selectionType = SelectionType::None;
+            _selectedIndex = -1;
         }
     }
 
@@ -1785,6 +2223,8 @@ public:
             targetPos = _map->weaponSpawners[_selectedIndex].position;
         } else if (_selectionType == SelectionType::Light && _selectedIndex >= 0 && _selectedIndex < (int)_map->lights.size()) {
             targetPos = _map->lights[_selectedIndex].position;
+        } else if (_selectionType == SelectionType::Camera && _selectedIndex >= 0 && _selectedIndex < (int)_map->cameras.size()) {
+            targetPos = _map->cameras[_selectedIndex].position;
         }
         _camera.setPosition(targetPos - _camera.getFront() * 10.0f);
         logMessage("Focused Camera on selection at (" + std::to_string((int)targetPos.x) + ", " + std::to_string((int)targetPos.y) + ", " + std::to_string((int)targetPos.z) + ")");
@@ -2272,16 +2712,19 @@ public:
             float cmW = 260.0f;
             struct CompDef { std::string name; std::string tag; };
             CompDef compRegistry[] = {
+                { "Magic Add: Camera", "Camera" },
+                { "Magic Add: Light", "Light" },
+                { "Magic Add: Spawn", "Spawn" },
+                { "Magic Add: Brush", "Brush" },
+                { "Magic Add: Broom", "Broom" },
+                { "Magic Add: Door", "Door" },
                 { "Script (Lua)", "Script" },
                 { "Point Light", "Light" },
                 { "2D Sprite", "Sprite" },
                 { "Box Collider", "Physics" },
                 { "Audio Source", "Sound" },
                 { "Timer Trigger", "Trigger" },
-                { "Particle Emitter", "FX" },
-                { "Collectible Item (Score/Coins)", "Gameplay" },
-                { "Interactive Trigger / Switch", "Gameplay" },
-                { "Camera Rail / Anchor", "Camera" }
+                { "Particle Emitter", "FX" }
             };
 
             std::vector<CompDef> filtered;
@@ -2296,7 +2739,7 @@ public:
                 }
             }
 
-            int itemCount = std::min((int)filtered.size(), 7);
+            int itemCount = std::min((int)filtered.size(), 8);
             float cmH = 68.0f + itemCount * 22.0f + 65.0f;
             int winW = 1600, winH = 900;
             getWindowSize(winW, winH);
@@ -2309,7 +2752,79 @@ public:
                 for (int i = 0; i < itemCount; ++i) {
                     if (my >= curItemY && my <= curItemY + 20.0f) {
                         std::string picked = filtered[i].name;
-                        if (picked.find("Script") != std::string::npos) {
+                        if (picked == "Magic Add: Camera") {
+                            MapCamera c;
+                            c.name = "camera_" + std::to_string(_map->cameras.size() + 1);
+                            c.position = _cursorPos + Vec3(0, 1.8f, 0);
+                            c.rotation = Vec3(0, 0, 0);
+                            c.fov = 75.0f;
+                            c.follow_target = "player";
+                            c.tpp_offset = Vec3(0.6f, 1.8f, -3.5f);
+                            c.collision_radius = 0.3f;
+                            c.active = _map->cameras.empty();
+                            _map->cameras.push_back(c);
+                            _selectionType = SelectionType::Camera;
+                            _selectedIndex = (int)_map->cameras.size() - 1;
+                            logMessage("Magic Add: Created Camera [" + c.name + "]");
+                        } else if (picked == "Magic Add: Light") {
+                            MapLight lt;
+                            lt.name = "light_" + std::to_string(_map->lights.size() + 1);
+                            lt.position = _cursorPos + Vec3(0, 1.5f, 0);
+                            lt.color = _lampColor;
+                            lt.intensity = _lampIntensity;
+                            lt.radius = _lampRadius;
+                            _map->lights.push_back(lt);
+                            _selectionType = SelectionType::Light;
+                            _selectedIndex = (int)_map->lights.size() - 1;
+                            logMessage("Magic Add: Created Light [" + lt.name + "]");
+                        } else if (picked == "Magic Add: Spawn") {
+                            MapSpawnPoint sp;
+                            sp.position = _cursorPos + Vec3(0, 0.5f, 0);
+                            sp.type = SpawnType::FFA;
+                            sp.yaw = 0.0f;
+                            _map->spawnPoints.push_back(sp);
+                            _selectionType = SelectionType::Spawn;
+                            _selectedIndex = (int)_map->spawnPoints.size() - 1;
+                            logMessage("Magic Add: Created Spawn Point");
+                        } else if (picked == "Magic Add: Brush") {
+                            MapBrush b;
+                            b.type = "cube";
+                            b.position = _cursorPos + Vec3(0, _brushSize.y * 0.5f, 0);
+                            b.size = _brushSize;
+                            b.color = Vec3(0.8f, 0.8f, 0.85f);
+                            b.texturePath = _selectedTexture;
+                            _map->brushes.push_back(b);
+                            _selectionType = SelectionType::Brush;
+                            _selectedIndex = (int)_map->brushes.size() - 1;
+                            logMessage("Magic Add: Created Brush");
+                        } else if (picked == "Magic Add: Broom") {
+                            MapBrush b;
+                            b.type = "cube";
+                            b.position = _cursorPos + Vec3(0, 1.5f, 0);
+                            b.size = Vec3(0.22f, 0.22f, 2.6f);
+                            b.color = Vec3(0.48f, 0.30f, 0.14f);
+                            b.texturePath = "brick_wall.bmp";
+                            b.name = "Miotla_" + std::to_string(_map->brushes.size() + 1);
+                            b.script = "assets/scripts/qa_rpg_brooms.lua";
+                            _map->brushes.push_back(b);
+                            _selectionType = SelectionType::Brush;
+                            _selectedIndex = (int)_map->brushes.size() - 1;
+                            logMessage("Magic Add: Created Interactive Broom with script");
+                        } else if (picked == "Magic Add: Door") {
+                            MapDoor d;
+                            d.name = "door_" + std::to_string(_map->doors.size() + 1);
+                            d.position = _cursorPos + Vec3(0, 1.75f, 0);
+                            d.size = Vec3(2.5f, 3.5f, 0.4f);
+                            d.openOffset = Vec3(0, 4.0f, 0);
+                            d.color = Vec3(0.3f, 0.25f, 0.2f);
+                            d.openSpeed = 2.0f;
+                            d.triggerRadius = 5.0f;
+                            d.script = "assets/scripts/qa_rpg_quests.lua";
+                            _map->doors.push_back(d);
+                            _selectionType = SelectionType::Door;
+                            _selectedIndex = (int)_map->doors.size() - 1;
+                            logMessage("Magic Add: Created Dynamic Door");
+                        } else if (picked.find("Script") != std::string::npos) {
                             setWorkspace(EditorWorkspace::Scripting_Editor);
                             logMessage("Context Menu: Attached Script (Lua) - opened Lua Script Editor IDE");
                         } else {
@@ -2949,7 +3464,7 @@ public:
             if (_sidebarTab == SidebarTab::Hierarchy) {
                 int totalSpawns = (int)_map->spawnPoints.size();
                 int totalWepSpawns = (int)_map->weaponSpawners.size();
-                int totalEntities = (int)(totalSpawns + totalWepSpawns + _map->brushes.size() + _map->props.size() + _map->doors.size() + _map->lights.size());
+                int totalEntities = (int)(totalSpawns + totalWepSpawns + _map->brushes.size() + _map->props.size() + _map->doors.size() + _map->lights.size() + _map->cameras.size());
                 int maxItems = (int)(l.outListH / l.outItemSpacing);
 
                 // Click on entity items
@@ -2970,6 +3485,7 @@ public:
                             int pOffset = bOffset + (int)_map->brushes.size();
                             int dOffset = pOffset + (int)_map->props.size();
                             int lOffset = dOffset + (int)_map->doors.size();
+                            int cOffset = lOffset + (int)_map->lights.size();
 
                             if (itemIdx >= bOffset && itemIdx < pOffset) {
                                 _selectionType = SelectionType::Brush;
@@ -2985,10 +3501,14 @@ public:
                                 _selectionType = SelectionType::Door;
                                 _selectedIndex = itemIdx - dOffset;
                                 logMessage("Outliner: Selected Door #" + std::to_string(_selectedIndex));
-                            } else if (itemIdx >= lOffset) {
+                            } else if (itemIdx >= lOffset && itemIdx < cOffset) {
                                 _selectionType = SelectionType::Light;
                                 _selectedIndex = itemIdx - lOffset;
                                 logMessage("Outliner: Selected Lamp Light #" + std::to_string(_selectedIndex) + " (" + _map->lights[_selectedIndex].name + ")");
+                            } else if (itemIdx >= cOffset) {
+                                _selectionType = SelectionType::Camera;
+                                _selectedIndex = itemIdx - cOffset;
+                                logMessage("Outliner: Selected Camera #" + std::to_string(_selectedIndex) + " (" + _map->cameras[_selectedIndex].name + ")");
                             }
                         }
 
@@ -3284,6 +3804,19 @@ public:
                     // Z - / +
                     if (mx >= l.rightX + 216.0f && mx <= l.rightX + 242.0f) { resizeSelection(0, 0, -_gridSnap); _brushSize.z = std::max(0.5f, _brushSize.z - _gridSnap); return; }
                     if (mx >= l.rightX + 246.0f && mx <= l.rightX + 272.0f) { resizeSelection(0, 0, _gridSnap); _brushSize.z += _gridSnap; return; }
+                }
+
+                // Rotation adjusters (Pitch -/+15, Yaw -/+45, Roll -/+15)
+                if (my >= l.rotBtnsY && my <= l.rotBtnsY + l.rotBtnH) {
+                    // Pitch -15 / +15
+                    if (mx >= l.rightX + 28.0f && mx <= l.rightX + 54.0f) { rotateSelection(-15.0f, 0, 0); return; }
+                    if (mx >= l.rightX + 56.0f && mx <= l.rightX + 82.0f) { rotateSelection(15.0f, 0, 0); return; }
+                    // Yaw -45 / +45
+                    if (mx >= l.rightX + 124.0f && mx <= l.rightX + 168.0f) { rotateSelection(0, -45.0f, 0); return; }
+                    if (mx >= l.rightX + 172.0f && mx <= l.rightX + 216.0f) { rotateSelection(0, 45.0f, 0); return; }
+                    // Roll -15 / +15
+                    if (mx >= l.rightX + 242.0f && mx <= l.rightX + 268.0f) { rotateSelection(0, 0, -15.0f); return; }
+                    if (mx >= l.rightX + 270.0f && mx <= l.rightX + 296.0f) { rotateSelection(0, 0, 15.0f); return; }
                 }
 
                 // Deselect All button
@@ -4006,15 +4539,93 @@ public:
         float len = 1.8f;
         float thick = 0.08f;
         float cap = 0.22f;
-        // X Axis: Red
-        Renderer::drawCube(pos + Vec3(len * 0.5f, 0, 0), Vec3(len, thick, thick), Vec3(1.0f, 0.18f, 0.18f), false);
-        Renderer::drawCube(pos + Vec3(len, 0, 0), Vec3(cap, cap, cap), Vec3(1.0f, 0.35f, 0.35f), false);
-        // Y Axis: Green (vertical elevation handle - glowing green top cap arrow)
-        Renderer::drawCube(pos + Vec3(0, len * 0.5f, 0), Vec3(thick, len, thick), Vec3(0.2f, 1.0f, 0.25f), false);
-        Renderer::drawCube(pos + Vec3(0, len, 0), Vec3(cap * 1.3f, cap * 1.5f, cap * 1.3f), Vec3(0.35f, 1.0f, 0.45f), false);
-        // Z Axis: Blue
-        Renderer::drawCube(pos + Vec3(0, 0, len * 0.5f), Vec3(thick, thick, len), Vec3(0.25f, 0.55f, 1.0f), false);
-        Renderer::drawCube(pos + Vec3(0, 0, len), Vec3(cap, cap, cap), Vec3(0.45f, 0.7f, 1.0f), false);
+        Vec3 yellowHov{ 1.0f, 0.95f, 0.2f };
+
+        bool isMove = (_gizmoMode == GizmoMode::Move || _gizmoMode == GizmoMode::Universal);
+        bool isRotate = (_gizmoMode == GizmoMode::Rotate || _gizmoMode == GizmoMode::Universal);
+        bool isScale = (_gizmoMode == GizmoMode::Scale || _gizmoMode == GizmoMode::Universal);
+
+        // Move Handles
+        if (isMove) {
+            // X Axis: Red
+            bool hovX = (_hoveredGizmoAxis == GizmoAxis::X || _activeGizmoAxis == GizmoAxis::X);
+            Vec3 colX = hovX ? yellowHov : Vec3(1.0f, 0.18f, 0.18f);
+            Renderer::drawCube(pos + Vec3(len * 0.5f, 0, 0), Vec3(len, thick, thick), colX, false);
+            Renderer::drawCube(pos + Vec3(len, 0, 0), Vec3(cap, cap, cap), colX, false);
+
+            // Y Axis: Green
+            bool hovY = (_hoveredGizmoAxis == GizmoAxis::Y || _activeGizmoAxis == GizmoAxis::Y);
+            Vec3 colY = hovY ? yellowHov : Vec3(0.2f, 1.0f, 0.25f);
+            Renderer::drawCube(pos + Vec3(0, len * 0.5f, 0), Vec3(thick, len, thick), colY, false);
+            Renderer::drawCube(pos + Vec3(0, len, 0), Vec3(cap * 1.3f, cap * 1.5f, cap * 1.3f), colY, false);
+
+            // Z Axis: Blue
+            bool hovZ = (_hoveredGizmoAxis == GizmoAxis::Z || _activeGizmoAxis == GizmoAxis::Z);
+            Vec3 colZ = hovZ ? yellowHov : Vec3(0.25f, 0.55f, 1.0f);
+            Renderer::drawCube(pos + Vec3(0, 0, len * 0.5f), Vec3(thick, thick, len), colZ, false);
+            Renderer::drawCube(pos + Vec3(0, 0, len), Vec3(cap, cap, cap), colZ, false);
+
+            // Planes (XY, XZ, YZ)
+            bool hovXY = (_hoveredGizmoAxis == GizmoAxis::PlaneXY || _activeGizmoAxis == GizmoAxis::PlaneXY);
+            Renderer::drawCube(pos + Vec3(0.45f, 0.45f, 0), Vec3(0.5f, 0.5f, 0.02f), hovXY ? yellowHov : Vec3(0.9f, 0.9f, 0.3f), false);
+
+            bool hovXZ = (_hoveredGizmoAxis == GizmoAxis::PlaneXZ || _activeGizmoAxis == GizmoAxis::PlaneXZ);
+            Renderer::drawCube(pos + Vec3(0.45f, 0, 0.45f), Vec3(0.5f, 0.02f, 0.5f), hovXZ ? yellowHov : Vec3(0.9f, 0.3f, 0.9f), false);
+
+            bool hovYZ = (_hoveredGizmoAxis == GizmoAxis::PlaneYZ || _activeGizmoAxis == GizmoAxis::PlaneYZ);
+            Renderer::drawCube(pos + Vec3(0, 0.45f, 0.45f), Vec3(0.02f, 0.5f, 0.5f), hovYZ ? yellowHov : Vec3(0.3f, 0.9f, 0.9f), false);
+        }
+
+        // Scale Handles
+        if (isScale) {
+            float sLen = 1.6f;
+            float sBox = 0.22f;
+            // Center uniform scale box
+            bool hovUni = (_hoveredGizmoAxis == GizmoAxis::ScaleUniform || _activeGizmoAxis == GizmoAxis::ScaleUniform);
+            Renderer::drawCube(pos, Vec3(0.28f, 0.28f, 0.28f), hovUni ? yellowHov : Vec3(0.95f, 0.95f, 0.95f), false);
+
+            // Scale X
+            bool hovSX = (_hoveredGizmoAxis == GizmoAxis::ScaleX || _activeGizmoAxis == GizmoAxis::ScaleX);
+            Renderer::drawCube(pos + Vec3(sLen, 0, 0), Vec3(sBox, sBox, sBox), hovSX ? yellowHov : Vec3(1.0f, 0.3f, 0.3f), false);
+
+            // Scale Y
+            bool hovSY = (_hoveredGizmoAxis == GizmoAxis::ScaleY || _activeGizmoAxis == GizmoAxis::ScaleY);
+            Renderer::drawCube(pos + Vec3(0, sLen, 0), Vec3(sBox, sBox, sBox), hovSY ? yellowHov : Vec3(0.3f, 1.0f, 0.3f), false);
+
+            // Scale Z
+            bool hovSZ = (_hoveredGizmoAxis == GizmoAxis::ScaleZ || _activeGizmoAxis == GizmoAxis::ScaleZ);
+            Renderer::drawCube(pos + Vec3(0, 0, sLen), Vec3(sBox, sBox, sBox), hovSZ ? yellowHov : Vec3(0.3f, 0.6f, 1.0f), false);
+        }
+
+        // Rotate Rings
+        if (isRotate) {
+            float ringR = 1.8f;
+            int segments = 24;
+            float step = 6.2831853f / (float)segments;
+            float segLen = (6.2831853f * ringR) / (float)segments;
+
+            bool hovRX = (_hoveredGizmoAxis == GizmoAxis::RotX || _activeGizmoAxis == GizmoAxis::RotX);
+            Vec3 colRX = hovRX ? yellowHov : Vec3(1.0f, 0.25f, 0.25f);
+            bool hovRY = (_hoveredGizmoAxis == GizmoAxis::RotY || _activeGizmoAxis == GizmoAxis::RotY);
+            Vec3 colRY = hovRY ? yellowHov : Vec3(0.25f, 1.0f, 0.3f);
+            bool hovRZ = (_hoveredGizmoAxis == GizmoAxis::RotZ || _activeGizmoAxis == GizmoAxis::RotZ);
+            Vec3 colRZ = hovRZ ? yellowHov : Vec3(0.3f, 0.6f, 1.0f);
+
+            for (int i = 0; i < segments; ++i) {
+                float a1 = i * step;
+                // RotX (around X axis, in YZ plane)
+                Vec3 pX = pos + Vec3(0, std::cos(a1) * ringR, std::sin(a1) * ringR);
+                Renderer::drawCube(pX, Vec3(thick, segLen, thick), colRX, false);
+
+                // RotY (around Y axis, in XZ plane)
+                Vec3 pY = pos + Vec3(std::cos(a1) * ringR, 0, std::sin(a1) * ringR);
+                Renderer::drawCube(pY, Vec3(segLen, thick, thick), colRY, false);
+
+                // RotZ (around Z axis, in XY plane)
+                Vec3 pZ = pos + Vec3(std::cos(a1) * ringR, std::sin(a1) * ringR, 0);
+                Renderer::drawCube(pZ, Vec3(segLen, thick, thick), colRZ, false);
+            }
+        }
     }
 
     void onRender() override {
@@ -4106,7 +4717,7 @@ public:
                     }
                     Renderer::drawMesh(*b.runtimeMesh, Vec3(0, 0, 0), Vec3(0, 0, 0), Vec3(1, 1, 1), b.color, tex);
                 } else {
-                    Renderer::drawCube(b.position, b.size, b.color, tex, true, b.uvScale, b.uvMode);
+                    Renderer::drawCube(b.position, b.rotation, b.size, b.color, tex, true, b.uvScale, b.uvMode);
                 }
             }
 
@@ -4198,6 +4809,14 @@ public:
                                    Vec3(sp.color.x, sp.color.y, sp.color.z), tex, false);
                 Renderer::drawWireCube(sp.position, Vec3(sp.size.x, sp.size.y, 0.06f), Vec3(0.2f, 0.85f, 0.95f));
             }
+
+            // Render All Cameras in Map
+            for (size_t i = 0; i < _map->cameras.size(); ++i) {
+                const auto& cam = _map->cameras[i];
+                Vec3 camCol = cam.active ? Vec3(0.2f, 0.9f, 0.4f) : Vec3(0.3f, 0.7f, 1.0f);
+                Renderer::drawCube(cam.position, cam.rotation, Vec3(0.6f, 0.4f, 0.8f), camCol, nullptr, false);
+                Renderer::drawWireCube(cam.position, Vec3(0.65f, 0.45f, 0.85f), camCol);
+            }
         }
 
         _cullingStats = "Frustum Culling: Brushes " + std::to_string(renderedBrushes) + "/" + std::to_string(totalBrushes) +
@@ -4235,6 +4854,11 @@ public:
                 Renderer::drawBoundingBox(lgt.position - Vec3(0.4f, 0.4f, 0.4f), lgt.position + Vec3(0.4f, 0.4f, 0.4f), hammerOrange);
                 Renderer::drawWireCube(lgt.position, Vec3(lgt.radius * 2.0f, lgt.radius * 2.0f, lgt.radius * 2.0f), lgt.color * 0.4f);
                 drawGizmo(lgt.position);
+            } else if (_selectionType == SelectionType::Camera && _selectedIndex >= 0 && _selectedIndex < (int)_map->cameras.size()) {
+                const auto& cam = _map->cameras[_selectedIndex];
+                Vec3 half(0.6f, 0.6f, 0.6f);
+                Renderer::drawBoundingBox(cam.position - half, cam.position + half, hammerOrange);
+                drawGizmo(cam.position);
             }
         }
 
@@ -4632,7 +5256,7 @@ public:
 
             int totalSpawns = (int)_map->spawnPoints.size();
             int totalWepSpawns = (int)_map->weaponSpawners.size();
-            int totalEntities = (int)(totalSpawns + totalWepSpawns + _map->brushes.size() + _map->props.size() + _map->doors.size() + _map->lights.size());
+            int totalEntities = (int)(totalSpawns + totalWepSpawns + _map->brushes.size() + _map->props.size() + _map->doors.size() + _map->lights.size() + _map->cameras.size());
             int maxItems = (int)(l.outListH / l.outItemSpacing);
 
             for (int i = 0; i < maxItems; ++i) {
@@ -4659,6 +5283,7 @@ public:
                     int pOffset = bOffset + (int)_map->brushes.size();
                     int dOffset = pOffset + (int)_map->props.size();
                     int lOffset = dOffset + (int)_map->doors.size();
+                    int cOffset = lOffset + (int)_map->lights.size();
 
                     if (itemIdx >= bOffset && itemIdx < pOffset) {
                         int bIdx = itemIdx - bOffset;
@@ -4676,10 +5301,14 @@ public:
                         int dIdx = itemIdx - dOffset;
                         isSelected = (_selectionType == SelectionType::Door && _selectedIndex == dIdx);
                         itemText = "[Kinematic #" + std::to_string(dIdx) + "] " + _map->doors[dIdx].name;
-                    } else if (itemIdx >= lOffset) {
+                    } else if (itemIdx >= lOffset && itemIdx < cOffset) {
                         int lIdx = itemIdx - lOffset;
                         isSelected = (_selectionType == SelectionType::Light && _selectedIndex == lIdx);
                         itemText = "[Light #" + std::to_string(lIdx) + "] " + _map->lights[lIdx].name;
+                    } else if (itemIdx >= cOffset) {
+                        int camIdx = itemIdx - cOffset;
+                        isSelected = (_selectionType == SelectionType::Camera && _selectedIndex == camIdx);
+                        itemText = "[Camera #" + std::to_string(camIdx) + "] " + _map->cameras[camIdx].name;
                     }
                 }
 
@@ -4847,32 +5476,44 @@ public:
             else if (_selectionType == SelectionType::Door) selHeader = "Selection: Door #" + std::to_string(_selectedIndex);
             else if (_selectionType == SelectionType::Spawn) selHeader = "Selection: Player Spawn";
             else if (_selectionType == SelectionType::Light) selHeader = "Selection: Lamp Light #" + std::to_string(_selectedIndex);
+            else if (_selectionType == SelectionType::Camera) selHeader = "Selection: Camera #" + std::to_string(_selectedIndex);
 
             LabFont::drawText(l.rightX + 12.0f, propY, selHeader, 1.7f, (_selectionType != SelectionType::None) ? orangeGlow : textLight, LabFontType::System);
 
             // Coordinates & Dimensions
             Vec3 pos = _cursorPos;
             Vec3 dims = _brushSize;
+            Vec3 rot = Vec3(0, 0, 0);
             if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
                 pos = _map->brushes[_selectedIndex].position;
                 dims = _map->brushes[_selectedIndex].size;
+                rot = _map->brushes[_selectedIndex].rotation;
             } else if (_selectionType == SelectionType::Prop && _selectedIndex >= 0 && _selectedIndex < (int)_map->props.size()) {
                 pos = _map->props[_selectedIndex].position;
                 dims = _map->props[_selectedIndex].scale;
+                rot = _map->props[_selectedIndex].rotation;
             } else if (_selectionType == SelectionType::Door && _selectedIndex >= 0 && _selectedIndex < (int)_map->doors.size()) {
                 pos = _map->doors[_selectedIndex].position;
                 dims = _map->doors[_selectedIndex].size;
             } else if (_selectionType == SelectionType::Spawn && _selectedIndex >= 0 && _selectedIndex < (int)_map->spawnPoints.size()) {
                 pos = _map->spawnPoints[_selectedIndex].position;
+                rot = Vec3(0, _map->spawnPoints[_selectedIndex].yaw, 0);
             } else if (_selectionType == SelectionType::WeaponSpawner && _selectedIndex >= 0 && _selectedIndex < (int)_map->weaponSpawners.size()) {
                 pos = _map->weaponSpawners[_selectedIndex].position;
+            } else if (_selectionType == SelectionType::Camera && _selectedIndex >= 0 && _selectedIndex < (int)_map->cameras.size()) {
+                pos = _map->cameras[_selectedIndex].position;
+                dims = Vec3(0.5f, 0.5f, 0.5f);
+                rot = _map->cameras[_selectedIndex].rotation;
             }
 
             std::string posStr = "Pos: (" + std::to_string((int)pos.x) + ", " + std::to_string((int)pos.y) + ", " + std::to_string((int)pos.z) + ")";
-            LabFont::drawText(l.rightX + 12.0f, propY + 22.0f, posStr, 1.6f, textLight, LabFontType::System);
+            LabFont::drawText(l.rightX + 12.0f, propY + 20.0f, posStr, 1.55f, textLight, LabFontType::System);
 
             std::string dimStr = "Size: (" + std::to_string((int)dims.x) + " x " + std::to_string((int)dims.y) + " x " + std::to_string((int)dims.z) + ")";
-            LabFont::drawText(l.rightX + 12.0f, propY + 40.0f, dimStr, 1.5f, textLight, LabFontType::System);
+            LabFont::drawText(l.rightX + 12.0f, propY + 36.0f, dimStr, 1.5f, textLight, LabFontType::System);
+
+            std::string rotStr = "Rot: (" + std::to_string((int)rot.x) + "°, " + std::to_string((int)rot.y) + "°, " + std::to_string((int)rot.z) + "°)";
+            LabFont::drawText(l.rightX + 12.0f, propY + 52.0f, rotStr, 1.5f, cyanGlow, LabFontType::System);
 
             // Entity Name / ID & Lua Script Display
             std::string entName = "";
@@ -4886,13 +5527,16 @@ public:
             } else if (_selectionType == SelectionType::Sprite && _selectedIndex >= 0 && _selectedIndex < (int)_map->sprites.size()) {
                 entName = _map->sprites[_selectedIndex].name;
                 entScript = _map->sprites[_selectedIndex].script;
+            } else if (_selectionType == SelectionType::Camera && _selectedIndex >= 0 && _selectedIndex < (int)_map->cameras.size()) {
+                entName = _map->cameras[_selectedIndex].name;
+                entScript = _map->cameras[_selectedIndex].script;
             }
 
             if (_selectionType != SelectionType::None) {
                 std::string nameDisplay = "Entity ID: " + (entName.empty() ? "(unnamed)" : entName);
-                LabFont::drawText(l.rightX + 12.0f, propY + 58.0f, nameDisplay, 1.45f, cyanGlow, LabFontType::System);
-                drawDarkButton(l.rightX + 10.0f, propY + 74.0f, 135.0f, 22.0f, "Set \"Klocek1\"", false, false, true);
-                drawDarkButton(l.rightX + 155.0f, propY + 74.0f, 140.0f, 22.0f, "Assign Script");
+                LabFont::drawText(l.rightX + 12.0f, propY + 68.0f, nameDisplay, 1.45f, orangeGlow, LabFontType::System);
+                drawDarkButton(l.rightX + 10.0f, propY + 84.0f, 135.0f, 22.0f, "Set \"Klocek1\"", false, false, true);
+                drawDarkButton(l.rightX + 155.0f, propY + 84.0f, 140.0f, 22.0f, "Assign Script");
             }
 
             // UV Scale buttons
@@ -4969,6 +5613,20 @@ public:
             LabFont::drawText(l.rightX + 198.0f, l.dimBtnsY + 4.0f, "Z:", 1.6f, textLight, LabFontType::System);
             drawDarkButton(l.rightX + 216.0f, l.dimBtnsY, l.dimBtnW, l.dimBtnH, "-");
             drawDarkButton(l.rightX + 246.0f, l.dimBtnsY, l.dimBtnW, l.dimBtnH, "+");
+
+            // Rotation Adjusters (Pitch / Yaw / Roll)
+            LabFont::drawText(l.rightX + 12.0f, l.rotBtnsY - 18.0f, "Rotate Selection (P / Y / R):", 1.7f, orangeGlow, LabFontType::System);
+            LabFont::drawText(l.rightX + 12.0f, l.rotBtnsY + 4.0f, "P:", 1.5f, textLight, LabFontType::System);
+            drawDarkButton(l.rightX + 28.0f, l.rotBtnsY, 26.0f, l.rotBtnH, "-");
+            drawDarkButton(l.rightX + 56.0f, l.rotBtnsY, 26.0f, l.rotBtnH, "+");
+
+            LabFont::drawText(l.rightX + 90.0f, l.rotBtnsY + 4.0f, "Yaw:", 1.5f, cyanGlow, LabFontType::System);
+            drawDarkButton(l.rightX + 124.0f, l.rotBtnsY, 44.0f, l.rotBtnH, "-45°");
+            drawDarkButton(l.rightX + 172.0f, l.rotBtnsY, 44.0f, l.rotBtnH, "+45°");
+
+            LabFont::drawText(l.rightX + 224.0f, l.rotBtnsY + 4.0f, "R:", 1.5f, textLight, LabFontType::System);
+            drawDarkButton(l.rightX + 242.0f, l.rotBtnsY, 26.0f, l.rotBtnH, "-");
+            drawDarkButton(l.rightX + 270.0f, l.rotBtnsY, 26.0f, l.rotBtnH, "+");
 
             // Deselect button
             drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect All");
@@ -5777,9 +6435,12 @@ public:
         drawDarkBevel(0, sbY, w, 22.0f, false);
 
         std::string sbText = "RMB Fly | LMB Pick/Apply | Wheel / R / C: Elevate Y | E Place | X Clip | ENTER Commit | F Focus | " + _cullingStats;
-        LabFont::drawText(10.0f, sbY + 5.0f, sbText, 1.5f, textLight, LabFontType::System);
-        std::string gridStr = "Snap: " + std::to_string((int)_gridSnap) + " | F9: Run";
-        LabFont::drawText(w - 240.0f, sbY + 5.0f, gridStr, 1.5f, orangeGlow, LabFontType::System);
+        if (!_gizmoStatusText.empty()) {
+            sbText = _gizmoStatusText + " | " + _cullingStats;
+        }
+        LabFont::drawText(10.0f, sbY + 5.0f, sbText, 1.5f, !_gizmoStatusText.empty() ? cyanGlow : textLight, LabFontType::System);
+        std::string gridStr = "Snap: " + std::to_string((int)_gridSnap) + " | Ang: " + std::to_string((int)_angleSnap) + "° | F9: Run";
+        LabFont::drawText(w - 280.0f, sbY + 5.0f, gridStr, 1.5f, orangeGlow, LabFontType::System);
 
         // ==================== 7. DROPDOWN FILE MENU ====================
         if (_fileMenuOpen) {
@@ -5997,6 +6658,12 @@ public:
             Vec3 ctxBg{ 0.14f, 0.15f, 0.18f };
 
             const char* allComponents[] = {
+                "Magic Add: Camera",
+                "Magic Add: Light",
+                "Magic Add: Spawn",
+                "Magic Add: Brush",
+                "Magic Add: Broom",
+                "Magic Add: Door",
                 "Script (Lua)",
                 "Point Light",
                 "Sprite 2D",
@@ -6026,7 +6693,8 @@ public:
 
             // Title
             Renderer::drawRect(ctxX, ctxY, ctxW, 24.0f, Vec3(0.18f, 0.22f, 0.30f));
-            LabFont::drawText(ctxX + 8.0f, ctxY + 5.0f, "Add Component (Entity #" + std::to_string(_contextMenuTargetIndex) + ")", 1.35f, cyanGlow, LabFontType::System);
+            std::string menuTitle = (_contextMenuTargetIndex >= 0) ? ("Add Component (Entity #" + std::to_string(_contextMenuTargetIndex) + ")") : "Magic Add (Viewport)";
+            LabFont::drawText(ctxX + 8.0f, ctxY + 5.0f, menuTitle, 1.35f, cyanGlow, LabFontType::System);
 
             // In-menu search field
             float searchY = ctxY + 28.0f;
@@ -6564,6 +7232,21 @@ private:
     Vec3 _propScale{ 1.0f, 1.0f, 1.0f };
     float _gridSnap = 1.0f;
     float _sunAngle = 45.0f;
+
+    // Transform Gizmo State
+    GizmoMode _gizmoMode = GizmoMode::Move;
+    GizmoAxis _hoveredGizmoAxis = GizmoAxis::None;
+    GizmoAxis _activeGizmoAxis = GizmoAxis::None;
+    bool _isDraggingGizmo = false;
+    Vec2 _dragStartMouse{ 0, 0 };
+    Vec3 _dragStartPos{ 0, 0, 0 };
+    Vec3 _dragStartRot{ 0, 0, 0 };
+    Vec3 _dragStartScale{ 1, 1, 1 };
+    float _angleSnap = 15.0f; // degrees
+    float _scaleSnap = 0.25f;
+    bool _snapDecPressed = false;
+    bool _snapIncPressed = false;
+    std::string _gizmoStatusText = "";
 
     // Lamp / Light Tool State
     Vec3 _lampColor{ 1.0f, 0.95f, 0.85f }; // Warm 2700K incandescent

@@ -22,6 +22,7 @@ namespace Lab {
         std::string script = "";
         std::string type = "cube";
         Vec3 position = { 0, 0, 0 };
+        Vec3 rotation = { 0, 0, 0 };
         Vec3 size = { 1, 1, 1 };
         Vec3 color = { 1, 1, 1 };
         std::string texturePath = "";
@@ -47,6 +48,7 @@ namespace Lab {
 
     struct MapDoor {
         std::string name = "door";
+        std::string script = "";
         Vec3 position = { 0, 0, 0 };
         Vec3 size = { 2.0f, 3.5f, 0.3f };
         Vec3 openOffset = { 0.0f, 3.5f, 0.0f };
@@ -58,6 +60,18 @@ namespace Lab {
         float currentProgress = 0.0f;
         bool isOpen = false;
         bool isLocked = false;
+    };
+
+    struct MapCamera {
+        std::string name = "camera_main";
+        std::string script = "";
+        Vec3 position = { 0.0f, 2.0f, -5.0f };
+        Vec3 rotation = { 0.0f, 0.0f, 0.0f }; // pitch, yaw, roll in degrees
+        float fov = 75.0f;
+        std::string follow_target = ""; // e.g. "player"
+        Vec3 tpp_offset = { 0.6f, 1.8f, -3.5f }; // over-the-shoulder offset
+        float collision_radius = 0.3f;
+        bool active = true;
     };
 
     struct MapSpawn {
@@ -134,7 +148,7 @@ namespace Lab {
     };
 
     struct MapEntityHandle {
-        enum class Type { None, Brush, Prop, Door, Sprite, Light };
+        enum class Type { None, Brush, Prop, Door, Sprite, Light, Camera };
         Type type = Type::None;
         size_t index = 0;
         std::string name = "";
@@ -156,6 +170,7 @@ namespace Lab {
         std::vector<MapWeaponSpawner> weaponSpawners;
         std::vector<MapLight> lights;
         std::vector<MapSprite2D> sprites;
+        std::vector<MapCamera> cameras;
 
         std::vector<MapSpawnPoint> getSpawnsForTeam(GameMode mode, int team) const;
         MapSpawnPoint selectBestSpawn(GameMode mode, int team, const std::vector<Vec3>& enemyPositions = {}) const;

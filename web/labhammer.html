@@ -450,7 +450,7 @@
       <section id="sec-labmap-format" class="wiki-section-container">
         <h2><span class="mw-headline">7. Plain-Text .labmap File Specification</span></h2>
         <p>
-          Levels are stored in clean, human-readable <code>.labmap</code> plain-text files. The parser in <code>src/LabMap.cpp</code> reads spatial metadata, light coordinates, brushes, dynamic doors, and spawn entities without binary encoding:
+          Levels are stored in clean, human-readable <code>.labmap</code> plain-text files. The parser in <code>src/LabMap.cpp</code> reads spatial metadata, scene cameras, light coordinates, brushes with pitch/yaw/roll rotations, dynamic doors, Lua entity scripts, and spawn entities without binary encoding:
         </p>
 
         <div class="code-container">
@@ -468,6 +468,9 @@ METADATA
 END_METADATA
 
 ENTITIES
+    // Scene Camera (Over-the-shoulder Third Person Player Camera)
+    camera cam_tpp 0.0 2.0 12.0 0.0 180.0 0.0 75.0 player 0.6 1.8 -3.5 0.3 1
+
     spawn 0.0 1.8 5.0 0.0
     spawn_point info_player_deathmatch 0.0 1.8 5.0 0.0 ffa
     spawn_point info_player_team1 -14.0 1.8 8.0 45.0 team_alpha
@@ -476,11 +479,17 @@ ENTITIES
     // Frozen terrain baseplate
     brush cube 0.0 -0.5 0.0 200.0 1.0 200.0 0.9 0.95 1.0 snow_frost.bmp
 
-    // Cryo monolith in distance
+    // Rotated Monolith Tower (Pitch / Yaw / Roll rotation support)
+    brush cube -20.0 5.0 -20.0 4.0 10.0 4.0 0.55 0.50 0.58 concrete_wall.bmp
+        rot 0.0 45.0 0.0
+        script assets/scripts/tower_behavior.lua
+
+    // Cryo prop model with texture & orientation
     prop Model.stl 0.0 2.5 -15.0 0.0 45.0 0.0 2.5 2.5 2.5 0.7 0.85 1.0 metal_hull.bmp
 
-    // Outpost bunker pressure airlock
+    // Outpost bunker pressure airlock with dedicated script hook
     door bunker_airlock 0.0 1.75 -3.0 3.0 3.5 0.5 3.5 0.0 0.0 0.2 0.3 0.4 2.0 4.5
+        script assets/scripts/airlock_trigger.lua
 END_ENTITIES</code></pre>
         </div>
       </section>
@@ -521,9 +530,24 @@ END_ENTITIES</code></pre>
                 <td>3D Viewport</td>
               </tr>
               <tr>
-                <td><code>E</code></td>
-                <td>Place currently selected object (Brush, Prop, Door, Spawn) at 3D cursor</td>
+                <td><code>W / E / R / T</code></td>
+                <td>Switch Transform Gizmo Mode: <strong>W</strong> Move, <strong>E</strong> Rotate, <strong>R</strong> Scale, <strong>T</strong> Universal</td>
+                <td>Gizmo Mode</td>
+              </tr>
+              <tr>
+                <td><code>[</code> / <code>]</code></td>
+                <td><strong>Decrease Snap ( [ )</strong> / <strong>Increase Snap ( ] )</strong> (Grid snap: 0.125m..16m, Angle snap: 5°..90°)</td>
+                <td>Grid &amp; Angle Snapping</td>
+              </tr>
+              <tr>
+                <td><code>RMB Click</code> / <code>Shift + RMB</code></td>
+                <td>Open Viewport Context Menu with <strong>Magic Add</strong> (Camera, Light, Spawn, Brush, Broom, Door)</td>
                 <td>3D Viewport</td>
+              </tr>
+              <tr>
+                <td><code>LMB Drag Gizmo Handle</code></td>
+                <td>Interactive axis / plane transformation with real-time telemetry on bottom status bar</td>
+                <td>Object Transform</td>
               </tr>
               <tr>
                 <td><code>F</code></td>
@@ -543,16 +567,6 @@ END_ENTITIES</code></pre>
               <tr>
                 <td><code>Arrow Keys</code></td>
                 <td>Nudge selected object along X and Z axes (snapped to active grid)</td>
-                <td>Selected Object</td>
-              </tr>
-              <tr>
-                <td><code>Shift + Up / Down</code></td>
-                <td>Nudge selected object vertically along Y axis (elevation)</td>
-                <td>Selected Object</td>
-              </tr>
-              <tr>
-                <td><code>PageUp</code> / <code>PageDown</code></td>
-                <td>Nudge selected object vertically (alternative to Shift+Up/Down)</td>
                 <td>Selected Object</td>
               </tr>
               <tr>

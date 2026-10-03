@@ -50,6 +50,8 @@ namespace Lab {
         float elevGndX, elevGndY, elevGndW, elevGndH;
         // Size scaling
         float dimBtnsY, dimBtnW, dimBtnH;
+        // Rotation adjustment
+        float rotBtnsY, rotBtnW, rotBtnH;
         float deselX, deselY, deselW, deselH;
         float delX, delY, delW, delH;
     };
@@ -155,8 +157,13 @@ namespace Lab {
         l.dimBtnW = 26.0f;
         l.dimBtnH = 24.0f;
 
+        // Rotation Adjusters (Yaw -45/+45 etc.)
+        l.rotBtnsY = l.dimBtnsY + 44.0f;
+        l.rotBtnW = 44.0f;
+        l.rotBtnH = 24.0f;
+
         l.deselX = l.rightX + 10.0f;
-        l.deselY = l.dimBtnsY + 34.0f;
+        l.deselY = l.rotBtnsY + 34.0f;
         l.deselW = 280.0f;
         l.deselH = 30.0f;
 

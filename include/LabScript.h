@@ -72,6 +72,7 @@ namespace Lab {
         // Weapon definitions loaded from Lua
         const std::vector<WeaponScriptDef>& getWeaponDefinitions() const { return _weaponDefs; }
         const WeaponScriptDef* getWeaponDefById(int id) const;
+        std::string getWeaponNameById(int id) const;
 
         // Pickup mechanics
         float getMedkitHealAmount() const { return _medkitHeal; }
@@ -81,6 +82,9 @@ namespace Lab {
         // Callbacks from Lua
         static void registerDoorUnlockCallback(std::function<void(int)> callback);
         static void registerServerChatCallback(std::function<void(const std::string&, const std::string&)> callback);
+        static void registerCameraSwitchCallback(std::function<void(const std::string&)> callback);
+        static void setActiveCameraName(const std::string& name);
+        static const std::string& getActiveCameraName();
 
         // World & Scene Integration
         void setActiveMap(LabMap* map);

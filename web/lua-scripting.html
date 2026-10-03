@@ -209,22 +209,29 @@ Balance = {
 [Lua] Spawned T-800 bot with Minigun at (0, 2, 5)</code></pre>
       </div>
 
-      <h2 id="sec-bindings">4. C++ / Lua C-API Engine Hooks</h2>
+      <h2 id="sec-bindings">4. C++ / Lua C-API Engine Hooks &amp; Camera Control</h2>
       <p>
-        The C++ engine registers functions into the Lua global environment via lightweight C wrappers:
+        The C++ engine registers functions and namespaces into the Lua global environment via lightweight C wrappers. This includes real-time camera switching, HUD bindings, entity scripts, and trigger callbacks:
       </p>
       <div class="vdc-code-container">
-        <pre><code>static int l_spawn_bot(lua_State* L) {
-    const char* model = luaL_checkstring(L, 1);
-    float x = (float)luaL_checknumber(L, 2);
-    float y = (float)luaL_checknumber(L, 3);
-    float z = (float)luaL_checknumber(L, 4);
-    const char* weapon = luaL_checkstring(L, 5);
+        <pre><code>-- Camera Object & Scene Control API:
+Camera.setActive("cam_tpp")     -- Switch active camera by name
+local curCam = Camera.getActive() -- Returns current active camera name ("cam_tpp")
+Camera.setFov(85.0)             -- Dynamically adjust field of view
+Camera.setPosition(0, 3.5, 10)  -- Reposition camera in 3D scene
+Camera.setRotation(0, 180, 0)   -- Set Pitch, Yaw, Roll
 
-    AIManager::get().spawnBot(model, Vec3(x, y, z), weapon);
-    lua_pushboolean(L, 1);
-    return 1;
-}</code></pre>
+-- Lifecycle & Trigger Hooks:
+function OnUpdate(dt)
+    -- Called every frame tick with delta time
+end
+
+function OnTriggerEnter(entityId, otherEntityId)
+    -- Called when entity overlap or proximity event occurs (doors, pickups, triggers)
+    if otherEntityId == 1 then
+        HUD.setText("rpg.quest_status", "ZWOJE 1/5")
+    end
+end</code></pre>
       </div>
 
       <h2 id="sec-sandboxing">5. Sandbox Safety &amp; Live Script Reloading</h2>

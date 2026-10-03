@@ -31,6 +31,8 @@ namespace Lab {
         auto map = std::make_unique<LabMap>();
         std::string line;
         std::string currentSection = "";
+        enum class LastParsedEntity { None, Brush, Prop, Door, Camera, Sprite, Light };
+        LastParsedEntity lastParsed = LastParsedEntity::None;
 
         while (std::getline(file, line)) {
             // Trim and skip empty lines or comments
@@ -97,7 +99,11 @@ namespace Lab {
                     if (ss >> b.uvScale.x >> b.uvScale.y) {
                         ss >> b.uvMode;
                     }
+                    if (ss >> b.rotation.x >> b.rotation.y >> b.rotation.z) {
+                        // Rotation inline
+                    }
                     map->brushes.push_back(b);
+                    lastParsed = LastParsedEntity::Brush;
                 } else if (token == "poly_brush") {
                     MapBrush b;
                     b.type = "poly";
@@ -134,6 +140,7 @@ namespace Lab {
                         }
                     }
                     map->brushes.push_back(b);
+                    lastParsed = LastParsedEntity::Brush;
                 } else if (token == "prop") {
                     MapProp p;
                     ss >> p.modelPath >> p.position.x >> p.position.y >> p.position.z
@@ -144,6 +151,7 @@ namespace Lab {
                         if (p.texturePath == "\"\"") p.texturePath = "";
                     }
                     map->props.push_back(p);
+                    lastParsed = LastParsedEntity::Prop;
                 } else if (token == "door") {
                     MapDoor d;
                     ss >> d.name >> d.position.x >> d.position.y >> d.position.z
@@ -152,6 +160,72 @@ namespace Lab {
                        >> d.color.x >> d.color.y >> d.color.z
                        >> d.openSpeed >> d.triggerRadius;
                     map->doors.push_back(d);
+                    lastParsed = LastParsedEntity::Door;
+                } else if (token == "camera") {
+                    MapCamera c;
+                    int act = 1;
+                    ss >> c.name
+                       >> c.position.x >> c.position.y >> c.position.z
+                       >> c.rotation.x >> c.rotation.y >> c.rotation.z
+                       >> c.fov >> c.follow_target
+                       >> c.tpp_offset.x >> c.tpp_offset.y >> c.tpp_offset.z
+                       >> c.collision_radius >> act;
+                    if (c.follow_target == "\"\"") c.follow_target = "";
+                    c.active = (act != 0);
+                    map->cameras.push_back(c);
+                    lastParsed = LastParsedEntity::Camera;
+                } else if (token == "script") {
+                    std::string sPath;
+                    if (ss >> sPath) {
+                        if (sPath == "\"\"") sPath = "";
+                        if (lastParsed == LastParsedEntity::Brush && !map->brushes.empty()) {
+                            map->brushes.back().script = sPath;
+                        } else if (lastParsed == LastParsedEntity::Prop && !map->props.empty()) {
+                            map->props.back().script = sPath;
+                        } else if (lastParsed == LastParsedEntity::Door && !map->doors.empty()) {
+                            map->doors.back().script = sPath;
+                        } else if (lastParsed == LastParsedEntity::Camera && !map->cameras.empty()) {
+                            map->cameras.back().script = sPath;
+                        } else if (lastParsed == LastParsedEntity::Sprite && !map->sprites.empty()) {
+                            map->sprites.back().script = sPath;
+                        }
+                    }
+                } else if (token == "rot" || token == "rotation") {
+                    Vec3 r(0, 0, 0);
+                    if (ss >> r.x >> r.y >> r.z) {
+                        if (lastParsed == LastParsedEntity::Brush && !map->brushes.empty()) {
+                            map->brushes.back().rotation = r;
+                        } else if (lastParsed == LastParsedEntity::Prop && !map->props.empty()) {
+                            map->props.back().rotation = r;
+                        } else if (lastParsed == LastParsedEntity::Camera && !map->cameras.empty()) {
+                            map->cameras.back().rotation = r;
+                        }
+                    }
+                } else if (token == "name") {
+                    std::string rest;
+                    std::getline(ss, rest);
+                    size_t q1 = rest.find('"');
+                    size_t q2 = rest.rfind('"');
+                    std::string n;
+                    if (q1 != std::string::npos && q2 != std::string::npos && q2 > q1) {
+                        n = rest.substr(q1 + 1, q2 - q1 - 1);
+                    } else {
+                        std::stringstream nss(rest);
+                        nss >> n;
+                    }
+                    if (!n.empty()) {
+                        if (lastParsed == LastParsedEntity::Brush && !map->brushes.empty()) {
+                            map->brushes.back().name = n;
+                        } else if (lastParsed == LastParsedEntity::Prop && !map->props.empty()) {
+                            map->props.back().name = n;
+                        } else if (lastParsed == LastParsedEntity::Door && !map->doors.empty()) {
+                            map->doors.back().name = n;
+                        } else if (lastParsed == LastParsedEntity::Camera && !map->cameras.empty()) {
+                            map->cameras.back().name = n;
+                        } else if (lastParsed == LastParsedEntity::Sprite && !map->sprites.empty()) {
+                            map->sprites.back().name = n;
+                        }
+                    }
                 } else if (token == "weapon_spawner") {
                     MapWeaponSpawner ws;
                     std::string wepToken;
@@ -170,6 +244,7 @@ namespace Lab {
                     }
                     if (ws.respawnTime <= 0.0f) ws.respawnTime = 60.0f;
                     map->weaponSpawners.push_back(ws);
+                    lastParsed = LastParsedEntity::None;
                 } else if (token == "light" || token == "light_omni" || token == "light_spot") {
                     MapLight lt;
                     std::string firstArg;
@@ -201,6 +276,7 @@ namespace Lab {
                     if (lt.intensity <= 0.0f) lt.intensity = 2.0f;
                     if (lt.radius <= 0.0f) lt.radius = 12.0f;
                     map->lights.push_back(lt);
+                    lastParsed = LastParsedEntity::Light;
                 } else if (token == "sprite_2d" || token == "sprite") {
                     MapSprite2D sp;
                     int bb = 1;
@@ -214,6 +290,7 @@ namespace Lab {
                     if (sp.size.x <= 0.0f) sp.size.x = 1.0f;
                     if (sp.size.y <= 0.0f) sp.size.y = 1.0f;
                     map->sprites.push_back(sp);
+                    lastParsed = LastParsedEntity::Sprite;
                 }
             }
         }
@@ -340,6 +417,18 @@ namespace Lab {
                  << ws.yaw << " " << ws.respawnTime << "\n";
         }
 
+        for (const auto& c : cameras) {
+            file << "    camera " << (c.name.empty() ? "camera_main" : c.name) << " "
+                 << c.position.x << " " << c.position.y << " " << c.position.z << " "
+                 << c.rotation.x << " " << c.rotation.y << " " << c.rotation.z << " "
+                 << c.fov << " " << (c.follow_target.empty() ? "\"\"" : c.follow_target) << " "
+                 << c.tpp_offset.x << " " << c.tpp_offset.y << " " << c.tpp_offset.z << " "
+                 << c.collision_radius << " " << (c.active ? 1 : 0) << "\n";
+            if (!c.script.empty()) {
+                file << "        script " << c.script << "\n";
+            }
+        }
+
         for (const auto& b : brushes) {
             if (b.type == "poly" && !b.customVertices.empty()) {
                 file << "    poly_brush "
@@ -359,13 +448,26 @@ namespace Lab {
                     file << " " << idxVal;
                 }
                 file << "\n";
+                if (b.rotation.x != 0.0f || b.rotation.y != 0.0f || b.rotation.z != 0.0f) {
+                    file << "        rot " << b.rotation.x << " " << b.rotation.y << " " << b.rotation.z << "\n";
+                }
             } else {
                 file << "    brush " << b.type << " "
                      << b.position.x << " " << b.position.y << " " << b.position.z << " "
                      << b.size.x << " " << b.size.y << " " << b.size.z << " "
                      << b.color.x << " " << b.color.y << " " << b.color.z << " "
                      << (b.texturePath.empty() ? "\"\"" : b.texturePath) << " "
-                     << b.uvScale.x << " " << b.uvScale.y << " " << b.uvMode << "\n";
+                     << b.uvScale.x << " " << b.uvScale.y << " " << b.uvMode;
+                if (b.rotation.x != 0.0f || b.rotation.y != 0.0f || b.rotation.z != 0.0f) {
+                    file << " " << b.rotation.x << " " << b.rotation.y << " " << b.rotation.z;
+                }
+                file << "\n";
+            }
+            if (!b.name.empty()) {
+                file << "        name \"" << b.name << "\"\n";
+            }
+            if (!b.script.empty()) {
+                file << "        script " << b.script << "\n";
             }
         }
 
@@ -376,6 +478,12 @@ namespace Lab {
                  << p.scale.x << " " << p.scale.y << " " << p.scale.z << " "
                  << p.color.x << " " << p.color.y << " " << p.color.z << " "
                  << (p.texturePath.empty() ? "\"\"" : p.texturePath) << "\n";
+            if (!p.name.empty()) {
+                file << "        name \"" << p.name << "\"\n";
+            }
+            if (!p.script.empty()) {
+                file << "        script " << p.script << "\n";
+            }
         }
 
         for (const auto& d : doors) {
@@ -385,6 +493,9 @@ namespace Lab {
                  << d.openOffset.x << " " << d.openOffset.y << " " << d.openOffset.z << " "
                  << d.color.x << " " << d.color.y << " " << d.color.z << " "
                  << d.openSpeed << " " << d.triggerRadius << "\n";
+            if (!d.script.empty()) {
+                file << "        script " << d.script << "\n";
+            }
         }
 
         for (const auto& lt : lights) {
@@ -402,6 +513,12 @@ namespace Lab {
                  << sp.rotation << " " << sp.layer << " " << (sp.billboard ? 1 : 0) << " "
                  << sp.color.x << " " << sp.color.y << " " << sp.color.z << " " << sp.color.w << " "
                  << sp.uvMin.x << " " << sp.uvMin.y << " " << sp.uvMax.x << " " << sp.uvMax.y << "\n";
+            if (!sp.name.empty()) {
+                file << "        name \"" << sp.name << "\"\n";
+            }
+            if (!sp.script.empty()) {
+                file << "        script " << sp.script << "\n";
+            }
         }
 
         file << "END_ENTITIES\n";
@@ -414,7 +531,7 @@ namespace Lab {
 
         for (size_t i = 0; i < brushes.size(); ++i) {
             if (brushes[i].name == name) {
-                return { MapEntityHandle::Type::Brush, i, brushes[i].name, &brushes[i].position, nullptr, &brushes[i].color };
+                return { MapEntityHandle::Type::Brush, i, brushes[i].name, &brushes[i].position, &brushes[i].rotation, &brushes[i].color };
             }
         }
         for (size_t i = 0; i < props.size(); ++i) {
@@ -425,6 +542,11 @@ namespace Lab {
         for (size_t i = 0; i < doors.size(); ++i) {
             if (doors[i].name == name) {
                 return { MapEntityHandle::Type::Door, i, doors[i].name, &doors[i].position, nullptr, &doors[i].color };
+            }
+        }
+        for (size_t i = 0; i < cameras.size(); ++i) {
+            if (cameras[i].name == name) {
+                return { MapEntityHandle::Type::Camera, i, cameras[i].name, &cameras[i].position, &cameras[i].rotation, nullptr };
             }
         }
         for (size_t i = 0; i < sprites.size(); ++i) {

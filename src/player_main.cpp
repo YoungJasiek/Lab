@@ -272,6 +272,45 @@ public:
         _camera.setYaw(camYaw);
         _camera.setPosition(_playerPos + Vec3(0, 0.2f, 0));
 
+        // Active Camera resolution from scene (.labmap)
+        _activeCamera = nullptr;
+        if (!_map->cameras.empty()) {
+            for (auto& c : _map->cameras) {
+                if (c.active) {
+                    _activeCamera = &c;
+                    break;
+                }
+            }
+            if (!_activeCamera) {
+                _activeCamera = &_map->cameras[0];
+            }
+        }
+        if (_activeCamera) {
+            int w = 1280, h = 720;
+            getFramebufferSize(w, h);
+            float aspect = (h > 0) ? ((float)w / (float)h) : (16.0f / 9.0f);
+            _camera.setPerspective(_activeCamera->fov, aspect, 0.1f, 1000.0f);
+            ScriptEngine::setActiveCameraName(_activeCamera->name);
+        }
+
+        // Register dynamic camera switching callback from Lua
+        ScriptEngine::registerCameraSwitchCallback([this](const std::string& camName) {
+            if (!_map) return;
+            for (auto& c : _map->cameras) {
+                if (c.name == camName) {
+                    _activeCamera = &c;
+                    int w = 1280, h = 720;
+                    getFramebufferSize(w, h);
+                    float aspect = (h > 0) ? ((float)w / (float)h) : (16.0f / 9.0f);
+                    _camera.setPerspective(_activeCamera->fov, aspect, 0.1f, 1000.0f);
+                    break;
+                }
+            }
+        });
+
+        // Initialize weapon name from Weapons Lua table
+        _currentWeaponName = _scriptEngine.getWeaponNameById(1);
+
         // Initialize weapon pad pickup tracking
         _weaponPadCollected.assign(_map->weaponSpawners.size(), false);
     }
@@ -349,8 +388,37 @@ public:
         resolveCollisions(newPos);
         _playerPos = newPos;
 
-        // Keep camera bound to player eyes
-        _camera.setPosition(_playerPos + Vec3(0, 0.2f, 0));
+        // Camera position binding: Scene Camera (TPP / static) or FPS fallback
+        if (_activeCamera && _activeCamera->follow_target == "player") {
+            // TPP over-the-shoulder camera
+            Vec3 fwd = _camera.getForward();
+            Vec3 right = _camera.getRight();
+            Vec3 up(0, 1, 0);
+            Vec3 eyePos = _playerPos + Vec3(0, 1.4f, 0);
+            Vec3 targetCamPos = eyePos + right * _activeCamera->tpp_offset.x
+                                       + up * _activeCamera->tpp_offset.y
+                                       + fwd * _activeCamera->tpp_offset.z;
+            if (_map) {
+                for (const auto& b : _map->brushes) {
+                    Vec3 bMin = b.position - b.size * 0.5f;
+                    Vec3 bMax = b.position + b.size * 0.5f;
+                    if (targetCamPos.x >= bMin.x - _activeCamera->collision_radius && targetCamPos.x <= bMax.x + _activeCamera->collision_radius &&
+                        targetCamPos.y >= bMin.y - _activeCamera->collision_radius && targetCamPos.y <= bMax.y + _activeCamera->collision_radius &&
+                        targetCamPos.z >= bMin.z - _activeCamera->collision_radius && targetCamPos.z <= bMax.z + _activeCamera->collision_radius) {
+                        targetCamPos = eyePos + (targetCamPos - eyePos) * 0.5f;
+                    }
+                }
+            }
+            _camera.setPosition(targetCamPos);
+        } else if (_activeCamera && _activeCamera->follow_target.empty()) {
+            // Static / anchor camera
+            _camera.setPosition(_activeCamera->position);
+            _camera.setPitch(_activeCamera->rotation.x);
+            _camera.setYaw(_activeCamera->rotation.y);
+        } else {
+            // Fallback: standard FPS camera bound to player eyes
+            _camera.setPosition(_playerPos + Vec3(0, 0.2f, 0));
+        }
 
         // Mission timer countdown
         if (_missionTimer > 0.0f) {
@@ -395,7 +463,7 @@ public:
                 if (dist < 1.8f) {
                     _weaponPadCollected[i] = true;
                     _cardsCollected = std::min(_totalCards, _cardsCollected + 1);
-                    _currentWeaponName = wsp.getWeaponName();
+                    _currentWeaponName = _scriptEngine.getWeaponNameById(wsp.weaponId);
                     _scriptEngine.callOnTriggerEnter((int)i, 1);
                 }
             }
@@ -504,10 +572,21 @@ public:
                     if (!b.runtimeMesh) {
                         b.runtimeMesh = std::make_shared<Mesh>(b.customVertices, b.customIndices);
                     }
-                    Renderer::drawMesh(*b.runtimeMesh, Vec3(0, 0, 0), Vec3(0, 0, 0), Vec3(1, 1, 1), b.color, tex);
+                    Renderer::drawMesh(*b.runtimeMesh, Vec3(0, 0, 0), b.rotation, Vec3(1, 1, 1), b.color, tex);
                 } else {
-                    Renderer::drawCube(b.position, b.size, b.color, tex, true, b.uvScale, b.uvMode);
+                    if (b.rotation.x != 0.0f || b.rotation.y != 0.0f || b.rotation.z != 0.0f) {
+                        Renderer::drawCube(b.position, b.rotation, b.size, b.color, tex, true, b.uvScale, b.uvMode);
+                    } else {
+                        Renderer::drawCube(b.position, b.size, b.color, tex, true, b.uvScale, b.uvMode);
+                    }
                 }
+            }
+
+            // In TPP mode: render third-person player avatar model / avatar silhouette
+            if (_activeCamera && _activeCamera->follow_target == "player") {
+                float pYaw = _camera.getYaw() + 90.0f;
+                Renderer::drawCube(_playerPos + Vec3(0, -0.1f, 0), Vec3(0.0f, -pYaw, 0.0f), Vec3(0.7f, 1.6f, 0.5f), Vec3(0.2f, 0.45f, 0.8f), nullptr, true);
+                Renderer::drawCube(_playerPos + Vec3(0, 0.95f, 0), Vec3(0.0f, -pYaw, 0.0f), Vec3(0.42f, 0.45f, 0.42f), Vec3(0.85f, 0.75f, 0.65f), nullptr, true);
             }
 
             // Render Props
@@ -761,6 +840,7 @@ private:
     std::string _screenshotPath;
 
     Camera _camera;
+    MapCamera* _activeCamera = nullptr;
     std::unique_ptr<LabMap> _map;
     std::unique_ptr<HUDProject> _hudProject;
     ScriptEngine _scriptEngine;
