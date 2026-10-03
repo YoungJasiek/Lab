@@ -1,5 +1,6 @@
 #include "LabCore.h"
 #include "LabApplication.h"
+#include "LabPackage.h"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
@@ -7,8 +8,24 @@
 #include <chrono>
 #include <ctime>
 #include <cstring>
+#include <filesystem>
 
 namespace Lab {
+
+    // Drag & drop: upuszczony plik .lua ląduje w assets/plugins/ i jest od razu ładowany.
+    static void labDropCallback(GLFWwindow* window, int count, const char** paths) {
+        (void)window;
+        for (int i = 0; i < count; ++i) {
+            std::string src = paths[i] ? paths[i] : "";
+            if (src.size() < 5 || src.substr(src.size() - 4) != ".lua") {
+                LabLog::warn("Drop ignored (only single-file .lua plugins accepted): " + src);
+                continue;
+            }
+            std::string id = PackageManager::instance().importDropinFile(src);
+            if (!id.empty()) LabLog::info("Drag&drop plugin installed: " + id);
+            else LabLog::error("Drag&drop plugin failed: " + src);
+        }
+    }
 
     static std::ofstream& getLogStream() {
         static std::ofstream s_logFile("lab_engine.log", std::ios::out | std::ios::app);
@@ -128,6 +145,7 @@ namespace Lab {
         glfwSetCursorPosCallback(_window, _cursorPosCallback);
         glfwSetScrollCallback(_window, _scrollCallback);
         glfwSetFramebufferSizeCallback(_window, _framebufferSizeCallback);
+        glfwSetDropCallback(_window, labDropCallback);
 
         // Standard Arrow Cursor (visible and active by default)
         _standardCursor = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);

@@ -96,6 +96,7 @@ add_library(LabCore SHARED
     src/plugins/AINavigationPatrolPlugin.cpp
     src/plugins/ArcadeVehiclePlugin.cpp
     src/plugins/DiscordRPCPlugin.cpp
+    src/plugins/LuaDropinPlugin.cpp
     include/LabCore.h
     include/LabInput.h
     include/LabPlugin.h
@@ -116,6 +117,7 @@ add_library(LabCore SHARED
     include/plugins/AINavigationPatrolPlugin.h
     include/plugins/ArcadeVehiclePlugin.h
     include/plugins/DiscordRPCPlugin.h
+    include/plugins/LuaDropinPlugin.h
     include/LabApplication.h
     include/LabMath.h
     include/LabCamera.h

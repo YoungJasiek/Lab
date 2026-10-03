@@ -155,9 +155,9 @@ public:
         // Initialize Multi-Genre HUD Widgets (RPG, Platformer, RTS, Racing, Story)
         initDefaultHUDWidgets();
 
-        // Initialize Package & Plugin System (Unity Package Manager & Blender Add-ons Standard)
+        // Initialize Package & Plugin System (drop-in: 1 plik .lua = 1 plugin)
         PackageManager::instance().registerBuiltinPackages();
-        logMessage("[Plugins] Modular plugin ecosystem loaded: 8 standalone plugins ready (1 kod 1 plugin).");
+        logMessage("[Plugins] Drop-in plugin system ready: wrzuc .lua do assets/plugins/ lub przeciagniej na okno.");
 
         logMessage("Lab Engine Studio initialized. Ready.");
         logMessage("Textures loaded: " + std::to_string(_availableTextures.size()) + " | Models: " + std::to_string(_availableModels.size()));
@@ -284,7 +284,12 @@ public:
     }
 
     void onFixedUpdate(float fixedDelta) override {
-        // Tick active modular plugins (1 kod 1 plugin)
+        // Drop-in plugins: 1 plik .lua w assets/plugins/ = 1 plugin. Poll co ~1s.
+        _pluginPollAccum += fixedDelta;
+        if (_pluginPollAccum >= 1.0f) {
+            _pluginPollAccum = 0.0f;
+            PackageManager::instance().pollDropinChanges();
+        }
         PluginManager::get().updateAll(fixedDelta);
         if (_pluginBannerTimer > 0.0f) {
             _pluginBannerTimer -= fixedDelta;
@@ -3627,7 +3632,7 @@ public:
                     return;
                 } else if (mx >= btnX + 365.0f && mx <= btnX + 465.0f) {
                     PackageManager::instance().scanPluginDirectory();
-                    _pluginStatusBanner = "Rescanned disk for new plugins (.lua / .dll)!";
+                    _pluginStatusBanner = "Rescanned assets/plugins/ for drop-in .lua plugins!";
                     _pluginBannerTimer = 3.0f;
                     return;
                 }
@@ -3705,29 +3710,36 @@ public:
                         return;
                     }
 
-                    // Speedrun Timer Action
+                    // Speedrun Timer Action (legacy C++ fallback when drop-in Lua has no timer impl)
                     if (_pluginSelectedId == "com.lab.speedrun-timer") {
+                        static SpeedrunTelemetryPlugin s_legacyTimer;
                         if (mx >= detX + 170.0f && mx <= detX + 390.0f) {
                             auto timerPlug = std::dynamic_pointer_cast<SpeedrunTelemetryPlugin>(PackageManager::instance().getPluginImplementation("com.lab.speedrun-timer"));
                             if (timerPlug) {
                                 if (timerPlug->isRunning()) timerPlug->pauseTimer();
                                 else timerPlug->startTimer();
                                 _pluginStatusBanner = timerPlug->isRunning() ? "Speedrun timer RUNNING." : "Speedrun timer PAUSED.";
-                                _pluginBannerTimer = 3.0f;
+                            } else {
+                                if (s_legacyTimer.isRunning()) s_legacyTimer.pauseTimer();
+                                else s_legacyTimer.startTimer();
+                                _pluginStatusBanner = s_legacyTimer.isRunning() ? "Speedrun timer RUNNING (local)." : "Speedrun timer PAUSED (local).";
                             }
+                            _pluginBannerTimer = 3.0f;
                             return;
                         } else if (mx >= detX + 400.0f && mx <= detX + 520.0f) {
                             auto timerPlug = std::dynamic_pointer_cast<SpeedrunTelemetryPlugin>(PackageManager::instance().getPluginImplementation("com.lab.speedrun-timer"));
                             if (timerPlug) timerPlug->resetTimer();
+                            else s_legacyTimer.resetTimer();
                             _pluginStatusBanner = "Speedrun timer RESET to 00:00.00.";
                             _pluginBannerTimer = 3.0f;
                             return;
                         }
                     }
 
-                    // Open in Lua Studio Button (opens the standalone plugin file!)
+                    // Open in Lua Studio Button (opens the drop-in single file!)
                     if (mx >= detX + detW - 200.0f && mx <= detX + detW - 20.0f) {
-                        std::string luaPath = "assets/plugins/" + selPkg->id.substr(selPkg->id.rfind('.') + 1) + ".lua";
+                        std::string luaPath = PackageManager::instance().getPackageFile(selPkg->id);
+                        if (luaPath.empty()) luaPath = "assets/plugins/" + selPkg->id.substr(selPkg->id.rfind('.') + 1) + ".lua";
                         if (!std::filesystem::exists(luaPath)) {
                             // Find corresponding script in assets/plugins
                             for (const auto& entry : std::filesystem::directory_iterator("assets/plugins")) {
@@ -6154,6 +6166,7 @@ private:
     std::string _pluginSelectedId = "com.lab.proc-gen";
     std::string _pluginStatusBanner = "";
     float _pluginBannerTimer = 0.0f;
+    float _pluginPollAccum = 0.0f;
     int _pluginListScroll = 0;
 
     // Sidebar State

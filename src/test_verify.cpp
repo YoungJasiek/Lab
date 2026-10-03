@@ -8388,18 +8388,15 @@ int main() {
         }
         std::cout << "  [PASS] Sub-test B: PackageManager registration, category filtering & text search verified.\n";
 
-        // Sub-test C: Blender-style Checkbox Toggle Enable/Disable
+        // Sub-test C: Drop-in toggle Enable/Disable (single .lua file = full control)
+        // registerBuiltinPackages auto-enables discovered drop-ins, so toggle OFF first.
         std::string toggleTarget = "com.lab.voxel-terrain";
-        bool initiallyEnabled = pm.isPackageEnabled(toggleTarget);
-        if (initiallyEnabled) {
-            std::cerr << "Assertion failed: Voxel terrain should initially be disabled!\n";
+        if (pm.getPackageFile(toggleTarget).empty()) {
+            std::cerr << "Assertion failed: voxel-terrain has no backing drop-in file!\n";
             return 1;
         }
-
-        // Toggle ON
-        pm.togglePackage(toggleTarget);
         if (!pm.isPackageEnabled(toggleTarget)) {
-            std::cerr << "Assertion failed: Failed to toggle ON package " << toggleTarget << "\n";
+            std::cerr << "Assertion failed: Voxel terrain drop-in should be auto-enabled on startup!\n";
             return 1;
         }
 
@@ -8409,7 +8406,14 @@ int main() {
             std::cerr << "Assertion failed: Failed to toggle OFF package " << toggleTarget << "\n";
             return 1;
         }
-        std::cout << "  [PASS] Sub-test C: Blender-style checkbox toggle (Enable/Disable) verified.\n";
+
+        // Toggle ON (reloads single .lua file from disk, no recompile)
+        pm.togglePackage(toggleTarget);
+        if (!pm.isPackageEnabled(toggleTarget)) {
+            std::cerr << "Assertion failed: Failed to toggle ON package " << toggleTarget << "\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test C: Drop-in checkbox toggle (Enable/Disable) verified.\n";
 
         // Sub-test D: Standalone Plugin Directory Scanning (assets/plugins)
         pm.scanPluginDirectory("assets/plugins");

@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <memory>
 #include <algorithm>
+#include <filesystem>
 
 namespace Lab {
 
@@ -48,6 +49,7 @@ namespace Lab {
         bool enablePackage(const std::string& packageId) {
             auto it = m_packages.find(packageId);
             if (it == m_packages.end()) return false;
+            if (it->second.state == PackageState::Enabled) return true; // idempotent: already running
 
             // Check dependencies
             for (const auto& depId : it->second.dependencies) {
@@ -117,6 +119,24 @@ namespace Lab {
         void registerBuiltinPackages();
         void scanPluginDirectory(const std::string& directoryPath = "assets/plugins");
 
+        /// @brief Drop-in API: copy external .lua file into plugins dir, scan + auto-enable.
+        /// @return plugin id on success, empty string on failure.
+        std::string importDropinFile(const std::string& sourcePath,
+                                     const std::string& directoryPath = "assets/plugins");
+
+        /// @brief Full removal: disable, unregister, delete file from disk.
+        /// Hardcoded (non-file) plugins cannot be deleted this way and return false.
+        bool deleteDropinPlugin(const std::string& packageId);
+
+        /// @brief Unregister without touching disk (used when file was deleted externally).
+        bool removePackage(const std::string& packageId);
+
+        /// @brief File path backing a package, empty when builtin/hardcoded.
+        std::string getPackageFile(const std::string& packageId) const;
+
+        /// @brief Cheap poll: rescan only when directory mtime changed. Call every ~1s.
+        void pollDropinChanges(const std::string& directoryPath = "assets/plugins");
+
         std::vector<PackageManifest> filterPackages(const std::string& query, const std::string& cat = "All", const std::string& stateFilter = "All") const {
             std::vector<PackageManifest> result;
             std::string q = query;
@@ -181,12 +201,18 @@ namespace Lab {
         void clear() {
             m_packages.clear();
             m_pluginImplementations.clear();
+            m_packageFiles.clear();
+            m_hasDirScan = false;
         }
 
     private:
         PackageManager() = default;
         std::unordered_map<std::string, PackageManifest> m_packages;
         std::unordered_map<std::string, std::shared_ptr<ILabPlugin>> m_pluginImplementations;
+        // Drop-in index: package id -> source .lua file.
+        std::unordered_map<std::string, std::string> m_packageFiles;
+        std::filesystem::file_time_type m_lastDirScan{};
+        bool m_hasDirScan{false};
     };
 
 } // namespace Lab
