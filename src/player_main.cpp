@@ -2,6 +2,7 @@
 #include "LabFont.h"
 #include "LabHUDEditor.h"
 #include "LabScript.h"
+#include "LabProject.h"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
@@ -106,7 +107,12 @@ public:
     }
 
     void discoverTextures() {
-        std::vector<std::string> searchDirs = { "assets/textures", "../assets/textures", "textures" };
+        auto& pm = ProjectManager::get();
+        std::vector<std::string> searchDirs = { 
+            (pm.getActiveProjectAssetsPath() / "textures").string(),
+            (pm.getEngineAssetsPath() / "textures").string(),
+            "assets/textures", "../assets/textures", "textures" 
+        };
         for (const auto& dir : searchDirs) {
             if (std::filesystem::exists(dir)) {
                 for (const auto& entry : std::filesystem::directory_iterator(dir)) {
@@ -119,13 +125,17 @@ public:
                         }
                     }
                 }
-                if (!_textures.empty()) break;
             }
         }
     }
 
     void discoverModels() {
-        std::vector<std::string> searchDirs = { "assets/models", "../assets/models", "models" };
+        auto& pm = ProjectManager::get();
+        std::vector<std::string> searchDirs = { 
+            (pm.getActiveProjectAssetsPath() / "models").string(),
+            (pm.getEngineAssetsPath() / "models").string(),
+            "assets/models", "../assets/models", "models" 
+        };
         for (const auto& dir : searchDirs) {
             if (std::filesystem::exists(dir)) {
                 for (const auto& entry : std::filesystem::directory_iterator(dir)) {
@@ -138,16 +148,15 @@ public:
                         }
                     }
                 }
-                if (!_meshes.empty()) break;
             }
         }
     }
 
     void initMissionRules() {
-        std::string resolvedRules = _rulesPath;
+        std::string resolvedRules = ProjectManager::get().resolveAssetPath(_rulesPath).string();
         if (!resolvedRules.empty() && !std::filesystem::exists(resolvedRules)) {
-            if (std::filesystem::exists("assets/scripts/" + resolvedRules)) {
-                resolvedRules = "assets/scripts/" + resolvedRules;
+            if (std::filesystem::exists("assets/scripts/" + _rulesPath)) {
+                resolvedRules = "assets/scripts/" + _rulesPath;
             }
         }
 
@@ -167,10 +176,10 @@ public:
     }
 
     void initCustomHUD() {
-        std::string resolvedHud = _hudPath;
+        std::string resolvedHud = ProjectManager::get().resolveAssetPath(_hudPath).string();
         if (!resolvedHud.empty() && !std::filesystem::exists(resolvedHud)) {
-            if (std::filesystem::exists("assets/hud_projects/" + resolvedHud)) {
-                resolvedHud = "assets/hud_projects/" + resolvedHud;
+            if (std::filesystem::exists("assets/hud_projects/" + _hudPath)) {
+                resolvedHud = "assets/hud_projects/" + _hudPath;
             }
         }
 
@@ -185,11 +194,11 @@ public:
     }
 
     void loadScene() {
-        // If scene file does not exist, check fallback paths
-        std::string finalPath = _scenePath;
+        // Resolve scene through ProjectManager (checking Documents/LabGames/<Game>/assets, engine/assets, then legacy)
+        std::string finalPath = ProjectManager::get().resolveAssetPath(_scenePath).string();
         if (!std::filesystem::exists(finalPath)) {
-            if (std::filesystem::exists("assets/maps/" + finalPath)) {
-                finalPath = "assets/maps/" + finalPath;
+            if (std::filesystem::exists("assets/maps/" + _scenePath)) {
+                finalPath = "assets/maps/" + _scenePath;
             } else if (std::filesystem::exists("assets/maps/cryo_complex.labmap")) {
                 finalPath = "assets/maps/cryo_complex.labmap";
             } else if (std::filesystem::exists("assets/maps/default_box.labmap")) {

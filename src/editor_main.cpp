@@ -3,6 +3,7 @@
 #include "LabDialogs.h"
 #include "LabProfiler.h"
 #include "LabExportPipeline.h"
+#include "LabProject.h"
 #include "LabInput.h"
 #include "LabAsset2D.h"
 #include "LabScript.h"
@@ -5890,16 +5891,18 @@ public:
 
         // Project Info Box
         curY += 76.0f;
-        Renderer::drawRect(bx + 24.0f, curY, bw - 48.0f, 96.0f, Vec3(0.12f, 0.13f, 0.16f));
-        drawDarkBevel(bx + 24.0f, curY, bw - 48.0f, 96.0f, false);
+        Renderer::drawRect(bx + 24.0f, curY, bw - 48.0f, 114.0f, Vec3(0.12f, 0.13f, 0.16f));
+        drawDarkBevel(bx + 24.0f, curY, bw - 48.0f, 114.0f, false);
 
         std::string scenePath = _currentMapPath.empty() ? "assets/maps/export_game.labmap (Current Scene)" : _currentMapPath;
-        LabFont::drawText(bx + 36.0f, curY + 12.0f, "Game Title:   " + _exportSettings.gameTitle, 1.45f, Vec3(0.9f, 0.9f, 0.95f), LabFontType::System);
-        LabFont::drawText(bx + 36.0f, curY + 38.0f, "Entry Scene:  " + scenePath, 1.45f, Vec3(0.9f, 0.9f, 0.95f), LabFontType::System);
-        LabFont::drawText(bx + 36.0f, curY + 64.0f, "Destination:  build/export/" + _exportSettings.gameTitle + "_" + ExportPipeline::platformToString(_exportSettings.platform), 1.45f, Vec3(0.7f, 0.8f, 0.95f), LabFontType::System);
+        auto& pm = ProjectManager::get();
+        LabFont::drawText(bx + 36.0f, curY + 10.0f, "Game Title:   " + _exportSettings.gameTitle, 1.45f, Vec3(0.9f, 0.9f, 0.95f), LabFontType::System);
+        LabFont::drawText(bx + 36.0f, curY + 34.0f, "Project Dev:  Documents/LabGames/" + pm.getActiveProjectName() + " (Decoupled from CMake)", 1.35f, Vec3(0.45f, 0.85f, 0.55f), LabFontType::System);
+        LabFont::drawText(bx + 36.0f, curY + 58.0f, "Entry Scene:  " + scenePath, 1.45f, Vec3(0.9f, 0.9f, 0.95f), LabFontType::System);
+        LabFont::drawText(bx + 36.0f, curY + 82.0f, "Destination:  build/export/" + _exportSettings.gameTitle + "_" + ExportPipeline::platformToString(_exportSettings.platform), 1.45f, Vec3(0.7f, 0.8f, 0.95f), LabFontType::System);
 
         // Status / Log Box
-        curY += 108.0f;
+        curY += 124.0f;
         Renderer::drawRect(bx + 24.0f, curY, bw - 48.0f, 44.0f, Vec3(0.10f, 0.11f, 0.13f));
         drawDarkBevel(bx + 24.0f, curY, bw - 48.0f, 44.0f, false);
         if (_lastBuildLog.empty()) {

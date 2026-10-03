@@ -14,6 +14,7 @@
 #include "LabCCD.h"
 #include "LabRagdoll.h"
 #include "LabExportPipeline.h"
+#include "LabProject.h"
 #include "LabVehicle.h"
 #include "LabFluid.h"
 #include "LabConstraint.h"
@@ -8484,6 +8485,94 @@ int main() {
         std::cout << "  [PASS] Sub-test G: Retro CRT Post-Process shader parameter toggle & phase tick verified.\n";
 
         std::cout << "  [PASS] Test 78 Modular Plugin Architecture (1 kod 1 plugin) passed 100%!\n";
+    }
+
+    // =========================================================================
+    // Test 79: Separation of Engine & Game Assets, Documents Projects & Auto-Generation on Build
+    // =========================================================================
+    {
+        std::cout << "[Test 79] Verifying Separation of Engine & Game Assets, Documents Projects & Auto-Build Pipeline...\n";
+        auto& pm = Lab::ProjectManager::get();
+
+        // Sub-test A: Verified separation of engine root vs engine assets vs user game projects
+        auto engineRoot = pm.getEngineRoot();
+        auto engineAssets = pm.getEngineAssetsPath();
+        auto userProjects = pm.getUserProjectsRoot();
+
+        if (!std::filesystem::exists(engineRoot)) {
+            std::cerr << "Assertion failed: Engine root directory could not be resolved!\n";
+            return 1;
+        }
+        if (!std::filesystem::exists(engineAssets)) {
+            std::cerr << "Assertion failed: Engine assets directory does not exist!\n";
+            return 1;
+        }
+        if (!std::filesystem::exists(userProjects)) {
+            std::cerr << "Assertion failed: User projects directory in Documents could not be resolved!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test A: Engine root, engine assets and user projects directory resolved.\n";
+
+        // Sub-test B: Dynamic creation of an isolated game project in Documents (decoupled from CMake)
+        std::string testProjectName = "QA_Separated_Game_2026";
+        bool created = pm.createProject(testProjectName, "default");
+        if (!created) {
+            std::cerr << "Assertion failed: Failed to create isolated project in Documents!\n";
+            return 1;
+        }
+
+        auto projPath = userProjects / testProjectName;
+        if (!std::filesystem::exists(projPath / "game.config") ||
+            !std::filesystem::exists(projPath / "project.labproject") ||
+            !std::filesystem::exists(projPath / "assets" / "maps" / "main.labmap") ||
+            !std::filesystem::exists(projPath / "assets" / "scripts") ||
+            !std::filesystem::exists(projPath / "assets" / "textures")) {
+            std::cerr << "Assertion failed: Project folder structure incomplete in Documents!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test B: Isolated game project and asset structure created in Documents (" << projPath.string() << ").\n";
+
+        // Sub-test C: Virtual URI resolution (engine:// vs game:// vs project://)
+        pm.setActiveProject(testProjectName);
+        auto resolvedEngine = pm.resolveAssetPath("engine://textures/dev_gray.bmp");
+        auto resolvedGame = pm.resolveAssetPath("game://maps/main.labmap");
+
+        if (resolvedEngine.empty() || !std::filesystem::exists(resolvedEngine)) {
+            std::cerr << "Assertion failed: Virtual URI engine://textures/dev_gray.bmp failed to resolve to existing file!\n";
+            return 1;
+        }
+        if (resolvedGame.empty() || !std::filesystem::exists(resolvedGame)) {
+            std::cerr << "Assertion failed: Virtual URI game://maps/main.labmap failed to resolve to existing file!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test C: Virtual URI resolution (engine:// vs game://) decoupled paths verified.\n";
+
+        // Sub-test D: Automatic game structure generation on build (One-Click Export)
+        Lab::ExportSettings expSettings;
+        expSettings.platform = Lab::TargetPlatform::Windows_x64;
+        expSettings.config = Lab::BuildConfiguration::Shipping;
+        expSettings.gameTitle = testProjectName;
+        expSettings.outputDirectory = "build/export_test_separated";
+        expSettings.entrySceneURI = "assets/maps/main.labmap";
+
+        Lab::ExportResult expResult = Lab::ExportPipeline::exportProject(expSettings);
+        if (!expResult.success) {
+            std::cerr << "Assertion failed: Standalone game export failed: " << expResult.logMessage << "\n";
+            return 1;
+        }
+
+        auto outDir = expResult.outputDirectory;
+        if (!std::filesystem::exists(outDir / (testProjectName + ".exe")) ||
+            !std::filesystem::exists(outDir / "game.config") ||
+            !std::filesystem::exists(outDir / "game.manifest") ||
+            !std::filesystem::exists(outDir / "run_game.bat") ||
+            !std::filesystem::exists(outDir / "assets" / "maps" / "main.labmap")) {
+            std::cerr << "Assertion failed: Standalone game build missing required files or game assets!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test D: Standalone game structure automatically generated on build (" << expResult.copiedFiles << " files, " << expResult.totalBytes << " bytes)!\n";
+
+        std::cout << "  [PASS] Test 79 Separation of Engine & Game Assets, Documents Projects & Auto-Build passed 100%!\n";
     }
 
     Lab::Renderer::shutdown();

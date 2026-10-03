@@ -1,4 +1,5 @@
 #include "LabExportPipeline.h"
+#include "LabProject.h"
 #include <fstream>
 #include <sstream>
 #include <chrono>
@@ -131,16 +132,30 @@ namespace Lab {
 
         result.outputDirectory = outDir;
 
-        // 1. Replicate assets & fonts
-        std::vector<std::string> assetRoots = { "assets", "../assets", "../../assets" };
-        for (const auto& aRoot : assetRoots) {
-            if (std::filesystem::exists(aRoot)) {
-                copyDirectoryRecursive(aRoot, outDir / "assets", result.copiedFiles, result.totalBytes);
-                break;
+        // 1. Replicate game assets (from Documents/LabGames/<GameTitle>/assets or fallback)
+        auto& pm = ProjectManager::get();
+        std::filesystem::path projAssets = pm.getActiveProjectAssetsPath();
+        if (std::filesystem::exists(projAssets)) {
+            copyDirectoryRecursive(projAssets, outDir / "assets", result.copiedFiles, result.totalBytes);
+        }
+
+        // Fallback to legacy/root assets if no project assets found
+        if (result.copiedFiles == 0) {
+            std::vector<std::string> assetRoots = { "assets", "../assets", "../../assets" };
+            for (const auto& aRoot : assetRoots) {
+                if (std::filesystem::exists(aRoot)) {
+                    copyDirectoryRecursive(aRoot, outDir / "assets", result.copiedFiles, result.totalBytes);
+                    break;
+                }
             }
         }
 
-        std::vector<std::string> fontRoots = { "fonts", "../fonts", "../../fonts" };
+        // Replicate engine runtime fonts (from engine/assets/fonts or root fonts)
+        std::vector<std::filesystem::path> fontRoots = { 
+            pm.getEngineAssetsPath() / "fonts",
+            pm.getEngineRoot() / "fonts",
+            "fonts", "../fonts", "../../fonts" 
+        };
         for (const auto& fRoot : fontRoots) {
             if (std::filesystem::exists(fRoot)) {
                 copyDirectoryRecursive(fRoot, outDir / "fonts", result.copiedFiles, result.totalBytes);
@@ -491,15 +506,26 @@ namespace Lab {
             }
         }
 
-        // 5. Replicate assets and fonts
-        std::vector<std::filesystem::path> assetRoots = { root / "assets", "assets", "../assets", "../../assets" };
-        for (const auto& aRoot : assetRoots) {
-            if (std::filesystem::exists(aRoot)) {
-                copyDirectoryRecursive(aRoot, testDir / "assets", result.copiedFiles, result.totalBytes);
-                break;
+        // 5. Replicate game assets (from Documents/LabGames/<GameTitle>/assets or fallback) and engine fonts
+        auto& pm = ProjectManager::get();
+        std::filesystem::path projAssets = pm.getActiveProjectAssetsPath();
+        if (std::filesystem::exists(projAssets)) {
+            copyDirectoryRecursive(projAssets, testDir / "assets", result.copiedFiles, result.totalBytes);
+        }
+        if (result.copiedFiles == 0) {
+            std::vector<std::filesystem::path> assetRoots = { root / "assets", "assets", "../assets", "../../assets" };
+            for (const auto& aRoot : assetRoots) {
+                if (std::filesystem::exists(aRoot)) {
+                    copyDirectoryRecursive(aRoot, testDir / "assets", result.copiedFiles, result.totalBytes);
+                    break;
+                }
             }
         }
-        std::vector<std::filesystem::path> fontRoots = { root / "fonts", "fonts", "../fonts", "../../fonts" };
+
+        std::vector<std::filesystem::path> fontRoots = { 
+            pm.getEngineAssetsPath() / "fonts",
+            root / "fonts", "fonts", "../fonts", "../../fonts" 
+        };
         for (const auto& fRoot : fontRoots) {
             if (std::filesystem::exists(fRoot)) {
                 copyDirectoryRecursive(fRoot, testDir / "fonts", result.copiedFiles, result.totalBytes);

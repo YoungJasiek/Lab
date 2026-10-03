@@ -88,6 +88,7 @@ add_library(LabCore SHARED
     src/LabProfiler.cpp
     src/LabVCS.cpp
     src/LabPackage.cpp
+    src/LabProject.cpp
     src/plugins/ProceduralLevelPlugin.cpp
     src/plugins/SpeedrunTelemetryPlugin.cpp
     src/plugins/RetroPostProcessPlugin.cpp
@@ -109,6 +110,7 @@ add_library(LabCore SHARED
     include/LabProfiler.h
     include/LabVCS.h
     include/LabPackage.h
+    include/LabProject.h
     include/plugins/ProceduralLevelPlugin.h
     include/plugins/SpeedrunTelemetryPlugin.h
     include/plugins/RetroPostProcessPlugin.h
