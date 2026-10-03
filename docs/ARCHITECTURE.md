@@ -94,23 +94,85 @@ glNamedFramebufferTexture(_fbo, GL_DEPTH_ATTACHMENT, _depthTex, 0);
 
 ## 4. Module & Subsystem Topology
 
-The engine is structured as a collection of modular subsystems:
+The engine is architected into clean, decoupled headers and dynamic libraries (`LAB_*_API`):
 
 ```
-[ LabEngineLib.lib ]
-  ├── LabMath.h / LabMath.cpp         -- SIMD-aligned vector, matrix, and quaternion algebra
-  ├── LabRenderer.h / LabRenderer.cpp -- DSA OpenGL 4.5+ Core renderer, shaders, lighting
-  ├── LabCollision.h                  -- Kay-Kajiya slab ray-AABB & sweep-sphere physics
-  ├── LabPhysics.h                    -- Rigid body tensors, tumbling debris, chain reactions
-  ├── LabSkeletal.h                   -- glTF 2.0 binary loader, 35-bone rigs, GPU skinning
-  ├── LabAnim.h / LabAnim.cpp         -- Procedural spring-damper recoil, walking bobbing
-  ├── LabAI.h / LabAI.cpp             -- Tactical bot state machine, cadence, weapon drops
-  ├── LabWeapon.h / LabWeapon.cpp     -- 9-weapon arsenal, raycast ballistics, projectile sim
-  ├── LabArms.h / LabArms.cpp         -- First-person viewmodel arms & LED telemetry
-  ├── LabMap.h / LabMap.cpp           -- Plain-text .labmap parser, spawn points, brushes
-  ├── LabAudio.h / LabAudio.cpp       -- miniaudio spatial 3D sound & procedural synthesizer
-  ├── LabScript.h / LabScript.cpp     -- Lua 5.4 static scripting engine & balance tables
-  ├── LabInteractive.h                -- Biometric retinal scanners & airlock security
-  ├── LabNetwork.h / LabNetwork.cpp   -- UDP client-server networking & client prediction
-  └── LabStudio.h / LabStudio.cpp     -- Valve Hammer styled Character & Weapon Studio
+[ LabEngine Core Libraries ]
+  ├── Core & Math:
+  │   ├── LabMath.h / LabMath.cpp           -- SIMD-aligned vector, matrix, and quaternion algebra
+  │   ├── LabCore.h / LabCore.cpp           -- Engine lifecycle, windowing, Win32/GLFW input
+  │   ├── LabEvent.h                        -- High-throughput decoupled Type-ID Event Bus
+  │   ├── LabSceneNode.h                    -- Scene Graph hierarchy, transforms, and prefabs
+  │   ├── LabVFS.h                          -- Virtual File System with 128-bit GUID tracking
+  │   └── LabCommand.h                      -- Undo/Redo command history pattern stack
+  ├── Rendering & Shading:
+  │   ├── LabRenderer.h / LabRenderer.cpp   -- DSA OpenGL 4.5+ Core renderer, shaders, lighting
+  │   ├── LabRHI.h                          -- Abstract Render Hardware Interface & Topological Graph
+  │   ├── LabSpriteBatcher.h                -- High-throughput 2D dynamic quad batching
+  │   ├── LabDecals.h / LabParticles.h      -- Dynamic projective decals and GPU particle emitters
+  │   ├── LabPostProcess.h                  -- HDR, Bloom, ACES Tonemapping, Frost Vignette
+  │   └── LabFont.h                         -- Vector glyph rasterizer & multi-font typography
+  ├── 2D Systems & Assets:
+  │   ├── LabAsset2D.h / LabAsset2D.cpp     -- Spritesheet slicing, AnimationPlayer2D, Tilemap2D
+  │   ├── LabPhysics2D.h                    -- Orthographic kinematics & Box2D simulation
+  │   └── LabHUDEditor.h                    -- Multi-genre 1920x1080 virtual HUD artboard designer
+  ├── Physics & Dynamics:
+  │   ├── LabCollision.h                    -- Kay-Kajiya slab ray-AABB & sweep-sphere physics
+  │   ├── LabPhysics.h                      -- Rigid body moments of inertia, friction, debris
+  │   ├── LabCCD.h                          -- Convex Hull 3D SAT & Continuous Collision Detection
+  │   ├── LabVehicle.h                      -- Raycast suspension vehicle physics & Pacejka grip
+  │   ├── LabFluid.h                        -- Water volumes, Archimedes buoyancy & Gerstner waves
+  │   ├── LabRagdoll.h                      -- Articulated skeletal ragdolls & active body blend
+  │   ├── LabConstraint.h                   -- Distance, BallSocket, Hinge, Slider, Fixed joints
+  │   ├── LabCloth.h                        -- Verlet integration, structural/shear/bending springs
+  │   └── LabForceField.h                   -- Directional, Radial, Vortex, and Buoyancy fields
+  ├── Skeletal Animation & Viewmodels:
+  │   ├── LabSkeletal.h                     -- glTF 2.0 / GLB binary loader, 35-bone GPU skinning
+  │   ├── LabAnim.h / LabAnim.cpp           -- Procedural spring-damper recoil, walking bobbing
+  │   ├── LabArms.h / LabArms.cpp           -- Tactical FPP viewmodel arms & gauntlet LED display
+  │   ├── LabFace.h                         -- Facial morph targets & audio viseme phoneme tracking
+  │   └── LabStudio.h / LabStudio.cpp       -- Character Studio, grip poser, reload choreography
+  ├── AI & Gameplay:
+  │   ├── LabAI.h / LabAI.cpp               -- Combat bot sensory perception, FSM, weapon drops
+  │   ├── LabWeapon.h / LabWeapon.cpp       -- 9-weapon arsenal, raycast ballistics, projectiles
+  │   ├── LabMap.h / LabMap.cpp             -- Plain-text .labmap parser, spawn points, brushes
+  │   ├── LabCSG.h                          -- Sutherland-Hodgman convex polyhedron cutting tool
+  │   ├── LabPickups.h / LabCombat.h        -- Health/ammo nodes, damage calculation, lethality
+  │   └── LabInteractive.h                  -- Biometric retinal scanners & linked airlocks
+  ├── Scripting, Input & Sound:
+  │   ├── LabAudio.h / LabAudio.cpp         -- miniaudio spatial 3D sound & procedural synthesizer
+  │   ├── LabScript.h / LabScript.cpp       -- Lua 5.4 static scripting engine & balance tables
+  │   └── LabInput.h / LabInput.cpp         -- Unified input action/gamepad mapping with Lua hooks
+  └── Tooling, Profiling & Shipping:
+      ├── LabEditor.h                       -- Multi-workspace editor suite & Play-In-Editor (PIE)
+      ├── LabProfiler.h                     -- Real-time CPU frame profiler & memory tracker
+      ├── LabVCS.h                          -- Git VCS integration & Git LFS Asset Locking
+      ├── LabPackage.h / LabPlugin.h        -- Declarative package manager & C-ABI dynamic plugins
+      └── LabExportPipeline.h / LabExport.h -- One-click multi-platform build & shipping runner
 ```
+
+---
+
+## 5. Render Hardware Interface (RHI) & Topological Render Graph (`LabRHI.h`)
+
+To future-proof the engine beyond raw OpenGL calls:
+- **Abstract RHI:** Exposes decoupled interfaces (`IRHIBuffer`, `IRHITexture`, `IRHIShader`, `IRHIPipeline`, `IRHICommandList`).
+- **Topological Render Graph:** Frame passes (Shadow Pass, G-Buffer / Forward Pass, Decal Pass, Post-Processing, HUD) are registered as discrete graph nodes with input/output resource dependencies.
+- **Automatic Hazard Resolution:** The render graph topologically sorts passes and eliminates redundant GPU state transitions and framebuffer blits.
+
+---
+
+## 6. Real-Time Profiler & Memory Allocator Tracker (`LabProfiler.h`)
+
+Integrated performance instrumentation active in debug and editor modes:
+- **CPU Frame Time Scopes (`LAB_PROFILE_SCOPE`):** Nanosecond-precision scoped timers tracking update loops, physics ticks, render passes, and AI pathfinding.
+- **Custom Memory Allocator Tracking:** Intercepts engine allocations to monitor heap usage, peak memory footprints, and potential memory leaks across subsystems.
+- **In-Engine Profiler Dock:** Live visual breakdown displaying FPS, frame delta graphs, active draw calls, and vertex batch statistics directly within LabEditor.
+
+---
+
+## 7. Decoupled Event Bus & Scene Graph
+
+- **Type-ID Event Bus (`LabEvent.h`):** High-throughput, zero-allocation event dispatcher allowing systems (such as audio reacting to bullet impacts or HUD reacting to player health loss) to communicate without direct coupling.
+- **Hierarchical Scene Graph (`LabSceneNode.h`):** Matrix transforms propagate from parent to child nodes, enabling complex composite entities, vehicles with mounted turrets, and articulated scene props.
+

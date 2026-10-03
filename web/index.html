@@ -78,8 +78,9 @@
         <div class="sidebar-title">Documentation</div>
         <ul class="sidebar-links">
           <li><a href="index.html" class="active">Main Page (Portal)</a></li>
+          <li><a href="labeditor.html">LabEditor Suite</a></li>
           <li><a href="frozen-life.html">Frozen-Life (Demo FPS)</a></li>
-          <li><a href="labhammer.html">LabHammer Editor</a></li>
+          <li><a href="labhammer.html">LabHammer (3D CAD)</a></li>
           <li><a href="lighting.html">Dynamic Lighting &amp; Lamps</a></li>
           <li><a href="character-studio.html">Character &amp; Weapon Studio</a></li>
           <li><a href="skeletal-animations.html">Skeletal &amp; FBX Animations</a></li>
@@ -87,7 +88,7 @@
           <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></li>
           <li><a href="multiplayer.html">UDP Multiplayer</a></li>
           <li><a href="audio-synthesizer.html">3D Audio &amp; Synthesizer</a></li>
-          <li><a href="lua-scripting.html">Lua 5.4 Scripting</a></li>
+          <li><a href="lua-scripting.html">Lua 5.4 Scripting &amp; IDE</a></li>
           <li><a href="architecture.html">Engine Architecture</a></li>
           <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
           <li><a href="building.html">Building from Source</a></li>
@@ -148,18 +149,18 @@
       <div id="welcome" class="vdc-portal-banner">
         <h2 class="vdc-banner-title">Welcome to the <span>Lab Developer Community</span></h2>
         <p class="vdc-banner-desc">
-          The comprehensive engineering knowledge base and reference wiki for <strong>Lab Engine</strong> – a high-performance, modular C++20 &amp; OpenGL 4.5+ Direct State Access (DSA) 3D Game Engine designed for building tactical FPS games, simulation software, and CAD tools. <strong>Frozen-Life (FL)</strong> is the flagship playable demonstration game powered by the Lab Engine.
+          The comprehensive engineering knowledge base and reference wiki for <strong>Lab Engine</strong> – a high-performance, general-purpose C++20 &amp; OpenGL 4.5+ Direct State Access (DSA) <strong>2D &amp; 3D Game Engine</strong> and multi-workspace visual authoring suite. <strong>Frozen-Life (FL)</strong> is the premier 3D demonstration FPS built on the Lab SDK.
         </p>
         <div class="vdc-banner-badges">
-          <span class="vdc-badge accent">Engine: Lab SDK (11 Modular DLLs)</span>
-          <span class="vdc-badge accent">Demo Game: FrozenLife.exe</span>
-          <span class="vdc-badge accent">Editor: LabHammer.exe</span>
-          <span class="vdc-badge accent">Studio: LabStudio.exe</span>
-          <span class="vdc-badge accent">HUD Editor: LabHUD.exe</span>
-          <span class="vdc-badge">Language: ISO C++20 / C++23</span>
+          <span class="vdc-badge accent">Engine: Universal 2D &amp; 3D SDK</span>
+          <span class="vdc-badge accent">Tests: 77/77 Passed (100%)</span>
+          <span class="vdc-badge accent">Editor: LabEditor.exe (5 Workspaces)</span>
+          <span class="vdc-badge accent">Runner: LabPlayer.exe</span>
+          <span class="vdc-badge">Platform: Windows | Linux | WASM</span>
+          <span class="vdc-badge">Language: ISO C++20</span>
           <span class="vdc-badge">Renderer: OpenGL 4.5+ DSA</span>
           <span class="vdc-badge">Network: Authoritative UDP (64-128Hz)</span>
-          <span class="vdc-badge">Scripting: Lua 5.4</span>
+          <span class="vdc-badge">Scripting: Lua 5.4 + Protected .luac</span>
         </div>
       </div>
 
@@ -168,18 +169,18 @@
            ================================================================ -->
       <section class="vdc-portal-grid" aria-label="Documentation category portals">
         
-        <!-- Portal 1: LabHammer -->
+        <!-- Portal 1: LabEditor -->
         <div class="portal-box">
           <div class="portal-header">
-            <span class="portal-icon">&#9638;</span>
-            <h3 class="portal-title"><a href="labhammer.html">LabHammer 3D Editor</a></h3>
+            <span class="portal-icon">&#9881;</span>
+            <h3 class="portal-title"><a href="labeditor.html">LabEditor Unified Suite</a></h3>
           </div>
-          <p class="portal-desc">Standalone 3D world creation CAD suite. Raycast picker, 3D cube brushes, STL prop placement, texture pipette, airlock doors, and F9 hot launch.</p>
+          <p class="portal-desc">Centralized multi-workspace creation tool. 5 Workspaces &amp; 13 Sub-modes (3D Level, 2D Tilemap, Studio Posing, HUD Designer, Full-Viewport Scripting IDE), Play-In-Editor (PIE) simulation, Profiler dock, and Universal Export.</p>
           <ul class="portal-links">
-            <li><a href="labhammer.html#sec-tools">&bull; The 6 Core Editing Tools</a></li>
-            <li><a href="labhammer.html#sec-properties">&bull; Entity Properties Inspector</a></li>
-            <li><a href="labhammer.html#sec-labmap-format">&bull; Plain-Text .labmap Format</a></li>
-            <li><a href="labhammer.html#sec-shortcuts">&bull; Viewport Shortcuts Cheat-Sheet</a></li>
+            <li><a href="labeditor.html#sec-workspaces">&bull; 5 Workspaces &amp; 13 Sub-Modes</a></li>
+            <li><a href="labeditor.html#sec-pie">&bull; Play-In-Editor (PIE) 64Hz Sim</a></li>
+            <li><a href="labeditor.html#sec-script-ide">&bull; Full-Viewport Lua Scripting IDE</a></li>
+            <li><a href="labeditor.html#sec-hud-canvas">&bull; Multi-Genre HUD Canvas Designer</a></li>
           </ul>
         </div>
 

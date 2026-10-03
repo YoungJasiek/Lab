@@ -1,34 +1,37 @@
 # <p align="center"><img src="web/assets/img/LabLogoText.png" alt="Lab Engine Logo" width="340"></p>
 
 <p align="center">
-  <strong>Modern C++20 &bull; OpenGL 4.5+ Direct State Access (DSA) &bull; Standalone 3D Level Editor &bull; Retro-Modern FPS</strong>
+  <strong>Modern C++20 &bull; OpenGL 4.5+ Direct State Access (DSA) &bull; Universal 2D & 3D Game Engine &bull; LabEditor Suite &bull; Retro-Modern FPS</strong>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/C%2B%2B-20-00599C?style=for-the-badge&logo=c%2B%2B" alt="C++20">
   <img src="https://img.shields.io/badge/OpenGL-4.5%2B%20Core%20(DSA)-5586A4?style=for-the-badge&logo=opengl" alt="OpenGL 4.5+">
   <img src="https://img.shields.io/badge/CMake-3.22%2B-064F8C?style=for-the-badge&logo=cmake" alt="CMake">
-  <img src="https://img.shields.io/badge/Platform-Windows%20x64-0078D6?style=for-the-badge&logo=windows" alt="Platform: Windows">
-  <img src="https://img.shields.io/badge/Status-Alpha%20v0.1.0-orange?style=for-the-badge" alt="Status">
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20WASM-0078D6?style=for-the-badge" alt="Platform: Windows, Linux, WASM">
+  <img src="https://img.shields.io/badge/Tests-77%2F77%20Passed%20(100%25)-brightgreen?style=for-the-badge" alt="Tests: 77/77 Passed">
+  <img src="https://img.shields.io/badge/Status-Active%20Ecosystem-blue?style=for-the-badge" alt="Status">
 </p>
 
 ---
 
 ## 📖 Overview
 
-**Lab** is a general-purpose, high-performance modular **3D Game Engine SDK** written from scratch in modern **C++20** and **OpenGL 4.5+ Core (Direct State Access)**. 
+**Lab** is a general-purpose, high-performance modular **2D and 3D Game Engine SDK** and visual authoring suite written from scratch in modern **C++20** and **OpenGL 4.5+ Core (Direct State Access)**.
 
 > [!IMPORTANT]
-> **Lab is the Game Engine SDK; Frozen-Life is its flagship demo game.**
-> Lab is designed to build *any* 3D game, simulation, or CAD tool. The engine is architected into 10 decoupled dynamic link libraries (`.dll`), enabling rapid incremental compilation, clean modularity, and independent maintenance across separate Git repositories.
+> **Lab is the Game Engine SDK & Toolset; Frozen-Life is its flagship showcase game.**
+> Lab is designed to build *any* 2D or 3D game, simulation, or CAD tool. The engine core (`LabCore`, `LabRender`, `LabPhysics`, `LabAudio`, `LabScript`, `LabNetwork`) has zero game-specific logic or hardcoded weapons, while games exist strictly as separate data/script packages or decoupled application repositories.
 
-The project encompasses the following core targets:
-1. **Lab Engine Showcase** (`Lab.exe`): Interactive 3D engine sandbox demonstrating fixed-timestep 64Hz physics, dynamic lighting, spatial audio, particles, and Lua 5.4 scripting for developers building games on Lab.
-2. **Frozen Life** (`FrozenLife.exe`): The flagship tactical FPS demonstration game built on top of the Lab Engine SDK (also available as an independent repository).
-3. **Lab Hammer** (`LabHammer.exe`): Standalone CAD 3D level editor for authoring geometry, dynamic doors, light sources, player spawns, and weapon pickup nodes in plain-text `.labmap` files.
-4. **Lab Studio** (`LabStudio.exe`): Specialized 3D Character & Weapon Studio for weapon grip posing, bot weapon socket alignment, ADS optical tuning, reload choreography, and animation previewing.
-5. **LabServer** (`LabServer.exe`): Dedicated authoritative UDP multiplayer server running a deterministic 64-128Hz tickrate simulation.
-6. **10 Modular Engine Subsystems** (`LabCore.dll` through `LabStudioCore.dll`): Decoupled DLL libraries consumable by any game or application.
+The project encompasses the following primary targets:
+1. **Lab Editor** (`LabEditor.exe` / `editor_main.cpp`): Unified multi-workspace IDE and editor featuring 5 workspace categories and 13 sub-modes (3D Level Editor, 2D Tilemap, Studio Character Posing, Multi-Genre HUD Canvas Designer, Full-Viewport Lua Scripting IDE, Play-In-Editor (PIE) simulation, in-game profiler dock, and universal export).
+2. **Lab Engine Showcase** (`Lab.exe`): Interactive 3D engine sandbox demonstrating fixed-timestep 64Hz physics, dynamic multi-light shading, spatial audio, particles, and Lua 5.4 scripting.
+3. **Frozen Life** (`FrozenLife.exe`): The flagship retro-modern tactical FPS demonstration game built on top of the Lab SDK.
+4. **Lab Player** (`LabPlayer.exe`): Lightweight standalone shipping runner with sub-second startup and zero editor overhead, booting cooked `.labpak` virtual packages directly.
+5. **Lab Studio** (`LabStudio.exe`): Specialized Character & Weapon Studio for weapon grip posing, bot weapon socket alignment, optical ADS tuning, reload curves, and lip-sync facial morphs.
+6. **LabServer** (`LabServer.exe`): Dedicated authoritative UDP multiplayer server running a deterministic 64–128Hz tickrate simulation (headless, zero GPU context).
+7. **TestVerify** (`TestVerify.exe`): Comprehensive automated regression and visual verification test suite executing **77 distinct tests** with a 100% pass rate.
+8. **Decoupled Engine Subsystem DLLs** (`LabCore.dll` through `LabExport.dll`): Dynamically linked libraries consumable by any application.
 
 ---
 
@@ -38,130 +41,75 @@ Comprehensive technical articles are organized modularly in the [`docs/`](docs/)
 
 | Article | Subsystem / Focus | Link |
 | :--- | :--- | :--- |
-| **Engine Architecture & Standards** | Modern C++20, RAII, DSA OpenGL 4.5+, Fixed Timestep Loop | [📘 docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| **Engine Architecture & Standards** | Modern C++20, RAII, DSA OpenGL 4.5+, RHI Graph, Profiler | [📘 docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| **LabEditor Unified Suite** | 5 Workspaces, 13 Modes, PIE Simulation, Script IDE, Search | [📘 docs/LAB_EDITOR.md](docs/LAB_EDITOR.md) |
+| **Universal 2D Engine Pipeline** | SpriteBatcher (10k+ quads/call), Asset2D, Tilemaps, HUD Designer | [📘 docs/2D_PIPELINE.md](docs/2D_PIPELINE.md) |
+| **Advanced Physics & Dynamics** | Vehicles, Fluid/Waves, Ragdolls, Constraints, Cloth, SAT/CCD | [📘 docs/PHYSICS_ENGINE.md](docs/PHYSICS_ENGINE.md) |
+| **Build Pipeline & Shipping** | One-Click Export (Win/Linux/WASM), LabPlayer, Bytecode Stripping | [📘 docs/BUILD_AND_EXPORT.md](docs/BUILD_AND_EXPORT.md) |
+| **Lua 5.4 Scripting & In-Engine IDE** | Embedded Lua 5.4, Script IDE, Entity/HUD bridges, Input bindings | [📘 docs/LUA_SCRIPTING.md](docs/LUA_SCRIPTING.md) |
 | **Character & Weapon Studio** | Posing, Bot Socket Alignment, ADS, Reload Scrubber, Animation Switcher | [📘 docs/CHARACTER_STUDIO.md](docs/CHARACTER_STUDIO.md) |
-| **Skeletal Animation Pipeline** | glTF 2.0 / GLB binary loader, 35-Bone rig, GPU skinning, Human recoil arc | [📘 docs/SKELETAL_ANIMATIONS.md](docs/SKELETAL_ANIMATIONS.md) |
+| **Skeletal Animation Pipeline** | glTF 2.0 / GLB binary loader, 35-Bone rig, GPU skinning, Recoil arcs | [📘 docs/SKELETAL_ANIMATIONS.md](docs/SKELETAL_ANIMATIONS.md) |
 | **Combat Bot AI & FSM** | Tactical state machine, ray-AABB LOS, weapon cadence, exact drops | [📘 docs/BOT_AI_SYSTEM.md](docs/BOT_AI_SYSTEM.md) |
 | **Weapons & Viewmodel Kinematics** | 9-weapon arsenal, spring-damper recoil, walking roll sway & bobbing | [📘 docs/WEAPONS_AND_VIEWMODEL.md](docs/WEAPONS_AND_VIEWMODEL.md) |
 | **Authoritative Multiplayer** | Dedicated UDP server (64Hz), client prediction, reconciliation, LAN | [📘 docs/MULTIPLAYER.md](docs/MULTIPLAYER.md) |
-| **LabHammer 3D Level Editor** | Viewports, CSG convex polygon clipping, `.labmap` format specification | [📘 docs/LEVEL_EDITOR_HAMMER.md](docs/LEVEL_EDITOR_HAMMER.md) |
+| **LabHammer 3D Level Editor & CSG** | Viewports, CSG convex polygon clipping, `.labmap` format specification | [📘 docs/LEVEL_EDITOR_HAMMER.md](docs/LEVEL_EDITOR_HAMMER.md) |
 | **Spatial Audio & Synthesizer** | miniaudio v0.11.25, 3D attenuation, 26 procedural 16-bit PCM sounds | [📘 docs/AUDIO_SYSTEM.md](docs/AUDIO_SYSTEM.md) |
-| **Lua 5.4 Scripting & Balance** | Statically compiled Lua 5.4.6, game balance tables, biometric credentials | [📘 docs/LUA_SCRIPTING.md](docs/LUA_SCRIPTING.md) |
 
 ---
 
 ## 🌟 Key Highlights & Engine Architecture
 
-### ⚡ Modern C++20 Standards
-* **Strict RAII & Lifetime Management:** Zero manual `new` / `delete` across gameplay and rendering code; resource management via smart pointers (`std::unique_ptr`, `std::shared_ptr`) and RAII wrappers for all OpenGL and Lua objects.
-* **Cache-Friendly Design:** Contiguous component arrays and value semantics for transforms, brush geometry, and particle emitters.
-* **Deterministic Fixed-Timestep Loop:** Physics and game logic update at a fixed frequency (accumulator model), cleanly decoupled from uncapped rendering framerates (144+ FPS).
+### ⚡ Modern C++20 Standards & High Performance
+* **Strict RAII & Zero-Allocation Paths:** Smart pointers (`std::unique_ptr`, `std::shared_ptr`) manage object lifecycles; raw memory allocation is strictly eliminated on hot execution paths.
+* **Deterministic Fixed-Timestep Loop:** Physics and game logic update at a fixed frequency ($64\text{ Hz}$ accumulator model), cleanly decoupled from uncapped rendering framerates ($144+\text{ FPS}$).
+* **Abstract RHI & Topological Render Graph (`LabRHI`):** Automatic resource barrier resolution, topological frame pass scheduling, and cross-backend readiness.
+* **In-Game Profiler & Memory Allocator Tracker (`LabProfiler`):** Nanosecond-precision scoped CPU frame profiling, draw call tracking, and heap allocation monitoring.
 
-### 📜 Lua 5.4 Scripting & Game Mechanics Subsystem (`LabScript`)
-* **Clean Architectural Decoupling:** Core engine infrastructure (OpenGL 4.5 DSA, physics, windowing, collision) is pure native C++20, while game-specific rules and balance reside in `assets/scripts/game_mechanics.lua`.
-* **Zero External DLL Dependencies:** Official Lua 5.4.6 runtime compiled statically into the engine via single translation unit (`external/lua/onelua.c`).
-* **Externalized Balancing:** Dynamic tables for Player Rules (HP, armor absorption ratio, respawn timers, barrel damage multiplier), Biometric Retinal Scanner credentials, and complete 9-weapon arsenal balancing.
-* **Pure Lua Damage & Lethality Evaluation:** `CalculateDamage()` evaluates armor reduction and death threshold flags in real-time.
+### 🛠️ LabEditor & In-Engine Scripting IDE
+* **5 Top-Level Workspaces & 13 Sub-Modes:** 3D World (Level, Animation Timeline, Model Viewer), LabStudio (Grip Poser, Reload Curves, Skins, Outfits, Face Dialogue), 2D Scene (Tilemap, 2D Animation, Multi-Genre HUD Canvas), and Scripting (Full-Viewport Code IDE, Interactive REPL Console).
+* **Play-In-Editor (PIE):** Real-time `Play`, `Pause`, `Step` ($1/64\text{ s}$ ticks), and `Stop` simulation controls directly within the editor.
+* **Full-Viewport Scripting IDE:** Complete code editing environment with interactive text buffer, syntax highlighting, auto-indent, and live save/reload (`Ctrl+S`/`Ctrl+R`).
+* **Universal Hierarchy Search:** Real-time text filtering and instant selection across all scene entities, brushes, lights, props, and widgets.
+* **Undo / Redo History Stack:** Robust transactional command pattern (`Ctrl+Z` / `Ctrl+Y`).
 
-### 🎨 OpenGL 4.5+ Direct State Access (DSA) & Real-Time Lighting
-* **Decoupled State Pipeline:** No global state binding spaghetti (`glBindTexture`, `glBindBuffer` eliminated where DSA is applicable).
-* **Immutable Storage:** Textures and vertex buffers allocated via `glCreateTextures`, `glTextureStorage2D`, `glCreateBuffers`, and `glNamedBufferStorage`.
-* **Dynamic Shadow Mapping (2048x2048 FBO):** Real-time depth pass with 3x3 Percentage-Closer Filtering (PCF) and slope-scaled normal bias.
-* **Tactical Spotlight & Flashlight:** High-intensity spotlight with inner/outer beam falloff and synthesized mechanical toggle audio.
+### 🎨 Universal 2D Engine Stack
+* **High-Performance `SpriteBatcher`:** Renders up to 10,000 textured quads in a single indexed draw call with automatic Z-sorting and sub-texture atlasing.
+* **2D Asset Pipeline (`LabAsset2D`):** Spritesheet grid slicing, custom pixel slices, `AnimationPlayer2D` frame sequencer, and multi-layer `Tilemap2D` (.tilemap format).
+* **Multi-Genre HUD Canvas Designer:** Virtual $1920\times 1080$ responsive artboard with presets for FPS, RPG, Racing, and Platformer genres, linked directly to Lua scripts.
 
-### 👁️ Biometric Retinal Scanner & Airlock Security (`LabInteractive`)
-* **Environmental Interaction:** In-world 3D scanner consoles with procedural animated eye calibration textures, iris rendering, and sweeping laser beams.
-* **Seamless First-Person Experience:** Approaching and pressing `[E]` triggers a 1.25s biometric eye scan with animated 2D HUD status card (`Dr. Vance` credentials, match percentage).
-* **Physical Door Locking:** Linked blast doors remain physically locked shut until authenticated retinal verification.
+### 💥 Advanced Physics & Dynamic Simulations
+* **Raycast Suspension Vehicles (`LabVehicle`):** Raycast suspension springs, Pacejka/Coulomb tire friction, Ackermann steering, and FWD/RWD/AWD drivetrains.
+* **Fluids, Archimedes Buoyancy & Waves (`LabFluid`):** Water volume bounds, continuous Gerstner waves, immersed volume displacement, and viscous drag.
+* **Articulated Ragdoll Physics (`LabRagdoll`):** Bone collision capsules, cone-twist angular limits, and active body animation blending.
+* **Constraints & Joints (`LabConstraint`):** Distance, BallSocket, Hinge, Slider, and Fixed joints with Gauss-Seidel relaxation solvers.
+* **Verlet Cloth & Soft Bodies (`LabCloth`):** Position Verlet particle grids with structural, shear, and bending springs, wind drag, and scene collisions.
+* **Convex Hull 3D SAT & CCD (`LabCCD`):** Separating Axis Theorem and swept volume continuous collision detection preventing high-speed tunneling.
+* **Physics Force Fields (`LabForceField`):** Directional, Radial, Vortex, and Buoyancy volumetric triggers.
 
-### 🔊 3D Spatial Audio & Procedural Synthesizer (`LabAudio`)
-* **Integrated miniaudio v0.11.25:** Zero-dependency audio engine with 3D inverse-square spatial attenuation, stereo panning, and listener Doppler.
-* **26 Procedural 16-bit PCM Sounds:** Built-in procedural WAV synthesizer covering all weapons, impacts, footsteps (concrete, metal, ice), items, and UI chimes.
-
-### 💥 Newtonian Physics & Destructible Props (`LabPhysics`)
-* **Rigid Body Dynamics:** Full moments of inertia tensor, semi-implicit Euler integration, restitution, and friction.
-* **Destructible Props & Explosives:** Wooden crates shatter into dynamic tumbling debris planks; red fuel barrels emit shockwaves, trigger chain explosions, and fling bots.
-
-### 🎯 Ballistics, Decals & CSG Geometry
-* **Branchless Slab Ray-AABB Math:** Ultra-fast hitscan bullet registration based on the Kay-Kajiya bounding-box intersection algorithm.
-* **Dynamic Projective Decals (`LabDecals`):** Persistent impact craters on concrete, metal punctures with silver rims, organic bot blood pools, and charred explosion scorches with depth bias.
-* **CSG Convex Polyhedron Slicing (`LabCSG`):** Real-time Sutherland-Hodgman polygon clipping against arbitrary cutting planes in Hammer.
-
-### 🦾 Skeletal Animation & Tactical Viewmodels
-* **glTF 2.0 GPU Skinning (`LabSkeletal`):** 20-bone humanoid skeleton with quaternion SLERP keyframe animation and dynamic Bone Socket weapon binding.
-* **Tactical First-Person Arms (`LabArms`):** Articulated cryo-suit gauntlets, cyan telemetry LEDs, multi-phase reload choreography, and tactical inspect (`V`).
-
----
-
-## 📂 Modular Architecture & Separate Repositories
-
-Lab is architected into **10 modular Dynamic Link Libraries (.dll)**, **3 standalone application repositories**, and the core engine SDK. Building individual modules and apps takes seconds, enabling rapid incremental compilation and clean separation of concerns.
-
-### 🎮 Standalone Application Repositories
-| Project | Repository | Executable | Description |
-| :--- | :--- | :--- | :--- |
-| **Frozen Life** | [`Frozen-Life`](https://github.com/YoungJasiek/Frozen-Life) | `FrozenLife.exe` | Tactical retro-modern FPS game client (weapons, HUD, audio, AI bots, multiplayer). |
-| **Lab Hammer** | [`Lab-Hammer`](https://github.com/YoungJasiek/Lab-Hammer) | `LabHammer.exe` | Standalone CAD 3D level editor for authoring `.labmap` geometry and CSG brushes. |
-| **Lab Studio** | [`Lab-Studio`](https://github.com/YoungJasiek/Lab-Studio) | `LabStudio.exe` | Character & Weapon Studio for Mixamo rig retargeting, weapon sockets, and reload curves. |
-
-### ⚙️ Engine Subsystem Modules (.dll)
-Each engine subsystem is maintained as an independent repository with its own `README.md`, standalone `CMakeLists.txt`, and dedicated web documentation page:
-
-| Subsystem Module | Shared DLL | Online Documentation | Responsibilities & Focus |
-| :--- | :--- | :--- | :--- |
-| **[`Lab Core`](https://github.com/YoungJasiek/Lab-Core)** | `LabCore.dll` | [📖 Core Docs](https://youngjasiek.github.io/Lab/module-core.html) | Engine lifecycle, windowing, GLFW/Win32 input, math vector library, camera transforms, fonts. |
-| **[`Lab Render`](https://github.com/YoungJasiek/Lab-Render)** | `LabRender.dll` | [📖 Render Docs](https://youngjasiek.github.io/Lab/module-render.html) | OpenGL 4.5+ Direct State Access (DSA), Phong lighting, CSG brushes, decals, post-processing. |
-| **[`Lab Audio`](https://github.com/YoungJasiek/Lab-Audio)** | `LabAudio.dll` | [📖 Audio Docs](https://youngjasiek.github.io/Lab/module-audio.html) | 3D spatial audio system with miniaudio integration and procedural WAV sound synthesis. |
-| **[`Lab Physics`](https://github.com/YoungJasiek/Lab-Physics)** | `LabPhysics.dll` | [📖 Physics Docs](https://youngjasiek.github.io/Lab/module-physics.html) | Swept-AABB collisions, moveAndSlide kinematic controller, rigid bodies, raycasting. |
-| **[`Lab Animation`](https://github.com/YoungJasiek/Lab-Animation)** | `LabAnimation.dll` | [📖 Animation Docs](https://youngjasiek.github.io/Lab/module-animation.html) | Skeletal keyframe animation blending, bone hierarchy transformation, tactical FPP arms animator. |
-| **[`Lab World`](https://github.com/YoungJasiek/Lab-World)** | `LabWorld.dll` | [📖 World Docs](https://youngjasiek.github.io/Lab/module-world.html) | Map environment (.labmap), weapon mechanics, particle systems, interactive terminals, HUD. |
-| **[`Lab Network`](https://github.com/YoungJasiek/Lab-Network)** | `LabNetwork.dll` | [📖 Network Docs](https://youngjasiek.github.io/Lab/module-network.html) | Low-latency UDP networking (64-128 Hz), client-side prediction, server reconciliation, LAN discovery. |
-| **[`Lab AI`](https://github.com/YoungJasiek/Lab-AI)** | `LabAI.dll` | [📖 AI Docs](https://youngjasiek.github.io/Lab/module-ai.html) | CombatBot autonomous sensory perception, finite state machine, FBX skeletal animation retargeting. |
-| **[`Lab Script`](https://github.com/YoungJasiek/Lab-Script)** | `LabScript.dll` | [📖 Script Docs](https://youngjasiek.github.io/Lab/module-script.html) | Embedded Lua 5.4 scripting engine for weapon ballistics, map events, and game mechanics balance. |
-| **[`Lab Studio Core`](https://github.com/YoungJasiek/Lab-Studio-Core)** | `LabStudioCore.dll` | [📖 Studio Docs](https://youngjasiek.github.io/Lab/module-studio.html) | Engine backend for weapon sockets, reload choreography curves, and facial morph lip-sync. |
-| **`glad`** | `glad.dll` | [📖 OpenGL 4.5+ DSA](https://youngjasiek.github.io/Lab/opengl-dsa.html) | Shared OpenGL 4.5+ DSA function dispatch table across all engine modules. |
-| **`TestVerify`** | `TestVerify.exe` | [📖 Architecture](https://youngjasiek.github.io/Lab/architecture.html) | Automated verification suite validating 45 engine subsystems with 100% test pass rate. |
-
----
-
-## 🛠️ System Requirements
-
-* **Operating System:** Windows 10 / Windows 11 (64-bit).
-* **Compiler:** MSVC v143 (Visual Studio 2022 v17.4+) with C++20 workload, LLVM Clang 16+, or MinGW GCC 12+.
-* **Build System:** CMake 3.22 or higher.
-* **Graphics Hardware:** GPU with complete hardware support for **OpenGL 4.5 Core Profile** (NVIDIA GeForce GTX 900+, AMD Radeon R9 200+, or Intel UHD 620+).
-
----
-
-## 🚀 Building from Source
-
-The project uses a target-based **CMake** configuration that fetches required external libraries (such as `GLFW 3.4`) automatically via `FetchContent`.
-
-### PowerShell / Command Prompt Build:
-
-```powershell
-# 1. Clone the repository
-git clone https://github.com/YoungJasiek/Lab.git
-cd Lab
-
-# 2. Generate CMake build tree (Visual Studio 2022, x64)
-mkdir build
-cd build
-cmake .. -G "Visual Studio 17 2022" -A x64
-
-# 3. Compile in Release mode
-cmake --build . --config Release --parallel
-
-# 4. (Optional) Run verification suite
-.\Release\TestVerify.exe
-```
-
-> [!NOTE]
-> Post-build CMake triggers automatically copy the required runtime directories (`assets/` and `fonts/`) to the output directories (`build/Release/`), ensuring all textures, maps, and TrueType fonts are available immediately upon launch.
+### 🚀 Universal One-Click Build & Export Pipeline
+* **Multi-Platform Deployment:** Exports to **Windows x64**, **Linux x64**, and **WebAssembly (WASM)**.
+* **Asset Cooking & Packaging:** Generates optimized `.labpak` virtual packages.
+* **Protected Lua Bytecode (`.luac`):** Strips all debugging symbols and variable names for tamper-proof shipping binaries.
+* **Standalone Runner:** Ships with `LabPlayer.exe` for immediate execution without editor dependencies.
+* **VCS & Git LFS Asset Locking (`LabVCS`):** Protects binary textures, models, and maps against accidental team overwrite conflicts.
 
 ---
 
 ## 🎮 Controls & Keybindings
+
+### LabEditor Suite
+
+| Action | Key / Input | Details |
+| :--- | :--- | :--- |
+| **Flycam Navigation** | `RMB` *(Hold)* + `W` `A` `S` `D` | 3D free-look camera movement in 3D views |
+| **Camera Elevation** | `E` (Up) / `Q` (Down) | Vertical camera fly translation |
+| **Tool Selection** | `1` – `6` | 1: Select, 2: Brush, 3: Spawn, 4: Weapon, 5: Light, 6: Face |
+| **Commit Brush** | `Space` | Commit active preview box to map geometry |
+| **Undo / Redo** | `Ctrl` + `Z` / `Ctrl` + `Y` | Undo or redo transactional scene commands |
+| **Save Scene / Script** | `Ctrl` + `S` | Write active scene to `.labmap` or script buffer to `.lua` |
+| **Play-In-Editor (PIE)** | `F5` (Play), `F6` (Pause), `F7` (Step), `F8` (Stop) | Live runtime physics and script simulation |
+| **Build & Export Modal** | `Ctrl` + `B` | Open multi-platform export settings dialog |
+| **Grid Snapping** | `[` / `]` | Decrease / Increase coordinate grid snapping interval |
 
 ### Frozen-Life (FPS Game Client)
 
@@ -173,24 +121,34 @@ cmake --build . --config Release --parallel
 | **Aim Down Sights (ADS)** | `Right Mouse Button` | Optical zoom / scope toggle (SG553) |
 | **Reload** | `R` | Reload current magazine from reserve ammo pool |
 | **Weapon Selection** | `1` – `9` / `Scroll Wheel` | Direct slot select or sequential cycle |
-| **Quick Switch** | `Q` | Instantly switch to previously equipped weapon |
 | **Interact / Retinal Scan** | `E` | Initiate biometric eye scan on airlock consoles & doors |
 | **Tactical Flashlight** | `F` | Toggle tactical spotlight with real-time shadow casting |
 | **Weapon Inspect** | `V` | Trigger tactical viewmodel inspection & gauntlet display |
 | **Scoreboard** | `TAB` *(Hold)* | Display match scoreboard (kills, deaths, ping) |
-| **In-Game Chat** | `Y` / `Enter` | Open multiplayer tactical radio text input |
-| **Host / Main Menu** | `ESC` / `F1` | Toggle in-game host menu and level selection |
 
-### LabHammer (3D Level Editor)
+---
 
-| Action | Key / Input | Details |
-| :--- | :--- | :--- |
-| **Fly Camera Navigation** | `Right Mouse Button` *(Hold)* + `W` `A` `S` `D` | 3D free-look camera movement |
-| **Camera Elevation** | `E` (Up) / `Q` (Down) | Vertical camera fly translation |
-| **Tool Selection** | `1` – `6` | Select Tool (1: Select, 2: Brush, 3: Spawn, 4: Weapon, 5: Light, 6: Face) |
-| **Spawn / Commit Brush** | `Space` | Commit active preview box to map geometry |
-| **Save Level** | `Ctrl` + `S` | Write active scene to `.labmap` file |
-| **Open Level** | `Ctrl` + `O` | Load an existing `.labmap` file into the editor |
+---
+
+## 📂 Modular Subsystem Modules (.dll)
+
+Each engine subsystem is maintained with decoupled headers, clean symbol export macros (`LAB_*_API`), and modular CMake build rules:
+
+| Subsystem Module | Shared DLL | Online Documentation | Responsibilities & Focus |
+| :--- | :--- | :--- | :--- |
+| **`Lab Core`** | `LabCore.dll` | [📖 Core Docs](docs/ARCHITECTURE.md) | Lifecycle, windowing, Win32/GLFW input, math library, camera transforms, event bus, VFS. |
+| **`Lab Render`** | `LabRender.dll` | [📖 Render Docs](docs/ARCHITECTURE.md) | OpenGL 4.5+ DSA, Phong lighting, CSG brushes, decals, post-processing, RHI graph. |
+| **`Lab Audio`** | `LabAudio.dll` | [📖 Audio Docs](docs/AUDIO_SYSTEM.md) | 3D spatial audio system with miniaudio integration and procedural WAV sound synthesis. |
+| **`Lab Physics`** | `LabPhysics.dll` | [📖 Physics Docs](docs/PHYSICS_ENGINE.md) | Swept-AABB, rigid bodies, vehicles, fluids, ragdolls, joints, cloth, SAT/CCD. |
+| **`Lab Animation`** | `LabAnimation.dll` | [📖 Animation Docs](docs/SKELETAL_ANIMATIONS.md) | Skeletal keyframe blending, bone hierarchy, tactical FPP arms animator. |
+| **`Lab World`** | `LabWorld.dll` | [📖 World Docs](docs/LEVEL_EDITOR_HAMMER.md) | Map environment (.labmap), weapon mechanics, particle systems, interactive terminals, HUD. |
+| **`Lab Network`** | `LabNetwork.dll` | [📖 Network Docs](docs/MULTIPLAYER.md) | Low-latency UDP networking (64-128 Hz), client prediction, server reconciliation, LAN discovery. |
+| **`Lab AI`** | `LabAI.dll` | [📖 AI Docs](docs/BOT_AI_SYSTEM.md) | CombatBot autonomous sensory perception, FSM, FBX/glTF skeletal animation retargeting. |
+| **`Lab Script`** | `LabScript.dll` | [📖 Script Docs](docs/LUA_SCRIPTING.md) | Embedded Lua 5.4 runtime, script IDE buffer, weapon ballistics, dynamic HUD state bridge. |
+| **`Lab Studio Core`**| `LabStudioCore.dll` | [📖 Studio Docs](docs/CHARACTER_STUDIO.md) | Backend for weapon sockets, reload choreography curves, and facial morph lip-sync. |
+| **`Lab Export`** | `LabExport.dll` | [📖 Export Docs](docs/BUILD_AND_EXPORT.md) | Multi-platform build pipeline, asset cooking, bytecode stripping, VCS asset locking. |
+| **`glad`** | `glad.dll` | [📖 OpenGL DSA](docs/ARCHITECTURE.md) | Shared OpenGL 4.5+ DSA function dispatch table across all engine modules. |
+| **`TestVerify`** | `TestVerify.exe` | [📖 Architecture](docs/ARCHITECTURE.md) | Automated verification suite validating 77 engine subsystems with 100% test pass rate. |
 
 ---
 
@@ -239,62 +197,50 @@ Pre-packaged test maps included in the repository:
 Lab/
 ├── CMakeLists.txt              # Root CMake build definition for all targets
 ├── README.md                   # Project overview and documentation
+├── PROJECT.md                  # Feature inventory and milestone roadmap
 ├── TODO.md                     # Roadmap and sprint tracking document
-├── .gitignore                  # Git tracking rules
-├── external/                   # Third-party embedded libraries
-│   └── lua/                    # Official Lua 5.4.6 runtime (onelua.c)
-├── include/                    # Public C++ engine headers
-│   ├── LabCore.h               # Windowing, input polling, and game loop timing
-│   ├── LabRenderer.h           # OpenGL 4.5+ DSA rendering pipeline
-│   ├── LabScript.h             # Lua 5.4 ScriptEngine & game mechanics bridge
-│   ├── LabInteractive.h        # Biometric Retinal Scanner & environmental entities
-│   ├── LabAudio.h              # 3D spatial audio & procedural WAV synthesizer
-│   ├── LabPhysics.h            # Newtonian rigid body dynamics & destructible props
-│   ├── LabCSG.h                # Sutherland-Hodgman convex polyhedron geometry clipping
-│   ├── LabDecals.h             # Projective bullet, blood, and scorch decals
-│   ├── LabSkeletal.h           # glTF 2.0 animation rig & GPU vertex skinning
-│   ├── LabLight.h              # Spotlight flashlight & 2048x2048 shadow mapping
-│   ├── LabArms.h               # Tactical FPP arms kinematics & gauntlets
-│   ├── LabMap.h                # .labmap parser and serializer
-│   ├── LabCombat.h             # Raycasting, damage calculations, and hitboxes
-│   ├── LabWeapon.h             # 9-weapon definitions, ballistics, and reload logic
-│   ├── LabPickups.h            # World pickup nodes and 60s respawn timers
-│   ├── LabAI.h                 # AI bot patrol, tracking, and combat FSM
-│   ├── LabCollision.h          # Kay-Kajiya ray-AABB math and swept box collision
-│   ├── LabParticles.h          # Sparks, smoke, tracer, blood, and explosion emitters
-│   ├── LabHUD.h                # Tactical combat HUD, health/armor clamping & death screen
-│   ├── LabFont.h               # TrueType font rendering with stb_truetype
-│   └── LabCamera.h             # First-person view camera and viewport projection
-├── src/                        # C++ source files
-│   ├── main.cpp                # Frozen-Life executable entry point (Lab.exe)
-│   ├── editor_main.cpp         # LabHammer editor entry point (LabHammer.exe)
-│   ├── test_verify.cpp         # Automated test suite (TestVerify.exe - 30 tests)
-│   ├── LabScript.cpp           # ScriptEngine implementation and C++ <-> Lua bridge
-│   ├── LabInteractive.cpp      # Biometric Retinal Scanner & 3D console screens
-│   └── glad/                   # Embedded OpenGL loader sources
-├── assets/                     # Runtime game assets
-│   ├── scripts/                # Game mechanics scripts (game_mechanics.lua)
-│   ├── maps/                   # Plain-text .labmap level files
-│   ├── textures/               # Bitmap textures (snow_frost, metal_hull, hazard)
-│   └── models/                 # 3D STL meshes (weapons and props)
-├── fonts/                      # TrueType / OpenType font files
-│   └── geo_sans_light/         # Engine HUD font (GeosansLight.ttf)
-└── web/                        # Built-in offline/online Developer Wiki (HTML/CSS/JS)
+├── docs/                       # Complete modular documentation suite
+│   ├── README.md               # Documentation hub
+│   ├── ARCHITECTURE.md         # Engine architecture & core standards
+│   ├── LAB_EDITOR.md           # LabEditor unified multi-workspace suite
+│   ├── 2D_PIPELINE.md          # 2D SpriteBatcher, Tilemap & HUD Canvas
+│   ├── PHYSICS_ENGINE.md       # Vehicles, fluids, ragdolls, joints, cloth, CCD
+│   ├── BUILD_AND_EXPORT.md     # Build pipeline, LabPlayer, packaging & VCS
+│   └── ...                     # Subsystem-specific deep dives
+├── external/                   # Third-party embedded libraries (Lua 5.4.6, etc.)
+├── include/                    # Public C++ engine headers (LabCore.h, LabEditor.h...)
+├── src/                        # Engine and application implementation files
+│   ├── editor_main.cpp         # LabEditor implementation (workspaces, PIE, script IDE)
+│   ├── test_verify.cpp         # 77-Test automated and visual verification suite
+│   └── ...
+└── assets/                     # Maps, textures, audio, models, fonts, and scripts
 ```
 
 ---
 
-## 📚 Technical Wiki & Documentation Hub
+## 🛠️ System Requirements & Building from Source
 
-The project includes an interactive developer wiki located in the `web/` directory:
-* **Interactive Architecture Guide:** Deep dive into Direct State Access, shader pipelines, and Ray-AABB math.
-* **LabHammer Manual:** Visual guide to 3D brush geometry creation, entity placement, and UV alignment.
-* **Offline Preview:** Run `web/run_preview.bat` or open `web/index.html` in any web browser.
+* **Operating System:** Windows 10/11 (64-bit), Linux x64 (Ubuntu 22.04+), or WebAssembly.
+* **Compiler:** MSVC v143 (Visual Studio 2022 v17.4+), Clang 16+, or GCC 12+.
+* **Build System:** CMake 3.22 or higher.
+* **Graphics Hardware:** GPU with complete hardware support for **OpenGL 4.5 Core Profile** (Direct State Access).
 
----
+### Build Instructions:
 
-## 👤 Author & Acknowledgments
+```powershell
+# 1. Clone repository
+git clone https://github.com/YoungJasiek/Lab.git
+cd Lab
 
-* **Creator & Architect:** [YoungJasiek](https://github.com/YoungJasiek)
-* **Special Thanks to Valve Corporation:** Sincere gratitude, respect, and admiration to **Valve Corporation** for their magnificent game engines (GoldSrc, Source Engine). Their monumental design philosophy, architectural elegance, and timeless tactile mechanics provided boundless inspiration for building the Lab Engine SDK.
-* **Community Acknowledgments:** Sincere thanks to the open-source graphics community and the developers of GLFW, GLAD, miniaudio, and Lua.
+# 2. Generate build tree (Visual Studio 2022, x64)
+mkdir build
+cd build
+cmake .. -G "Visual Studio 17 2022" -A x64
+
+# 3. Compile in Release mode
+cmake --build . --config Release --parallel
+
+# 4. Run automated test suite (77 verification tests)
+.\Release\TestVerify.exe
+```
+

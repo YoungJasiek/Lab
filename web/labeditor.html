@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="LabEditor – Unified multi-workspace IDE and game development suite for the Lab Engine. 5 Workspaces, 13 Modes, Play-In-Editor (PIE), Scripting IDE, and Universal Export.">
+  <meta name="keywords" content="LabEditor, Lab Engine, Level Editor, 2D Tilemap, Scripting IDE, Lua 5.4, Play-In-Editor, HUD Designer, Profiler, C++20, OpenGL 4.5">
+  <meta name="author" content="YoungJasiek">
+
+  <title>LabEditor (Unified Creation Suite) – Lab Developer Community</title>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="assets/img/LabLogo.png">
+
+  <!-- Core Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Accessibility Skip Link -->
+  <a href="#content" class="skip-link">Skip to main content</a>
+
+  <!-- TOP HEADER -->
+  <header class="vdc-top-header" role="banner">
+    <div class="vdc-header-left">
+      <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
+      <a href="index.html" class="vdc-brand">
+        <img src="assets/img/LabLogo.webp" alt="Lab Engine Logo" class="vdc-logo-img">
+        <div class="vdc-brand-text">
+          <span class="vdc-brand-title"><span class="accent">Lab</span> Developer Community</span>
+          <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LABEDITOR</span>
+        </div>
+      </a>
+    </div>
+
+    <div class="vdc-search-bar" role="search">
+      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search documentation..." aria-label="Search wiki documentation">
+      <span class="vdc-search-icon" aria-hidden="true">&#128269;</span>
+    </div>
+
+    <div class="vdc-header-right">
+      <button id="theme-toggle-btn" class="theme-toggle-btn" aria-label="Toggle theme">&#9728;&#65039; Light Mode</button>
+      <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="github-badge-btn" aria-label="GitHub repository">
+        <span>GitHub</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- PAGE CONTAINER -->
+  <div class="vdc-page-container">
+
+    <!-- Sidebar Navigation -->
+    <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
+      <div class="sidebar-block">
+        <div class="sidebar-title">Documentation</div>
+        <ul class="sidebar-links">
+          <li><a href="index.html">Main Page (Portal)</a></li>
+          <li><a href="labeditor.html" class="active">LabEditor Suite</a></li>
+          <li><a href="labhammer.html">LabHammer (3D CAD)</a></li>
+          <li><a href="character-studio.html">Character &amp; Weapon Studio</a></li>
+          <li><a href="skeletal-animations.html">Skeletal &amp; FBX Animations</a></li>
+          <li><a href="bot-ai.html">Combat Bot AI</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></li>
+          <li><a href="multiplayer.html">UDP Multiplayer</a></li>
+          <li><a href="audio-synthesizer.html">3D Audio &amp; Synthesizer</a></li>
+          <li><a href="lua-scripting.html">Lua 5.4 Scripting &amp; IDE</a></li>
+          <li><a href="frozen-life.html">Frozen-Life Build</a></li>
+          <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+          <li><a href="building.html">Building from Source</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">LabEditor Topics</div>
+        <ul class="sidebar-links">
+          <li><a href="#sec-overview">Overview &amp; Architecture</a></li>
+          <li><a href="#sec-workspaces">5 Workspaces &amp; 13 Sub-Modes</a></li>
+          <li><a href="#sec-pie">Play-In-Editor (PIE) Sim</a></li>
+          <li><a href="#sec-script-ide">Full-Viewport Script IDE</a></li>
+          <li><a href="#sec-hud-canvas">Multi-Genre HUD Canvas</a></li>
+          <li><a href="#sec-hierarchy">Hierarchy Search &amp; Undo/Redo</a></li>
+          <li><a href="#sec-export">Universal Export Modal</a></li>
+          <li><a href="#sec-controls">Keyboard Shortcuts</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main id="content" class="vdc-main-content" role="main">
+      <nav class="vdc-page-tabs" aria-label="Namespace tabs">
+        <div class="tabs-left">
+          <a href="labeditor.html" class="wiki-tab active">LabEditor Article</a>
+          <a href="architecture.html" class="wiki-tab">Architecture</a>
+        </div>
+        <div class="tabs-right">
+          <a href="labeditor.html" class="wiki-tab active">Read</a>
+          <a href="https://github.com/YoungJasiek/Lab/blob/main/src/editor_main.cpp" target="_blank" class="wiki-tab">View C++ Source</a>
+        </div>
+      </nav>
+
+      <div class="wiki-breadcrumbs">
+        <a href="index.html">Main Page</a>
+        <span class="crumb-sep">&gt;</span>
+        <span>Developer Toolset</span>
+        <span class="crumb-sep">&gt;</span>
+        <span class="crumb-current">LabEditor Unified Suite</span>
+      </div>
+
+      <h1 class="firstHeading">
+        <span>LabEditor &ndash; Unified Multi-Workspace Creation Suite</span>
+        <span style="font-size: 0.85rem; font-weight: normal; font-family: var(--font-mono); color: var(--wiki-accent);">[editor_main.cpp]</span>
+      </h1>
+      <div class="siteSub">From Lab Developer Community &ndash; 3D Level Authoring, 2D Tilemaps, Character Studio Posing, Multi-Genre HUD Canvas, Lua 5.4 Scripting IDE, and Play-In-Editor Simulation</div>
+
+      <!-- Infobox -->
+      <aside class="infobox" aria-label="Editor Infobox">
+        <div class="infobox-title">
+          LabEditor
+          <span class="infobox-subtitle">UNIFIED LABSDK TOOL</span>
+        </div>
+        <div class="infobox-image">
+          <img src="assets/img/test_hammer_ui.webp" alt="LabEditor Interface" style="max-height:160px; object-fit:contain;">
+          <div class="infobox-caption">LabEditor active interface displaying multi-workspace viewports and real-time scene inspector</div>
+        </div>
+        <table class="infobox-table">
+          <tr><th>Executable</th><td><code>LabEditor.exe</code></td></tr>
+          <tr><th>Primary Source</th><td><code>src/editor_main.cpp</code></td></tr>
+          <tr><th>Workspaces</th><td>5 Categories, 13 Sub-Modes</td></tr>
+          <tr><th>Simulation</th><td>Play-In-Editor (PIE) 64Hz</td></tr>
+          <tr><th>Scripting</th><td>Lua 5.4 Full IDE + Protected .luac</td></tr>
+          <tr><th>Rendering</th><td>OpenGL 4.5+ DSA (3D &amp; Ortho 2D)</td></tr>
+          <tr><th>Target Output</th><td>Windows, Linux, WebAssembly</td></tr>
+        </table>
+      </aside>
+
+      <!-- Section: Overview -->
+      <section id="sec-overview" class="wiki-section">
+        <h2>1. Overview &amp; Architectural Evolution</h2>
+        <p>
+          <strong>LabEditor</strong> is the primary development environment for the Lab Engine. Originally conceived as the classic CAD-styled <em>LabHammer</em>, the tool has been systematically transformed into a comprehensive, decoupled, multi-genre development suite. All hardcoded game references have been purged into separate script packages, establishing LabEditor as a universal creation tool for any 2D or 3D project.
+        </p>
+      </section>
+
+      <!-- Section: Workspaces -->
+      <section id="sec-workspaces" class="wiki-section">
+        <h2>2. The 5 Workspaces &amp; 13 Specialized Sub-Modes</h2>
+        <p>Accessible directly via <code>View &gt; Workspaces</code>:</p>
+        <div class="portal-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin: 15px 0;">
+          <div class="portal-box" style="padding:15px; background:var(--wiki-surface);">
+            <h3>🏢 1. 3D Workspaces</h3>
+            <ul>
+              <li><strong>Level &amp; Geometry:</strong> CSG brush carving, plane slicing, lights, entity placements.</li>
+              <li><strong>Animation 3D Timeline:</strong> Prop &amp; model keyframe scrubbers.</li>
+              <li><strong>Model Viewer:</strong> Turntable inspector, wireframe overlay, triangle counts.</li>
+            </ul>
+          </div>
+          <div class="portal-box" style="padding:15px; background:var(--wiki-surface);">
+            <h3>🦾 2. LabStudio Integration</h3>
+            <ul>
+              <li><strong>Weapon Grip Poser:</strong> Bone socket alignment for character rigs.</li>
+              <li><strong>Reload Timeline:</strong> Multi-phase reload choreography curves.</li>
+              <li><strong>Weapon Skins &amp; Materials:</strong> PBR albedo, metallic, roughness.</li>
+              <li><strong>Face Dialogue:</strong> Morph targets &amp; audio viseme lip-sync.</li>
+            </ul>
+          </div>
+          <div class="portal-box" style="padding:15px; background:var(--wiki-surface);">
+            <h3>🎨 3. 2D Workspaces</h3>
+            <ul>
+              <li><strong>Level &amp; Tilemap:</strong> Ortho grid, layered tile painting, Box2D physics.</li>
+              <li><strong>2D Animation:</strong> Spritesheet slicing &amp; frame sequence player.</li>
+              <li><strong>Multi-Genre HUD Canvas:</strong> Virtual 1920x1080 artboard designer.</li>
+            </ul>
+          </div>
+          <div class="portal-box" style="padding:15px; background:var(--wiki-surface);">
+            <h3>📜 4. Scripting Workspaces</h3>
+            <ul>
+              <li><strong>Code Editor IDE:</strong> Full-viewport interactive buffer with syntax highlighting.</li>
+              <li><strong>Interactive Console:</strong> Real-time Lua REPL and engine debug log.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section: PIE -->
+      <section id="sec-pie" class="wiki-section">
+        <h2>3. Play-In-Editor (PIE) Real-Time Simulation</h2>
+        <p>
+          Developers can simulate game mechanics directly inside the editor without restarting:
+        </p>
+        <ul>
+          <li><strong>Play (<code>F5</code>):</strong> Starts fixed-timestep 64Hz physics, Lua updates, AI bot sensory loops, and dynamic vehicle suspension.</li>
+          <li><strong>Pause (<code>F6</code>):</strong> Freezes simulation time while leaving the free-flight camera active for deep inspection of rigid bodies and collisions.</li>
+          <li><strong>Step (<code>F7</code>):</strong> Advances exactly one single physics tick (&Delta;t = 1/64 s) to inspect bullet trajectories and collision events.</li>
+          <li><strong>Stop (<code>F8</code>):</strong> Resets the scene back to the initial authoring state.</li>
+        </ul>
+      </section>
+
+      <!-- Section: Script IDE -->
+      <section id="sec-script-ide" class="wiki-section">
+        <h2>4. Full-Viewport Scripting IDE</h2>
+        <p>
+          When switching to the Scripting IDE workspace, LabEditor replaces the 3D map viewport with a full-screen, distraction-free code editor:
+        </p>
+        <ul>
+          <li><strong>Interactive Text Buffer:</strong> Multiline typing, cursor navigation, home/end, backspace line merging, Enter key split with auto-indentation.</li>
+          <li><strong>Live Syntax Highlighting:</strong> Tokenizer highlighting Lua reserved keywords, numbers, string literals, and engine API identifiers.</li>
+          <li><strong>Direct Disk Roundtrip:</strong> Save (<code>Ctrl+S</code>) directly to disk; scripts hot-reload instantly.</li>
+          <li><strong>Protected Bytecode (.luac):</strong> Strip symbols and compile to bytecode with a single click for shipping releases.</li>
+        </ul>
+      </section>
+
+      <!-- Section: HUD Canvas -->
+      <section id="sec-hud-canvas" class="wiki-section">
+        <h2>5. Multi-Genre HUD Canvas Designer</h2>
+        <p>
+          Design user interfaces on a virtual 1920&times;1080 reference canvas:
+        </p>
+        <ul>
+          <li><strong>Genre Presets:</strong> Instant templates for FPS, RPG, Racing, and Platformer games.</li>
+          <li><strong>Responsive Anchors:</strong> Pin widgets to top-left, center, bottom-right, or full-stretch.</li>
+          <li><strong>Live Lua Scripting:</strong> Manipulate elements in real-time via <code>HUD.setText()</code> and <code>HUD.setValue()</code>.</li>
+        </ul>
+      </section>
+
+      <!-- Section: Hierarchy & Search -->
+      <section id="sec-hierarchy" class="wiki-section">
+        <h2>6. Universal Hierarchy Search &amp; Undo/Redo</h2>
+        <ul>
+          <li><strong>Real-Time Search Bar:</strong> Instantly filter hundreds of brushes, props, lights, spawns, and UI elements.</li>
+          <li><strong>Command History Stack:</strong> Full transactional undo/redo pattern (<code>Ctrl+Z</code> / <code>Ctrl+Y</code>) for brush carving, transforms, and property modifications.</li>
+        </ul>
+      </section>
+
+      <!-- Section: Export Modal -->
+      <section id="sec-export" class="wiki-section">
+        <h2>7. Universal One-Click Build &amp; Export</h2>
+        <p>
+          Pressing <code>Ctrl + B</code> opens the Build &amp; Export dialog, enabling export to <strong>Windows x64</strong>, <strong>Linux x64</strong>, and <strong>WebAssembly (WASM)</strong>, bundling assets into <code>.labpak</code> archives and preparing standalone shipping packages.
+        </p>
+      </section>
+
+      <!-- Section: Keyboard Shortcuts -->
+      <section id="sec-controls" class="wiki-section">
+        <h2>8. Keyboard Shortcuts Quick Reference</h2>
+        <table class="wiki-table">
+          <thead>
+            <tr><th>Shortcut</th><th>Context</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>Ctrl + N / O / S</code></td><td>Global</td><td>New, Open, or Save Scene / Script Buffer</td></tr>
+            <tr><td><code>Ctrl + Z / Y</code></td><td>Global</td><td>Undo / Redo Scene Command</td></tr>
+            <tr><td><code>Ctrl + B</code></td><td>Global</td><td>Open Multi-Platform Build &amp; Export Modal</td></tr>
+            <tr><td><code>F5 / F6 / F7 / F8</code></td><td>Global</td><td>Play, Pause, Step, Stop Play-In-Editor (PIE)</td></tr>
+            <tr><td><code>RMB + WASD</code></td><td>3D View</td><td>Free-look First-Person Flycam Navigation</td></tr>
+            <tr><td><code>1 &ndash; 6</code></td><td>3D Tools</td><td>Select Tool (1: Select, 2: Brush, 3: Spawn, 4: Weapon, 5: Light, 6: Face)</td></tr>
+            <tr><td><code>Space</code></td><td>3D Tools</td><td>Commit Active Brush Preview to Map Geometry</td></tr>
+            <tr><td><code>[ / ]</code></td><td>Viewports</td><td>Decrease / Increase Grid Snapping Step</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+    </main>
+  </div>
+
+  <footer class="vdc-footer">
+    <p>&copy; 2026 Lab Engine &bull; Developed by YoungJasiek &bull; Open Source C++20 / OpenGL 4.5+ DSA</p>
+  </footer>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

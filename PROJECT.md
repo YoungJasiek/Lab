@@ -53,17 +53,32 @@ Decomposition of the monolithic C++20 Lab engine (`c:\Users\jancz\Desktop\Lab`) 
 | F19 | Comprehensive Module READMEs | In-depth `README.md` in each of the 11 repositories with overview, API docs, build steps, web links | M4 | ORIGINAL_REQUEST §R4 |
 | F20 | TestVerify 45-Test Suite Port | Port `TestVerify.exe` to modular setup, executing all 14 automated + 31 visual passes (32 BMPs) | M5 | ORIGINAL_REQUEST §R5 |
 | F21 | 100% Functional Parity Pass | Achieve 45/45 (100%) test pass rate on modular ecosystem with zero regressions | M5 | ORIGINAL_REQUEST Acceptance Criteria |
+| F22 | RHI & Topological Render Graph | Abstract RHI interfaces and dependency-sorted frame pass scheduling graph | M6 | TASK #169 |
+| F23 | Undo/Redo Command History Stack | Transactional command pattern with undo/redo execution history | M6 | TASK #171 |
+| F24 | Universal Multi-Platform Build Pipeline | One-click export for Windows x64, Linux x64, WASM, macOS with standalone LabPlayer runner | M6 | TASK #173 |
+| F25 | VCS & Git LFS Asset Locking | Git status tracking and binary asset locking to prevent merge conflicts | M6 | TASK #174 |
+| F26 | Plugin & Package Ecosystem | Declarative package manifests (`.labpak`) and C-ABI dynamic plugin loader | M6 | TASK #175 |
+| F27 | In-Game Profiler & Memory Tracker | CPU scope profiling, live draw call counters, custom memory allocator tracking | M6 | TASK #176 |
+| F28 | Advanced Vehicle Dynamics | Raycast suspension model, Pacejka grip, Ackermann steering, torque distribution | M6 | TASK #177 |
+| F29 | Water Volumes, Buoyancy & Waves | Continuous Gerstner waves, Archimedes immersed volume displacement, viscous drag | M6 | TASK #178 |
+| F30 | Ragdoll Physics & Active Body Blend | Skeletal rigid body capsules, cone-twist angular joints, active kinematic blend | M6 | TASK #179 |
+| F31 | Constraints & Mechanical Joints | Distance, BallSocket, Hinge, Slider, Fixed joints with Gauss-Seidel solver | M6 | TASK #180 |
+| F32 | Verlet Soft Body & Cloth Sim | 2D particle grids with structural/shear/bending springs and wind aerodynamic forces | M6 | TASK #181 |
+| F33 | Convex Hull 3D SAT & CCD | Separating Axis Theorem and swept volume continuous collision detection | M6 | TASK #182 |
+| F34 | Force Fields & Dynamic Triggers | Directional, Radial, Vortex, and Buoyancy volumetric vector force fields | M6 | TASK #183 |
+| F35 | Universal 2D Engine & LabEditor | SpriteBatcher (10k+ quads/call), Asset2D, Multi-Genre HUD, Scripting IDE, 77/77 tests passed | M6 | EXPANSION |
 
 ---
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Engine Subsystems DLL Repositories | Initialize 7 DLL repos (`LabCore`, `LabRender`, `LabPhysics`, `LabAudio`, `LabNetwork`, `LabAI`, `LabScript`) with git, CMake, export macros (`LAB_*_API`), source porting, headers | none | PLANNED |
-| M2 | Master CMake Superbuild & Output | Master `Desktop/Lab_Suite/CMakeLists.txt`, unified `bin/` deployment, target-based dependencies, external dependencies (GLFW, Lua, GLAD) | M1 | PLANNED |
-| M3 | Application Repositories & Assets | Initialize 4 app repos (`Frozen-Life`, `LabHammer`, `LabStudio`, `LabServer`), port application code, organize canonical assets in `Frozen-Life/assets` and mirror to `bin/` | M1, M2 | PLANNED |
-| M4 | Centralized Web Documentation & READMEs | Expand `Desktop/Lab/web/` documentation portal with multi-repo architecture, and author comprehensive README.md in all 11 repos | M1, M3 | PLANNED |
-| M5 | Test Suite Verification & Hardening | Build and execute `TestVerify.exe` against modular DLLs, achieving 45/45 (100%) pass rate, visual verification comparisons, and integrity audit | M1, M2, M3 | PLANNED |
+| M1 | Engine Subsystems DLL Repositories | Initialize 7 DLL repos (`LabCore`, `LabRender`, `LabPhysics`, `LabAudio`, `LabNetwork`, `LabAI`, `LabScript`) with git, CMake, export macros (`LAB_*_API`), source porting, headers | none | COMPLETED |
+| M2 | Master CMake Superbuild & Output | Master `Desktop/Lab_Suite/CMakeLists.txt`, unified `bin/` deployment, target-based dependencies, external dependencies (GLFW, Lua, GLAD) | M1 | COMPLETED |
+| M3 | Application Repositories & Assets | Initialize 4 app repos (`Frozen-Life`, `LabHammer`, `LabStudio`, `LabServer`), port application code, organize canonical assets in `Frozen-Life/assets` and mirror to `bin/` | M1, M2 | COMPLETED |
+| M4 | Centralized Web Documentation & READMEs | Expand `Desktop/Lab/web/` documentation portal with multi-repo architecture, and author comprehensive README.md in all 11 repos | M1, M3 | COMPLETED |
+| M5 | Test Suite Verification & Hardening | Build and execute `TestVerify.exe` against modular DLLs, achieving 45/45 (100%) pass rate, visual verification comparisons, and integrity audit | M1, M2, M3 | COMPLETED |
+| M6 | Universal 2D/3D Parity, Advanced Physics & LabEditor | Tasks #169–#183, 2D Pipeline, Advanced Dynamics, Scripting IDE, Multi-Platform Export, 77/77 Tests Passed | M1–M5 | COMPLETED |
 
 ---
 

@@ -1,6 +1,9 @@
 # 🏗️ LabHammer 3D Level Editor
 
-**LabHammer** (`LabHammer.exe`) is a standalone 3D CAD-style level editor inspired by Valve's classic Hammer Editor. It allows level designers to construct architecture, carve complex geometry, place dynamic entities, and compile map files into plain-text `.labmap` documents.
+> [!NOTE]
+> **Evolution into LabEditor:** LabHammer has evolved into the unified **[LabEditor](LAB_EDITOR.md)** (`LabEditor.exe`), which integrates the 3D Level Editor alongside 2D Tilemap editing, the LabStudio animation suite, Multi-Genre HUD Canvas designer, Play-In-Editor (PIE) simulation, and a full-viewport Lua Scripting IDE. This document covers the core 3D CAD level construction and `.labmap` format used within the 3D World workspace.
+
+**LabHammer** (`LabHammer.exe` / `LabEditor.exe` 3D Workspace) is a standalone 3D CAD-style level editor inspired by Valve's classic Hammer Editor. It allows level designers to construct architecture, carve complex geometry, place dynamic entities, and compile map files into plain-text `.labmap` documents.
 
 ---
 
