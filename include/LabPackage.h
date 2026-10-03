@@ -117,12 +117,12 @@ namespace Lab {
         }
 
         void registerBuiltinPackages();
-        void scanPluginDirectory(const std::string& directoryPath = "assets/plugins");
+        void scanPluginDirectory(const std::string& directoryPath = "plugins");
 
         /// @brief Drop-in API: copy external .lua file into plugins dir, scan + auto-enable.
         /// @return plugin id on success, empty string on failure.
         std::string importDropinFile(const std::string& sourcePath,
-                                     const std::string& directoryPath = "assets/plugins");
+                                     const std::string& directoryPath = "plugins");
 
         /// @brief Full removal: disable, unregister, delete file from disk.
         /// Hardcoded (non-file) plugins cannot be deleted this way and return false.
@@ -135,7 +135,7 @@ namespace Lab {
         std::string getPackageFile(const std::string& packageId) const;
 
         /// @brief Cheap poll: rescan only when directory mtime changed. Call every ~1s.
-        void pollDropinChanges(const std::string& directoryPath = "assets/plugins");
+        void pollDropinChanges(const std::string& directoryPath = "plugins");
 
         std::vector<PackageManifest> filterPackages(const std::string& query, const std::string& cat = "All", const std::string& stateFilter = "All") const {
             std::vector<PackageManifest> result;

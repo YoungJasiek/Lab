@@ -8416,21 +8416,21 @@ int main() {
         }
         std::cout << "  [PASS] Sub-test C: Drop-in checkbox toggle (Enable/Disable) verified.\n";
 
-        // Sub-test D: Standalone Plugin Directory Scanning (assets/plugins)
-        pm.scanPluginDirectory("assets/plugins");
-        // Verify disk files exist
-        if (!std::filesystem::exists("assets/plugins/procedural_level.lua") ||
-            !std::filesystem::exists("assets/plugins/speedrun_timer.lua") ||
-            !std::filesystem::exists("assets/plugins/retro_shaders.lua") ||
-            !std::filesystem::exists("assets/plugins/dialogue_quest.lua") ||
-            !std::filesystem::exists("assets/plugins/voxel_terrain.lua") ||
-            !std::filesystem::exists("assets/plugins/ai_patrol.lua") ||
-            !std::filesystem::exists("assets/plugins/arcade_vehicle.lua") ||
-            !std::filesystem::exists("assets/plugins/discord_rpc.lua")) {
-            std::cerr << "Assertion failed: One or more standalone Lua plugin files missing on disk!\n";
+        // Sub-test D: Standalone Plugin Directory Scanning (plugins/)
+        pm.scanPluginDirectory("plugins");
+        // Verify disk files exist in dedicated plugins/ folder
+        if (!std::filesystem::exists("plugins/procedural_level.lua") ||
+            !std::filesystem::exists("plugins/speedrun_timer.lua") ||
+            !std::filesystem::exists("plugins/retro_shaders.lua") ||
+            !std::filesystem::exists("plugins/dialogue_quest.lua") ||
+            !std::filesystem::exists("plugins/voxel_terrain.lua") ||
+            !std::filesystem::exists("plugins/ai_patrol.lua") ||
+            !std::filesystem::exists("plugins/arcade_vehicle.lua") ||
+            !std::filesystem::exists("plugins/discord_rpc.lua")) {
+            std::cerr << "Assertion failed: One or more standalone Lua plugin files missing in plugins/!\n";
             return 1;
         }
-        std::cout << "  [PASS] Sub-test D: Standalone Lua plugin files on disk verified (assets/plugins/*.lua).\n";
+        std::cout << "  [PASS] Sub-test D: Standalone Lua plugin files on disk verified (plugins/*.lua).\n";
 
         // Sub-test E: Procedural Level Generator Action (real CSG brushes generated into map)
         std::vector<Lab::LabBrush> testBrushes;

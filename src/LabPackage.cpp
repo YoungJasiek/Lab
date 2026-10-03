@@ -7,27 +7,32 @@
 namespace Lab {
 
 void PackageManager::registerBuiltinPackages() {
-    // Drop-in model: NO hardcoded plugins. Every plugin is exactly one .lua file
-    // in assets/plugins/. Drop file = new plugin, delete file = plugin gone.
-    // No engine recompile, no per-plugin C++ edits.
-    scanPluginDirectory("assets/plugins");
+    // Drop-in model: Plugins live in plugins/ or engine/assets/plugins/
+    std::string dir = "plugins";
+    if (!std::filesystem::exists(dir) && std::filesystem::exists("engine/assets/plugins")) {
+        dir = "engine/assets/plugins";
+    }
+    scanPluginDirectory(dir);
     // First startup: enable everything discovered so editor works out of the box
-    // (same as before: proc-gen, speedrun, retro, dialogue were auto-enabled).
-    // Plain rescan/poll never auto-enables; only fresh files and importDropinFile do.
     for (const auto& [id, pkg] : m_packages) {
         if (pkg.state == PackageState::Discovered) enablePackage(id);
     }
 }
 
 void PackageManager::scanPluginDirectory(const std::string& directoryPath) {
+    std::string actualDir = directoryPath;
+    if (!std::filesystem::exists(actualDir)) {
+        if (std::filesystem::exists("plugins")) actualDir = "plugins";
+        else if (std::filesystem::exists("engine/assets/plugins")) actualDir = "engine/assets/plugins";
+    }
     std::error_code ec;
-    std::filesystem::create_directories(directoryPath, ec);
-    if (!std::filesystem::exists(directoryPath)) return;
+    std::filesystem::create_directories(actualDir, ec);
+    if (!std::filesystem::exists(actualDir)) return;
 
     // Index current files on disk.
     std::unordered_map<std::string, std::string> fileToId; // path -> id
     std::unordered_map<std::string, std::string> idToFile; // id -> path
-    for (const auto& entry : std::filesystem::directory_iterator(directoryPath)) {
+    for (const auto& entry : std::filesystem::directory_iterator(actualDir)) {
         if (!entry.is_regular_file()) continue;
         if (entry.path().extension() != ".lua") continue;
         std::string path = entry.path().string();

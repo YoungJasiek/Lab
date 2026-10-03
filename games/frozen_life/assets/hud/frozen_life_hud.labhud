@@ -1,0 +1,141 @@
+LABHUD_VERSION 1
+
+# Frozen-Life Default HUD Layout
+# Exported from LabHUD.h reference implementation
+
+METADATA
+    name "Frozen-Life HUD"
+    author "Lab Team"
+    resolution 1920 1080
+END_METADATA
+
+ASSETS
+END_ASSETS
+
+ELEMENTS
+    # ==================== TOP-RIGHT MAP & TIMER BADGE ====================
+    element top_bar Card 1500 30 380 36 0.16 0.17 0.19 0.90 TopLeft 0
+        text ""
+        font 1.8 0
+        border 0.23 0.24 0.27 1.0 1.0
+        texture ""
+        binding ""
+        children 3
+
+        element map_name Label 16 11 200 18 0.98 0.78 0.08 1.0 TopLeft 0
+            text "ffa_baseplate2021 [FFA]"
+            font 1.8 0
+            border 0.23 0.24 0.27 1.0 0.0
+            texture ""
+            binding ""
+            children 0
+
+        element kills_label Label 235 11 80 18 0.30 0.85 1.00 1.0 TopLeft 0
+            text "KILLS: 0"
+            font 1.8 0
+            border 0.23 0.24 0.27 1.0 0.0
+            texture ""
+            binding "player.frags"
+            children 0
+
+        element timer_label Label 338 9 40 20 0.98 0.78 0.08 1.0 TopLeft 0
+            text "480"
+            font 2.2 0
+            border 0.23 0.24 0.27 1.0 0.0
+            texture ""
+            binding "match.timer"
+            children 0
+
+    # ==================== SUIT CARD (BOTTOM LEFT) ====================
+    element suit_card Card 40 -108 240 68 0.16 0.17 0.19 0.90 BottomLeft 0
+        text ""
+        font 2.0 0
+        border 0.23 0.24 0.27 1.0 1.0
+        texture ""
+        binding ""
+        children 2
+
+        element suit_label Label 38 26 60 20 0.98 0.78 0.08 1.0 TopLeft 0
+            text "SUIT"
+            font 2.2 0
+            border 0.23 0.24 0.27 1.0 0.0
+            texture ""
+            binding ""
+            children 0
+
+        element suit_value Label 152 16 80 30 0.98 0.78 0.08 1.0 TopLeft 0
+            text "0%"
+            font 4.4 0
+            border 0.23 0.24 0.27 1.0 0.0
+            texture ""
+            binding "player.armor"
+            children 0
+
+    # ==================== HEALTH CARD (BOTTOM LEFT) ====================
+    element health_card Card 298 -108 255 68 0.16 0.17 0.19 0.90 BottomLeft 0
+        text ""
+        font 2.0 0
+        border 0.23 0.24 0.27 1.0 1.0
+        texture ""
+        binding ""
+        children 2
+
+        element health_label Label 42 26 80 20 0.98 0.78 0.08 1.0 TopLeft 0
+            text "HEALTH"
+            font 2.2 0
+            border 0.23 0.24 0.27 1.0 0.0
+            texture ""
+            binding ""
+            children 0
+
+        element health_value Label 167 16 80 30 0.98 0.78 0.08 1.0 TopLeft 0
+            text "150"
+            font 4.4 0
+            border 0.23 0.24 0.27 1.0 0.0
+            texture ""
+            binding "player.health"
+            children 0
+
+    # ==================== AMMO CARD (BOTTOM RIGHT) ====================
+    element ammo_card Card -250 -108 210 68 0.16 0.17 0.19 0.90 BottomRight 0
+        text ""
+        font 2.0 0
+        border 0.23 0.24 0.27 1.0 1.0
+        texture ""
+        binding ""
+        children 3
+
+        element weapon_name Label 34 14 120 18 0.98 0.78 0.08 1.0 TopLeft 0
+            text "PISTOLET"
+            font 1.8 0
+            border 0.23 0.24 0.27 1.0 0.0
+            texture ""
+            binding "weapon.name"
+            children 0
+
+        element ammo_clip Label 105 16 60 30 0.98 0.78 0.08 1.0 TopLeft 0
+            text "18"
+            font 4.0 0
+            border 0.23 0.24 0.27 1.0 0.0
+            texture ""
+            binding "weapon.clip"
+            children 0
+
+        element ammo_reserve Label 155 30 50 16 0.73 0.58 0.06 1.0 TopLeft 0
+            text "/144"
+            font 1.6 0
+            border 0.23 0.24 0.27 1.0 0.0
+            texture ""
+            binding "weapon.reserve"
+            children 0
+
+    # ==================== CROSSHAIR (CENTER) ====================
+    element crosshair Crosshair -10 -10 20 20 0.98 0.78 0.08 1.0 Center 10
+        text ""
+        font 2.0 0
+        border 0.98 0.78 0.08 1.0 0.0
+        texture ""
+        binding ""
+        children 0
+
+END_ELEMENTS

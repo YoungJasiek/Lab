@@ -1,0 +1,95 @@
+LABMAP_VERSION 1
+
+METADATA
+    name "Darkness Texture Showcase"
+    ambient 0.25 0.28 0.38
+    sun_dir -0.4 -0.8 -0.4
+    sun_color 0.95 0.95 1.0
+END_METADATA
+
+ENTITIES
+    // Primary Player Spawn Points
+    spawn 0.0 1.8 0.0 0.0
+    spawn_point info_player_deathmatch 0.0 1.8 0.0 0.0 ffa
+    spawn_point info_player_deathmatch -10.0 1.8 -8.0 45.0 ffa
+    spawn_point info_player_deathmatch 10.0 1.8 8.0 225.0 ffa
+    spawn_point info_player_team1 -12.0 1.8 10.0 0.0 team_alpha
+    spawn_point info_player_team2  12.0 1.8 -10.0 180.0 team_beta
+
+    // Weapon Spawner Pads
+    weapon_spawner 0   0.0 0.0 -4.0   0.0 60.0
+    weapon_spawner 1   4.0 0.0 -4.0  45.0 60.0
+    weapon_spawner 2  -4.0 0.0 -4.0 -45.0 60.0
+    weapon_spawner 3   8.0 0.0  0.0  90.0 60.0
+    weapon_spawner 4  -8.0 0.0  0.0 -90.0 60.0
+    weapon_spawner 5   0.0 0.0  6.0 180.0 60.0
+
+    // Dynamic Atmospheric Lighting (Warm & Cool Contrast)
+    light Lamp_Center  0.0 4.5  0.0 1.0 0.92 0.80 2.5 16.0 point
+    light Lamp_Courtyard 16.0 4.0 -12.0 0.4 0.85 1.0 2.2 18.0 point
+    light Lamp_Balcony -16.0 4.0 12.0 1.0 0.65 0.35 2.0 14.0 point
+
+    // ==================== 1. MAIN ARENA FLOORS & PAVEMENTS ====================
+    // Central Cobblestone Floor (texture_10.png)
+    brush cube 0.0 -0.5 0.0 24.0 1.0 24.0 1.0 1.0 1.0 texture_10.png 0.25 0.25 1
+    // Inner Marble Tile Inlay (texture_23.png)
+    brush cube 0.0 -0.45 0.0 10.0 1.0 10.0 1.0 1.0 1.0 texture_23.png 0.5 0.5 1
+    // Outdoor Garden & Grass Lawn (texture_24.png)
+    brush cube 22.0 -0.5 0.0 20.0 1.0 32.0 1.0 1.0 1.0 texture_24.png 0.25 0.25 1
+    // Rocky Grass Verge (texture_16.png)
+    brush cube 22.0 -0.48 -18.0 20.0 1.0 8.0 1.0 1.0 1.0 texture_16.png 0.25 0.25 1
+    // Forest Moss Shrub Area (texture_14.png)
+    brush cube 22.0 -0.48 18.0 20.0 1.0 8.0 1.0 1.0 1.0 texture_14.png 0.25 0.25 1
+
+    // ==================== 2. PERIMETER WALLS & MASONRY ====================
+    // North Slate Block Wall (texture_20.png)
+    brush cube 0.0 3.5 -12.5 25.0 7.0 1.0 1.0 1.0 1.0 texture_20.png 0.25 0.25 1
+    // South Red Brick Wall (texture_06.png)
+    brush cube 0.0 3.5  12.5 25.0 7.0 1.0 1.0 1.0 1.0 texture_06.png 0.25 0.25 1
+    // West Stone Ashlar Wall (texture_01.png)
+    brush cube -12.5 3.5 0.0 1.0 7.0 24.0 1.0 1.0 1.0 texture_01.png 0.25 0.25 1
+    // East Weathered Slate Arcade Wall with Archways (texture_11.png)
+    brush cube 12.5 3.5 -8.0 1.0 7.0 8.0 1.0 1.0 1.0 texture_11.png 0.25 0.25 1
+    brush cube 12.5 3.5  8.0 1.0 7.0 8.0 1.0 1.0 1.0 texture_11.png 0.25 0.25 1
+    brush cube 12.5 5.5  0.0 1.0 3.0 8.0 1.0 1.0 1.0 texture_11.png 0.25 0.25 1
+
+    // ==================== 3. ARCHITECTURAL PILLARS & ARCHES ====================
+    // 4 Central Sandstone Pillars (texture_18.png)
+    brush cube -6.0 3.5 -6.0 1.8 7.0 1.8 1.0 1.0 1.0 texture_18.png 0.5 0.5 1
+    brush cube  6.0 3.5 -6.0 1.8 7.0 1.8 1.0 1.0 1.0 texture_18.png 0.5 0.5 1
+    brush cube -6.0 3.5  6.0 1.8 7.0 1.8 1.0 1.0 1.0 texture_18.png 0.5 0.5 1
+    brush cube  6.0 3.5  6.0 1.8 7.0 1.8 1.0 1.0 1.0 texture_18.png 0.5 0.5 1
+
+    // Fortress Stone Plinths (texture_22.png)
+    brush cube -6.0 0.5 -6.0 2.4 1.0 2.4 1.0 1.0 1.0 texture_22.png 0.5 0.5 1
+    brush cube  6.0 0.5 -6.0 2.4 1.0 2.4 1.0 1.0 1.0 texture_22.png 0.5 0.5 1
+    brush cube -6.0 0.5  6.0 2.4 1.0 2.4 1.0 1.0 1.0 texture_22.png 0.5 0.5 1
+    brush cube  6.0 0.5  6.0 2.4 1.0 2.4 1.0 1.0 1.0 texture_22.png 0.5 0.5 1
+
+    // ==================== 4. TIMBER BALCONY, DECK & BEAMS ====================
+    // Raised Wooden Platform (texture_25.png)
+    brush cube -18.0 1.5 0.0 10.0 0.6 20.0 1.0 1.0 1.0 texture_25.png 0.25 0.25 1
+    // Timber Plank Walkway Ramp (texture_13.png)
+    brush cube -12.5 0.8 0.0 2.0 0.4 6.0 1.0 1.0 1.0 texture_13.png 0.5 0.5 1
+    // Polished Wood Partition Wall (texture_17.png)
+    brush cube -18.0 3.5 -9.5 9.0 3.4 0.6 1.0 1.0 1.0 texture_17.png 0.5 0.5 1
+    // Light Wood Cross Beams (texture_04.png)
+    brush cube 0.0 6.8 -6.0 24.0 0.6 1.2 1.0 1.0 1.0 texture_04.png 0.25 0.25 1
+    brush cube 0.0 6.8  6.0 24.0 0.6 1.2 1.0 1.0 1.0 texture_04.png 0.25 0.25 1
+    // Dark Wood Shingle Ceiling (texture_08.png)
+    brush cube 0.0 7.2 0.0 26.0 0.4 26.0 1.0 1.0 1.0 texture_08.png 0.25 0.25 1
+
+    // ==================== 5. ROOF & PAVEMENT SHOWCASE ====================
+    // Red Tile Roof Pitch (texture_02.png)
+    brush cube 0.0 8.0 -7.0 26.0 1.2 14.0 1.0 1.0 1.0 texture_02.png 0.25 0.25 1
+    // Corrugated Metal Awning (texture_03.png)
+    brush cube 14.0 4.5 0.0 4.0 0.3 10.0 1.0 1.0 1.0 texture_03.png 0.5 0.5 1
+    // Terracotta Courtyard Walkway (texture_19.png)
+    brush cube 18.0 -0.45 0.0 4.0 1.0 18.0 1.0 1.0 1.0 texture_19.png 0.25 0.25 1
+    // Hexagonal Pavers Patio (texture_12.png)
+    brush cube 26.0 -0.45 0.0 6.0 1.0 12.0 1.0 1.0 1.0 texture_12.png 0.5 0.5 1
+    // Flagstone Steps (texture_15.png)
+    brush cube 12.5 -0.35 0.0 1.2 0.7 8.0 1.0 1.0 1.0 texture_15.png 0.5 0.5 1
+    // Dark Brick Low Walls (texture_09.png)
+    brush cube 32.5 1.0 0.0 1.0 2.0 32.0 1.0 1.0 1.0 texture_09.png 0.25 0.25 1
+END_ENTITIES

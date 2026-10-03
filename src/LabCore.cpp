@@ -12,7 +12,7 @@
 
 namespace Lab {
 
-    // Drag & drop: upuszczony plik .lua ląduje w assets/plugins/ i jest od razu ładowany.
+    // Drag & drop: upuszczony plik .lua ląduje w plugins/ i jest od razu ładowany.
     static void labDropCallback(GLFWwindow* window, int count, const char** paths) {
         (void)window;
         for (int i = 0; i < count; ++i) {

@@ -1,6 +1,6 @@
 -- =========================================================================
 -- Plugin: Drop-in Example (single-file template)
--- 1 plik w assets/plugins/ = 1 plugin. Wrzucasz plik -> działa.
+-- 1 plik w plugins/ = 1 plugin. Wrzucasz plik -> działa.
 -- Usuwasz plik -> plugin znika. Bez rekompilacji silnika.
 -- Kazdy plugin dostaje WLASNY stan Lua (izolacja, brak kolizji `Plugin`).
 -- Dostępne: pełny stdlib Lua + Lab.log(msg). Haki: onLoad/onUpdate/onUnload.
@@ -20,7 +20,7 @@ Plugin = {
 local ticks = 0
 
 function Plugin.onLoad()
-    Lab.log("Drop-in Example loaded. Edit me: assets/plugins/dropin_example.lua")
+    Lab.log("Drop-in Example loaded. Edit me: plugins/dropin_example.lua")
     return true
 end
 

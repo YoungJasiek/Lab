@@ -158,7 +158,7 @@ public:
 
         // Initialize Package & Plugin System (drop-in: 1 plik .lua = 1 plugin)
         PackageManager::instance().registerBuiltinPackages();
-        logMessage("[Plugins] Drop-in plugin system ready: wrzuc .lua do assets/plugins/ lub przeciagniej na okno.");
+        logMessage("[Plugins] Drop-in plugin system ready: wrzuc .lua do plugins/ lub przeciagniej na okno.");
 
         logMessage("Lab Engine Studio initialized. Ready.");
         logMessage("Textures loaded: " + std::to_string(_availableTextures.size()) + " | Models: " + std::to_string(_availableModels.size()));
@@ -285,7 +285,7 @@ public:
     }
 
     void onFixedUpdate(float fixedDelta) override {
-        // Drop-in plugins: 1 plik .lua w assets/plugins/ = 1 plugin. Poll co ~1s.
+        // Drop-in plugins: 1 plik .lua w plugins/ = 1 plugin. Poll co ~1s.
         _pluginPollAccum += fixedDelta;
         if (_pluginPollAccum >= 1.0f) {
             _pluginPollAccum = 0.0f;
@@ -3604,7 +3604,7 @@ public:
                     return;
                 } else if (mx >= btnX + 250.0f && mx <= btnX + 360.0f) {
                     // Import / Create new plugin template
-                    std::string newPluginPath = "assets/plugins/custom_addon.lua";
+                    std::string newPluginPath = "plugins/custom_addon.lua";
                     if (!std::filesystem::exists(newPluginPath)) {
                         std::ofstream out(newPluginPath);
                         out << "-- Custom Lab Plugin Template\n"
@@ -3628,12 +3628,12 @@ public:
                             << "return Plugin\n";
                     }
                     PackageManager::instance().scanPluginDirectory();
-                    _pluginStatusBanner = "Created template assets/plugins/custom_addon.lua!";
+                    _pluginStatusBanner = "Created template plugins/custom_addon.lua!";
                     _pluginBannerTimer = 4.0f;
                     return;
                 } else if (mx >= btnX + 365.0f && mx <= btnX + 465.0f) {
                     PackageManager::instance().scanPluginDirectory();
-                    _pluginStatusBanner = "Rescanned assets/plugins/ for drop-in .lua plugins!";
+                    _pluginStatusBanner = "Rescanned plugins/ for drop-in .lua plugins!";
                     _pluginBannerTimer = 3.0f;
                     return;
                 }
@@ -3740,10 +3740,10 @@ public:
                     // Open in Lua Studio Button (opens the drop-in single file!)
                     if (mx >= detX + detW - 200.0f && mx <= detX + detW - 20.0f) {
                         std::string luaPath = PackageManager::instance().getPackageFile(selPkg->id);
-                        if (luaPath.empty()) luaPath = "assets/plugins/" + selPkg->id.substr(selPkg->id.rfind('.') + 1) + ".lua";
-                        if (!std::filesystem::exists(luaPath)) {
-                            // Find corresponding script in assets/plugins
-                            for (const auto& entry : std::filesystem::directory_iterator("assets/plugins")) {
+                        if (luaPath.empty()) luaPath = "plugins/" + selPkg->id.substr(selPkg->id.rfind('.') + 1) + ".lua";
+                        if (!std::filesystem::exists(luaPath) && std::filesystem::exists("plugins")) {
+                            // Find corresponding script in plugins
+                            for (const auto& entry : std::filesystem::directory_iterator("plugins")) {
                                 if (entry.path().extension() == ".lua") {
                                     luaPath = entry.path().string();
                                     break;
@@ -5299,7 +5299,7 @@ public:
                 Renderer::drawRect(detX + 20.0f, dy, detW - 40.0f, 85.0f, Vec3(0.06f, 0.07f, 0.09f));
                 drawDarkBevel(detX + 20.0f, dy, detW - 40.0f, 85.0f, true);
                 LabFont::drawText(detX + 30.0f, dy + 12.0f, selPkg->description, 1.38f, Vec3(0.9f, 0.92f, 0.95f), LabFontType::System);
-                std::string fileLocation = "Source Code: assets/plugins/" + selPkg->id.substr(selPkg->id.rfind('.') + 1) + ".lua  (1 kod 1 plugin)";
+                std::string fileLocation = "Source Code: plugins/" + selPkg->id.substr(selPkg->id.rfind('.') + 1) + ".lua  (1 kod 1 plugin)";
                 LabFont::drawText(detX + 30.0f, dy + 45.0f, fileLocation, 1.25f, orangeGlow, LabFontType::System);
                 dy += 100.0f;
 
