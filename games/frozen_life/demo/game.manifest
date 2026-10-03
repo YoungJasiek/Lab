@@ -1,0 +1,8 @@
+{
+  "title": "Frozen-Life",
+  "version": "1.0.0",
+  "engine": "Lab Engine Studio 2026.10",
+  "entryScene": "assets/maps/cryo_complex.labmap",
+  "standalone": true,
+  "description": "Premier 3D Showcase Game for Lab Engine with Cryo Complex and T-800 Robot."
+}

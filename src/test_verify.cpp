@@ -8575,6 +8575,95 @@ int main() {
         std::cout << "  [PASS] Test 79 Separation of Engine & Game Assets, Documents Projects & Auto-Build passed 100%!\n";
     }
 
+    // ----------------------------------------------------
+    // TEST 80: Engine Main Menu & Project Hub - Decoupled Projects, Frozen-Life Showcase Demo & Continue
+    // ----------------------------------------------------
+    {
+        std::cout << "\n[Test 80] Verifying Engine Main Menu & Project Hub (Decoupled Projects, Frozen-Life Demo & Continue)...\n";
+        auto& pm = Lab::ProjectManager::get();
+
+        // Sub-test A: Discovered projects list (Built-in Frozen-Life & QA LabRunner & User projects)
+        auto projects = pm.getAllDiscoveredProjects();
+        if (projects.empty()) {
+            std::cerr << "Assertion failed: ProjectManager::getAllDiscoveredProjects() returned empty list!\n";
+            return 1;
+        }
+
+        const Lab::ProjectInfo* flProj = nullptr;
+        for (const auto& p : projects) {
+            if (p.id == "frozen_life") {
+                flProj = &p;
+                break;
+            }
+        }
+
+        if (!flProj) {
+            std::cerr << "Assertion failed: Flagship showcase 'frozen_life' was not discovered in projects list!\n";
+            return 1;
+        }
+
+        std::cout << "  [PASS] Sub-test A: Discovered " << projects.size() << " projects. Flagship 'frozen_life' identified (" << flProj->displayName << ").\n";
+
+        // Sub-test B: Verify Frozen-Life Showcase Demo integrity (Executable, Scripts, Maps, Models preserved)
+        if (!flProj->hasStandaloneDemo) {
+            std::cerr << "Assertion failed: 'frozen_life' does not report standalone demo ready!\n";
+            return 1;
+        }
+
+        auto demoDir = flProj->rootPath / "demo";
+        if (!std::filesystem::exists(demoDir / "FrozenLife_Demo.exe") && !std::filesystem::exists(demoDir / "run_demo.bat")) {
+            std::cerr << "Assertion failed: Pre-built demo files missing in games/frozen_life/demo!\n";
+            return 1;
+        }
+
+        auto flAssets = flProj->assetsPath;
+        if (!std::filesystem::exists(flAssets / "maps" / "cryo_complex.labmap") ||
+            !std::filesystem::exists(flAssets / "models" / "t-800_run.glb") ||
+            !std::filesystem::exists(flAssets / "models" / "railgun.stl")) {
+            std::cerr << "Assertion failed: Frozen-Life assets (maps, t-800, railgun) missing in games/frozen_life/assets!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test B: Frozen-Life assets and standalone demo 100% verified and preserved.\n";
+
+        // Sub-test C: Switching Active Project to Frozen-Life and resolving assets
+        bool switched = pm.setActiveProject("frozen_life");
+        if (!switched || pm.getActiveProjectName() != "frozen_life") {
+            std::cerr << "Assertion failed: Failed to switch active project to 'frozen_life'!\n";
+            return 1;
+        }
+
+        auto cryoMapPath = pm.resolveAssetPath("game://maps/cryo_complex.labmap");
+        if (!std::filesystem::exists(cryoMapPath)) {
+            std::cerr << "Assertion failed: Failed to resolve cryo_complex.labmap in active project!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test C: Switched active project to Frozen-Life; default map resolved: " << cryoMapPath.string() << "\n";
+
+        // Sub-test D: Project Hub creation of user game & continue workflow
+        std::string newGameId = "QA_Hub_Game_2026";
+        bool created = pm.createProject(newGameId, "default");
+        if (!created) {
+            std::cerr << "Assertion failed: Failed to create new project from Project Hub!\n";
+            return 1;
+        }
+
+        auto updatedProjects = pm.getAllDiscoveredProjects();
+        bool foundNewGame = false;
+        for (const auto& p : updatedProjects) {
+            if (p.id == newGameId) {
+                foundNewGame = true;
+                break;
+            }
+        }
+        if (!foundNewGame) {
+            std::cerr << "Assertion failed: Newly created game not found in Project Hub discovered projects!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test D: Created new user game via Hub and confirmed discovery in project list.\n";
+
+        std::cout << "  [PASS] Test 80 Engine Main Menu & Project Hub verification passed 100%!\n";
+    }
+
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();

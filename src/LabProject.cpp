@@ -4,6 +4,7 @@
 #include <iostream>
 #include <fstream>
 #include <cstdlib>
+#include <unordered_set>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -102,6 +103,10 @@ namespace Lab {
     }
 
     std::filesystem::path ProjectManager::getActiveProjectPath() const {
+        auto inGames = m_engineRoot / "games" / m_activeProjectName;
+        if (std::filesystem::exists(inGames)) {
+            return inGames;
+        }
         return m_userProjectsRoot / m_activeProjectName;
     }
 
@@ -247,11 +252,227 @@ namespace Lab {
 
     bool ProjectManager::ensureProjectExists(const std::string& projectName) {
         if (projectName.empty()) return false;
+        auto inGames = m_engineRoot / "games" / projectName;
+        if (std::filesystem::exists(inGames)) return true;
         std::filesystem::path projDir = m_userProjectsRoot / projectName;
         if (!std::filesystem::exists(projDir)) {
             return createProject(projectName);
         }
         return true;
+    }
+
+    static std::string extractJsonValue(const std::string& content, const std::string& key) {
+        std::string pattern = "\"" + key + "\"";
+        size_t p = content.find(pattern);
+        if (p == std::string::npos) return "";
+        p = content.find(':', p);
+        if (p == std::string::npos) return "";
+        p = content.find('"', p);
+        if (p == std::string::npos) return "";
+        size_t endP = content.find('"', p + 1);
+        if (endP == std::string::npos) return "";
+        return content.substr(p + 1, endP - p - 1);
+    }
+
+    static std::string extractConfigValue(const std::string& content, const std::string& key) {
+        std::string pattern = key + "=";
+        size_t p = content.find(pattern);
+        if (p == std::string::npos) return "";
+        p += pattern.length();
+        size_t endP = content.find_first_of("\r\n", p);
+        if (endP == std::string::npos) return content.substr(p);
+        return content.substr(p, endP - p);
+    }
+
+    std::vector<ProjectInfo> ProjectManager::getAllDiscoveredProjects() const {
+        std::vector<ProjectInfo> list;
+        std::unordered_set<std::string> seenIds;
+
+        auto parseProject = [&](const std::filesystem::path& dir, bool isBuiltin) {
+            std::string id = dir.filename().string();
+            if (id.empty() || seenIds.contains(id)) return;
+
+            ProjectInfo info;
+            info.id = id;
+            info.displayName = id;
+            info.rootPath = dir;
+            info.assetsPath = dir / "assets";
+            info.isBuiltinShowcase = isBuiltin;
+            info.version = "1.0.0";
+            info.author = isBuiltin ? "Lab Engine Core Team" : "User";
+            info.description = isBuiltin ? "Built-in Showcase Game" : "User Game Project in Documents";
+            info.lastModified = "Recent";
+
+            // Check project.labproject
+            std::filesystem::path metaPath = dir / "project.labproject";
+            if (std::filesystem::exists(metaPath)) {
+                std::ifstream f(metaPath);
+                std::string content((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+                std::string disp = extractJsonValue(content, "displayName");
+                if (disp.empty()) disp = extractJsonValue(content, "name");
+                if (!disp.empty()) info.displayName = disp;
+                std::string scn = extractJsonValue(content, "entryScene");
+                if (!scn.empty()) info.defaultScene = scn;
+                std::string desc = extractJsonValue(content, "description");
+                if (!desc.empty()) info.description = desc;
+                std::string auth = extractJsonValue(content, "author");
+                if (!auth.empty()) info.author = auth;
+                std::string ver = extractJsonValue(content, "version");
+                if (!ver.empty()) info.version = ver;
+            }
+
+            // Check game.config
+            std::filesystem::path cfgPath = dir / "game.config";
+            if (std::filesystem::exists(cfgPath)) {
+                std::ifstream f(cfgPath);
+                std::string content((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+                if (info.displayName == id) {
+                    std::string t = extractConfigValue(content, "title");
+                    if (!t.empty()) info.displayName = t;
+                }
+                if (info.defaultScene.empty()) {
+                    std::string scn = extractConfigValue(content, "scene");
+                    if (!scn.empty()) info.defaultScene = scn;
+                }
+            }
+
+            // Default fallbacks for known built-in games
+            if (id == "frozen_life") {
+                if (info.displayName == id) info.displayName = "Frozen-Life (3D Showcase)";
+                if (info.defaultScene.empty()) info.defaultScene = "assets/maps/cryo_complex.labmap";
+                if (info.description.empty() || info.description == "Built-in Showcase Game") {
+                    info.description = "Flagship 3D Showcase Game for Lab Engine with Cryo Outpost, volumetric lighting, physics, T-800 character animation and weapon mechanics.";
+                }
+            } else if (id == "labrunner_escape") {
+                if (info.displayName == id) info.displayName = "QA LabRunner: Kryo-Ucieczka";
+                if (info.defaultScene.empty()) info.defaultScene = "assets/maps/qa_labrunner_escape.labmap";
+                if (info.description.empty() || info.description == "Built-in Showcase Game") {
+                    info.description = "Laboratory runner showcase testing dynamic collision, speed mechanics, and Lua rules.";
+                }
+            }
+
+            // Check demo availability
+            std::filesystem::path demoDir = dir / "demo";
+            std::filesystem::path frozenDemo = demoDir / "FrozenLife_Demo.exe";
+            std::filesystem::path namedDemo = demoDir / (id + ".exe");
+            std::filesystem::path batDemo = demoDir / "run_demo.bat";
+            std::filesystem::path rootBat = dir / "run_game.bat";
+
+            if (std::filesystem::exists(frozenDemo)) {
+                info.hasStandaloneDemo = true;
+                info.demoExePath = frozenDemo;
+            } else if (std::filesystem::exists(namedDemo)) {
+                info.hasStandaloneDemo = true;
+                info.demoExePath = namedDemo;
+            } else if (std::filesystem::exists(batDemo)) {
+                info.hasStandaloneDemo = true;
+                info.demoExePath = batDemo;
+            } else if (std::filesystem::exists(rootBat)) {
+                info.hasStandaloneDemo = true;
+                info.demoExePath = rootBat;
+            }
+
+            seenIds.insert(id);
+            list.push_back(info);
+        };
+
+        // 1. Scan engine built-in games/
+        std::filesystem::path gamesDir = m_engineRoot / "games";
+        if (std::filesystem::exists(gamesDir)) {
+            // Guarantee frozen_life is processed first if present
+            if (std::filesystem::exists(gamesDir / "frozen_life")) {
+                parseProject(gamesDir / "frozen_life", true);
+            }
+            for (const auto& entry : std::filesystem::directory_iterator(gamesDir)) {
+                if (entry.is_directory()) {
+                    parseProject(entry.path(), true);
+                }
+            }
+        }
+
+        // Guarantee frozen_life is in the list even if directory scan missed it
+        if (!seenIds.contains("frozen_life")) {
+            ProjectInfo fl;
+            fl.id = "frozen_life";
+            fl.displayName = "Frozen-Life (3D Showcase)";
+            fl.rootPath = m_engineRoot / "games" / "frozen_life";
+            fl.assetsPath = fl.rootPath / "assets";
+            fl.defaultScene = "assets/maps/cryo_complex.labmap";
+            fl.description = "Flagship 3D Showcase Game for Lab Engine with Cryo Outpost, volumetric lighting, physics, T-800 character animation and weapon mechanics.";
+            fl.isBuiltinShowcase = true;
+            fl.hasStandaloneDemo = std::filesystem::exists(fl.rootPath / "demo" / "FrozenLife_Demo.exe") ||
+                                   std::filesystem::exists(fl.rootPath / "demo" / "run_demo.bat");
+            fl.demoExePath = fl.rootPath / "demo" / "FrozenLife_Demo.exe";
+            list.insert(list.begin(), fl);
+            seenIds.insert("frozen_life");
+        }
+
+        // 2. Scan user projects directory Documents/LabGames/
+        if (std::filesystem::exists(m_userProjectsRoot)) {
+            for (const auto& entry : std::filesystem::directory_iterator(m_userProjectsRoot)) {
+                if (entry.is_directory()) {
+                    parseProject(entry.path(), false);
+                }
+            }
+        }
+
+        return list;
+    }
+
+    bool ProjectManager::launchProjectDemo(const std::string& projectId) {
+        auto projects = getAllDiscoveredProjects();
+        const ProjectInfo* target = nullptr;
+        for (const auto& p : projects) {
+            if (p.id == projectId) {
+                target = &p;
+                break;
+            }
+        }
+
+        if (!target) return false;
+
+        // 1. If pre-built standalone demo exists, launch it directly!
+        if (target->hasStandaloneDemo && !target->demoExePath.empty() && std::filesystem::exists(target->demoExePath)) {
+            std::string ext = target->demoExePath.extension().string();
+            if (ext == ".bat") {
+#if defined(_WIN32)
+                STARTUPINFOA si;
+                PROCESS_INFORMATION pi;
+                ZeroMemory(&si, sizeof(si));
+                si.cb = sizeof(si);
+                ZeroMemory(&pi, sizeof(pi));
+                std::string dirStr = std::filesystem::absolute(target->demoExePath.parent_path()).string();
+                std::string cmd = "cmd.exe /c \"" + std::filesystem::absolute(target->demoExePath).string() + "\"";
+                std::vector<char> buf(cmd.begin(), cmd.end());
+                buf.push_back('\0');
+                if (CreateProcessA(NULL, buf.data(), NULL, NULL, FALSE, 0, NULL, dirStr.c_str(), &si, &pi)) {
+                    CloseHandle(pi.hProcess);
+                    CloseHandle(pi.hThread);
+                    return true;
+                }
+#endif
+            } else {
+                return ExportPipeline::launchGame(target->demoExePath);
+            }
+        }
+
+        // 2. Check for LabPlayer runner with game.config
+        std::filesystem::path cfgPath = target->rootPath / "game.config";
+        std::vector<std::filesystem::path> runners = {
+            m_engineRoot / "build" / "Release" / "LabPlayer.exe",
+            m_engineRoot / "build" / "Debug" / "LabPlayer.exe",
+            m_engineRoot / "LabPlayer.exe"
+        };
+        for (const auto& runner : runners) {
+            if (std::filesystem::exists(runner)) {
+                std::string args = "--config \"" + cfgPath.string() + "\"";
+                return ExportPipeline::launchGame(runner, args);
+            }
+        }
+
+        // 3. Fallback: Run quick test build via ExportPipeline
+        std::string scn = target->defaultScene.empty() ? "assets/maps/main.labmap" : target->defaultScene;
+        return ExportPipeline::buildAndPrepareTestGame(target->id, scn).success;
     }
 
     std::vector<std::string> ProjectManager::listUserProjects() const {

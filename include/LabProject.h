@@ -10,31 +10,23 @@
 namespace Lab {
 
     struct ProjectInfo {
-        std::string name;
+        std::string id;
+        std::string displayName;
         std::filesystem::path rootPath;
         std::filesystem::path assetsPath;
         std::string defaultScene;
         std::string version{"1.0.0"};
         std::string author{"Developer"};
+        std::string description;
+        bool isBuiltinShowcase{false};
+        bool hasStandaloneDemo{false};
+        std::filesystem::path demoExePath;
+        std::string lastModified{"Recent"};
     };
 
     /**
-     * @brief ProjectManager separates Engine Core Assets from User Game Projects.
-     * 
-     * In Development / Production:
-     * - Engine Core Assets live in <EngineRoot>/engine/assets/ (shaders, editor fonts, fallback textures, gizmos).
-     * - User Games & Assets live in User Documents (<Documents>/LabGames/<GameTitle>/assets/),
-     *   keeping CMake & the engine repository completely clean of game assets.
-     * 
-     * On One-Click Build & Export:
-     * - The pipeline automatically assembles a standalone, self-contained game structure in the target directory:
-     *   <outputDirectory>/<GameTitle>_<Platform>/
-     *   ├── <GameTitle>.exe (or linux runner / WASM canvas)
-     *   ├── *.dll (engine dynamic libraries)
-     *   ├── game.config
-     *   ├── game.manifest
-     *   ├── run_game.bat / .sh
-     *   └── assets/ (only game assets + compiled .luac scripts)
+     * @brief ProjectManager separates Engine Core Assets from User Game Projects
+     * and powers the Engine Main Menu / Project Hub.
      */
     class LAB_CORE_API ProjectManager {
     public:
@@ -55,10 +47,10 @@ namespace Lab {
         /// @brief Currently active project name
         std::string getActiveProjectName() const;
 
-        /// @brief Path to the currently active project folder in Documents
+        /// @brief Path to the currently active project folder
         std::filesystem::path getActiveProjectPath() const;
 
-        /// @brief Path to the currently active project's assets folder in Documents
+        /// @brief Path to the currently active project's assets folder
         std::filesystem::path getActiveProjectAssetsPath() const;
 
         /// @brief Switch active game project
@@ -70,8 +62,14 @@ namespace Lab {
         /// @brief Ensure project exists in Documents; creates folder structure and template if missing
         bool ensureProjectExists(const std::string& projectName);
 
-        /// @brief List all projects found in User Documents/LabGames/
+        /// @brief List all project directory names found in User Documents/LabGames/
         std::vector<std::string> listUserProjects() const;
+
+        /// @brief Discovers all projects across both games/ and Documents/LabGames/ with full metadata
+        std::vector<ProjectInfo> getAllDiscoveredProjects() const;
+
+        /// @brief Launches the standalone game or pre-built demo for the specified project
+        bool launchProjectDemo(const std::string& projectId);
 
         /// @brief Automatically syncs / populates a project template to Documents without polluting CMake
         void syncGameToDocuments(const std::string& projectName);
@@ -91,7 +89,7 @@ namespace Lab {
 
         std::filesystem::path m_engineRoot;
         std::filesystem::path m_userProjectsRoot;
-        std::string m_activeProjectName{"LabRunner_Escape"};
+        std::string m_activeProjectName{"frozen_life"};
         bool m_vfsConfigured{false};
     };
 

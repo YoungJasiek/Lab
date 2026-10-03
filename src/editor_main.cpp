@@ -75,13 +75,16 @@ enum class EditorWorkspace {
     Scripting_Console = 12,    // Interactive Lua REPL & Debug Console
     // Plugins & Packages (Unity Package Manager & Blender Add-ons Standard)
     Plugins_Manager = 13,      // Full-viewport Package & Plugin Manager (1 kod 1 plugin)
+    // Engine Main Menu & Project Hub
+    Project_Hub = 14,          // Full-viewport Project Browser & Main Menu (Continue / Create / Play Demo)
     // Aliases for backwards compatibility
     World3D = 0,
     Level2D = 8,
     HUD = 10,
     Animation = 1,
     Scripting = 11,
-    Plugins = 13
+    Plugins = 13,
+    ProjectHub = 14
 };
 
 enum class HUDWidgetType {
@@ -164,6 +167,10 @@ public:
         logMessage("Textures loaded: " + std::to_string(_availableTextures.size()) + " | Models: " + std::to_string(_availableModels.size()));
         logMessage("Lua 5.4 Script Engine active. Workspaces: 3D, 2D, HUD, Animation, Scripting, Plugins.");
         logMessage("Frustum Culling active: 'To czego oko nie widzi tego maszyna renderowac nie musi'");
+
+        // Initialize Engine Main Menu / Project Hub
+        refreshProjectHub();
+        setWorkspace(EditorWorkspace::Project_Hub);
     }
 
     void initDefaultHUDWidgets() {
@@ -192,7 +199,14 @@ public:
 
     void discoverTextures() {
         _availableTextures.clear();
-        std::vector<std::string> searchDirs = { "assets/textures", "../assets/textures", "../../assets/textures" };
+        std::vector<std::filesystem::path> searchDirs = {
+            ProjectManager::get().getActiveProjectAssetsPath() / "textures",
+            ProjectManager::get().getEngineAssetsPath() / "textures",
+            "assets/textures",
+            "../assets/textures",
+            "../../assets/textures"
+        };
+        std::unordered_set<std::string> seenTex;
         for (const auto& dir : searchDirs) {
             if (std::filesystem::exists(dir)) {
                 for (const auto& entry : std::filesystem::directory_iterator(dir)) {
@@ -200,13 +214,15 @@ public:
                     std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return (char)::tolower(c); });
                     if (ext == ".bmp" || ext == ".png" || ext == ".jpg" || ext == ".tga") {
                         std::string fname = entry.path().filename().string();
-                        _availableTextures.push_back({ fname, fname });
-                        if (!_textures.contains(fname)) {
-                            _textures[fname] = std::make_unique<Texture>(fname);
+                        if (!seenTex.contains(fname)) {
+                            seenTex.insert(fname);
+                            _availableTextures.push_back({ fname, fname });
+                            if (!_textures.contains(fname)) {
+                                _textures[fname] = std::make_unique<Texture>(entry.path().string());
+                            }
                         }
                     }
                 }
-                if (!_availableTextures.empty()) break;
             }
         }
         std::sort(_availableTextures.begin(), _availableTextures.end(), [](const auto& a, const auto& b) {
@@ -221,21 +237,30 @@ public:
 
     void discoverModels() {
         _availableModels.clear();
-        std::vector<std::string> searchDirs = { "assets/models", "../assets/models", "../../assets/models" };
+        std::vector<std::filesystem::path> searchDirs = {
+            ProjectManager::get().getActiveProjectAssetsPath() / "models",
+            ProjectManager::get().getEngineAssetsPath() / "models",
+            "assets/models",
+            "../assets/models",
+            "../../assets/models"
+        };
+        std::unordered_set<std::string> seenModels;
         for (const auto& dir : searchDirs) {
             if (std::filesystem::exists(dir)) {
                 for (const auto& entry : std::filesystem::directory_iterator(dir)) {
                     std::string ext = entry.path().extension().string();
                     if (ext == ".stl" || ext == ".STL") {
                         std::string fname = entry.path().filename().string();
-                        _availableModels.push_back(fname);
-                        if (!_meshes.contains(fname)) {
-                            Mesh* m = Mesh::loadSTL(fname);
-                            if (m) _meshes[fname] = std::unique_ptr<Mesh>(m);
+                        if (!seenModels.contains(fname)) {
+                            seenModels.insert(fname);
+                            _availableModels.push_back(fname);
+                            if (!_meshes.contains(fname)) {
+                                Mesh* m = Mesh::loadSTL(entry.path().string());
+                                if (m) _meshes[fname] = std::unique_ptr<Mesh>(m);
+                            }
                         }
                     }
                 }
-                if (!_availableModels.empty()) break;
             }
         }
         if (_availableModels.empty()) {
@@ -295,6 +320,10 @@ public:
         if (_pluginBannerTimer > 0.0f) {
             _pluginBannerTimer -= fixedDelta;
             if (_pluginBannerTimer <= 0.0f) _pluginStatusBanner = "";
+        }
+        if (_hubBannerTimer > 0.0f) {
+            _hubBannerTimer -= fixedDelta;
+            if (_hubBannerTimer <= 0.0f) _hubStatusBanner = "";
         }
 
         // Noclip camera flight (active ONLY in 3D level editing when holding Right Mouse Button)
@@ -373,6 +402,31 @@ public:
         }
     }
 
+    bool loadMapFromFile(const std::string& openPath) {
+        if (!openPath.empty()) {
+            auto loaded = LabMap::loadFromFile(openPath);
+            if (loaded) {
+                _map = std::move(loaded);
+                _currentMapPath = openPath;
+                _selectionType = SelectionType::None;
+                _selectedIndex = -1;
+                if (_map) {
+                    _scriptEngine.setActiveMap(_map.get());
+                }
+                logMessage("Loaded Project Map: " + openPath);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void refreshProjectHub() {
+        _hubProjects = ProjectManager::get().getAllDiscoveredProjects();
+        if (_hubSelectedProjectIndex < 0 || _hubSelectedProjectIndex >= (int)_hubProjects.size()) {
+            _hubSelectedProjectIndex = 0;
+        }
+    }
+
     bool isStudioWorkspace(EditorWorkspace ws) const {
         return ws == EditorWorkspace::Studio_GripPoser ||
                ws == EditorWorkspace::Studio_ReloadTimeline ||
@@ -383,6 +437,7 @@ public:
 
     std::string getWorkspaceName(EditorWorkspace ws) const {
         switch (ws) {
+            case EditorWorkspace::Project_Hub: return "Hub > Engine Main Menu & Project Browser";
             case EditorWorkspace::World3D_Level: return "3D > Level & Geometry Editor";
             case EditorWorkspace::World3D_Animation: return "3D > Animation 3D Timeline";
             case EditorWorkspace::World3D_ModelViewer: return "3D > 3D Model Viewer & Inspector";
@@ -403,6 +458,7 @@ public:
 
     std::string getWorkspaceBreadcrumb(EditorWorkspace ws) const {
         switch (ws) {
+            case EditorWorkspace::Project_Hub: return "Hub > Main Menu";
             case EditorWorkspace::World3D_Level: return "3D > Level";
             case EditorWorkspace::World3D_Animation: return "3D > Anim 3D";
             case EditorWorkspace::World3D_ModelViewer: return "3D > Model Viewer";
@@ -416,13 +472,16 @@ public:
             case EditorWorkspace::Level2D_HUD: return "2D > HUD Canvas";
             case EditorWorkspace::Scripting_Editor: return "Script > Lua IDE";
             case EditorWorkspace::Scripting_Console: return "Script > Console";
+            case EditorWorkspace::Plugins_Manager: return "Ext > Plugins";
             default: return "3D > Level";
         }
     }
 
     void setWorkspace(EditorWorkspace ws) {
         _workspace = ws;
-        if (ws == EditorWorkspace::World3D_Level || ws == EditorWorkspace::World3D_Animation || ws == EditorWorkspace::World3D_ModelViewer) {
+        if (ws == EditorWorkspace::Project_Hub) {
+            refreshProjectHub();
+        } else if (ws == EditorWorkspace::World3D_Level || ws == EditorWorkspace::World3D_Animation || ws == EditorWorkspace::World3D_ModelViewer) {
             _orthoViewMode = false;
             _camera.setPerspective(70.0f, 16.0f / 9.0f, 0.01f, 3000.0f);
         } else if (ws == EditorWorkspace::Level2D_Tilemap || ws == EditorWorkspace::Level2D_Animation || ws == EditorWorkspace::Level2D_HUD) {
@@ -1080,6 +1139,20 @@ public:
             }
         } else {
             _ctrlRPressed = false;
+        }
+
+        // F1: Toggle / Open Engine Main Menu (Project Hub)
+        if (Input::isKeyPressed(290)) { // GLFW_KEY_F1
+            if (!_f1Pressed) {
+                if (_workspace == EditorWorkspace::Project_Hub) {
+                    setWorkspace(EditorWorkspace::World3D_Level);
+                } else {
+                    setWorkspace(EditorWorkspace::Project_Hub);
+                }
+                _f1Pressed = true;
+            }
+        } else {
+            _f1Pressed = false;
         }
 
         // F9: Toggle Live In-Editor Simulation
@@ -2517,17 +2590,18 @@ public:
         if (_fileMenuOpen) {
             float menuX = 10.0f;
             float menuY = 24.0f;
-            float menuW = 220.0f;
-            float menuH = 175.0f;
+            float menuW = 240.0f;
+            float menuH = 200.0f;
             if (mx >= menuX && mx <= menuX + menuW && my >= menuY && my <= menuY + menuH) {
                 int itemIdx = (int)((my - menuY) / 24.0f);
-                if (itemIdx == 0) newMap();
-                else if (itemIdx == 1) openMapDialog();
-                else if (itemIdx == 2) saveMapAction(false);
-                else if (itemIdx == 3) saveMapAction(true);
-                else if (itemIdx == 4) buildGameAction(true);
-                else if (itemIdx == 5) _buildModalOpen = true;
-                else if (itemIdx >= 6) stop();
+                if (itemIdx == 0) setWorkspace(EditorWorkspace::Project_Hub);
+                else if (itemIdx == 1) newMap();
+                else if (itemIdx == 2) openMapDialog();
+                else if (itemIdx == 3) saveMapAction(false);
+                else if (itemIdx == 4) saveMapAction(true);
+                else if (itemIdx == 5) buildGameAction(true);
+                else if (itemIdx == 6) _buildModalOpen = true;
+                else if (itemIdx >= 7) stop();
                 _fileMenuOpen = false;
                 return;
             } else {
@@ -3249,21 +3323,26 @@ public:
             return;
         }
 
-        // Viewport Tab Bar Click Handling (Seamless one-click switching between 3D Scene, Script Studio, HUD Canvas, and Plugins)
+        // Viewport Tab Bar Click Handling (Seamless one-click switching between Project Hub, 3D Scene, Script Studio, HUD Canvas, and Plugins)
         float vpTabX = leftW;
         float vpTabY = 58.0f;
         float tabH = 26.0f;
         if (my >= vpTabY && my <= vpTabY + tabH && mx >= vpTabX && mx <= l.rightX) {
-            float tab1X = vpTabX + 6.0f;
-            float tab1W = 120.0f;
+            float tab0X = vpTabX + 6.0f;
+            float tab0W = 110.0f;
+            float tab1X = tab0X + tab0W + 6.0f;
+            float tab1W = 110.0f;
             float tab2X = tab1X + tab1W + 6.0f;
-            float tab2W = 145.0f;
+            float tab2W = 140.0f;
             float tab3X = tab2X + tab2W + 6.0f;
-            float tab3W = 145.0f;
+            float tab3W = 120.0f;
             float tab4X = tab3X + tab3W + 6.0f;
-            float tab4W = 145.0f;
+            float tab4W = 135.0f;
 
-            if (mx >= tab1X && mx <= tab1X + tab1W) {
+            if (mx >= tab0X && mx <= tab0X + tab0W) {
+                setWorkspace(EditorWorkspace::Project_Hub);
+                return;
+            } else if (mx >= tab1X && mx <= tab1X + tab1W) {
                 setWorkspace(EditorWorkspace::World3D_Level);
                 return;
             } else if (mx >= tab2X && mx <= tab2X + tab2W) {
@@ -3758,6 +3837,133 @@ public:
                     }
                 }
             }
+            return; // Consume click so it never falls through to 3D actions
+        }
+
+        // 8.76. Project Hub / Engine Main Menu Workspace Interactions
+        if (_workspace == EditorWorkspace::Project_Hub) {
+            float vpX = leftW;
+            float vpW = l.rightX - vpX;
+            float contentY = 58.0f + 26.0f;
+            float contentH = (h - 22.0f) - contentY;
+            float headY = contentY + 4.0f;
+            float headH = 50.0f;
+            float mainY = headY + headH + 8.0f;
+            float mainH = contentH - (mainY - contentY) - 6.0f;
+            float listW = 390.0f;
+            float listX = vpX + 6.0f;
+            float detX = listX + listW + 8.0f;
+            float detW = vpW - listW - 20.0f;
+
+            // 1. Left Panel: Project Cards Click
+            if (mx >= listX && mx <= listX + listW && my >= mainY + 36.0f && my <= mainY + mainH - 50.0f) {
+                float itemH = 68.0f;
+                int clickedIndex = (int)((my - (mainY + 36.0f)) / itemH);
+                if (clickedIndex >= 0 && clickedIndex < (int)_hubProjects.size()) {
+                    _hubSelectedProjectIndex = clickedIndex;
+                    return;
+                }
+            }
+
+            // 2. Left Panel Bottom Buttons: [+ NEW PROJECT] and [RESCAN DISK]
+            float botBtnY = mainY + mainH - 44.0f;
+            if (my >= botBtnY && my <= botBtnY + 36.0f) {
+                // [+ NEW PROJECT]
+                if (mx >= listX + 10.0f && mx <= listX + 220.0f) {
+                    static int s_projCount = 1;
+                    std::string newName = "MyGame_Project_" + std::to_string(s_projCount++);
+                    if (ProjectManager::get().createProject(newName)) {
+                        refreshProjectHub();
+                        for (size_t i = 0; i < _hubProjects.size(); ++i) {
+                            if (_hubProjects[i].id == newName) {
+                                _hubSelectedProjectIndex = (int)i;
+                                break;
+                            }
+                        }
+                        _hubStatusBanner = "Created isolated game project in Documents/LabGames/" + newName;
+                        _hubBannerTimer = 4.0f;
+                    }
+                    return;
+                }
+                // [RESCAN DISK]
+                else if (mx >= listX + 230.0f && mx <= listX + 375.0f) {
+                    refreshProjectHub();
+                    _hubStatusBanner = "Rescanned disk. Found " + std::to_string(_hubProjects.size()) + " project(s).";
+                    _hubBannerTimer = 3.0f;
+                    return;
+                }
+            }
+
+            // 3. Right Panel: Action Buttons
+            if (_hubSelectedProjectIndex >= 0 && _hubSelectedProjectIndex < (int)_hubProjects.size()) {
+                const auto& proj = _hubProjects[_hubSelectedProjectIndex];
+                float dy = mainY + 18.0f + 28.0f + 24.0f; // matches actY in render
+
+                // [ OPEN IN EDITOR (CONTINUE) ]
+                if (mx >= detX + 20.0f && mx <= detX + 280.0f && my >= dy && my <= dy + 42.0f) {
+                    ProjectManager::get().setActiveProject(proj.id);
+                    std::string sceneToLoad = proj.defaultScene;
+                    bool loaded = false;
+                    if (!sceneToLoad.empty()) {
+                        auto resolved = ProjectManager::get().resolveAssetPath(sceneToLoad);
+                        if (std::filesystem::exists(resolved)) {
+                            loaded = loadMapFromFile(resolved.string());
+                        }
+                    }
+                    if (!loaded) {
+                        auto mapsDir = ProjectManager::get().getActiveProjectAssetsPath() / "maps";
+                        if (std::filesystem::exists(mapsDir)) {
+                            for (const auto& entry : std::filesystem::directory_iterator(mapsDir)) {
+                                if (entry.path().extension() == ".labmap") {
+                                    loadMapFromFile(entry.path().string());
+                                    loaded = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    discoverTextures();
+                    discoverModels();
+                    setWorkspace(EditorWorkspace::World3D_Level);
+                    logMessage("Switched active project to: " + proj.displayName + " (World3D Level Workspace)");
+                    return;
+                }
+
+                // [ PLAY STANDALONE DEMO ]
+                if (proj.hasStandaloneDemo && mx >= detX + 295.0f && mx <= detX + 545.0f && my >= dy && my <= dy + 42.0f) {
+                    bool launched = ProjectManager::get().launchProjectDemo(proj.id);
+                    if (launched) {
+                        _hubStatusBanner = "Launching Standalone Demo: " + proj.displayName + " ...";
+                    } else {
+                        _hubStatusBanner = "Could not launch demo. Verify executable path: " + proj.demoExePath.string();
+                    }
+                    _hubBannerTimer = 4.0f;
+                    return;
+                }
+
+                // Secondary row of buttons
+                float dy2 = dy + 54.0f;
+                // [ OPEN PROJECT FOLDER ]
+                if (mx >= detX + 20.0f && mx <= detX + 220.0f && my >= dy2 && my <= dy2 + 34.0f) {
+#if defined(_WIN32)
+                    std::string cmd = "explorer \"" + std::filesystem::absolute(proj.rootPath).string() + "\"";
+                    std::system(cmd.c_str());
+#elif defined(__APPLE__)
+                    std::string cmd = "open \"" + std::filesystem::absolute(proj.rootPath).string() + "\"";
+                    std::system(cmd.c_str());
+#endif
+                    return;
+                }
+
+                // [ EXPORT / PACKAGE GAME ]
+                if (mx >= detX + 230.0f && mx <= detX + 430.0f && my >= dy2 && my <= dy2 + 34.0f) {
+                    _exportSettings.gameTitle = proj.id;
+                    _exportSettings.entrySceneURI = proj.defaultScene.empty() ? "assets/maps/main.labmap" : proj.defaultScene;
+                    _buildModalOpen = true;
+                    return;
+                }
+            }
+
             return; // Consume click so it never falls through to 3D actions
         }
 
@@ -4778,11 +4984,12 @@ public:
         float vpW = l.rightX - vpX;
         float vpH = (h - 22.0f) - vpY;
 
-        // Viewport Tab Bar (Intuitive Workspace Switcher: 3D Scene / Lua Script Studio / HUD Canvas)
+        // Viewport Tab Bar (Intuitive Workspace Switcher: Project Hub / 3D Scene / Lua Script Studio / HUD Canvas / Plugins)
         float tabH = 26.0f;
         Renderer::drawRect(vpX, vpY, vpW, tabH, Vec3(0.10f, 0.11f, 0.14f));
         drawDarkBevel(vpX, vpY, vpW, tabH, false);
 
+        bool isHub = (_workspace == EditorWorkspace::Project_Hub);
         bool is3D = (_workspace == EditorWorkspace::World3D_Level || _workspace == EditorWorkspace::World3D_Animation);
         bool isScr = (_workspace == EditorWorkspace::Scripting_Editor || _workspace == EditorWorkspace::Scripting_Console);
         bool isHud = (_workspace == EditorWorkspace::Level2D_HUD);
@@ -4790,34 +4997,42 @@ public:
         bool isAnim2D = (_workspace == EditorWorkspace::Level2D_Animation);
         bool isStud = isStudioWorkspace(_workspace);
 
+        // Tab 0: [ Project Hub ]
+        float tab0X = vpX + 6.0f;
+        float tab0W = 110.0f;
+        Renderer::drawRect(tab0X, vpY + 2.0f, tab0W, tabH - 4.0f, isHub ? Vec3(0.18f, 0.22f, 0.28f) : Vec3(0.12f, 0.13f, 0.16f));
+        drawDarkBevel(tab0X, vpY + 2.0f, tab0W, tabH - 4.0f, isHub);
+        if (isHub) Renderer::drawRect(tab0X, vpY + tabH - 2.0f, tab0W, 2.0f, orangeGlow);
+        LabFont::drawText(tab0X + 12.0f, vpY + 6.0f, "Project Hub", 1.35f, isHub ? Vec3(1, 1, 1) : textDim, LabFontType::System);
+
         // Tab 1: [ 3D Level Scene ]
-        float tab1X = vpX + 6.0f;
-        float tab1W = 120.0f;
+        float tab1X = tab0X + tab0W + 6.0f;
+        float tab1W = 110.0f;
         Renderer::drawRect(tab1X, vpY + 2.0f, tab1W, tabH - 4.0f, is3D ? Vec3(0.18f, 0.22f, 0.28f) : Vec3(0.12f, 0.13f, 0.16f));
         drawDarkBevel(tab1X, vpY + 2.0f, tab1W, tabH - 4.0f, is3D);
         if (is3D) Renderer::drawRect(tab1X, vpY + tabH - 2.0f, tab1W, 2.0f, orangeGlow);
-        LabFont::drawText(tab1X + 12.0f, vpY + 6.0f, "3D Level Scene", 1.35f, is3D ? Vec3(1, 1, 1) : textDim, LabFontType::System);
+        LabFont::drawText(tab1X + 16.0f, vpY + 6.0f, "3D Scene", 1.35f, is3D ? Vec3(1, 1, 1) : textDim, LabFontType::System);
 
         // Tab 2: [ Lua Script Studio ]
         float tab2X = tab1X + tab1W + 6.0f;
-        float tab2W = 145.0f;
+        float tab2W = 140.0f;
         Renderer::drawRect(tab2X, vpY + 2.0f, tab2W, tabH - 4.0f, isScr ? Vec3(0.18f, 0.22f, 0.28f) : Vec3(0.12f, 0.13f, 0.16f));
         drawDarkBevel(tab2X, vpY + 2.0f, tab2W, tabH - 4.0f, isScr);
         if (isScr) Renderer::drawRect(tab2X, vpY + tabH - 2.0f, tab2W, 2.0f, cyanGlow);
         LabFont::drawText(tab2X + 10.0f, vpY + 6.0f, "Lua Script Studio", 1.35f, isScr ? Vec3(1, 1, 1) : textDim, LabFontType::System);
 
-        // Tab 3: [ HUD Canvas Designer ]
+        // Tab 3: [ HUD Canvas ]
         float tab3X = tab2X + tab2W + 6.0f;
-        float tab3W = 145.0f;
+        float tab3W = 120.0f;
         Renderer::drawRect(tab3X, vpY + 2.0f, tab3W, tabH - 4.0f, isHud ? Vec3(0.18f, 0.22f, 0.28f) : Vec3(0.12f, 0.13f, 0.16f));
         drawDarkBevel(tab3X, vpY + 2.0f, tab3W, tabH - 4.0f, isHud);
         if (isHud) Renderer::drawRect(tab3X, vpY + tabH - 2.0f, tab3W, 2.0f, cyanGlow);
-        LabFont::drawText(tab3X + 10.0f, vpY + 6.0f, "HUD Canvas Designer", 1.35f, isHud ? Vec3(1, 1, 1) : textDim, LabFontType::System);
+        LabFont::drawText(tab3X + 10.0f, vpY + 6.0f, "HUD Canvas", 1.35f, isHud ? Vec3(1, 1, 1) : textDim, LabFontType::System);
 
         // Tab 4: [ Plugins & Add-ons ]
         bool isPlug = (_workspace == EditorWorkspace::Plugins_Manager);
         float tab4X = tab3X + tab3W + 6.0f;
-        float tab4W = 145.0f;
+        float tab4W = 135.0f;
         Renderer::drawRect(tab4X, vpY + 2.0f, tab4W, tabH - 4.0f, isPlug ? Vec3(0.18f, 0.22f, 0.28f) : Vec3(0.12f, 0.13f, 0.16f));
         drawDarkBevel(tab4X, vpY + 2.0f, tab4W, tabH - 4.0f, isPlug);
         if (isPlug) Renderer::drawRect(tab4X, vpY + tabH - 2.0f, tab4W, 2.0f, cyanGlow);
@@ -5315,6 +5530,161 @@ public:
                 LabFont::drawText(detX + 30.0f, dy + 56.0f, "• State: " + std::string(isEn ? "RUNNING (Listening to frame ticks)" : "STOPPED (Zero runtime overhead)"), 1.32f, isEn ? Vec3(0.4f, 1.0f, 0.5f) : textDim, LabFontType::System);
                 LabFont::drawText(detX + 30.0f, dy + 76.0f, "• Memory & Dependencies: None (Self-contained C++ / Lua module).", 1.32f, textDim, LabFontType::System);
             }
+        } else if (_workspace == EditorWorkspace::Project_Hub) {
+            // ==================== ENGINE MAIN MENU & PROJECT HUB ====================
+            // Standalone Decoupled Projects Browser & Game Showcase Launcher
+            Renderer::drawRect(vpX, contentY, vpW, contentH, Vec3(0.06f, 0.07f, 0.09f));
+            drawDarkBevel(vpX, contentY, vpW, contentH, false);
+
+            // 1. Top Header Banner
+            float headY = contentY + 4.0f;
+            float headH = 50.0f;
+            Renderer::drawRect(vpX + 4.0f, headY, vpW - 8.0f, headH, Vec3(0.10f, 0.12f, 0.16f));
+            drawDarkBevel(vpX + 4.0f, headY, vpW - 8.0f, headH, false);
+
+            LabFont::drawText(vpX + 18.0f, headY + 10.0f, "LAB ENGINE STUDIO 2026 - PROJECT HUB", 1.6f, orangeGlow, LabFontType::System);
+            LabFont::drawText(vpX + 18.0f, headY + 28.0f, "Universal 2D & 3D Game Engine | Decoupled Architecture | Unity & Unreal Standard", 1.25f, textDim, LabFontType::System);
+
+            std::string actInfo = "Active Project: [" + ProjectManager::get().getActiveProjectName() + "]";
+            LabFont::drawText(vpX + vpW - 320.0f, headY + 18.0f, actInfo, 1.35f, cyanGlow, LabFontType::System);
+
+            // Split Layout
+            float mainY = headY + headH + 8.0f;
+            float mainH = contentH - (mainY - contentY) - 6.0f;
+            float listW = 390.0f;
+            float listX = vpX + 6.0f;
+            float detX = listX + listW + 8.0f;
+            float detW = vpW - listW - 20.0f;
+
+            // --- LEFT PANEL: Projects List ---
+            Renderer::drawRect(listX, mainY, listW, mainH, Vec3(0.09f, 0.10f, 0.13f));
+            drawDarkBevel(listX, mainY, listW, mainH, false);
+
+            // Left panel title
+            Renderer::drawRect(listX + 2.0f, mainY + 2.0f, listW - 4.0f, 30.0f, Vec3(0.12f, 0.14f, 0.18f));
+            std::string listTitle = "PROJECTS & SHOWCASES (" + std::to_string(_hubProjects.size()) + ")";
+            LabFont::drawText(listX + 12.0f, mainY + 9.0f, listTitle, 1.4f, textLight, LabFontType::System);
+
+            float itemH = 68.0f;
+            float curItemY = mainY + 36.0f;
+            float maxListY = mainY + mainH - 52.0f;
+
+            for (size_t i = 0; i < _hubProjects.size(); ++i) {
+                if (curItemY + itemH > maxListY) break;
+                const auto& proj = _hubProjects[i];
+                bool isSel = ((int)i == _hubSelectedProjectIndex);
+                bool isHov = (_mouseScreenX >= listX + 4.0f && _mouseScreenX <= listX + listW - 4.0f &&
+                              _mouseScreenY >= curItemY && _mouseScreenY <= curItemY + itemH - 4.0f);
+
+                Vec3 cardBg = isSel ? Vec3(0.16f, 0.22f, 0.32f) : (isHov ? Vec3(0.13f, 0.15f, 0.20f) : Vec3(0.08f, 0.09f, 0.12f));
+                Renderer::drawRect(listX + 6.0f, curItemY, listW - 12.0f, itemH - 4.0f, cardBg);
+                drawDarkBevel(listX + 6.0f, curItemY, listW - 12.0f, itemH - 4.0f, isSel);
+
+                if (isSel) {
+                    Renderer::drawRect(listX + 6.0f, curItemY, 4.0f, itemH - 4.0f, cyanGlow);
+                }
+
+                // Project Title
+                LabFont::drawText(listX + 16.0f, curItemY + 8.0f, proj.displayName, 1.4f, isSel ? Vec3(1, 1, 1) : textLight, LabFontType::System);
+
+                // Badges
+                float badgeX = listX + 16.0f;
+                float badgeY = curItemY + 28.0f;
+                if (proj.isBuiltinShowcase) {
+                    Renderer::drawRect(badgeX, badgeY, 82.0f, 16.0f, Vec3(0.28f, 0.22f, 0.08f));
+                    LabFont::drawText(badgeX + 6.0f, badgeY + 2.0f, "SHOWCASE", 1.05f, Vec3(1.0f, 0.85f, 0.25f), LabFontType::System);
+                    badgeX += 88.0f;
+                } else {
+                    Renderer::drawRect(badgeX, badgeY, 70.0f, 16.0f, Vec3(0.10f, 0.26f, 0.14f));
+                    LabFont::drawText(badgeX + 6.0f, badgeY + 2.0f, "DOCUMENTS", 1.05f, greenAccent, LabFontType::System);
+                    badgeX += 76.0f;
+                }
+
+                if (proj.hasStandaloneDemo) {
+                    Renderer::drawRect(badgeX, badgeY, 78.0f, 16.0f, Vec3(0.08f, 0.22f, 0.32f));
+                    LabFont::drawText(badgeX + 6.0f, badgeY + 2.0f, "DEMO READY", 1.05f, cyanGlow, LabFontType::System);
+                }
+
+                // Path info
+                std::string pathSummary = "Scene: " + (proj.defaultScene.empty() ? "(none)" : proj.defaultScene);
+                LabFont::drawText(listX + 16.0f, curItemY + 48.0f, pathSummary, 1.15f, textDim, LabFontType::System);
+
+                curItemY += itemH;
+            }
+
+            // Bottom left buttons: [+ CREATE NEW PROJECT] and [RESCAN DISK]
+            float botBtnY = mainY + mainH - 44.0f;
+            drawDarkButton(listX + 10.0f, botBtnY, 210.0f, 34.0f, "+ Create New Game", false, false, true);
+            drawDarkButton(listX + 230.0f, botBtnY, 145.0f, 34.0f, "Rescan Disk", false, false, true);
+
+            // --- RIGHT PANEL: Selected Project Inspector & Action Center ---
+            Renderer::drawRect(detX, mainY, detW, mainH, Vec3(0.09f, 0.10f, 0.13f));
+            drawDarkBevel(detX, mainY, detW, mainH, false);
+
+            if (_hubSelectedProjectIndex >= 0 && _hubSelectedProjectIndex < (int)_hubProjects.size()) {
+                const auto& proj = _hubProjects[_hubSelectedProjectIndex];
+                float dy = mainY + 18.0f;
+
+                // Title & Version
+                std::string titleStr = proj.displayName + "  v" + proj.version;
+                LabFont::drawText(detX + 20.0f, dy, titleStr, 1.85f, Vec3(1, 1, 1), LabFontType::System);
+                dy += 28.0f;
+
+                std::string metaLine = "Author: " + proj.author + " | Category: " + (proj.isBuiltinShowcase ? "Flagship Engine Showcase" : "User Game Project") + " | Status: " + (proj.hasStandaloneDemo ? "Playable Standalone Demo Available" : "In Development");
+                LabFont::drawText(detX + 20.0f, dy, metaLine, 1.25f, textDim, LabFontType::System);
+                dy += 24.0f;
+
+                // Action Buttons Bar
+                // [ OPEN IN EDITOR (CONTINUE) ]
+                drawDarkButton(detX + 20.0f, dy, 260.0f, 42.0f, "> OPEN IN EDITOR (CONTINUE)", false, false, true);
+                Renderer::drawRect(detX + 20.0f, dy + 40.0f, 260.0f, 2.0f, greenAccent);
+
+                // [ PLAY STANDALONE DEMO ]
+                if (proj.hasStandaloneDemo) {
+                    drawDarkButton(detX + 295.0f, dy, 250.0f, 42.0f, "PLAY STANDALONE DEMO", false, false, true);
+                    Renderer::drawRect(detX + 295.0f, dy + 40.0f, 250.0f, 2.0f, cyanGlow);
+                }
+                dy += 54.0f;
+
+                // Secondary row of buttons
+                drawDarkButton(detX + 20.0f, dy, 200.0f, 34.0f, "Open Project Folder", false, false, true);
+                drawDarkButton(detX + 230.0f, dy, 200.0f, 34.0f, "Export / Package...", false, false, true);
+                dy += 44.0f;
+
+                // Status Banner if any
+                if (!_hubStatusBanner.empty()) {
+                    Renderer::drawRect(detX + 20.0f, dy, detW - 40.0f, 28.0f, Vec3(0.12f, 0.32f, 0.20f));
+                    drawDarkBevel(detX + 20.0f, dy, detW - 40.0f, 28.0f, false);
+                    LabFont::drawText(detX + 30.0f, dy + 6.0f, _hubStatusBanner, 1.35f, Vec3(0.6f, 1.0f, 0.7f), LabFontType::System);
+                    dy += 36.0f;
+                }
+
+                // Description Box
+                LabFont::drawText(detX + 20.0f, dy, "Project Description:", 1.45f, textLight, LabFontType::System);
+                dy += 22.0f;
+                Renderer::drawRect(detX + 20.0f, dy, detW - 40.0f, 75.0f, Vec3(0.06f, 0.07f, 0.09f));
+                drawDarkBevel(detX + 20.0f, dy, detW - 40.0f, 75.0f, true);
+                LabFont::drawText(detX + 30.0f, dy + 12.0f, proj.description, 1.38f, Vec3(0.9f, 0.92f, 0.95f), LabFontType::System);
+                dy += 88.0f;
+
+                // Path & Architecture Details
+                LabFont::drawText(detX + 20.0f, dy, "Filesystem & Decoupled Storage Hierarchy:", 1.45f, textLight, LabFontType::System);
+                dy += 22.0f;
+                Renderer::drawRect(detX + 20.0f, dy, detW - 40.0f, 140.0f, Vec3(0.06f, 0.07f, 0.09f));
+                drawDarkBevel(detX + 20.0f, dy, detW - 40.0f, 140.0f, true);
+
+                std::string pRoot = "• Project Root: " + proj.rootPath.string();
+                std::string pAssets = "• Assets Tree: " + proj.assetsPath.string();
+                std::string pScene = "• Entry Map / Scene: " + proj.defaultScene;
+                std::string pDemo = "• Standalone Binary: " + (proj.hasStandaloneDemo ? proj.demoExePath.string() : "(Not yet built. Use Export pipeline.)");
+                std::string pArch = "• Clean Release Guarantee: Engine binaries (build/Release) remain free of hardcoded game assets.";
+
+                LabFont::drawText(detX + 30.0f, dy + 12.0f, pRoot, 1.3f, textDim, LabFontType::System);
+                LabFont::drawText(detX + 30.0f, dy + 34.0f, pAssets, 1.3f, textDim, LabFontType::System);
+                LabFont::drawText(detX + 30.0f, dy + 56.0f, pScene, 1.3f, cyanGlow, LabFontType::System);
+                LabFont::drawText(detX + 30.0f, dy + 78.0f, pDemo, 1.3f, proj.hasStandaloneDemo ? greenAccent : textDim, LabFontType::System);
+                LabFont::drawText(detX + 30.0f, dy + 104.0f, pArch, 1.3f, orangeGlow, LabFontType::System);
+            }
         }
 
     // ==================== 5. BOTTOM DOCK (Console / Profiler) ====================
@@ -5413,8 +5783,8 @@ public:
         if (_fileMenuOpen) {
             float menuX = 10.0f;
             float menuY = 24.0f;
-            float menuW = 230.0f;
-            float menuH = 175.0f;
+            float menuW = 240.0f;
+            float menuH = 200.0f;
             Vec3 menuBg{ 0.16f, 0.17f, 0.20f };
             Vec3 menuBorder{ 0.35f, 0.38f, 0.44f };
 
@@ -5423,6 +5793,7 @@ public:
 
             struct MenuItem { std::string name; std::string shortcut; };
             MenuItem items[] = {
+                { "Project Hub (Main Menu)", "F1" },
                 { "New Map", "Ctrl+N" },
                 { "Open Map...", "Ctrl+O" },
                 { "Save Map", "Ctrl+S" },
@@ -5432,14 +5803,14 @@ public:
                 { "Exit", "Alt+F4" }
             };
 
-            for (int i = 0; i < 7; ++i) {
+            for (int i = 0; i < 8; ++i) {
                 float iy = menuY + 3.0f + i * 24.0f;
                 bool isHov = (_mouseScreenX >= menuX && _mouseScreenX <= menuX + menuW && _mouseScreenY >= iy && _mouseScreenY <= iy + 22.0f);
                 if (isHov) {
                     Renderer::drawRect(menuX + 2.0f, iy, menuW - 4.0f, 22.0f, Vec3(0.24f, 0.28f, 0.36f));
                 }
-                if (i == 4 || i == 6) Renderer::drawRect(menuX + 6.0f, iy - 2.0f, menuW - 12.0f, 1.0f, menuBorder);
-                LabFont::drawText(menuX + 14.0f, iy + 4.0f, items[i].name, 1.6f, (i == 4) ? (isHov ? Vec3(0.4f, 1.0f, 0.5f) : Vec3(0.3f, 0.9f, 0.4f)) : (isHov ? orangeGlow : textLight), LabFontType::System);
+                if (i == 1 || i == 5 || i == 7) Renderer::drawRect(menuX + 6.0f, iy - 2.0f, menuW - 12.0f, 1.0f, menuBorder);
+                LabFont::drawText(menuX + 14.0f, iy + 4.0f, items[i].name, 1.6f, (i == 0) ? (isHov ? cyanGlow : Vec3(0.3f, 0.8f, 1.0f)) : ((i == 5) ? (isHov ? Vec3(0.4f, 1.0f, 0.5f) : Vec3(0.3f, 0.9f, 0.4f)) : (isHov ? orangeGlow : textLight)), LabFontType::System);
                 if (!items[i].shortcut.empty()) {
                     LabFont::drawText(menuX + menuW - 95.0f, iy + 4.0f, items[i].shortcut, 1.4f, textDim, LabFontType::System);
                 }
@@ -6171,6 +6542,13 @@ private:
     float _pluginBannerTimer = 0.0f;
     float _pluginPollAccum = 0.0f;
     int _pluginListScroll = 0;
+
+    // Engine Main Menu / Project Hub State
+    std::vector<ProjectInfo> _hubProjects;
+    int _hubSelectedProjectIndex = 0;
+    std::string _hubStatusBanner = "";
+    float _hubBannerTimer = 0.0f;
+    bool _f1Pressed = false;
 
     // Sidebar State
     SidebarTab _sidebarTab = SidebarTab::Properties;
