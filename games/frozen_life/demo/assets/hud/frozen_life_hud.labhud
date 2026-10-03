@@ -23,7 +23,7 @@ ELEMENTS
         children 3
 
         element map_name Label 16 11 200 18 0.98 0.78 0.08 1.0 TopLeft 0
-            text "ffa_baseplate2021 [FFA]"
+            text "Cryo Complex [Outpost]"
             font 1.8 0
             border 0.23 0.24 0.27 1.0 0.0
             texture ""

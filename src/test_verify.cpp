@@ -8619,11 +8619,16 @@ int main() {
         auto flAssets = flProj->assetsPath;
         if (!std::filesystem::exists(flAssets / "maps" / "cryo_complex.labmap") ||
             !std::filesystem::exists(flAssets / "models" / "t-800_run.glb") ||
-            !std::filesystem::exists(flAssets / "models" / "railgun.stl")) {
-            std::cerr << "Assertion failed: Frozen-Life assets (maps, t-800, railgun) missing in games/frozen_life/assets!\n";
+            !std::filesystem::exists(flAssets / "models" / "railgun.stl") ||
+            !std::filesystem::exists(flAssets / "hud" / "frozen_life_hud.labhud")) {
+            std::cerr << "Assertion failed: Frozen-Life assets (maps, t-800, railgun, frozen_life_hud) missing in games/frozen_life/assets!\n";
             return 1;
         }
-        std::cout << "  [PASS] Sub-test B: Frozen-Life assets and standalone demo 100% verified and preserved.\n";
+        if (flProj->defaultHud != "assets/hud/frozen_life_hud.labhud") {
+            std::cerr << "Assertion failed: Frozen-Life default HUD is not frozen_life_hud.labhud! Found: " << flProj->defaultHud << "\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test B: Frozen-Life assets, native HUD (frozen_life_hud.labhud) and standalone demo 100% verified and preserved.\n";
 
         // Sub-test C: Switching Active Project to Frozen-Life and resolving assets
         bool switched = pm.setActiveProject("frozen_life");

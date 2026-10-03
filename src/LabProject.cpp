@@ -313,6 +313,8 @@ namespace Lab {
                 if (!disp.empty()) info.displayName = disp;
                 std::string scn = extractJsonValue(content, "entryScene");
                 if (!scn.empty()) info.defaultScene = scn;
+                std::string dhud = extractJsonValue(content, "defaultHud");
+                if (!dhud.empty()) info.defaultHud = dhud;
                 std::string desc = extractJsonValue(content, "description");
                 if (!desc.empty()) info.description = desc;
                 std::string auth = extractJsonValue(content, "author");
@@ -334,18 +336,26 @@ namespace Lab {
                     std::string scn = extractConfigValue(content, "scene");
                     if (!scn.empty()) info.defaultScene = scn;
                 }
+                if (info.defaultHud.empty()) {
+                    std::string hud = extractConfigValue(content, "hud");
+                    if (!hud.empty()) info.defaultHud = hud;
+                }
             }
 
             // Default fallbacks for known built-in games
             if (id == "frozen_life") {
                 if (info.displayName == id) info.displayName = "Frozen-Life (3D Showcase)";
                 if (info.defaultScene.empty()) info.defaultScene = "assets/maps/cryo_complex.labmap";
+                if (info.defaultHud.empty() || info.defaultHud.find("labrunner") != std::string::npos) {
+                    info.defaultHud = "assets/hud/frozen_life_hud.labhud";
+                }
                 if (info.description.empty() || info.description == "Built-in Showcase Game") {
                     info.description = "Flagship 3D Showcase Game for Lab Engine with Cryo Outpost, volumetric lighting, physics, T-800 character animation and weapon mechanics.";
                 }
             } else if (id == "labrunner_escape") {
                 if (info.displayName == id) info.displayName = "QA LabRunner: Kryo-Ucieczka";
                 if (info.defaultScene.empty()) info.defaultScene = "assets/maps/qa_labrunner_escape.labmap";
+                if (info.defaultHud.empty()) info.defaultHud = "assets/hud_projects/labrunner_escape.labhud";
                 if (info.description.empty() || info.description == "Built-in Showcase Game") {
                     info.description = "Laboratory runner showcase testing dynamic collision, speed mechanics, and Lua rules.";
                 }
@@ -398,6 +408,7 @@ namespace Lab {
             fl.rootPath = m_engineRoot / "games" / "frozen_life";
             fl.assetsPath = fl.rootPath / "assets";
             fl.defaultScene = "assets/maps/cryo_complex.labmap";
+            fl.defaultHud = "assets/hud/frozen_life_hud.labhud";
             fl.description = "Flagship 3D Showcase Game for Lab Engine with Cryo Outpost, volumetric lighting, physics, T-800 character animation and weapon mechanics.";
             fl.isBuiltinShowcase = true;
             fl.hasStandaloneDemo = std::filesystem::exists(fl.rootPath / "demo" / "FrozenLife_Demo.exe") ||

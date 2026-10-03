@@ -15,6 +15,7 @@ namespace Lab {
         std::filesystem::path rootPath;
         std::filesystem::path assetsPath;
         std::string defaultScene;
+        std::string defaultHud;
         std::string version{"1.0.0"};
         std::string author{"Developer"};
         std::string description;

@@ -5670,20 +5670,22 @@ public:
                 // Path & Architecture Details
                 LabFont::drawText(detX + 20.0f, dy, "Filesystem & Decoupled Storage Hierarchy:", 1.45f, textLight, LabFontType::System);
                 dy += 22.0f;
-                Renderer::drawRect(detX + 20.0f, dy, detW - 40.0f, 140.0f, Vec3(0.06f, 0.07f, 0.09f));
-                drawDarkBevel(detX + 20.0f, dy, detW - 40.0f, 140.0f, true);
+                Renderer::drawRect(detX + 20.0f, dy, detW - 40.0f, 150.0f, Vec3(0.06f, 0.07f, 0.09f));
+                drawDarkBevel(detX + 20.0f, dy, detW - 40.0f, 150.0f, true);
 
                 std::string pRoot = "• Project Root: " + proj.rootPath.string();
                 std::string pAssets = "• Assets Tree: " + proj.assetsPath.string();
                 std::string pScene = "• Entry Map / Scene: " + proj.defaultScene;
+                std::string pHud = "• Active HUD Layout: " + (proj.defaultHud.empty() ? "(none)" : proj.defaultHud);
                 std::string pDemo = "• Standalone Binary: " + (proj.hasStandaloneDemo ? proj.demoExePath.string() : "(Not yet built. Use Export pipeline.)");
                 std::string pArch = "• Clean Release Guarantee: Engine binaries (build/Release) remain free of hardcoded game assets.";
 
-                LabFont::drawText(detX + 30.0f, dy + 12.0f, pRoot, 1.3f, textDim, LabFontType::System);
-                LabFont::drawText(detX + 30.0f, dy + 34.0f, pAssets, 1.3f, textDim, LabFontType::System);
-                LabFont::drawText(detX + 30.0f, dy + 56.0f, pScene, 1.3f, cyanGlow, LabFontType::System);
-                LabFont::drawText(detX + 30.0f, dy + 78.0f, pDemo, 1.3f, proj.hasStandaloneDemo ? greenAccent : textDim, LabFontType::System);
-                LabFont::drawText(detX + 30.0f, dy + 104.0f, pArch, 1.3f, orangeGlow, LabFontType::System);
+                LabFont::drawText(detX + 30.0f, dy + 10.0f, pRoot, 1.3f, textDim, LabFontType::System);
+                LabFont::drawText(detX + 30.0f, dy + 30.0f, pAssets, 1.3f, textDim, LabFontType::System);
+                LabFont::drawText(detX + 30.0f, dy + 50.0f, pScene, 1.3f, cyanGlow, LabFontType::System);
+                LabFont::drawText(detX + 30.0f, dy + 70.0f, pHud, 1.3f, orangeGlow, LabFontType::System);
+                LabFont::drawText(detX + 30.0f, dy + 90.0f, pDemo, 1.3f, proj.hasStandaloneDemo ? greenAccent : textDim, LabFontType::System);
+                LabFont::drawText(detX + 30.0f, dy + 114.0f, pArch, 1.3f, textLight, LabFontType::System);
             }
         }
 
