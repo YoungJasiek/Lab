@@ -7594,10 +7594,16 @@ int main() {
                 std::cerr << "Assertion failed: Debug test build failed: " << testBuildRes.logMessage << "\n";
                 return 1;
             }
-            if (!std::filesystem::exists("test_build/debug/TestAdventure_Test.exe") ||
-                !std::filesystem::exists("test_build/debug/game.config") ||
-                !std::filesystem::exists("test_build/debug/run_test_game.bat")) {
-                std::cerr << "Assertion failed: Debug test build missing exe, config, or launcher!\n";
+            auto outDir = testBuildRes.outputDirectory;
+            bool exeFound = std::filesystem::exists(outDir / "TestAdventure_Test.exe") ||
+                            std::filesystem::exists("test_build/debug/TestAdventure_Test.exe");
+            bool cfgFound = std::filesystem::exists(outDir / "game.config") ||
+                            std::filesystem::exists("test_build/debug/game.config");
+            bool batFound = std::filesystem::exists(outDir / "run_test_game.bat") ||
+                            std::filesystem::exists("test_build/debug/run_test_game.bat");
+
+            if (!exeFound || !cfgFound || !batFound) {
+                std::cerr << "Assertion failed: Debug test build missing exe, config, or launcher! (checked in " << outDir.string() << ")\n";
                 return 1;
             }
             std::cout << "  [PASS] Sub-test D: Standalone Debug test build physically assembled in test_build/debug/ (" << testBuildRes.copiedFiles << " files)!\n";

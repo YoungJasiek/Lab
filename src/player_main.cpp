@@ -15,15 +15,57 @@
 
 using namespace Lab;
 
+static void saveFrameToBMP(const char* filename, int width, int height) {
+    std::vector<unsigned char> pixels(width * height * 4);
+    glReadBuffer(GL_BACK);
+    glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+
+    int rowSize = ((width * 24 + 31) / 32) * 4;
+    int imageSize = rowSize * height;
+    int fileSize = 54 + imageSize;
+
+    unsigned char header[54] = {
+        'B', 'M',
+        (unsigned char)(fileSize), (unsigned char)(fileSize >> 8), (unsigned char)(fileSize >> 16), (unsigned char)(fileSize >> 24),
+        0, 0, 0, 0,
+        54, 0, 0, 0,
+        40, 0, 0, 0,
+        (unsigned char)(width), (unsigned char)(width >> 8), (unsigned char)(width >> 16), (unsigned char)(width >> 24),
+        (unsigned char)(height), (unsigned char)(height >> 8), (unsigned char)(height >> 16), (unsigned char)(height >> 24),
+        1, 0, 24, 0,
+        0, 0, 0, 0,
+        (unsigned char)(imageSize), (unsigned char)(imageSize >> 8), (unsigned char)(imageSize >> 16), (unsigned char)(imageSize >> 24),
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    };
+
+    std::ofstream out(filename, std::ios::binary);
+    if (!out.is_open()) return;
+    out.write((char*)header, 54);
+
+    std::vector<unsigned char> row(rowSize, 0);
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            int srcIdx = (y * width + x) * 4;
+            row[x * 3 + 0] = pixels[srcIdx + 2]; // B
+            row[x * 3 + 1] = pixels[srcIdx + 1]; // G
+            row[x * 3 + 2] = pixels[srcIdx + 0]; // R
+        }
+        out.write((char*)row.data(), rowSize);
+    }
+    out.close();
+}
+
 class LabPlayerApp : public Engine {
 public:
     LabPlayerApp(const std::string& title, int width, int height, const std::string& scenePath,
-                 const std::string& hudPath = "", const std::string& rulesPath = "")
+                 const std::string& hudPath = "", const std::string& rulesPath = "",
+                 const std::string& screenshotPath = "")
         : Engine(title, width, height),
           _gameTitle(title),
           _scenePath(scenePath),
           _hudPath(hudPath),
           _rulesPath(rulesPath),
+          _screenshotPath(screenshotPath),
           _camera(75.0f, (float)width / (float)height, 0.01f, 2000.0f),
           _playerPos(0.0f, 1.8f, 0.0f),
           _playerVel(0.0f, 0.0f, 0.0f),
@@ -567,6 +609,15 @@ public:
         }
 
         Renderer::endUI();
+
+        if (!_screenshotPath.empty()) {
+            static int frameCount = 0;
+            if (++frameCount >= 2) {
+                saveFrameToBMP(_screenshotPath.c_str(), (int)w, (int)h);
+                LabLog::info("Saved screenshot to: " + _screenshotPath);
+                stop();
+            }
+        }
     }
 
     void renderCustomHUD(float screenW, float screenH) {
@@ -698,6 +749,7 @@ private:
     std::string _scenePath;
     std::string _hudPath;
     std::string _rulesPath;
+    std::string _screenshotPath;
 
     Camera _camera;
     std::unique_ptr<LabMap> _map;
@@ -731,6 +783,7 @@ struct GameLaunchConfig {
     std::string scene = "assets/maps/cryo_complex.labmap";
     std::string hud = "";
     std::string rules = "";
+    std::string screenshot = "";
     int width = 1280;
     int height = 720;
     bool fullscreen = false;
@@ -834,6 +887,8 @@ int main(int argc, char* argv[]) {
             config.hud = argv[++i];
         } else if (arg == "--rules" && i + 1 < argc) {
             config.rules = argv[++i];
+        } else if (arg == "--screenshot" && i + 1 < argc) {
+            config.screenshot = argv[++i];
         }
     }
 
@@ -888,7 +943,7 @@ int main(int argc, char* argv[]) {
 
     LabLog::info("Game: '" + config.title + "' | Scene: '" + config.scene + "' | HUD: '" + config.hud + "' | Rules: '" + config.rules + "'");
 
-    LabPlayerApp app(config.title, config.width, config.height, config.scene, config.hud, config.rules);
+    LabPlayerApp app(config.title, config.width, config.height, config.scene, config.hud, config.rules, config.screenshot);
     app.run();
 
     return 0;

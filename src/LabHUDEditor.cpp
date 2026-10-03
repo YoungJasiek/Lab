@@ -140,18 +140,15 @@ namespace Lab {
                 std::string rem; std::getline(lss, rem); trimWhitespace(rem); elem.luaCustom = stripQuotes(rem);
             } else if (prop == "children") {
                 lss >> numChildren;
-                if (numChildren > 0) {
-                    std::getline(in, line);
-                    for (int i = 0; i < numChildren; ++i) {
+                for (int i = 0; i < numChildren; ++i) {
+                    while (line.rfind("element", 0) != 0 && std::getline(in, line)) {
                         trimWhitespace(line);
-                        while (line.empty() && std::getline(in, line)) {
-                            trimWhitespace(line);
-                        }
-                        if (line.rfind("element", 0) == 0) {
-                            elem.children.push_back(readElement(in, line));
-                        }
+                    }
+                    if (line.rfind("element", 0) == 0) {
+                        elem.children.push_back(readElement(in, line));
                     }
                 }
+                break;
             }
         }
         return elem;
@@ -202,13 +199,21 @@ namespace Lab {
                     }
                 }
             } else if (line == "ELEMENTS") {
-                while (std::getline(in, line)) {
-                    trimWhitespace(line);
+                while (!in.eof()) {
+                    if (line.rfind("element", 0) != 0) {
+                        if (!std::getline(in, line)) break;
+                        trimWhitespace(line);
+                    }
                     if (line == "END_ELEMENTS") break;
-                    if (line.empty()) continue;
+                    if (line.empty()) {
+                        line.clear();
+                        continue;
+                    }
 
                     if (line.rfind("element", 0) == 0) {
                         proj->rootElements.push_back(readElement(in, line));
+                    } else {
+                        line.clear();
                     }
                 }
             }
