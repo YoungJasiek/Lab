@@ -1,5 +1,7 @@
 #include "Lab.h"
 #include "LabFont.h"
+#include "LabHUDEditor.h"
+#include "LabScript.h"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
@@ -15,15 +17,27 @@ using namespace Lab;
 
 class LabPlayerApp : public Engine {
 public:
-    LabPlayerApp(const std::string& title, int width, int height, const std::string& scenePath)
+    LabPlayerApp(const std::string& title, int width, int height, const std::string& scenePath,
+                 const std::string& hudPath = "", const std::string& rulesPath = "")
         : Engine(title, width, height),
           _gameTitle(title),
           _scenePath(scenePath),
+          _hudPath(hudPath),
+          _rulesPath(rulesPath),
           _camera(75.0f, (float)width / (float)height, 0.01f, 2000.0f),
           _playerPos(0.0f, 1.8f, 0.0f),
           _playerVel(0.0f, 0.0f, 0.0f),
           _isGrounded(false),
-          _isPaused(false) {
+          _isPaused(false),
+          _cardsCollected(0),
+          _totalCards(3),
+          _missionTimer(300.0f),
+          _playerHealth(100.0f),
+          _currentWeaponName("PISTOLET"),
+          _weaponClip(12),
+          _weaponReserve(60),
+          _missionStatus("RUNNING"),
+          _missionMessage("") {
     }
 
     void onInit() override {
@@ -36,6 +50,12 @@ public:
 
         // Load scene map
         loadScene();
+
+        // Initialize Mission Rules Script (Lua) if configured
+        initMissionRules();
+
+        // Load custom HUD Project (.labhud) if configured
+        initCustomHUD();
 
         // Capture cursor for first-person gameplay
         setCursorCaptured(true);
@@ -53,7 +73,7 @@ public:
                     if (ext == ".bmp" || ext == ".png" || ext == ".jpg" || ext == ".tga") {
                         std::string fname = entry.path().filename().string();
                         if (!_textures.contains(fname)) {
-                            _textures[fname] = std::make_unique<Texture>(fname);
+                            _textures[fname] = std::make_unique<Texture>(entry.path().string());
                         }
                     }
                 }
@@ -77,6 +97,47 @@ public:
                     }
                 }
                 if (!_meshes.empty()) break;
+            }
+        }
+    }
+
+    void initMissionRules() {
+        std::string resolvedRules = _rulesPath;
+        if (!resolvedRules.empty() && !std::filesystem::exists(resolvedRules)) {
+            if (std::filesystem::exists("assets/scripts/" + resolvedRules)) {
+                resolvedRules = "assets/scripts/" + resolvedRules;
+            }
+        }
+
+        if (!resolvedRules.empty() && std::filesystem::exists(resolvedRules)) {
+            if (_scriptEngine.init(resolvedRules)) {
+                _scriptEngine.setActiveMap(_map.get());
+                _totalCards = _scriptEngine.getMissionCardCount();
+                _missionTimer = _scriptEngine.getMissionTimeLimit();
+                _playerHealth = _scriptEngine.getPlayerMaxHealth();
+                _missionMessage = _scriptEngine.getMissionStartText();
+                LabLog::info("Loaded mission rules script: " + resolvedRules + " (Cards: " +
+                             std::to_string(_totalCards) + ", Timer: " + std::to_string((int)_missionTimer) + "s)");
+            } else {
+                LabLog::warn("Failed to load rules script: " + resolvedRules);
+            }
+        }
+    }
+
+    void initCustomHUD() {
+        std::string resolvedHud = _hudPath;
+        if (!resolvedHud.empty() && !std::filesystem::exists(resolvedHud)) {
+            if (std::filesystem::exists("assets/hud_projects/" + resolvedHud)) {
+                resolvedHud = "assets/hud_projects/" + resolvedHud;
+            }
+        }
+
+        if (!resolvedHud.empty() && std::filesystem::exists(resolvedHud)) {
+            _hudProject = HUDProject::loadFromFile(resolvedHud);
+            if (_hudProject) {
+                LabLog::info("Loaded custom HUD project: " + resolvedHud + " (" + _hudProject->name + ")");
+            } else {
+                LabLog::warn("Failed to parse HUD project: " + resolvedHud);
             }
         }
     }
@@ -140,16 +201,28 @@ public:
             _map->lights.push_back(lgt);
         }
 
-        // Set spawn point
+        // Set spawn point with standardized yaw convention
+        // Map spawn convention: yaw 180 = facing -Z (North/corridor)
+        // Camera spherical coordinates: yaw -90 = facing -Z
+        // Formula: camYaw = spawnYaw - 270.0f
+        float spawnYaw = 180.0f;
         if (!_map->spawnPoints.empty()) {
             _playerPos = _map->spawnPoints[0].position;
-            _camera.setYaw(_map->spawnPoints[0].yaw);
+            spawnYaw = _map->spawnPoints[0].yaw;
         } else {
             _playerPos = _map->spawn.position;
-            _camera.setYaw(_map->spawn.yaw);
+            spawnYaw = _map->spawn.yaw;
         }
         if (_playerPos.y < 1.0f) _playerPos.y = 1.8f;
-        _camera.setPosition(_playerPos);
+
+        float camYaw = spawnYaw - 270.0f;
+        while (camYaw > 180.0f) camYaw -= 360.0f;
+        while (camYaw <= -180.0f) camYaw += 360.0f;
+        _camera.setYaw(camYaw);
+        _camera.setPosition(_playerPos + Vec3(0, 0.2f, 0));
+
+        // Initialize weapon pad pickup tracking
+        _weaponPadCollected.assign(_map->weaponSpawners.size(), false);
     }
 
     void onUpdate(const Time& time) override {
@@ -160,6 +233,13 @@ public:
         if (Input::isKeyJustPressed(GLFW_KEY_ESCAPE)) {
             _isPaused = !_isPaused;
             setCursorCaptured(!_isPaused);
+        }
+
+        // Mouse click to capture cursor when window loses focus / uncaptured
+        if (!isCursorCaptured() && !_isPaused) {
+            if (Input::isMouseButtonJustPressed(GLFW_MOUSE_BUTTON_LEFT)) {
+                setCursorCaptured(true);
+            }
         }
 
         if (_isPaused) {
@@ -221,14 +301,30 @@ public:
         // Keep camera bound to player eyes
         _camera.setPosition(_playerPos + Vec3(0, 0.2f, 0));
 
-        // Update dynamic doors
+        // Mission timer countdown
+        if (_missionTimer > 0.0f) {
+            _missionTimer = std::max(0.0f, _missionTimer - dt);
+        }
+
+        // Lua Script Tick (calls OnUpdate(dt))
+        _scriptEngine.update(dt);
+
+        // Update dynamic doors & dispatch triggers
         if (_map) {
-            for (auto& door : _map->doors) {
+            for (size_t i = 0; i < _map->doors.size(); ++i) {
+                auto& door = _map->doors[i];
                 float dist = std::sqrt(
                     (door.position.x - _playerPos.x) * (door.position.x - _playerPos.x) +
                     (door.position.z - _playerPos.z) * (door.position.z - _playerPos.z)
                 );
                 bool shouldOpen = (dist <= door.triggerRadius && !door.isLocked);
+                if (shouldOpen && !door.isOpen) {
+                    door.isOpen = true;
+                    _scriptEngine.callOnTriggerEnter((int)i, 0);
+                } else if (!shouldOpen && door.isOpen) {
+                    door.isOpen = false;
+                }
+
                 float targetProg = shouldOpen ? 1.0f : 0.0f;
                 if (door.currentProgress < targetProg) {
                     door.currentProgress = std::min(targetProg, door.currentProgress + door.openSpeed * dt);
@@ -236,7 +332,28 @@ public:
                     door.currentProgress = std::max(targetProg, door.currentProgress - door.openSpeed * dt);
                 }
             }
+
+            // Weapon Spawner proximity: pickup collection & mission card progression
+            for (size_t i = 0; i < _map->weaponSpawners.size(); ++i) {
+                if (_weaponPadCollected[i]) continue;
+                const auto& wsp = _map->weaponSpawners[i];
+                float dist = std::sqrt(
+                    (wsp.position.x - _playerPos.x) * (wsp.position.x - _playerPos.x) +
+                    (wsp.position.z - _playerPos.z) * (wsp.position.z - _playerPos.z)
+                );
+                if (dist < 1.8f) {
+                    _weaponPadCollected[i] = true;
+                    _cardsCollected = std::min(_totalCards, _cardsCollected + 1);
+                    _currentWeaponName = wsp.getWeaponName();
+                    _scriptEngine.callOnTriggerEnter((int)i, 1);
+                }
+            }
         }
+
+        // Mission Progress dispatch
+        auto [progStatus, progMsg] = _scriptEngine.callMissionProgress(_cardsCollected, _missionTimer);
+        if (!progStatus.empty()) _missionStatus = progStatus;
+        if (!progMsg.empty()) _missionMessage = progMsg;
     }
 
     void resolveCollisions(Vec3& pos) {
@@ -263,7 +380,7 @@ public:
                 // Calculate penetration depths
                 float dLeft   = pMax.x - bMin.x;
                 float dRight  = bMax.x - pMin.x;
-                float dBottom = pMax.y - bMin.y;
+                [[maybe_unused]] float dBottom = pMax.y - bMin.y;
                 float dTop    = bMax.y - pMin.y;
                 float dFront  = pMax.z - bMin.z;
                 float dBack   = bMax.z - pMin.z;
@@ -363,9 +480,32 @@ public:
             }
 
             // Render weapon spawners / pickups
-            for (const auto& wsp : _map->weaponSpawners) {
+            for (size_t i = 0; i < _map->weaponSpawners.size(); ++i) {
+                const auto& wsp = _map->weaponSpawners[i];
                 Vec3 pPos = wsp.position + Vec3(0, 0.4f, 0);
-                Renderer::drawCube(pPos, Vec3(0.6f, 0.2f, 0.3f), Vec3(0.9f, 0.8f, 0.2f));
+                Vec3 col = _weaponPadCollected[i] ? Vec3(0.3f, 0.3f, 0.3f) : Vec3(0.9f, 0.8f, 0.2f);
+                Renderer::drawCube(pPos, Vec3(0.6f, 0.2f, 0.3f), col);
+            }
+
+            // Render 2D Sprites (World Billboards in 3D)
+            for (const auto& sp : _map->sprites) {
+                Texture* tex = sp.texturePath.empty() ? nullptr : getTexture(sp.texturePath);
+                if (!sp.texturePath.empty() && !tex) {
+                    LabLog::warn("Missing texture for sprite_2d: " + sp.texturePath);
+                }
+                Vec3 halfScale(sp.size.x * 0.5f, sp.size.y * 0.5f, 0.05f);
+                if (!_camera.isInFrustum(sp.position - halfScale, sp.position + halfScale)) continue;
+
+                if (sp.billboard) {
+                    float dx = _camera.getPosition().x - sp.position.x;
+                    float dz = _camera.getPosition().z - sp.position.z;
+                    float rotY = std::atan2(dx, dz) * (180.0f / 3.14159265f);
+                    Renderer::drawCube(sp.position, Vec3(0.0f, rotY, 0.0f), Vec3(sp.size.x, sp.size.y, 0.02f),
+                                       Vec3(sp.color.x, sp.color.y, sp.color.z), tex, false);
+                } else {
+                    Renderer::drawCube(sp.position, Vec3(0.0f, sp.rotation, 0.0f), Vec3(sp.size.x, sp.size.y, 0.02f),
+                                       Vec3(sp.color.x, sp.color.y, sp.color.z), tex, false);
+                }
             }
         }
 
@@ -383,14 +523,29 @@ public:
         Renderer::drawRect(cx - 6.0f, cy - 1.0f, 12.0f, 2.0f, Vec3(1.0f, 1.0f, 1.0f));
         Renderer::drawRect(cx - 1.0f, cy - 6.0f, 2.0f, 12.0f, Vec3(1.0f, 1.0f, 1.0f));
 
-        // Game watermark in top-left
-        LabFont::drawText(16.0f, 16.0f, _gameTitle, 1.8f, Vec3(1.0f, 0.95f, 0.8f), LabFontType::System);
-        if (_map) {
-            LabFont::drawText(16.0f, 38.0f, "Sector: " + _map->metadata.name, 1.3f, Vec3(0.6f, 0.7f, 0.85f), LabFontType::System);
+        // Render Custom HUD if loaded from .labhud
+        if (_hudProject) {
+            renderCustomHUD(w, h);
+        } else {
+            // Default Minimal In-Game HUD
+            LabFont::drawText(16.0f, 16.0f, _gameTitle, 1.8f, Vec3(1.0f, 0.95f, 0.8f), LabFontType::System);
+            if (_map) {
+                LabFont::drawText(16.0f, 38.0f, "Sector: " + _map->metadata.name, 1.3f, Vec3(0.6f, 0.7f, 0.85f), LabFontType::System);
+            }
+            LabFont::drawText(16.0f, h - 28.0f, "WASD: Move | SPACE: Jump | SHIFT: Sprint | ESC: Pause Menu", 1.2f, Vec3(0.7f, 0.7f, 0.7f), LabFontType::System);
         }
 
-        // Controls hint in bottom-left
-        LabFont::drawText(16.0f, h - 28.0f, "WASD: Move | SPACE: Jump | SHIFT: Sprint | ESC: Pause Menu", 1.2f, Vec3(0.7f, 0.7f, 0.7f), LabFontType::System);
+        // Window Focus Hint: displayed when mouse is not captured
+        if (!isCursorCaptured() && !_isPaused) {
+            float bw = 380.0f;
+            float bh = 42.0f;
+            float bx = (w - bw) * 0.5f;
+            float by = cy + 45.0f;
+
+            Renderer::drawRect(bx, by, bw, bh, Vec3(0.08f, 0.10f, 0.14f));
+            Renderer::drawRect(bx + 2, by + 2, bw - 4, bh - 4, Vec3(0.18f, 0.22f, 0.30f));
+            LabFont::drawText(bx + 22.0f, by + 12.0f, "Kliknij, aby zlapac mysz", 1.4f, Vec3(1.0f, 0.90f, 0.25f), LabFontType::System);
+        }
 
         // Pause Menu Overlay
         if (_isPaused) {
@@ -412,6 +567,105 @@ public:
         }
 
         Renderer::endUI();
+    }
+
+    void renderCustomHUD(float screenW, float screenH) {
+        if (!_hudProject) return;
+
+        float projW = _hudProject->resolutionW > 0.0f ? _hudProject->resolutionW : 1920.0f;
+        float projH = _hudProject->resolutionH > 0.0f ? _hudProject->resolutionH : 1080.0f;
+        float scaleX = screenW / projW;
+        float scaleY = screenH / projH;
+        float fontScale = std::min(scaleX, scaleY);
+
+        for (const auto& root : _hudProject->rootElements) {
+            renderHUDElement(root, {0.0f, 0.0f}, scaleX, scaleY, fontScale, screenW, screenH, true);
+        }
+    }
+
+    void renderHUDElement(const HUDElement& elem, const Vec2& parentPos,
+                          float scaleX, float scaleY, float fontScale,
+                          float screenW, float screenH, bool isRoot) {
+        if (!elem.visible) return;
+
+        Vec2 absPos;
+        float elemW = elem.w * scaleX;
+        float elemH = elem.h * scaleY;
+
+        if (isRoot) {
+            Vec2 anchorOffset = {0.0f, 0.0f};
+            switch (elem.anchor) {
+                case HUDAnchor::TopLeft:      anchorOffset = {0.0f, 0.0f}; break;
+                case HUDAnchor::TopCenter:    anchorOffset = {screenW * 0.5f, 0.0f}; break;
+                case HUDAnchor::TopRight:     anchorOffset = {screenW, 0.0f}; break;
+                case HUDAnchor::CenterLeft:   anchorOffset = {0.0f, screenH * 0.5f}; break;
+                case HUDAnchor::Center:       anchorOffset = {screenW * 0.5f, screenH * 0.5f}; break;
+                case HUDAnchor::CenterRight:  anchorOffset = {screenW, screenH * 0.5f}; break;
+                case HUDAnchor::BottomLeft:   anchorOffset = {0.0f, screenH}; break;
+                case HUDAnchor::BottomCenter: anchorOffset = {screenW * 0.5f, screenH}; break;
+                case HUDAnchor::BottomRight:  anchorOffset = {screenW, screenH}; break;
+            }
+            absPos = { anchorOffset.x + elem.x * scaleX, anchorOffset.y + elem.y * scaleY };
+        } else {
+            absPos = { parentPos.x + elem.x * scaleX, parentPos.y + elem.y * scaleY };
+        }
+
+        // Render Background & Borders
+        if (elem.type == HUDElementType::Card || elem.type == HUDElementType::Panel || elem.type == HUDElementType::Rect) {
+            Renderer::drawRect(absPos.x, absPos.y, elemW, elemH, elem.color);
+            if (elem.borderWidth > 0.0f) {
+                float bw = std::max(1.0f, elem.borderWidth * fontScale);
+                Renderer::drawRect(absPos.x, absPos.y, elemW, bw, elem.borderColor);
+                Renderer::drawRect(absPos.x, absPos.y + elemH - bw, elemW, bw, elem.borderColor);
+                Renderer::drawRect(absPos.x, absPos.y, bw, elemH, elem.borderColor);
+                Renderer::drawRect(absPos.x + elemW - bw, absPos.y, bw, elemH, elem.borderColor);
+            }
+        }
+
+        // Resolve text & binding
+        std::string textToDraw = elem.text;
+        if (!elem.binding.empty()) {
+            textToDraw = resolveHUDValue(elem.binding);
+        } else if (ScriptEngine::getHUDText(elem.id) != "") {
+            textToDraw = ScriptEngine::getHUDText(elem.id);
+        }
+
+        if (!textToDraw.empty() && (elem.type == HUDElementType::Label || elem.type == HUDElementType::Button || elem.type == HUDElementType::Card)) {
+            float fSize = elem.fontSize * fontScale;
+            LabFont::drawText(absPos.x, absPos.y, textToDraw, fSize, elem.color, (LabFontType)elem.fontType);
+        }
+
+        // Render nested children
+        for (const auto& child : elem.children) {
+            renderHUDElement(child, absPos, scaleX, scaleY, fontScale, screenW, screenH, false);
+        }
+    }
+
+    std::string resolveHUDValue(const std::string& binding) {
+        if (binding == "mission.cards") {
+            return std::to_string(_cardsCollected) + "/" + std::to_string(_totalCards);
+        }
+        if (binding == "mission.timer" || binding == "match.timer") {
+            return std::to_string((int)std::ceil(std::max(0.0f, _missionTimer)));
+        }
+        if (binding == "player.health") {
+            return std::to_string((int)_playerHealth);
+        }
+        if (binding == "weapon.name") {
+            return _currentWeaponName;
+        }
+        if (binding == "weapon.clip" || binding == "player.ammo") {
+            return std::to_string(_weaponClip) + "/" + std::to_string(_weaponReserve);
+        }
+        if (binding == "mission.name") {
+            return _scriptEngine.getMissionName().empty() ? _gameTitle : _scriptEngine.getMissionName();
+        }
+        if (binding == "mission.status") {
+            return _missionStatus;
+        }
+        std::string dynamicVal = ScriptEngine::getHUDText(binding);
+        if (!dynamicVal.empty()) return dynamicVal;
+        return "";
     }
 
     Texture* getTexture(const std::string& path) {
@@ -442,49 +696,83 @@ public:
 private:
     std::string _gameTitle;
     std::string _scenePath;
+    std::string _hudPath;
+    std::string _rulesPath;
+
     Camera _camera;
     std::unique_ptr<LabMap> _map;
+    std::unique_ptr<HUDProject> _hudProject;
+    ScriptEngine _scriptEngine;
+
     Vec3 _playerPos;
     Vec3 _playerVel;
     bool _isGrounded;
     bool _isPaused;
 
+    // Mission & Player State
+    int _cardsCollected;
+    int _totalCards;
+    float _missionTimer;
+    float _playerHealth;
+    std::string _currentWeaponName;
+    int _weaponClip;
+    int _weaponReserve;
+    std::string _missionStatus;
+    std::string _missionMessage;
+    std::vector<bool> _weaponPadCollected;
+
     std::unordered_map<std::string, std::unique_ptr<Texture>> _textures;
     std::unordered_map<std::string, std::unique_ptr<Mesh>> _meshes;
 };
 
-// Simple config parser
+// Launch configuration
 struct GameLaunchConfig {
     std::string title = "Lab Game";
     std::string scene = "assets/maps/cryo_complex.labmap";
+    std::string hud = "";
+    std::string rules = "";
     int width = 1280;
     int height = 720;
     bool fullscreen = false;
 };
 
-static GameLaunchConfig loadGameConfig() {
+static void parseConfigStream(std::istream& stream, GameLaunchConfig& cfg) {
+    std::string line;
+    while (std::getline(stream, line)) {
+        size_t eq = line.find('=');
+        if (eq != std::string::npos) {
+            std::string k = line.substr(0, eq);
+            std::string v = line.substr(eq + 1);
+            k.erase(k.find_last_not_of(" \t\r\n") + 1);
+            v.erase(0, v.find_first_not_of(" \t\r\n"));
+            v.erase(v.find_last_not_of(" \t\r\n") + 1);
+            if (k == "title") cfg.title = v;
+            else if (k == "scene") cfg.scene = v;
+            else if (k == "hud") cfg.hud = v;
+            else if (k == "rules") cfg.rules = v;
+            else if (k == "width") cfg.width = std::atoi(v.c_str());
+            else if (k == "height") cfg.height = std::atoi(v.c_str());
+            else if (k == "fullscreen") cfg.fullscreen = (v == "1" || v == "true");
+        }
+    }
+}
+
+static GameLaunchConfig loadGameConfig(const std::string& specificConfig = "") {
     GameLaunchConfig cfg;
 
-    // 1. Try game.config (key=value)
+    if (!specificConfig.empty() && std::filesystem::exists(specificConfig)) {
+        std::ifstream file(specificConfig);
+        if (file.is_open()) {
+            parseConfigStream(file, cfg);
+            file.close();
+            return cfg;
+        }
+    }
+
+    // 1. Try game.config in current working directory
     std::ifstream cfgFile("game.config");
     if (cfgFile.is_open()) {
-        std::string line;
-        while (std::getline(cfgFile, line)) {
-            size_t eq = line.find('=');
-            if (eq != std::string::npos) {
-                std::string k = line.substr(0, eq);
-                std::string v = line.substr(eq + 1);
-                // Trim
-                k.erase(k.find_last_not_of(" \t\r\n") + 1);
-                v.erase(0, v.find_first_not_of(" \t\r\n"));
-                v.erase(v.find_last_not_of(" \t\r\n") + 1);
-                if (k == "title") cfg.title = v;
-                else if (k == "scene") cfg.scene = v;
-                else if (k == "width") cfg.width = std::atoi(v.c_str());
-                else if (k == "height") cfg.height = std::atoi(v.c_str());
-                else if (k == "fullscreen") cfg.fullscreen = (v == "1" || v == "true");
-            }
-        }
+        parseConfigStream(cfgFile, cfg);
         cfgFile.close();
         return cfg;
     }
@@ -521,7 +809,15 @@ static GameLaunchConfig loadGameConfig() {
 int main(int argc, char* argv[]) {
     LabLog::info("Starting Lab Universal Player (LabPlayer Standalone)...");
 
-    GameLaunchConfig config = loadGameConfig();
+    std::string customConfigFile = "";
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--config" && i + 1 < argc) {
+            customConfigFile = argv[++i];
+        }
+    }
+
+    GameLaunchConfig config = loadGameConfig(customConfigFile);
 
     // Command-line overrides
     for (int i = 1; i < argc; ++i) {
@@ -534,10 +830,65 @@ int main(int argc, char* argv[]) {
             config.width = std::atoi(argv[++i]);
         } else if (arg == "--height" && i + 1 < argc) {
             config.height = std::atoi(argv[++i]);
+        } else if (arg == "--hud" && i + 1 < argc) {
+            config.hud = argv[++i];
+        } else if (arg == "--rules" && i + 1 < argc) {
+            config.rules = argv[++i];
         }
     }
 
-    LabPlayerApp app(config.title, config.width, config.height, config.scene);
+    // Auto-detect game config, HUD and rules if not specified directly
+    if (config.hud.empty() || config.rules.empty()) {
+        std::string sceneStem = std::filesystem::path(config.scene).stem().string();
+        std::vector<std::string> candidateConfigs = {
+            "games/labrunner_escape/game.config",
+            "games/" + sceneStem + "/game.config"
+        };
+        if (std::filesystem::exists("games")) {
+            for (const auto& entry : std::filesystem::recursive_directory_iterator("games")) {
+                if (entry.path().filename() == "game.config") {
+                    candidateConfigs.push_back(entry.path().string());
+                }
+            }
+        }
+
+        for (const auto& cpath : candidateConfigs) {
+            if (!std::filesystem::exists(cpath)) continue;
+            std::ifstream f(cpath);
+            if (!f.is_open()) continue;
+            GameLaunchConfig candidate;
+            parseConfigStream(f, candidate);
+            f.close();
+
+            std::string candSceneStem = std::filesystem::path(candidate.scene).stem().string();
+            if (candidate.scene == config.scene || candSceneStem == sceneStem ||
+                (sceneStem.find("labrunner") != std::string::npos && candSceneStem.find("labrunner") != std::string::npos)) {
+                if (config.hud.empty() && !candidate.hud.empty()) config.hud = candidate.hud;
+                if (config.rules.empty() && !candidate.rules.empty()) config.rules = candidate.rules;
+                if (config.title == "Lab Game" && !candidate.title.empty()) config.title = candidate.title;
+                break;
+            }
+        }
+
+        // Conventional asset paths
+        if (config.hud.empty()) {
+            std::string h1 = "assets/hud_projects/" + sceneStem + ".labhud";
+            std::string h2 = "assets/hud_projects/labrunner_escape.labhud";
+            if (std::filesystem::exists(h1)) config.hud = h1;
+            else if (sceneStem.find("labrunner") != std::string::npos && std::filesystem::exists(h2)) config.hud = h2;
+        }
+
+        if (config.rules.empty()) {
+            std::string r1 = "assets/scripts/" + sceneStem + "_rules.lua";
+            std::string r2 = "assets/scripts/qa_labrunner_rules.lua";
+            if (std::filesystem::exists(r1)) config.rules = r1;
+            else if (sceneStem.find("labrunner") != std::string::npos && std::filesystem::exists(r2)) config.rules = r2;
+        }
+    }
+
+    LabLog::info("Game: '" + config.title + "' | Scene: '" + config.scene + "' | HUD: '" + config.hud + "' | Rules: '" + config.rules + "'");
+
+    LabPlayerApp app(config.title, config.width, config.height, config.scene, config.hud, config.rules);
     app.run();
 
     return 0;

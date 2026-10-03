@@ -97,6 +97,15 @@ namespace Lab {
         static void setHUDVisible(const std::string& id, bool visible);
         static bool isHUDVisible(const std::string& id);
 
+        // Mission & Gameplay Rules queried from Lua
+        int getMissionCardCount() const { return _missionCardCount; }
+        float getMissionTimeLimit() const { return _missionTimeLimit; }
+        const std::string& getMissionName() const { return _missionName; }
+        const std::string& getMissionStartText() const { return _missionStartText; }
+
+        std::pair<std::string, std::string> callMissionProgress(int cardsCollected, float timeLeft);
+        void callOnTriggerEnter(int entityId, int otherEntityId);
+
         bool isLoaded() const { return _L != nullptr; }
 
     private:
@@ -120,6 +129,10 @@ namespace Lab {
         float _weaponPadRespawnTime = 60.0f;
 
         std::vector<WeaponScriptDef> _weaponDefs;
+        int _missionCardCount = 3;
+        float _missionTimeLimit = 300.0f;
+        std::string _missionName = "";
+        std::string _missionStartText = "";
 
         void registerEngineBindings();
         void cacheGameplayTables();

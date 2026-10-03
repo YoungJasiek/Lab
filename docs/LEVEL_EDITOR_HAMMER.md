@@ -34,12 +34,18 @@ Level geometry is created using convex brush volumes:
 ## 3. Entity Authoring & Placement
 
 Beyond static geometry, designers place dynamic game entities:
-- **Player Spawn Nodes (`spawn_point`):** Team-assigned or deathmatch spawn locations with orientation yaw.
+- **Player Spawn Nodes (`spawn_point` / `spawn`):** Team-assigned or deathmatch spawn locations with orientation yaw in degrees.
+  - **Spawn Yaw Convention:** Consistent with `LabCamera` spherical coordinate system where $\text{forward} = (\cos(\text{yaw}), 0, \sin(\text{yaw}))$.
+    - $\text{yaw} = 0^\circ$: Facing $+X$ (East)
+    - $\text{yaw} = 90^\circ$: Facing $+Z$ (South)
+    - $\text{yaw} = 180^\circ$: Facing $-Z$ (North / into standard arena corridor)
+    - $\text{yaw} = 270^\circ$: Facing $-X$ (West)
 - **Weapon Spawners (`weapon_spawner`):** Rotational item pedestals spawning specific weapon pickups with configurable respawn delay timers.
 - **Omni & Spot Lights (`light`):** Point light sources with custom RGB color, intensity, and attenuation radius.
 - **Dynamic Airlocks & Blast Doors (`door`):** Translating physical doors with opening axis, speed, sound, and linked biometric retinal scanner IDs.
 - **Biometric Retinal Scanners (`retinal_scanner`):** Interactive security terminals requiring authentication to unlock doors.
 - **Destructible Props (`prop`):** Wooden crates and explosive red barrels subject to Newtonian physics.
+- **2D World Sprites (`sprite_2d`):** 2D quad entities placed in 3D space with billboard and rotation support.
 
 ---
 

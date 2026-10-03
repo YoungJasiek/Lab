@@ -492,7 +492,11 @@ namespace Lab {
           _medkitHeal(other._medkitHeal),
           _ammoBoxAmount(other._ammoBoxAmount),
           _weaponPadRespawnTime(other._weaponPadRespawnTime),
-          _weaponDefs(std::move(other._weaponDefs)) {
+          _weaponDefs(std::move(other._weaponDefs)),
+          _missionCardCount(other._missionCardCount),
+          _missionTimeLimit(other._missionTimeLimit),
+          _missionName(std::move(other._missionName)),
+          _missionStartText(std::move(other._missionStartText)) {
         other._L = nullptr;
     }
 
@@ -514,6 +518,10 @@ namespace Lab {
             _ammoBoxAmount = other._ammoBoxAmount;
             _weaponPadRespawnTime = other._weaponPadRespawnTime;
             _weaponDefs = std::move(other._weaponDefs);
+            _missionCardCount = other._missionCardCount;
+            _missionTimeLimit = other._missionTimeLimit;
+            _missionName = std::move(other._missionName);
+            _missionStartText = std::move(other._missionStartText);
         }
         return *this;
     }
@@ -869,6 +877,65 @@ namespace Lab {
         std::sort(_weaponDefs.begin(), _weaponDefs.end(), [](const auto& a, const auto& b) {
             return a.id < b.id;
         });
+
+        // 5. Mission table (rules & objectives)
+        lua_getglobal(_L, "Mission");
+        if (lua_istable(_L, -1)) {
+            lua_getfield(_L, -1, "cardCount");
+            if (lua_isnumber(_L, -1)) _missionCardCount = (int)lua_tonumber(_L, -1);
+            lua_pop(_L, 1);
+
+            lua_getfield(_L, -1, "timeLimit");
+            if (lua_isnumber(_L, -1)) _missionTimeLimit = (float)lua_tonumber(_L, -1);
+            lua_pop(_L, 1);
+
+            lua_getfield(_L, -1, "name");
+            if (lua_isstring(_L, -1)) _missionName = lua_tostring(_L, -1);
+            lua_pop(_L, 1);
+
+            lua_getfield(_L, -1, "startText");
+            if (lua_isstring(_L, -1)) _missionStartText = lua_tostring(_L, -1);
+            lua_pop(_L, 1);
+        }
+        lua_pop(_L, 1);
+    }
+
+    std::pair<std::string, std::string> ScriptEngine::callMissionProgress(int cardsCollected, float timeLeft) {
+        if (!_L) return {"", ""};
+        lua_getglobal(_L, "MissionProgress");
+        if (lua_isfunction(_L, -1)) {
+            lua_pushinteger(_L, cardsCollected);
+            lua_pushnumber(_L, (lua_Number)timeLeft);
+            if (lua_pcall(_L, 2, 2, 0) == LUA_OK) {
+                std::string status = lua_tostring(_L, -2) ? lua_tostring(_L, -2) : "";
+                std::string msg = lua_tostring(_L, -1) ? lua_tostring(_L, -1) : "";
+                lua_pop(_L, 2);
+                return {status, msg};
+            } else {
+                const char* err = lua_tostring(_L, -1);
+                LabLog::error(std::string("[Lua MissionProgress Error] ") + (err ? err : "unknown"));
+                lua_pop(_L, 1);
+            }
+        } else {
+            lua_pop(_L, 1);
+        }
+        return {"", ""};
+    }
+
+    void ScriptEngine::callOnTriggerEnter(int entityId, int otherEntityId) {
+        if (!_L) return;
+        lua_getglobal(_L, "OnTriggerEnter");
+        if (lua_isfunction(_L, -1)) {
+            lua_pushinteger(_L, entityId);
+            lua_pushinteger(_L, otherEntityId);
+            if (lua_pcall(_L, 2, 0, 0) != LUA_OK) {
+                const char* err = lua_tostring(_L, -1);
+                LabLog::error(std::string("[Lua OnTriggerEnter Error] ") + (err ? err : "unknown"));
+                lua_pop(_L, 1);
+            }
+        } else {
+            lua_pop(_L, 1);
+        }
     }
 
     DamageResult ScriptEngine::calculateDamage(float incomingDamage, float currentArmor, float currentHealth) {

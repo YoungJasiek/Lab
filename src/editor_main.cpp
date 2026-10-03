@@ -3725,9 +3725,9 @@ public:
                 Renderer::drawWireCube(sp.position, Vec3(0.8f, 1.8f, 0.8f), teamCol);
                 Renderer::drawCube(sp.position + Vec3(0.0f, 0.55f, 0.0f), Vec3(0.35f, 0.35f, 0.35f), teamCol * 0.85f, nullptr, false);
 
-                // Yaw directional pointer arrow
+                // Yaw directional pointer arrow (Engine convention: cos(yaw) along X, sin(yaw) along Z; yaw 180 = -Z)
                 float rad = sp.yaw * 3.14159265f / 180.0f;
-                Vec3 fwd(std::sin(rad), 0.0f, std::cos(rad));
+                Vec3 fwd(std::cos(rad), 0.0f, std::sin(rad));
                 Vec3 arrowPos = sp.position + fwd * 0.85f + Vec3(0.0f, -0.2f, 0.0f);
                 Renderer::drawCube(arrowPos, Vec3(0.18f, 0.18f, 0.42f), teamCol, nullptr, false);
             }
