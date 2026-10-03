@@ -6,7 +6,7 @@
 
 namespace Lab {
 
-    /// @brief 1 kod 1 plugin: Standalone Speedrun Splits & Live Telemetry Overlay Plugin
+    /// @brief Standalone Modular Speedrun Splits & Live Telemetry Overlay Plugin
     class LAB_CORE_API SpeedrunTelemetryPlugin : public ILabPlugin {
     public:
         SpeedrunTelemetryPlugin();

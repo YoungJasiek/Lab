@@ -5,7 +5,7 @@
 
 namespace Lab {
 
-    /// @brief 1 kod 1 plugin: Standalone Discord Rich Presence & Social Integration Plugin
+    /// @brief Standalone Modular Discord Rich Presence & Social Integration Plugin
     class LAB_CORE_API DiscordRPCPlugin : public ILabPlugin {
     public:
         DiscordRPCPlugin();

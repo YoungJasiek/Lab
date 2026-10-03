@@ -10,7 +10,7 @@ namespace Lab {
     struct MapBrush;
     using LabBrush = MapBrush;
 
-    /// @brief 1 kod 1 plugin: Standalone Procedural Level & Dungeon Generator Plugin
+    /// @brief Standalone Modular Procedural Level & Dungeon Generator Plugin
     class LAB_CORE_API ProceduralLevelPlugin : public ILabPlugin {
     public:
         ProceduralLevelPlugin();

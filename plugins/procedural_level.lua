@@ -1,6 +1,6 @@
 -- =========================================================================
 -- Plugin: Procedural Level & Dungeon Generator (Blender/Unity Add-on Standard)
--- 1 kod 1 plugin: Standalone Lua Plugin File
+-- Standalone Modular Lua Plugin
 -- =========================================================================
 
 Plugin = {

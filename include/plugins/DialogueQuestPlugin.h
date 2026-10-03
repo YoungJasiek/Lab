@@ -6,7 +6,7 @@
 
 namespace Lab {
 
-    /// @brief 1 kod 1 plugin: Standalone Branching Dialogue & Quest System Plugin
+    /// @brief Standalone Modular Branching Dialogue & Quest System Plugin
     class LAB_CORE_API DialogueQuestPlugin : public ILabPlugin {
     public:
         DialogueQuestPlugin();

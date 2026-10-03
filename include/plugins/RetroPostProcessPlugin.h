@@ -4,7 +4,7 @@
 
 namespace Lab {
 
-    /// @brief 1 kod 1 plugin: Standalone Retro CRT & Post-Process Shaders FX Plugin
+    /// @brief Standalone Modular Retro CRT & Post-Process Shaders FX Plugin
     class LAB_CORE_API RetroPostProcessPlugin : public ILabPlugin {
     public:
         RetroPostProcessPlugin();

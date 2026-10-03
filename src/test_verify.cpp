@@ -8308,9 +8308,9 @@ int main() {
     }
 
     // ==========================================
-    // TEST 78: Modular Plugin Architecture ("1 kod 1 plugin") & Unity/Blender Package Manager
+    // TEST 78: Modular Single-File Plugin Architecture & Package Manager
     // ==========================================
-    std::cout << "[Test 78] Running Modular Plugin Architecture (1 kod 1 plugin) Verification...\n";
+    std::cout << "[Test 78] Running Modular Plugin Architecture Verification...\n";
     {
         // Sub-test A: Independent Plugin Class Verification
         auto p1 = std::make_shared<Lab::ProceduralLevelPlugin>();
@@ -8354,7 +8354,7 @@ int main() {
             std::cerr << "Assertion failed: p8 metadata mismatch!\n";
             return 1;
         }
-        std::cout << "  [PASS] Sub-test A: 8 standalone plugin classes verified as independent translation units (1 kod 1 plugin).\n";
+        std::cout << "  [PASS] Sub-test A: 8 standalone plugin classes verified as independent translation units.\n";
 
         // Sub-test B: PackageManager Builtin Registration & Filtering
         auto& pm = Lab::PackageManager::instance();
@@ -8484,7 +8484,7 @@ int main() {
         }
         std::cout << "  [PASS] Sub-test G: Retro CRT Post-Process shader parameter toggle & phase tick verified.\n";
 
-        std::cout << "  [PASS] Test 78 Modular Plugin Architecture (1 kod 1 plugin) passed 100%!\n";
+        std::cout << "  [PASS] Test 78 Modular Plugin Architecture passed 100%!\n";
     }
 
     // =========================================================================

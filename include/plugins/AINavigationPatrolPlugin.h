@@ -6,7 +6,7 @@
 
 namespace Lab {
 
-    /// @brief 1 kod 1 plugin: Standalone AI Navmesh & Waypoint Patrol Circuit Plugin
+    /// @brief Standalone Modular AI Navmesh & Waypoint Patrol Circuit Plugin
     class LAB_CORE_API AINavigationPatrolPlugin : public ILabPlugin {
     public:
         AINavigationPatrolPlugin();

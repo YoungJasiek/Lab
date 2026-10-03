@@ -1,6 +1,6 @@
 -- =========================================================================
 -- Plugin: Discord Rich Presence & Social
--- 1 kod 1 plugin: Standalone Lua Plugin File
+-- Standalone Modular Lua Plugin
 -- =========================================================================
 
 Plugin = {

@@ -5,7 +5,7 @@
 
 namespace Lab {
 
-    /// @brief 1 kod 1 plugin: Standalone Arcade & Raycast Vehicle Suspension Dynamics Plugin
+    /// @brief Standalone Modular Arcade & Raycast Vehicle Suspension Dynamics Plugin
     class LAB_CORE_API ArcadeVehiclePlugin : public ILabPlugin {
     public:
         ArcadeVehiclePlugin();

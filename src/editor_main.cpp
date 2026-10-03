@@ -74,7 +74,7 @@ enum class EditorWorkspace {
     Scripting_Editor = 11,     // In-Engine Lua 5.4 Script Editor IDE with Syntax Highlighting
     Scripting_Console = 12,    // Interactive Lua REPL & Debug Console
     // Plugins & Packages (Unity Package Manager & Blender Add-ons Standard)
-    Plugins_Manager = 13,      // Full-viewport Package & Plugin Manager (1 kod 1 plugin)
+    Plugins_Manager = 13,      // Full-viewport Package & Plugin Manager (Single-File Addon Standard)
     // Engine Main Menu & Project Hub
     Project_Hub = 14,          // Full-viewport Project Browser & Main Menu (Continue / Create / Play Demo)
     // Aliases for backwards compatibility
@@ -5350,7 +5350,7 @@ public:
             LabFont::drawText(vpX + 10.0f, statY + 5.0f, statInfo, 1.25f, textDim, LabFontType::System);
         } else if (_workspace == EditorWorkspace::Plugins_Manager) {
             // Full-Viewport Package & Plugin Manager (Unity & Blender Add-ons Standard)
-            // 1 kod 1 plugin: Standalone decoupled modules
+            // Standalone decoupled modules
             Renderer::drawRect(vpX, contentY, vpW, contentH, Vec3(0.06f, 0.07f, 0.09f));
             drawDarkBevel(vpX, contentY, vpW, contentH, false);
 
@@ -5361,7 +5361,7 @@ public:
             drawDarkBevel(vpX + 4.0f, barY, vpW - 8.0f, barH, false);
 
             LabFont::drawText(vpX + 16.0f, barY + 9.0f, "EXTENSIONS: PACKAGE & PLUGIN MANAGER", 1.55f, orangeGlow, LabFontType::System);
-            LabFont::drawText(vpX + 380.0f, barY + 11.0f, "[Unity Package Manager & Blender Add-ons Standard - 1 kod 1 plugin]", 1.25f, textDim, LabFontType::System);
+            LabFont::drawText(vpX + 380.0f, barY + 11.0f, "[Package Manager & Add-on Standard - Single File Architecture]", 1.25f, textDim, LabFontType::System);
 
             // Filter buttons
             float btnX = vpX + vpW - 480.0f;
@@ -5514,7 +5514,7 @@ public:
                 Renderer::drawRect(detX + 20.0f, dy, detW - 40.0f, 85.0f, Vec3(0.06f, 0.07f, 0.09f));
                 drawDarkBevel(detX + 20.0f, dy, detW - 40.0f, 85.0f, true);
                 LabFont::drawText(detX + 30.0f, dy + 12.0f, selPkg->description, 1.38f, Vec3(0.9f, 0.92f, 0.95f), LabFontType::System);
-                std::string fileLocation = "Source Code: plugins/" + selPkg->id.substr(selPkg->id.rfind('.') + 1) + ".lua  (1 kod 1 plugin)";
+                std::string fileLocation = "Source Code: plugins/" + selPkg->id.substr(selPkg->id.rfind('.') + 1) + ".lua  (Standalone Plugin)";
                 LabFont::drawText(detX + 30.0f, dy + 45.0f, fileLocation, 1.25f, orangeGlow, LabFontType::System);
                 dy += 100.0f;
 

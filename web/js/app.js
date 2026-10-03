@@ -100,12 +100,12 @@ const WIKI_SEARCH_INDEX = [
   // index.html
   { title: "Main Page", url: "index.html", cat: "Portal", snippet: "Lab Developer Community central documentation hub and overview." },
   { title: "Project Hub & Main Menu", url: "project-hub.html", cat: "Portal", snippet: "Engine main menu, project launcher, asset decoupling (engine:// vs game://), and standalone exporter." },
-  { title: "Modular Drop-in Plugins", url: "plugins.html", cat: "Portal", snippet: "Decentralized Unity/Blender-style Lua plugins (1 kod = 1 plugin) with in-engine Package Manager GUI." },
+  { title: "Modular Drop-in Plugins", url: "plugins.html", cat: "Portal", snippet: "Decentralized single-file Lua plugins with in-engine Package Manager GUI." },
   { title: "Featured Subject: LabHammer", url: "labhammer.html", cat: "Portal", snippet: "The official standalone 3D level editor for the Lab Engine and Frozen-Life." },
   { title: "Latest Release: Frozen-Life Alpha", url: "frozen-life.html", cat: "Portal", snippet: "First playable test build v0.1.0-alpha featuring 2 maps and multiplayer foundation." },
 
   // plugins.html
-  { title: "Modular Plugins: 1 Kod = 1 Plugin", url: "plugins.html#sec-philosophy", cat: "Plugins", snippet: "Decentralized single-file Lua plugin architecture without monolithic script merges." },
+  { title: "Modular Plugins: Single-File Architecture", url: "plugins.html#sec-philosophy", cat: "Plugins", snippet: "Decentralized single-file Lua plugin architecture without monolithic script merges." },
   { title: "Modular Plugins: Drop-in Discovery", url: "plugins.html#sec-discovery", cat: "Plugins", snippet: "Filesystem scan of plugins/*.lua with standard metadata headers." },
   { title: "Modular Plugins: Package Manager GUI", url: "plugins.html#sec-package-manager", cat: "Plugins", snippet: "In-engine Package Manager modal with search, category filters, and live toggle switches." },
   { title: "Modular Plugins: 9 Showcase Plugins", url: "plugins.html#sec-showcase", cat: "Plugins", snippet: "Showcase plugins including AI Patrol, Vehicle Physics, Dialogue Quest, CRT Shaders, and Voxel Terrain." },

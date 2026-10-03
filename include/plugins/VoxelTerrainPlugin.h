@@ -5,7 +5,7 @@
 
 namespace Lab {
 
-    /// @brief 1 kod 1 plugin: Standalone Voxel Grid Terrain & Sculptor Plugin
+    /// @brief Standalone Modular Voxel Grid Terrain & Sculptor Plugin
     class LAB_CORE_API VoxelTerrainPlugin : public ILabPlugin {
     public:
         VoxelTerrainPlugin();

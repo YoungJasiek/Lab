@@ -1,6 +1,6 @@
 -- =========================================================================
 -- Plugin: AI Navmesh & Waypoint Patrol Circuit
--- 1 kod 1 plugin: Standalone Lua Plugin File
+-- Standalone Modular Lua Plugin
 -- =========================================================================
 
 Plugin = {
