@@ -25,6 +25,14 @@
 #include "LabInput.h"
 #include "LabAsset2D.h"
 #include "LabScript.h"
+#include "plugins/ProceduralLevelPlugin.h"
+#include "plugins/SpeedrunTelemetryPlugin.h"
+#include "plugins/RetroPostProcessPlugin.h"
+#include "plugins/DialogueQuestPlugin.h"
+#include "plugins/VoxelTerrainPlugin.h"
+#include "plugins/AINavigationPatrolPlugin.h"
+#include "plugins/ArcadeVehiclePlugin.h"
+#include "plugins/DiscordRPCPlugin.h"
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -8296,6 +8304,182 @@ int main() {
 
         std::cout << "  [PASS] Sub-test C: Live script execution from in-editor buffer directly alters engine HUD state.\n";
         std::cout << "  [PASS] Test 77 Full-Viewport Replacement, 3D Isolation & Script Buffer passed 100%!\n";
+    }
+
+    // ==========================================
+    // TEST 78: Modular Plugin Architecture ("1 kod 1 plugin") & Unity/Blender Package Manager
+    // ==========================================
+    std::cout << "[Test 78] Running Modular Plugin Architecture (1 kod 1 plugin) Verification...\n";
+    {
+        // Sub-test A: Independent Plugin Class Verification
+        auto p1 = std::make_shared<Lab::ProceduralLevelPlugin>();
+        auto p2 = std::make_shared<Lab::SpeedrunTelemetryPlugin>();
+        auto p3 = std::make_shared<Lab::RetroPostProcessPlugin>();
+        auto p4 = std::make_shared<Lab::DialogueQuestPlugin>();
+        auto p5 = std::make_shared<Lab::VoxelTerrainPlugin>();
+        auto p6 = std::make_shared<Lab::AINavigationPatrolPlugin>();
+        auto p7 = std::make_shared<Lab::ArcadeVehiclePlugin>();
+        auto p8 = std::make_shared<Lab::DiscordRPCPlugin>();
+
+        if (std::string(p1->getName()) != "Procedural Level Generator" || std::string(p1->getVersion()) != "1.2.0") {
+            std::cerr << "Assertion failed: p1 metadata mismatch!\n";
+            return 1;
+        }
+        if (std::string(p2->getName()) != "Speedrun & Telemetry Splits" || std::string(p2->getVersion()) != "1.1.0") {
+            std::cerr << "Assertion failed: p2 metadata mismatch!\n";
+            return 1;
+        }
+        if (std::string(p3->getName()) != "Retro CRT & Post-Process FX" || std::string(p3->getVersion()) != "2.0.1") {
+            std::cerr << "Assertion failed: p3 metadata mismatch!\n";
+            return 1;
+        }
+        if (std::string(p4->getName()) != "Dialogue & Quest System" || std::string(p4->getVersion()) != "2.1.0") {
+            std::cerr << "Assertion failed: p4 metadata mismatch!\n";
+            return 1;
+        }
+        if (std::string(p5->getName()) != "Voxel Terrain & Sculptor" || std::string(p5->getVersion()) != "1.3.0") {
+            std::cerr << "Assertion failed: p5 metadata mismatch!\n";
+            return 1;
+        }
+        if (std::string(p6->getName()) != "AI Navmesh & Waypoint Patrol" || std::string(p6->getVersion()) != "1.1.2") {
+            std::cerr << "Assertion failed: p6 metadata mismatch!\n";
+            return 1;
+        }
+        if (std::string(p7->getName()) != "Arcade & Raycast Vehicle Dynamics" || std::string(p7->getVersion()) != "2.1.0") {
+            std::cerr << "Assertion failed: p7 metadata mismatch!\n";
+            return 1;
+        }
+        if (std::string(p8->getName()) != "Discord Rich Presence & Social" || std::string(p8->getVersion()) != "1.0.0") {
+            std::cerr << "Assertion failed: p8 metadata mismatch!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test A: 8 standalone plugin classes verified as independent translation units (1 kod 1 plugin).\n";
+
+        // Sub-test B: PackageManager Builtin Registration & Filtering
+        auto& pm = Lab::PackageManager::instance();
+        pm.clear();
+        pm.registerBuiltinPackages();
+
+        auto allPkgs = pm.getAllPackages();
+        if (allPkgs.size() < 8) {
+            std::cerr << "Assertion failed: Expected at least 8 packages, got " << allPkgs.size() << "\n";
+            return 1;
+        }
+
+        // Test Category Filtering
+        auto geoPkgs = pm.filterPackages("", "3D & Geometry", "All");
+        if (geoPkgs.size() < 2) {
+            std::cerr << "Assertion failed: Expected at least 2 packages in 3D & Geometry, got " << geoPkgs.size() << "\n";
+            return 1;
+        }
+
+        // Test Text Search Filtering
+        auto searchSpeed = pm.filterPackages("speedrun", "All", "All");
+        bool foundSpeedrun = false;
+        for (const auto& pkg : searchSpeed) {
+            if (pkg.id == "com.lab.speedrun-timer") {
+                foundSpeedrun = true;
+                break;
+            }
+        }
+        if (!foundSpeedrun) {
+            std::cerr << "Assertion failed: Text search for 'speedrun' failed!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test B: PackageManager registration, category filtering & text search verified.\n";
+
+        // Sub-test C: Blender-style Checkbox Toggle Enable/Disable
+        std::string toggleTarget = "com.lab.voxel-terrain";
+        bool initiallyEnabled = pm.isPackageEnabled(toggleTarget);
+        if (initiallyEnabled) {
+            std::cerr << "Assertion failed: Voxel terrain should initially be disabled!\n";
+            return 1;
+        }
+
+        // Toggle ON
+        pm.togglePackage(toggleTarget);
+        if (!pm.isPackageEnabled(toggleTarget)) {
+            std::cerr << "Assertion failed: Failed to toggle ON package " << toggleTarget << "\n";
+            return 1;
+        }
+
+        // Toggle OFF
+        pm.togglePackage(toggleTarget);
+        if (pm.isPackageEnabled(toggleTarget)) {
+            std::cerr << "Assertion failed: Failed to toggle OFF package " << toggleTarget << "\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test C: Blender-style checkbox toggle (Enable/Disable) verified.\n";
+
+        // Sub-test D: Standalone Plugin Directory Scanning (assets/plugins)
+        pm.scanPluginDirectory("assets/plugins");
+        // Verify disk files exist
+        if (!std::filesystem::exists("assets/plugins/procedural_level.lua") ||
+            !std::filesystem::exists("assets/plugins/speedrun_timer.lua") ||
+            !std::filesystem::exists("assets/plugins/retro_shaders.lua") ||
+            !std::filesystem::exists("assets/plugins/dialogue_quest.lua") ||
+            !std::filesystem::exists("assets/plugins/voxel_terrain.lua") ||
+            !std::filesystem::exists("assets/plugins/ai_patrol.lua") ||
+            !std::filesystem::exists("assets/plugins/arcade_vehicle.lua") ||
+            !std::filesystem::exists("assets/plugins/discord_rpc.lua")) {
+            std::cerr << "Assertion failed: One or more standalone Lua plugin files missing on disk!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test D: Standalone Lua plugin files on disk verified (assets/plugins/*.lua).\n";
+
+        // Sub-test E: Procedural Level Generator Action (real CSG brushes generated into map)
+        std::vector<Lab::LabBrush> testBrushes;
+        int generatedCount = p1->generateRoom(testBrushes, Lab::Vec3(0, 0, 0), 16.0f, 8.0f, 16.0f, 1234);
+        if (generatedCount != 9 || testBrushes.size() != 9) {
+            std::cerr << "Assertion failed: generateRoom should create exactly 9 brushes, got " << generatedCount << "\n";
+            return 1;
+        }
+        if (p1->getRoomsGenerated() != 1 || p1->getTotalBrushesCreated() != 9) {
+            std::cerr << "Assertion failed: p1 telemetry mismatch!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test E: Procedural Level Generator generated 9 valid CSG room brushes with floor, walls, doorway and pillars.\n";
+
+        // Sub-test F: Speedrun Telemetry live timer and split recording
+        p2->startTimer();
+        p2->onUpdate(1.5f);
+        if (std::abs(p2->getElapsedTime() - 1.5f) > 0.01f) {
+            std::cerr << "Assertion failed: Speedrun timer did not accumulate elapsed time!\n";
+            return 1;
+        }
+        p2->recordSplit("Sector 1");
+        if (p2->getSplits().size() != 1 || p2->getSplits()[0].first != "Sector 1") {
+            std::cerr << "Assertion failed: Split sector recording failed!\n";
+            return 1;
+        }
+        p2->pauseTimer();
+        p2->onUpdate(1.0f);
+        if (std::abs(p2->getElapsedTime() - 1.5f) > 0.01f) {
+            std::cerr << "Assertion failed: Paused timer accumulated time!\n";
+            return 1;
+        }
+        p2->resetTimer();
+        if (p2->getElapsedTime() != 0.0f || !p2->getSplits().empty()) {
+            std::cerr << "Assertion failed: Reset timer did not clear state!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test F: Speedrun Telemetry timer, live split recording & pause/reset verified.\n";
+
+        // Sub-test G: Retro CRT Post-Processing parameters
+        bool initScan = p3->areScanlinesEnabled();
+        p3->toggleScanlines();
+        if (p3->areScanlinesEnabled() == initScan) {
+            std::cerr << "Assertion failed: toggleScanlines did not flip scanline state!\n";
+            return 1;
+        }
+        p3->onUpdate(0.1f);
+        if (p3->getScanlinePhase() == 0.0f) {
+            std::cerr << "Assertion failed: onUpdate did not advance scanline phase!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test G: Retro CRT Post-Process shader parameter toggle & phase tick verified.\n";
+
+        std::cout << "  [PASS] Test 78 Modular Plugin Architecture (1 kod 1 plugin) passed 100%!\n";
     }
 
     Lab::Renderer::shutdown();

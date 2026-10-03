@@ -8,6 +8,15 @@
 #include "LabScript.h"
 #include "LabStudio.h"
 #include "LabHUDEditor.h"
+#include "LabPackage.h"
+#include "plugins/ProceduralLevelPlugin.h"
+#include "plugins/SpeedrunTelemetryPlugin.h"
+#include "plugins/RetroPostProcessPlugin.h"
+#include "plugins/DialogueQuestPlugin.h"
+#include "plugins/VoxelTerrainPlugin.h"
+#include "plugins/AINavigationPatrolPlugin.h"
+#include "plugins/ArcadeVehiclePlugin.h"
+#include "plugins/DiscordRPCPlugin.h"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <windows.h>
@@ -63,12 +72,15 @@ enum class EditorWorkspace {
     // Scripting Workspaces
     Scripting_Editor = 11,     // In-Engine Lua 5.4 Script Editor IDE with Syntax Highlighting
     Scripting_Console = 12,    // Interactive Lua REPL & Debug Console
+    // Plugins & Packages (Unity Package Manager & Blender Add-ons Standard)
+    Plugins_Manager = 13,      // Full-viewport Package & Plugin Manager (1 kod 1 plugin)
     // Aliases for backwards compatibility
     World3D = 0,
     Level2D = 8,
     HUD = 10,
     Animation = 1,
-    Scripting = 11
+    Scripting = 11,
+    Plugins = 13
 };
 
 enum class HUDWidgetType {
@@ -143,9 +155,13 @@ public:
         // Initialize Multi-Genre HUD Widgets (RPG, Platformer, RTS, Racing, Story)
         initDefaultHUDWidgets();
 
+        // Initialize Package & Plugin System (Unity Package Manager & Blender Add-ons Standard)
+        PackageManager::instance().registerBuiltinPackages();
+        logMessage("[Plugins] Modular plugin ecosystem loaded: 8 standalone plugins ready (1 kod 1 plugin).");
+
         logMessage("Lab Engine Studio initialized. Ready.");
         logMessage("Textures loaded: " + std::to_string(_availableTextures.size()) + " | Models: " + std::to_string(_availableModels.size()));
-        logMessage("Lua 5.4 Script Engine active. Workspaces: 3D, 2D, HUD, Animation, Scripting.");
+        logMessage("Lua 5.4 Script Engine active. Workspaces: 3D, 2D, HUD, Animation, Scripting, Plugins.");
         logMessage("Frustum Culling active: 'To czego oko nie widzi tego maszyna renderowac nie musi'");
     }
 
@@ -268,6 +284,13 @@ public:
     }
 
     void onFixedUpdate(float fixedDelta) override {
+        // Tick active modular plugins (1 kod 1 plugin)
+        PluginManager::get().updateAll(fixedDelta);
+        if (_pluginBannerTimer > 0.0f) {
+            _pluginBannerTimer -= fixedDelta;
+            if (_pluginBannerTimer <= 0.0f) _pluginStatusBanner = "";
+        }
+
         // Noclip camera flight (active ONLY in 3D level editing when holding Right Mouse Button)
         if (_workspace != EditorWorkspace::World3D_Level && _workspace != EditorWorkspace::World3D_Animation) {
             return;
@@ -367,6 +390,7 @@ public:
             case EditorWorkspace::Level2D_HUD: return "2D > HUD Canvas Designer";
             case EditorWorkspace::Scripting_Editor: return "Scripting > Lua Script Editor IDE";
             case EditorWorkspace::Scripting_Console: return "Scripting > Interactive REPL Console";
+            case EditorWorkspace::Plugins_Manager: return "Extensions > Package & Plugin Manager";
             default: return "3D > Level & Geometry Editor";
         }
     }
@@ -2543,14 +2567,14 @@ public:
             float menuX = 92.0f;
             float menuY = 24.0f;
             float menuW = 210.0f;
-            float menuH = 104.0f;
+            float menuH = 128.0f;
 
             // Check flyout subcategory menu click first if active
             if (_viewSubmenuHover >= 0) {
                 float subX = menuX + menuW;
                 float subY = menuY + _viewSubmenuHover * 24.0f;
                 float subW = 260.0f;
-                int subCount = (_viewSubmenuHover == 0) ? 8 : ((_viewSubmenuHover == 1) ? 3 : ((_viewSubmenuHover == 2) ? 2 : 3));
+                int subCount = (_viewSubmenuHover == 0) ? 8 : ((_viewSubmenuHover == 1) ? 3 : ((_viewSubmenuHover == 2) ? 2 : ((_viewSubmenuHover == 3) ? 1 : 3)));
                 float subH = 8.0f + subCount * 24.0f;
 
                 if (mx >= subX && mx <= subX + subW && my >= subY && my <= subY + subH) {
@@ -2571,7 +2595,9 @@ public:
                     } else if (_viewSubmenuHover == 2) { // Scripting Workspaces
                         if (subIdx == 0) setWorkspace(EditorWorkspace::Scripting_Editor);
                         else if (subIdx == 1) setWorkspace(EditorWorkspace::Scripting_Console);
-                    } else if (_viewSubmenuHover == 3) { // Viewport Display
+                    } else if (_viewSubmenuHover == 3) { // Plugins & Packages
+                        if (subIdx == 0) setWorkspace(EditorWorkspace::Plugins_Manager);
+                    } else if (_viewSubmenuHover == 4) { // Viewport Display
                         if (subIdx == 0) {
                             _wireframeMode = !_wireframeMode;
                             glPolygonMode(GL_FRONT_AND_BACK, _wireframeMode ? GL_LINE : GL_FILL);
@@ -2603,7 +2629,7 @@ public:
             // Check main categories box click
             if (mx >= menuX && mx <= menuX + menuW && my >= menuY && my <= menuY + menuH) {
                 int catIdx = (int)((my - menuY - 4.0f) / 24.0f);
-                if (catIdx >= 0 && catIdx < 4) {
+                if (catIdx >= 0 && catIdx < 5) {
                     _viewSubmenuHover = catIdx;
                 }
                 return;
@@ -3217,7 +3243,7 @@ public:
             return;
         }
 
-        // Viewport Tab Bar Click Handling (Seamless one-click switching between 3D Scene, Script Studio, and HUD Canvas)
+        // Viewport Tab Bar Click Handling (Seamless one-click switching between 3D Scene, Script Studio, HUD Canvas, and Plugins)
         float vpTabX = leftW;
         float vpTabY = 58.0f;
         float tabH = 26.0f;
@@ -3225,9 +3251,11 @@ public:
             float tab1X = vpTabX + 6.0f;
             float tab1W = 120.0f;
             float tab2X = tab1X + tab1W + 6.0f;
-            float tab2W = 175.0f;
+            float tab2W = 145.0f;
             float tab3X = tab2X + tab2W + 6.0f;
-            float tab3W = 150.0f;
+            float tab3W = 145.0f;
+            float tab4X = tab3X + tab3W + 6.0f;
+            float tab4W = 145.0f;
 
             if (mx >= tab1X && mx <= tab1X + tab1W) {
                 setWorkspace(EditorWorkspace::World3D_Level);
@@ -3237,6 +3265,9 @@ public:
                 return;
             } else if (mx >= tab3X && mx <= tab3X + tab3W) {
                 setWorkspace(EditorWorkspace::Level2D_HUD);
+                return;
+            } else if (mx >= tab4X && mx <= tab4X + tab4W) {
+                setWorkspace(EditorWorkspace::Plugins_Manager);
                 return;
             }
         }
@@ -3535,6 +3566,186 @@ public:
                 return;
             }
             return; // Consume click so it never triggers 3D actions
+        }
+
+        // 8.75. Package & Plugin Manager Workspace Interactions (Unity Package Manager & Blender Add-ons)
+        if (_workspace == EditorWorkspace::Plugins_Manager) {
+            float vpX = leftW;
+            float vpW = l.rightX - vpX;
+            float contentY = 58.0f + 26.0f;
+            float contentH = (h - 22.0f) - contentY;
+            float barY = contentY + 4.0f;
+            float barH = 34.0f;
+            float catY = barY + barH + 4.0f;
+            float catH = 26.0f;
+            float mainY = catY + catH + 6.0f;
+            float listW = 380.0f;
+            float listX = vpX + 6.0f;
+            float detX = listX + listW + 8.0f;
+            float detW = vpW - listW - 20.0f;
+
+            // 1. Top Filter Buttons: All, Enabled, Disabled, Import, Rescan
+            if (my >= barY + 4.0f && my <= barY + 30.0f) {
+                float btnX = vpX + vpW - 480.0f;
+                if (mx >= btnX && mx <= btnX + 65.0f) {
+                    _pluginStateFilter = "All";
+                    return;
+                } else if (mx >= btnX + 70.0f && mx <= btnX + 155.0f) {
+                    _pluginStateFilter = "Enabled";
+                    return;
+                } else if (mx >= btnX + 160.0f && mx <= btnX + 245.0f) {
+                    _pluginStateFilter = "Disabled";
+                    return;
+                } else if (mx >= btnX + 250.0f && mx <= btnX + 360.0f) {
+                    // Import / Create new plugin template
+                    std::string newPluginPath = "assets/plugins/custom_addon.lua";
+                    if (!std::filesystem::exists(newPluginPath)) {
+                        std::ofstream out(newPluginPath);
+                        out << "-- Custom Lab Plugin Template\n"
+                            << "Plugin = {\n"
+                            << "    id = \"com.community.custom_addon\",\n"
+                            << "    displayName = \"Community Custom Addon\",\n"
+                            << "    version = \"1.0.0\",\n"
+                            << "    author = \"User\",\n"
+                            << "    category = \"Tools & Utilities\",\n"
+                            << "    description = \"User created standalone plugin script.\",\n"
+                            << "    state = \"Discovered\"\n"
+                            << "}\n\n"
+                            << "function Plugin.onLoad()\n"
+                            << "    print(\"Custom Addon loaded!\")\n"
+                            << "    return true\n"
+                            << "end\n\n"
+                            << "function Plugin.onUpdate(dt)\n"
+                            << "end\n\n"
+                            << "function Plugin.onUnload()\n"
+                            << "end\n\n"
+                            << "return Plugin\n";
+                    }
+                    PackageManager::instance().scanPluginDirectory();
+                    _pluginStatusBanner = "Created template assets/plugins/custom_addon.lua!";
+                    _pluginBannerTimer = 4.0f;
+                    return;
+                } else if (mx >= btnX + 365.0f && mx <= btnX + 465.0f) {
+                    PackageManager::instance().scanPluginDirectory();
+                    _pluginStatusBanner = "Rescanned disk for new plugins (.lua / .dll)!";
+                    _pluginBannerTimer = 3.0f;
+                    return;
+                }
+            }
+
+            // 2. Category Buttons
+            if (my >= catY && my <= catY + catH) {
+                const char* cats[] = { "All", "3D & Geometry", "Gameplay & HUD", "Rendering & VFX", "Scripting & Dev", "Physics & Vehicles", "Tools & Utilities" };
+                float cx = vpX + 14.0f;
+                for (int i = 0; i < 7; ++i) {
+                    float cw = (i == 0) ? 45.0f : 120.0f;
+                    if (mx >= cx && mx <= cx + cw) {
+                        _pluginCategoryFilter = cats[i];
+                        return;
+                    }
+                    cx += cw + 6.0f;
+                }
+            }
+
+            // 3. Package Cards & Blender Checkboxes
+            auto pkgs = PackageManager::instance().filterPackages(_pluginSearchQuery, _pluginCategoryFilter, _pluginStateFilter);
+            float itemH = 54.0f;
+            float curItemY = mainY + 4.0f;
+            for (size_t i = 0; i < pkgs.size(); ++i) {
+                if (curItemY + itemH > mainY + (contentH - (mainY - contentY) - 6.0f) - 10.0f) break;
+
+                if (mx >= listX + 4.0f && mx <= listX + listW - 4.0f && my >= curItemY && my <= curItemY + itemH - 2.0f) {
+                    // Check if clicked the Blender-style Checkbox Toggle
+                    float boxX = listX + 12.0f;
+                    float boxY = curItemY + 16.0f;
+                    float boxS = 20.0f;
+                    if (mx >= boxX && mx <= boxX + boxS && my >= boxY && my <= boxY + boxS) {
+                        PackageManager::instance().togglePackage(pkgs[i].id);
+                        bool nowEn = PackageManager::instance().isPackageEnabled(pkgs[i].id);
+                        _pluginStatusBanner = "Plugin '" + pkgs[i].displayName + "' is now " + (nowEn ? "ACTIVE" : "DISABLED");
+                        _pluginBannerTimer = 3.0f;
+                        return;
+                    }
+
+                    // Otherwise selected the card
+                    _pluginSelectedId = pkgs[i].id;
+                    return;
+                }
+                curItemY += itemH;
+            }
+
+            // 4. Right Pane Action Buttons
+            const auto* selPkg = PackageManager::instance().getPackage(_pluginSelectedId);
+            if (selPkg) {
+                float dy = mainY + 16.0f + 34.0f + 28.0f + 14.0f;
+                if (my >= dy && my <= dy + 30.0f) {
+                    // Toggle Enable/Disable
+                    if (mx >= detX + 20.0f && mx <= detX + 160.0f) {
+                        PackageManager::instance().togglePackage(selPkg->id);
+                        bool nowEn = PackageManager::instance().isPackageEnabled(selPkg->id);
+                        _pluginStatusBanner = "Plugin '" + selPkg->displayName + "' is now " + (nowEn ? "ACTIVE" : "DISABLED");
+                        _pluginBannerTimer = 3.0f;
+                        return;
+                    }
+
+                    // Procedural Level Generator Action (real CSG brushes generated into level!)
+                    if (_pluginSelectedId == "com.lab.proc-gen" && mx >= detX + 170.0f && mx <= detX + 410.0f) {
+                        auto proc = std::dynamic_pointer_cast<ProceduralLevelPlugin>(PackageManager::instance().getPluginImplementation("com.lab.proc-gen"));
+                        if (proc && _map) {
+                            int added = proc->generateRoom(_map->brushes, Vec3(0, 0, 0));
+                            _pluginStatusBanner = "Generated procedural room (" + std::to_string(added) + " CSG brushes)! Switch to 3D Level Scene tab to view.";
+                            _pluginBannerTimer = 5.0f;
+                            logMessage("Procedural Level Generator: Added " + std::to_string(added) + " CSG room brushes to map.");
+                        } else if (_map) {
+                            ProceduralLevelPlugin fallbackProc;
+                            int added = fallbackProc.generateRoom(_map->brushes, Vec3(0, 0, 0));
+                            _pluginStatusBanner = "Generated procedural room (" + std::to_string(added) + " CSG brushes)! Switch to 3D Level Scene tab to view.";
+                            _pluginBannerTimer = 5.0f;
+                        }
+                        return;
+                    }
+
+                    // Speedrun Timer Action
+                    if (_pluginSelectedId == "com.lab.speedrun-timer") {
+                        if (mx >= detX + 170.0f && mx <= detX + 390.0f) {
+                            auto timerPlug = std::dynamic_pointer_cast<SpeedrunTelemetryPlugin>(PackageManager::instance().getPluginImplementation("com.lab.speedrun-timer"));
+                            if (timerPlug) {
+                                if (timerPlug->isRunning()) timerPlug->pauseTimer();
+                                else timerPlug->startTimer();
+                                _pluginStatusBanner = timerPlug->isRunning() ? "Speedrun timer RUNNING." : "Speedrun timer PAUSED.";
+                                _pluginBannerTimer = 3.0f;
+                            }
+                            return;
+                        } else if (mx >= detX + 400.0f && mx <= detX + 520.0f) {
+                            auto timerPlug = std::dynamic_pointer_cast<SpeedrunTelemetryPlugin>(PackageManager::instance().getPluginImplementation("com.lab.speedrun-timer"));
+                            if (timerPlug) timerPlug->resetTimer();
+                            _pluginStatusBanner = "Speedrun timer RESET to 00:00.00.";
+                            _pluginBannerTimer = 3.0f;
+                            return;
+                        }
+                    }
+
+                    // Open in Lua Studio Button (opens the standalone plugin file!)
+                    if (mx >= detX + detW - 200.0f && mx <= detX + detW - 20.0f) {
+                        std::string luaPath = "assets/plugins/" + selPkg->id.substr(selPkg->id.rfind('.') + 1) + ".lua";
+                        if (!std::filesystem::exists(luaPath)) {
+                            // Find corresponding script in assets/plugins
+                            for (const auto& entry : std::filesystem::directory_iterator("assets/plugins")) {
+                                if (entry.path().extension() == ".lua") {
+                                    luaPath = entry.path().string();
+                                    break;
+                                }
+                            }
+                        }
+                        loadScriptFromFile(luaPath);
+                        setWorkspace(EditorWorkspace::Scripting_Editor);
+                        _pluginStatusBanner = "Opened standalone plugin source: " + luaPath;
+                        _pluginBannerTimer = 3.0f;
+                        return;
+                    }
+                }
+            }
+            return; // Consume click so it never falls through to 3D actions
         }
 
         // 8.8. 3D Animation Workspace Timeline Interactions
@@ -4576,29 +4787,38 @@ public:
 
         // Tab 2: [ Lua Script Studio ]
         float tab2X = tab1X + tab1W + 6.0f;
-        float tab2W = 175.0f;
+        float tab2W = 145.0f;
         Renderer::drawRect(tab2X, vpY + 2.0f, tab2W, tabH - 4.0f, isScr ? Vec3(0.18f, 0.22f, 0.28f) : Vec3(0.12f, 0.13f, 0.16f));
         drawDarkBevel(tab2X, vpY + 2.0f, tab2W, tabH - 4.0f, isScr);
         if (isScr) Renderer::drawRect(tab2X, vpY + tabH - 2.0f, tab2W, 2.0f, cyanGlow);
-        LabFont::drawText(tab2X + 12.0f, vpY + 6.0f, "Lua Script Studio", 1.35f, isScr ? Vec3(1, 1, 1) : textDim, LabFontType::System);
+        LabFont::drawText(tab2X + 10.0f, vpY + 6.0f, "Lua Script Studio", 1.35f, isScr ? Vec3(1, 1, 1) : textDim, LabFontType::System);
 
         // Tab 3: [ HUD Canvas Designer ]
         float tab3X = tab2X + tab2W + 6.0f;
-        float tab3W = 150.0f;
+        float tab3W = 145.0f;
         Renderer::drawRect(tab3X, vpY + 2.0f, tab3W, tabH - 4.0f, isHud ? Vec3(0.18f, 0.22f, 0.28f) : Vec3(0.12f, 0.13f, 0.16f));
         drawDarkBevel(tab3X, vpY + 2.0f, tab3W, tabH - 4.0f, isHud);
         if (isHud) Renderer::drawRect(tab3X, vpY + tabH - 2.0f, tab3W, 2.0f, cyanGlow);
-        LabFont::drawText(tab3X + 12.0f, vpY + 6.0f, "HUD Canvas Designer", 1.35f, isHud ? Vec3(1, 1, 1) : textDim, LabFontType::System);
+        LabFont::drawText(tab3X + 10.0f, vpY + 6.0f, "HUD Canvas Designer", 1.35f, isHud ? Vec3(1, 1, 1) : textDim, LabFontType::System);
 
-        // Tab 4 (Contextual: 3D Model Viewer / Studio / 2D Anim if active)
+        // Tab 4: [ Plugins & Add-ons ]
+        bool isPlug = (_workspace == EditorWorkspace::Plugins_Manager);
+        float tab4X = tab3X + tab3W + 6.0f;
+        float tab4W = 145.0f;
+        Renderer::drawRect(tab4X, vpY + 2.0f, tab4W, tabH - 4.0f, isPlug ? Vec3(0.18f, 0.22f, 0.28f) : Vec3(0.12f, 0.13f, 0.16f));
+        drawDarkBevel(tab4X, vpY + 2.0f, tab4W, tabH - 4.0f, isPlug);
+        if (isPlug) Renderer::drawRect(tab4X, vpY + tabH - 2.0f, tab4W, 2.0f, cyanGlow);
+        LabFont::drawText(tab4X + 10.0f, vpY + 6.0f, "Plugins & Add-ons", 1.35f, isPlug ? Vec3(1, 1, 1) : textDim, LabFontType::System);
+
+        // Tab 5 (Contextual: 3D Model Viewer / Studio / 2D Anim if active)
         if (isMv || isStud || isAnim2D) {
-            float tab4X = tab3X + tab3W + 6.0f;
-            float tab4W = 160.0f;
-            std::string tab4Title = isMv ? "3D Model Viewer" : (isAnim2D ? "2D Animation" : "Character Studio");
-            Renderer::drawRect(tab4X, vpY + 2.0f, tab4W, tabH - 4.0f, Vec3(0.18f, 0.22f, 0.28f));
-            drawDarkBevel(tab4X, vpY + 2.0f, tab4W, tabH - 4.0f, true);
-            Renderer::drawRect(tab4X, vpY + tabH - 2.0f, tab4W, 2.0f, orangeGlow);
-            LabFont::drawText(tab4X + 12.0f, vpY + 6.0f, tab4Title, 1.35f, Vec3(1, 1, 1), LabFontType::System);
+            float tab5X = tab4X + tab4W + 6.0f;
+            float tab5W = 155.0f;
+            std::string tab5Title = isMv ? "3D Model Viewer" : (isAnim2D ? "2D Animation" : "Character Studio");
+            Renderer::drawRect(tab5X, vpY + 2.0f, tab5W, tabH - 4.0f, Vec3(0.18f, 0.22f, 0.28f));
+            drawDarkBevel(tab5X, vpY + 2.0f, tab5W, tabH - 4.0f, true);
+            Renderer::drawRect(tab5X, vpY + tabH - 2.0f, tab5W, 2.0f, orangeGlow);
+            LabFont::drawText(tab5X + 10.0f, vpY + 6.0f, tab5Title, 1.35f, Vec3(1, 1, 1), LabFontType::System);
         }
 
         float contentY = vpY + tabH;
@@ -4900,6 +5120,188 @@ public:
             Renderer::drawRect(vpX, statY, vpW, 22.0f, Vec3(0.09f, 0.11f, 0.14f));
             std::string statInfo = "Ln " + std::to_string(_scriptCursorLine + 1) + ", Col " + std::to_string(_scriptCursorCol + 1) + " | UTF-8 | Lua 5.4 | " + _activeScriptPath + " | Press Ctrl+R to Execute, Ctrl+S to Save";
             LabFont::drawText(vpX + 10.0f, statY + 5.0f, statInfo, 1.25f, textDim, LabFontType::System);
+        } else if (_workspace == EditorWorkspace::Plugins_Manager) {
+            // Full-Viewport Package & Plugin Manager (Unity & Blender Add-ons Standard)
+            // 1 kod 1 plugin: Standalone decoupled modules
+            Renderer::drawRect(vpX, contentY, vpW, contentH, Vec3(0.06f, 0.07f, 0.09f));
+            drawDarkBevel(vpX, contentY, vpW, contentH, false);
+
+            // 1. Top Header & Filter Toolbar (height 40px)
+            float barY = contentY + 4.0f;
+            float barH = 34.0f;
+            Renderer::drawRect(vpX + 4.0f, barY, vpW - 8.0f, barH, Vec3(0.10f, 0.12f, 0.16f));
+            drawDarkBevel(vpX + 4.0f, barY, vpW - 8.0f, barH, false);
+
+            LabFont::drawText(vpX + 16.0f, barY + 9.0f, "EXTENSIONS: PACKAGE & PLUGIN MANAGER", 1.55f, orangeGlow, LabFontType::System);
+            LabFont::drawText(vpX + 380.0f, barY + 11.0f, "[Unity Package Manager & Blender Add-ons Standard - 1 kod 1 plugin]", 1.25f, textDim, LabFontType::System);
+
+            // Filter buttons
+            float btnX = vpX + vpW - 480.0f;
+            bool isAllFilt = (_pluginStateFilter == "All");
+            bool isEnFilt = (_pluginStateFilter == "Enabled");
+            bool isDisFilt = (_pluginStateFilter == "Disabled");
+
+            drawDarkButton(btnX, barY + 4.0f, 65.0f, 26.0f, "All", false, isAllFilt, true);
+            drawDarkButton(btnX + 70.0f, barY + 4.0f, 85.0f, 26.0f, "Enabled", false, isEnFilt, true);
+            drawDarkButton(btnX + 160.0f, barY + 4.0f, 85.0f, 26.0f, "Disabled", false, isDisFilt, true);
+            drawDarkButton(btnX + 250.0f, barY + 4.0f, 110.0f, 26.0f, "+ Import .lua", false, false, true);
+            drawDarkButton(btnX + 365.0f, barY + 4.0f, 100.0f, 26.0f, "Rescan Disk", false, false, true);
+
+            // Category Bar
+            float catY = barY + barH + 4.0f;
+            float catH = 26.0f;
+            Renderer::drawRect(vpX + 4.0f, catY, vpW - 8.0f, catH, Vec3(0.08f, 0.09f, 0.12f));
+
+            const char* cats[] = { "All", "3D & Geometry", "Gameplay & HUD", "Rendering & VFX", "Scripting & Dev", "Physics & Vehicles", "Tools & Utilities" };
+            float cx = vpX + 14.0f;
+            for (int i = 0; i < 7; ++i) {
+                bool isCurCat = (_pluginCategoryFilter == cats[i]);
+                float cw = (i == 0) ? 45.0f : 120.0f;
+                bool isHov = (_mouseScreenX >= cx && _mouseScreenX <= cx + cw && _mouseScreenY >= catY && _mouseScreenY <= catY + catH);
+                if (isCurCat) {
+                    Renderer::drawRect(cx, catY + 2.0f, cw, catH - 4.0f, Vec3(0.20f, 0.24f, 0.32f));
+                    Renderer::drawRect(cx, catY + catH - 2.0f, cw, 2.0f, cyanGlow);
+                } else if (isHov) {
+                    Renderer::drawRect(cx, catY + 2.0f, cw, catH - 4.0f, Vec3(0.14f, 0.16f, 0.20f));
+                }
+                LabFont::drawText(cx + 8.0f, catY + 6.0f, cats[i], 1.3f, isCurCat ? cyanGlow : (isHov ? textLight : textDim), LabFontType::System);
+                cx += cw + 6.0f;
+            }
+
+            // Split Layout
+            float mainY = catY + catH + 6.0f;
+            float mainH = contentH - (mainY - contentY) - 6.0f;
+            float listW = 380.0f;
+
+            // --- LEFT PANEL: Plugin List ---
+            float listX = vpX + 6.0f;
+            Renderer::drawRect(listX, mainY, listW, mainH, Vec3(0.09f, 0.10f, 0.13f));
+            drawDarkBevel(listX, mainY, listW, mainH, false);
+
+            auto pkgs = PackageManager::instance().filterPackages(_pluginSearchQuery, _pluginCategoryFilter, _pluginStateFilter);
+            float itemH = 54.0f;
+            float curItemY = mainY + 4.0f;
+
+            for (size_t i = 0; i < pkgs.size(); ++i) {
+                if (curItemY + itemH > mainY + mainH - 10.0f) break;
+
+                const auto& pkg = pkgs[i];
+                bool isSel = (_pluginSelectedId == pkg.id);
+                bool isEn = (pkg.state == PackageState::Enabled);
+                bool isHov = (_mouseScreenX >= listX + 2.0f && _mouseScreenX <= listX + listW - 4.0f && _mouseScreenY >= curItemY && _mouseScreenY <= curItemY + itemH - 2.0f);
+
+                Vec3 cardBg = isSel ? Vec3(0.16f, 0.20f, 0.28f) : (isHov ? Vec3(0.13f, 0.15f, 0.19f) : Vec3(0.11f, 0.12f, 0.15f));
+                Renderer::drawRect(listX + 4.0f, curItemY, listW - 8.0f, itemH - 2.0f, cardBg);
+                drawDarkBevel(listX + 4.0f, curItemY, listW - 8.0f, itemH - 2.0f, isSel);
+                if (isSel) {
+                    Renderer::drawRect(listX + 4.0f, curItemY, 3.0f, itemH - 2.0f, orangeGlow);
+                }
+
+                // Blender-style Toggle Checkbox
+                float boxX = listX + 12.0f;
+                float boxY = curItemY + 16.0f;
+                float boxS = 20.0f;
+                Renderer::drawRect(boxX, boxY, boxS, boxS, isEn ? Vec3(0.15f, 0.45f, 0.25f) : Vec3(0.06f, 0.07f, 0.09f));
+                drawDarkBevel(boxX, boxY, boxS, boxS, isEn);
+                if (isEn) {
+                    LabFont::drawText(boxX + 4.0f, boxY + 2.0f, "v", 1.4f, Vec3(0.4f, 1.0f, 0.5f), LabFontType::System);
+                }
+
+                // Display Name
+                LabFont::drawText(boxX + boxS + 10.0f, curItemY + 8.0f, pkg.displayName, 1.42f, isSel ? Vec3(1, 1, 1) : textLight, LabFontType::System);
+
+                // Version & Category
+                std::string sub = "v" + pkg.version + "  •  " + pkg.category;
+                LabFont::drawText(boxX + boxS + 10.0f, curItemY + 28.0f, sub, 1.25f, textDim, LabFontType::System);
+
+                // Status Badge on Right
+                float badgeW = 54.0f;
+                float badgeX = listX + listW - badgeW - 12.0f;
+                float badgeY = curItemY + 16.0f;
+                if (isEn) {
+                    Renderer::drawRect(badgeX, badgeY, badgeW, 18.0f, Vec3(0.12f, 0.38f, 0.18f));
+                    LabFont::drawText(badgeX + 8.0f, badgeY + 2.0f, "ACTIVE", 1.15f, Vec3(0.5f, 1.0f, 0.6f), LabFontType::System);
+                } else {
+                    Renderer::drawRect(badgeX, badgeY, badgeW, 18.0f, Vec3(0.14f, 0.15f, 0.18f));
+                    LabFont::drawText(badgeX + 14.0f, badgeY + 2.0f, "OFF", 1.15f, textDim, LabFontType::System);
+                }
+
+                curItemY += itemH;
+            }
+
+            // --- RIGHT PANEL: Inspector & Real Actions ---
+            float detX = listX + listW + 8.0f;
+            float detW = vpW - listW - 20.0f;
+            Renderer::drawRect(detX, mainY, detW, mainH, Vec3(0.09f, 0.10f, 0.13f));
+            drawDarkBevel(detX, mainY, detW, mainH, false);
+
+            const auto* selPkg = PackageManager::instance().getPackage(_pluginSelectedId);
+            if (selPkg) {
+                float dy = mainY + 16.0f;
+
+                // Header Block
+                LabFont::drawText(detX + 20.0f, dy, selPkg->displayName, 2.0f, orangeGlow, LabFontType::System);
+                dy += 34.0f;
+
+                std::string metaStr = "Version: " + selPkg->version + "   |   Author: " + selPkg->author + "   |   ID: " + selPkg->id;
+                LabFont::drawText(detX + 20.0f, dy, metaStr, 1.35f, cyanGlow, LabFontType::System);
+                dy += 28.0f;
+
+                Renderer::drawRect(detX + 20.0f, dy, detW - 40.0f, 1.0f, Vec3(0.20f, 0.22f, 0.28f));
+                dy += 14.0f;
+
+                // Actions Bar
+                bool isEn = (selPkg->state == PackageState::Enabled);
+                float btnW = 140.0f;
+                drawDarkButton(detX + 20.0f, dy, btnW, 30.0f, isEn ? "Disable Plugin" : "Enable Plugin", false, false, true);
+
+                if (_pluginSelectedId == "com.lab.proc-gen") {
+                    drawDarkButton(detX + 170.0f, dy, 240.0f, 30.0f, "+ Generate Procedural Room", false, false, true);
+                } else if (_pluginSelectedId == "com.lab.speedrun-timer") {
+                    drawDarkButton(detX + 170.0f, dy, 220.0f, 30.0f, "Start / Pause Split Timer", false, false, true);
+                    drawDarkButton(detX + 400.0f, dy, 120.0f, 30.0f, "Reset Timer", false, false, true);
+                } else if (_pluginSelectedId == "com.lab.retro-fx") {
+                    drawDarkButton(detX + 170.0f, dy, 200.0f, 30.0f, "Toggle CRT Scanlines", false, false, true);
+                } else if (_pluginSelectedId == "com.lab.dialogue-quest") {
+                    drawDarkButton(detX + 170.0f, dy, 200.0f, 30.0f, "Test Dialogue NPC", false, false, true);
+                } else if (_pluginSelectedId == "com.lab.voxel-terrain") {
+                    drawDarkButton(detX + 170.0f, dy, 200.0f, 30.0f, "Stamp Voxel Terrain", false, false, true);
+                }
+
+                drawDarkButton(detX + detW - 200.0f, dy, 180.0f, 30.0f, "Open in Lua Studio", false, false, true);
+                dy += 42.0f;
+
+                // Status Banner
+                if (!_pluginStatusBanner.empty()) {
+                    Renderer::drawRect(detX + 20.0f, dy, detW - 40.0f, 26.0f, Vec3(0.12f, 0.32f, 0.20f));
+                    drawDarkBevel(detX + 20.0f, dy, detW - 40.0f, 26.0f, false);
+                    LabFont::drawText(detX + 30.0f, dy + 5.0f, _pluginStatusBanner, 1.35f, Vec3(0.6f, 1.0f, 0.7f), LabFontType::System);
+                    dy += 34.0f;
+                }
+
+                // Description Box
+                LabFont::drawText(detX + 20.0f, dy, "Description:", 1.45f, textLight, LabFontType::System);
+                dy += 22.0f;
+
+                Renderer::drawRect(detX + 20.0f, dy, detW - 40.0f, 85.0f, Vec3(0.06f, 0.07f, 0.09f));
+                drawDarkBevel(detX + 20.0f, dy, detW - 40.0f, 85.0f, true);
+                LabFont::drawText(detX + 30.0f, dy + 12.0f, selPkg->description, 1.38f, Vec3(0.9f, 0.92f, 0.95f), LabFontType::System);
+                std::string fileLocation = "Source Code: assets/plugins/" + selPkg->id.substr(selPkg->id.rfind('.') + 1) + ".lua  (1 kod 1 plugin)";
+                LabFont::drawText(detX + 30.0f, dy + 45.0f, fileLocation, 1.25f, orangeGlow, LabFontType::System);
+                dy += 100.0f;
+
+                // Telemetry & Architecture Box
+                LabFont::drawText(detX + 20.0f, dy, "Engine Architecture & Hooks:", 1.45f, textLight, LabFontType::System);
+                dy += 22.0f;
+
+                Renderer::drawRect(detX + 20.0f, dy, detW - 40.0f, 100.0f, Vec3(0.06f, 0.07f, 0.09f));
+                drawDarkBevel(detX + 20.0f, dy, detW - 40.0f, 100.0f, true);
+
+                LabFont::drawText(detX + 30.0f, dy + 12.0f, "• Standalone Isolation: Each plugin runs in its own decoupled translation unit.", 1.32f, textDim, LabFontType::System);
+                LabFont::drawText(detX + 30.0f, dy + 34.0f, "• Lifecycle Events: onLoad(), onUpdate(dt), onUnload() registered with Lab::PluginManager.", 1.32f, textDim, LabFontType::System);
+                LabFont::drawText(detX + 30.0f, dy + 56.0f, "• State: " + std::string(isEn ? "RUNNING (Listening to frame ticks)" : "STOPPED (Zero runtime overhead)"), 1.32f, isEn ? Vec3(0.4f, 1.0f, 0.5f) : textDim, LabFontType::System);
+                LabFont::drawText(detX + 30.0f, dy + 76.0f, "• Memory & Dependencies: None (Self-contained C++ / Lua module).", 1.32f, textDim, LabFontType::System);
+            }
         }
 
     // ==================== 5. BOTTOM DOCK (Console / Profiler) ====================
@@ -5071,7 +5473,7 @@ public:
             float menuX = 92.0f;
             float menuY = 24.0f;
             float menuW = 230.0f;
-            float menuH = 105.0f;
+            float menuH = 129.0f;
             Vec3 menuBg{ 0.16f, 0.17f, 0.20f };
             Vec3 menuBorder{ 0.35f, 0.38f, 0.44f };
 
@@ -5082,10 +5484,11 @@ public:
                 "3D World & Assets      >",
                 "2D Level & UI          >",
                 "Scripting & Dev        >",
+                "Plugins & Packages     >",
                 "Viewport Display       >"
             };
 
-            for (int i = 0; i < 4; ++i) {
+            for (int i = 0; i < 5; ++i) {
                 float iy = menuY + 3.0f + i * 24.0f;
                 bool isHov = (_mouseScreenX >= menuX && _mouseScreenX <= menuX + menuW && _mouseScreenY >= iy && _mouseScreenY <= iy + 22.0f);
                 if (isHov) {
@@ -5099,7 +5502,7 @@ public:
             }
 
             // Draw Flyout Submenu to the right
-            if (_viewSubmenuHover >= 0 && _viewSubmenuHover <= 3) {
+            if (_viewSubmenuHover >= 0 && _viewSubmenuHover <= 4) {
                 float subX = menuX + menuW;
                 float subY = menuY + _viewSubmenuHover * 24.0f;
                 float subW = 270.0f;
@@ -5162,7 +5565,23 @@ public:
                         if (isHov) Renderer::drawRect(subX + 2.0f, sy, subW - 4.0f, 22.0f, Vec3(0.24f, 0.28f, 0.36f));
                         LabFont::drawText(subX + 12.0f, sy + 4.0f, itemsScr[s].label, 1.45f, isCur ? cyanGlow : (isHov ? orangeGlow : textLight), LabFontType::System);
                     }
-                } else if (_viewSubmenuHover == 3) { // Display
+                } else if (_viewSubmenuHover == 3) { // Plugins & Packages
+                    float subH = 1 * 24.0f + 6.0f;
+                    Renderer::drawRect(subX, subY, subW, subH, menuBg);
+                    drawDarkBevel(subX, subY, subW, subH, false);
+
+                    struct SubItemPlug { const char* label; EditorWorkspace ws; };
+                    SubItemPlug itemsPlug[] = {
+                        { "Package & Plugin Manager", EditorWorkspace::Plugins_Manager }
+                    };
+                    for (int s = 0; s < 1; ++s) {
+                        float sy = subY + 3.0f + s * 24.0f;
+                        bool isCur = (_workspace == itemsPlug[s].ws);
+                        bool isHov = (_mouseScreenX >= subX && _mouseScreenX <= subX + subW && _mouseScreenY >= sy && _mouseScreenY <= sy + 22.0f);
+                        if (isHov) Renderer::drawRect(subX + 2.0f, sy, subW - 4.0f, 22.0f, Vec3(0.24f, 0.28f, 0.36f));
+                        LabFont::drawText(subX + 12.0f, sy + 4.0f, itemsPlug[s].label, 1.45f, isCur ? cyanGlow : (isHov ? orangeGlow : textLight), LabFontType::System);
+                    }
+                } else if (_viewSubmenuHover == 4) { // Display
                     float subH = 3 * 24.0f + 6.0f;
                     Renderer::drawRect(subX, subY, subW, subH, menuBg);
                     drawDarkBevel(subX, subY, subW, subH, false);
@@ -5727,6 +6146,15 @@ private:
     float _scriptBlinkTimer = 0.0f;
     std::string _activeScriptPath = "assets/scripts/gameplay.lua";
     bool _scriptModified = false;
+
+    // Unity / Blender Plugin & Package Manager State
+    std::string _pluginSearchQuery = "";
+    std::string _pluginCategoryFilter = "All";
+    std::string _pluginStateFilter = "All"; // "All", "Enabled", "Disabled"
+    std::string _pluginSelectedId = "com.lab.proc-gen";
+    std::string _pluginStatusBanner = "";
+    float _pluginBannerTimer = 0.0f;
+    int _pluginListScroll = 0;
 
     // Sidebar State
     SidebarTab _sidebarTab = SidebarTab::Properties;

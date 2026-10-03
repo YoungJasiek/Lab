@@ -22,11 +22,12 @@ namespace Lab {
         std::string version;        // e.g. "1.2.0"
         std::string author;         // e.g. "Lab Community"
         std::string description;
+        std::string category{"General"}; // e.g. "3D & Geometry", "Rendering & VFX"
         std::vector<std::string> dependencies; // package IDs required
         PackageState state{PackageState::Discovered};
     };
 
-    class PackageManager {
+    class LAB_CORE_API PackageManager {
     public:
         static PackageManager& instance() {
             static PackageManager inst;
@@ -92,6 +93,73 @@ namespace Lab {
 
             it->second.state = PackageState::Disabled;
             return true;
+        }
+
+        bool isPackageEnabled(const std::string& packageId) const {
+            auto it = m_packages.find(packageId);
+            return (it != m_packages.end() && it->second.state == PackageState::Enabled);
+        }
+
+        bool togglePackage(const std::string& packageId) {
+            if (isPackageEnabled(packageId)) {
+                return disablePackage(packageId);
+            } else {
+                return enablePackage(packageId);
+            }
+        }
+
+        std::shared_ptr<ILabPlugin> getPluginImplementation(const std::string& packageId) const {
+            auto it = m_pluginImplementations.find(packageId);
+            if (it != m_pluginImplementations.end()) return it->second;
+            return nullptr;
+        }
+
+        void registerBuiltinPackages();
+        void scanPluginDirectory(const std::string& directoryPath = "assets/plugins");
+
+        std::vector<PackageManifest> filterPackages(const std::string& query, const std::string& cat = "All", const std::string& stateFilter = "All") const {
+            std::vector<PackageManifest> result;
+            std::string q = query;
+            std::transform(q.begin(), q.end(), q.begin(), ::tolower);
+
+            for (const auto& [id, pkg] : m_packages) {
+                // Category filter
+                if (cat != "All" && pkg.category != cat) {
+                    continue;
+                }
+                // State filter: All, Enabled, Disabled
+                if (stateFilter == "Enabled" && pkg.state != PackageState::Enabled) {
+                    continue;
+                }
+                if (stateFilter == "Disabled" && pkg.state == PackageState::Enabled) {
+                    continue;
+                }
+                // Text search query in title, id, author, description
+                if (!q.empty()) {
+                    std::string title = pkg.displayName;
+                    std::string pid = pkg.id;
+                    std::string auth = pkg.author;
+                    std::string desc = pkg.description;
+                    std::transform(title.begin(), title.end(), title.begin(), ::tolower);
+                    std::transform(pid.begin(), pid.end(), pid.begin(), ::tolower);
+                    std::transform(auth.begin(), auth.end(), auth.begin(), ::tolower);
+                    std::transform(desc.begin(), desc.end(), desc.begin(), ::tolower);
+
+                    if (title.find(q) == std::string::npos &&
+                        pid.find(q) == std::string::npos &&
+                        auth.find(q) == std::string::npos &&
+                        desc.find(q) == std::string::npos) {
+                        continue;
+                    }
+                }
+                result.push_back(pkg);
+            }
+
+            // Sort alphabetically by displayName
+            std::sort(result.begin(), result.end(), [](const PackageManifest& a, const PackageManifest& b) {
+                return a.displayName < b.displayName;
+            });
+            return result;
         }
 
         const PackageManifest* getPackage(const std::string& packageId) const {

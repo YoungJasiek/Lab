@@ -88,6 +88,14 @@ add_library(LabCore SHARED
     src/LabProfiler.cpp
     src/LabVCS.cpp
     src/LabPackage.cpp
+    src/plugins/ProceduralLevelPlugin.cpp
+    src/plugins/SpeedrunTelemetryPlugin.cpp
+    src/plugins/RetroPostProcessPlugin.cpp
+    src/plugins/DialogueQuestPlugin.cpp
+    src/plugins/VoxelTerrainPlugin.cpp
+    src/plugins/AINavigationPatrolPlugin.cpp
+    src/plugins/ArcadeVehiclePlugin.cpp
+    src/plugins/DiscordRPCPlugin.cpp
     include/LabCore.h
     include/LabInput.h
     include/LabPlugin.h
@@ -100,6 +108,14 @@ add_library(LabCore SHARED
     include/LabProfiler.h
     include/LabVCS.h
     include/LabPackage.h
+    include/plugins/ProceduralLevelPlugin.h
+    include/plugins/SpeedrunTelemetryPlugin.h
+    include/plugins/RetroPostProcessPlugin.h
+    include/plugins/DialogueQuestPlugin.h
+    include/plugins/VoxelTerrainPlugin.h
+    include/plugins/AINavigationPatrolPlugin.h
+    include/plugins/ArcadeVehiclePlugin.h
+    include/plugins/DiscordRPCPlugin.h
     include/LabApplication.h
     include/LabMath.h
     include/LabCamera.h
