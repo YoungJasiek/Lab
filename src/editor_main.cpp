@@ -1,4 +1,5 @@
 #include "Lab.h"
+#include "LabTheme.h"
 #include "LabFont.h"
 #include "LabDialogs.h"
 #include "LabProfiler.h"
@@ -5156,54 +5157,17 @@ public:
         Profiler::instance().endFrame();
     }
 
-    // Studio Dark Industrial Styling Helpers
+    // Studio Dark Industrial Styling Helpers (Delegated to unified LabTheme)
     static void drawDarkBevel(float x, float y, float w, float h, bool sunken) {
-        Vec3 light = sunken ? Vec3(0.08f, 0.09f, 0.11f) : Vec3(0.38f, 0.40f, 0.45f);
-        Vec3 dark  = sunken ? Vec3(0.38f, 0.40f, 0.45f) : Vec3(0.08f, 0.09f, 0.11f);
-
-        // Top line
-        Renderer::drawRect(x, y, w, 1.0f, light);
-        // Left line
-        Renderer::drawRect(x, y, 1.0f, h, light);
-        // Bottom line
-        Renderer::drawRect(x, y + h - 1.0f, w, 1.0f, dark);
-        // Right line
-        Renderer::drawRect(x + w - 1.0f, y, 1.0f, h, dark);
+        LabTheme::drawBevel(x, y, w, h, sunken);
     }
 
     static void drawDarkPanel(float x, float y, float w, float h, const std::string& title = "") {
-        Vec3 bgCol(0.18f, 0.19f, 0.22f); // Studio dark slate
-        Renderer::drawRect(x, y, w, h, bgCol);
-        drawDarkBevel(x, y, w, h, false);
-
-        if (!title.empty()) {
-            Vec3 titleBg(0.14f, 0.22f, 0.32f); // Studio dark blue header
-            Renderer::drawRect(x + 2.0f, y + 2.0f, w - 4.0f, 20.0f, titleBg);
-            LabFont::drawText(x + 8.0f, y + 5.0f, title, 1.5f, Vec3(1.0f, 1.0f, 1.0f), LabFontType::System);
-        }
+        LabTheme::drawPanel(x, y, w, h, title);
     }
 
     bool drawDarkButton(float x, float y, float w, float h, const std::string& label, bool active = false, bool isRed = false, bool isGreen = false) {
-        bool hovered = (_mouseScreenX >= x && _mouseScreenX <= x + w && _mouseScreenY >= y && _mouseScreenY <= y + h);
-
-        Vec3 bgCol = active ? Vec3(0.85f, 0.48f, 0.10f) :
-                     isRed ? (hovered ? Vec3(0.75f, 0.22f, 0.22f) : Vec3(0.55f, 0.16f, 0.16f)) :
-                     isGreen ? (hovered ? Vec3(0.22f, 0.65f, 0.32f) : Vec3(0.16f, 0.50f, 0.25f)) :
-                     hovered ? Vec3(0.32f, 0.35f, 0.40f) : Vec3(0.24f, 0.25f, 0.28f);
-
-        Renderer::drawRect(x, y, w, h, bgCol);
-        drawDarkBevel(x, y, w, h, active);
-
-        Vec3 txtCol = active ? Vec3(1.0f, 1.0f, 1.0f) :
-                      hovered ? Vec3(1.0f, 0.95f, 0.70f) :
-                      isRed ? Vec3(1.0f, 0.85f, 0.85f) :
-                      isGreen ? Vec3(0.90f, 1.0f, 0.90f) :
-                      Vec3(0.90f, 0.92f, 0.95f);
-
-        float textX = x + 8.0f;
-        float textY = y + (h - 14.0f) * 0.5f;
-        LabFont::drawText(textX, textY, label, 1.4f, txtCol, LabFontType::System);
-        return hovered;
+        return LabTheme::drawButton(x, y, w, h, label, active, false, _mouseScreenX, _mouseScreenY, false, isRed, isGreen);
     }
 
     // Hammer Toolbar & Palette Icon Renderers are shared from Lab::HammerIcons (LabEditor.h)

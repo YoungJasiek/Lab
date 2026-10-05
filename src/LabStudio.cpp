@@ -1,4 +1,5 @@
 #include "LabStudio.h"
+#include "LabTheme.h"
 #include "Lab.h"
 #include "LabFont.h"
 #include "LabDialogs.h"
@@ -1226,99 +1227,26 @@ namespace Lab {
     // =========================================================================
 
     void CharacterStudio::drawHammerBevel(float x, float y, float w, float h, bool sunken) {
-        Vec3 light = sunken ? Vec3(0.12f, 0.13f, 0.15f) : Vec3(0.44f, 0.46f, 0.50f);
-        Vec3 dark  = sunken ? Vec3(0.44f, 0.46f, 0.50f) : Vec3(0.12f, 0.13f, 0.15f);
-
-        // Top line
-        Renderer::drawRect(x, y, w, 1.0f, light);
-        // Left line
-        Renderer::drawRect(x, y, 1.0f, h, light);
-        // Bottom line
-        Renderer::drawRect(x, y + h - 1.0f, w, 1.0f, dark);
-        // Right line
-        Renderer::drawRect(x + w - 1.0f, y, 1.0f, h, dark);
+        LabTheme::drawBevel(x, y, w, h, sunken);
     }
 
     void CharacterStudio::drawHammerPanel(float x, float y, float w, float h, const std::string& title) {
-        Vec3 bgCol(0.23f, 0.24f, 0.26f);
-        Renderer::drawRect(x, y, w, h, bgCol);
-        drawHammerBevel(x, y, w, h, false);
-
-        if (!title.empty()) {
-            Vec3 titleBg(0.18f, 0.28f, 0.40f);
-            Renderer::drawRect(x + 2.0f, y + 2.0f, w - 4.0f, 20.0f, titleBg);
-            LabFont::drawText(x + 8.0f, y + 5.0f, title, 1.5f, Vec3(1.0f, 1.0f, 1.0f), LabFontType::System);
-        }
+        LabTheme::drawPanel(x, y, w, h, title);
     }
 
     bool CharacterStudio::drawHammerButton(float x, float y, float w, float h, const std::string& label, bool active, bool highlighted) {
-        bool hovered = (_mouseX >= x && _mouseX <= x + w && _mouseY >= y && _mouseY <= y + h);
-        bool clicked = false;
-        if (hovered && _lmbClicked) {
-            clicked = true;
-            _lmbClicked = false; // Consumed to prevent clicking elements behind
-        }
-
-        Vec3 bgCol = active ? Vec3(0.85f, 0.48f, 0.10f) :
-                     (hovered ? (highlighted ? Vec3(0.32f, 0.55f, 0.35f) : Vec3(0.35f, 0.38f, 0.42f)) :
-                                (highlighted ? Vec3(0.24f, 0.42f, 0.26f) : Vec3(0.28f, 0.29f, 0.32f)));
-
-        Renderer::drawRect(x, y, w, h, bgCol);
-        drawHammerBevel(x, y, w, h, active);
-
-        Vec3 txtCol = active ? Vec3(1.0f, 1.0f, 1.0f) : (hovered ? Vec3(1.0f, 0.95f, 0.7f) : Vec3(0.9f, 0.92f, 0.95f));
-        float textX = x + 8.0f;
-        float textY = y + (h - 14.0f) * 0.5f;
-        LabFont::drawText(textX, textY, label, 1.4f, txtCol, LabFontType::System);
-
+        bool clicked = LabTheme::drawButton(x, y, w, h, label, active, highlighted, _mouseX, _mouseY, _lmbClicked);
+        if (clicked) _lmbClicked = false;
         return clicked;
     }
 
     bool CharacterStudio::drawHammerSlider(float x, float y, float w, float h, const std::string& label, float& value, float minVal, float maxVal, const std::string& format) {
-        float labelW = 120.0f;
-        float trackX = x + labelW;
-        float trackW = w - labelW - 55.0f;
-        float trackY = y + 5.0f;
-        float trackH = h - 10.0f;
-
-        // Label
-        LabFont::drawText(x, y + 4.0f, label, 1.4f, Vec3(0.85f, 0.88f, 0.92f), LabFontType::System);
-
-        // Sunken Track
-        Renderer::drawRect(trackX, trackY, trackW, trackH, Vec3(0.14f, 0.15f, 0.17f));
-        drawHammerBevel(trackX, trackY, trackW, trackH, true);
-
-        // Filled bar portion
-        float norm = std::clamp((value - minVal) / (maxVal - minVal), 0.0f, 1.0f);
-        Renderer::drawRect(trackX + 1.0f, trackY + 1.0f, (trackW - 2.0f) * norm, trackH - 2.0f, Vec3(0.22f, 0.52f, 0.72f));
-
-        // Thumb handle
-        float thumbX = trackX + (trackW - 8.0f) * norm;
-        Renderer::drawRect(thumbX, trackY - 2.0f, 8.0f, trackH + 4.0f, Vec3(0.80f, 0.82f, 0.85f));
-        drawHammerBevel(thumbX, trackY - 2.0f, 8.0f, trackH + 4.0f, false);
-
-        // Value readout
-        char buf[32];
-        snprintf(buf, sizeof(buf), format.c_str(), value);
-        LabFont::drawText(trackX + trackW + 8.0f, y + 4.0f, buf, 1.4f, Vec3(0.95f, 0.80f, 0.25f), LabFontType::System);
-
-        // Mouse Drag interaction
-        bool changed = false;
         int sliderId = static_cast<int>(y * 1000.0f + x);
-        if (_lmbClicked && _mouseX >= trackX && _mouseX <= trackX + trackW && _mouseY >= y && _mouseY <= y + h) {
-            _activeSliderId = sliderId;
+        float labelW = std::min(120.0f, w * 0.35f);
+        if (_lmbClicked && _mouseX >= (x + labelW) && _mouseX <= (x + w - 55.0f) && _mouseY >= y && _mouseY <= y + h) {
             pushUndoState();
-            float newNorm = std::clamp((_mouseX - trackX) / trackW, 0.0f, 1.0f);
-            value = minVal + newNorm * (maxVal - minVal);
-            changed = true;
-            _lmbClicked = false;
-        } else if (_lmbPressed && _activeSliderId == sliderId) {
-            float newNorm = std::clamp((_mouseX - trackX) / trackW, 0.0f, 1.0f);
-            value = minVal + newNorm * (maxVal - minVal);
-            changed = true;
         }
-
-        return changed;
+        return LabTheme::drawSlider(x, y, w, h, label, value, minVal, maxVal, format, _mouseX, _mouseY, _lmbPressed, _lmbClicked, &_activeSliderId, sliderId);
     }
 
     void CharacterStudio::renderHammerTopMenuBar(float w) {

@@ -8866,6 +8866,80 @@ int main() {
         std::cout << "  [PASS] Test 81 Camera scene entity, Object-Centered Gizmo, .labmap rotation/scripts, and Lua Weapons/Quests passed 100%!\n";
     }
 
+    // =========================================================================
+    // Test 82: Unified UI Theme, Shared Widgets, Layout Constants & Engine Languages
+    // =========================================================================
+    {
+        std::cout << "\n[Test 82] Testing Unified UI Theme, Shared Widgets, Layout Constants & Engine Languages...\n";
+
+        // Sub-test A: Theme Colors & Centralized Palette Modification
+        auto defaultBtnBg = Lab::LabTheme::colors().buttonBg;
+        Lab::LabTheme::getColors().buttonBg = Lab::Vec3(0.99f, 0.44f, 0.11f);
+        if (Lab::LabTheme::colors().buttonBg.x != 0.99f) {
+            std::cerr << "Assertion failed: LabTheme color modification failed!\n";
+            return 1;
+        }
+        Lab::LabTheme::resetDefaultColors();
+        if (Lab::LabTheme::colors().buttonBg.x != defaultBtnBg.x) {
+            std::cerr << "Assertion failed: LabTheme resetDefaultColors failed!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test A: Centralized ThemeColors modification and reset verified.\n";
+
+        // Sub-test B: Layout Constants & SidebarLayout
+        auto layout = Lab::getSidebarLayout(1280.0f, 720.0f);
+        if (layout.rightW != 320.0f || layout.rightX != (1280.0f - 320.0f)) {
+            std::cerr << "Assertion failed: SidebarLayout geometry mismatch!\n";
+            return 1;
+        }
+        if (layout.tabPropW != 96.0f) {
+            std::cerr << "Assertion failed: SidebarLayout tab width mismatch!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test B: SidebarLayout & ThemeLayout constants verified.\n";
+
+        // Sub-test C: Unified Widgets (drawBevel, drawPanel, drawButton, drawSlider, drawInput)
+        Lab::Renderer::beginUI(1280, 720);
+        Lab::LabTheme::drawPanel(10.0f, 10.0f, 300.0f, 200.0f, "THEME TEST PANEL");
+        Lab::LabTheme::drawBevel(20.0f, 40.0f, 100.0f, 30.0f, true);
+        bool btnHover = Lab::LabTheme::drawButton(20.0f, 80.0f, 120.0f, 26.0f, "Test Button", false, false, 30.0f, 90.0f, false);
+        if (!btnHover) {
+            std::cerr << "Assertion failed: drawButton hover state failed!\n";
+            return 1;
+        }
+        float sliderVal = 5.0f;
+        int activeSlider = -1;
+        bool sliderChanged = Lab::LabTheme::drawSlider(20.0f, 120.0f, 260.0f, 20.0f, "Speed", sliderVal, 0.0f, 10.0f, "%.1f", 150.0f, 125.0f, true, true, &activeSlider, 1);
+        if (!sliderChanged) {
+            std::cerr << "Assertion failed: drawSlider interaction failed!\n";
+            return 1;
+        }
+        bool inputClicked = Lab::LabTheme::drawInput(20.0f, 150.0f, 200.0f, 24.0f, "player_name", true, 30.0f, 160.0f, true, 0.2f);
+        if (!inputClicked) {
+            std::cerr << "Assertion failed: drawInput click failed!\n";
+            return 1;
+        }
+        Lab::Renderer::endUI();
+        std::cout << "  [PASS] Sub-test C: Unified UI Widgets (Bevel, Panel, Button, Slider, Input) verified.\n";
+
+        // Sub-test D: Engine Languages / Localization (Języki Silnika)
+        Lab::LabTheme::setLanguage(Lab::EngineLanguage::English);
+        if (Lab::LabTheme::tr("Properties") != "Properties" || Lab::LabTheme::tr("Hierarchy") != "Hierarchy") {
+            std::cerr << "Assertion failed: English translation mismatch!\n";
+            return 1;
+        }
+        Lab::LabTheme::setLanguage(Lab::EngineLanguage::Polish);
+        if (Lab::LabTheme::tr("Properties") != "Właściwości" || Lab::LabTheme::tr("Hierarchy") != "Struktura" ||
+            Lab::LabTheme::tr("Light") != "Światło" || Lab::LabTheme::tr("Language") != "Język") {
+            std::cerr << "Assertion failed: Polish translation mismatch!\n";
+            return 1;
+        }
+        Lab::LabTheme::setLanguage(Lab::EngineLanguage::English); // Restore English
+        std::cout << "  [PASS] Sub-test D: Engine Languages (Języki Silnika: English/Polish dictionary) verified.\n";
+
+        std::cout << "  [PASS] Test 82 Unified UI Theme, Shared Widgets & Engine Languages passed 100%!\n";
+    }
+
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();

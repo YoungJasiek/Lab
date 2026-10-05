@@ -138,6 +138,7 @@ endif()
 # 2. LabRender.dll - OpenGL 4.5+ DSA Renderer, Lighting, CSG, Decals, Post-process, Skeletal, 2D SpriteBatcher, RHI & Render Graph
 add_library(LabRender SHARED
     src/LabRenderer.cpp
+    src/LabTheme.cpp
     src/LabAsset2D.cpp
     src/LabSpriteBatcher.cpp
     src/LabRHI.cpp
@@ -148,6 +149,7 @@ add_library(LabRender SHARED
     src/LabFace.cpp
     src/LabSkeletal.cpp
     include/LabRenderer.h
+    include/LabTheme.h
     include/LabAsset2D.h
     include/LabSpriteBatcher.h
     include/LabRHI.h

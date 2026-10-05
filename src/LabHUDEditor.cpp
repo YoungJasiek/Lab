@@ -1,4 +1,5 @@
 #include "LabHUDEditor.h"
+#include "LabTheme.h"
 #include "Lab.h"
 #include "LabFont.h"
 #include "LabDialogs.h"
@@ -1312,78 +1313,23 @@ namespace Lab {
     }
 
     void LabHUDEditor2D::drawHammerBevel(float x, float y, float w, float h, bool sunken) {
-        Vec3 hl = sunken ? Vec3(0.1f, 0.1f, 0.1f) : Vec3(0.4f, 0.4f, 0.4f);
-        Vec3 sh = sunken ? Vec3(0.4f, 0.4f, 0.4f) : Vec3(0.1f, 0.1f, 0.1f);
-        Renderer::drawRect(x, y, w, 1, hl);
-        Renderer::drawRect(x, y, 1, h, hl);
-        Renderer::drawRect(x, y + h - 1, w, 1, sh);
-        Renderer::drawRect(x + w - 1, y, 1, h, sh);
+        LabTheme::drawBevel(x, y, w, h, sunken);
     }
 
     void LabHUDEditor2D::drawHammerPanel(float x, float y, float w, float h, const std::string& title) {
-        Renderer::drawRect(x, y, w, h, Vec3(0.18f, 0.18f, 0.18f));
-        drawHammerBevel(x, y, w, h, false);
-        if (!title.empty()) {
-            Renderer::drawRect(x + 2, y + 2, w - 4, 18, Vec3(0.12f, 0.12f, 0.12f));
-            LabFont::drawText(x + 5, y + 2, title, 1.9f, Vec3(0.98f, 0.78f, 0.08f), LabFontType::System);
-        }
+        LabTheme::drawPanel(x, y, w, h, title);
     }
 
     bool LabHUDEditor2D::drawHammerButton(float x, float y, float w, float h, const std::string& label, bool active, bool highlighted) {
-        bool hover = (_mouseX >= x && _mouseX <= x + w && _mouseY >= y && _mouseY <= y + h);
-        bool pressed = hover && _lmbPressed;
-        bool clicked = hover && _lmbClicked;
-
-        Vec3 bg = active ? Vec3(1.0f, 0.55f, 0.1f) : (pressed ? Vec3(0.14f, 0.14f, 0.14f) : (hover ? Vec3(0.24f, 0.24f, 0.24f) : Vec3(0.2f, 0.2f, 0.2f)));
-        if (highlighted && !active && !hover) bg = Vec3(0.2f, 0.3f, 0.4f);
-
-        Renderer::drawRect(x, y, w, h, bg);
-        drawHammerBevel(x, y, w, h, pressed || active);
-
-        float tw = LabFont::getTextWidth(label, 1.5f, LabFontType::System);
-        float th = LabFont::getTextHeight(1.5f, LabFontType::System);
-        float ty = y + std::max(0.0f, (h - th) * 0.5f);
-        LabFont::drawText(x + (w - tw) * 0.5f, ty, label, 1.5f, active ? Vec3(0,0,0) : Vec3(0.9f, 0.9f, 0.9f), LabFontType::System);
-
-        return clicked;
+        return LabTheme::drawButton(x, y, w, h, label, active, highlighted, _mouseX, _mouseY, _lmbClicked);
     }
 
     bool LabHUDEditor2D::drawHammerSlider(float x, float y, float w, float h, const std::string& label, float& value, float minVal, float maxVal, const std::string& format) {
-        bool changed = false;
-        LabFont::drawText(x, y, label, 1.5f, Vec3(0.8f, 0.8f, 0.8f), LabFontType::System);
-        float sx = x + 60, sw = w - 60;
-        
-        Renderer::drawRect(sx, y, sw, h, Vec3(0.12f, 0.12f, 0.12f));
-        drawHammerBevel(sx, y, sw, h, true);
-
-        float norm = std::clamp((value - minVal) / (maxVal - minVal), 0.0f, 1.0f);
-        Renderer::drawRect(sx + 2, y + 2, (sw - 4) * norm, h - 4, Vec3(1.0f, 0.55f, 0.1f));
-
-        bool hover = (_mouseX >= sx && _mouseX <= sx + sw && _mouseY >= y && _mouseY <= y + h);
-        if (hover && _lmbPressed) {
-            float t = (_mouseX - sx) / sw;
-            value = minVal + t * (maxVal - minVal);
-            value = std::clamp(value, minVal, maxVal);
-            changed = true;
-        }
-
-        char buf[32];
-        snprintf(buf, sizeof(buf), format.c_str(), value);
-        LabFont::drawText(sx + 5, y, buf, 1.5f, Vec3(1,1,1), LabFontType::System);
-
-        return changed;
+        return LabTheme::drawSlider(x, y, w, h, label, value, minVal, maxVal, format, _mouseX, _mouseY, _lmbPressed, _lmbClicked);
     }
 
     bool LabHUDEditor2D::drawHammerDropdownItem(float x, float y, float w, float h, const std::string& label, bool hovered, bool separator, bool disabled) {
-        if (separator || label == "-") {
-            Renderer::drawRect(x + 5, y + h/2, w - 10, 1, Vec3(0.4f, 0.4f, 0.4f));
-            return false;
-        }
-        if (hovered && !disabled) {
-            Renderer::drawRect(x, y, w, h, Vec3(1.0f, 0.55f, 0.1f));
-        }
-        LabFont::drawText(x + 10, y + 2, label, 1.5f, disabled ? Vec3(0.5f,0.5f,0.5f) : (hovered ? Vec3(0,0,0) : Vec3(0.9f, 0.9f, 0.9f)), LabFontType::System);
-        return hovered && _lmbClicked && !disabled;
+        return LabTheme::drawDropdownItem(x, y, w, h, label, hovered, separator || label == "-", disabled) && _lmbClicked;
     }
     
     void LabHUDEditor2D::renderGrid(float vx, float vy, float vw, float vh) {
