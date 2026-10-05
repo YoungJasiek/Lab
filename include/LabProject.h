@@ -81,6 +81,9 @@ namespace Lab {
         /// @brief Resolves virtual URI ("engine://...", "game://...", "project://...") or relative path
         std::filesystem::path resolveAssetPath(const std::string& pathOrUri) const;
 
+        /// @brief List all Lua script file names located strictly within active project's game://scripts (clean isolation)
+        std::vector<std::string> getProjectScripts() const;
+
         /// @brief Build & export the given game project automatically to standalone output directory
         ExportResult exportGame(const std::string& projectName, const ExportSettings& settings);
 

@@ -546,9 +546,27 @@ public:
             _bottomDockTab = BottomDockTab::Timeline;
         } else if (ws == EditorWorkspace::Scripting_Editor || ws == EditorWorkspace::Scripting_Console) {
             _bottomDockTab = BottomDockTab::ScriptEditor;
+            refreshGameScripts();
+            if (!_gameScripts.empty() && _selectedGameScriptIndex < 0) {
+                _selectedGameScriptIndex = 0;
+                _activeScriptPath = "game://scripts/" + _gameScripts[0];
+                loadScriptFromFile(_activeScriptPath);
+            }
         }
 
         logMessage("Workspace switched: [ " + getWorkspaceName(ws) + " ]");
+    }
+
+    void refreshGameScripts() {
+        _gameScripts = ProjectManager::get().getProjectScripts();
+        _selectedGameScriptIndex = -1;
+        std::string curFile = std::filesystem::path(_activeScriptPath).filename().string();
+        for (size_t i = 0; i < _gameScripts.size(); ++i) {
+            if (_gameScripts[i] == curFile) {
+                _selectedGameScriptIndex = (int)i;
+                break;
+            }
+        }
     }
 
     void syncStringToScriptLines() {
@@ -576,12 +594,20 @@ public:
     void saveScriptToFile(const std::string& path) {
         syncScriptLinesToString();
         try {
-            std::filesystem::create_directories(std::filesystem::path(path).parent_path());
-            std::ofstream out(path);
+            std::filesystem::path realPath = ProjectManager::get().resolveAssetPath(path);
+            if (realPath.empty()) {
+                realPath = ProjectManager::get().getActiveProjectAssetsPath() / "scripts" / std::filesystem::path(path).filename();
+            }
+            if (realPath.has_parent_path() && !std::filesystem::exists(realPath.parent_path())) {
+                std::error_code ec;
+                std::filesystem::create_directories(realPath.parent_path(), ec);
+            }
+            std::ofstream out(realPath);
             if (out.is_open()) {
                 out << _currentScript;
                 out.close();
-                logMessage("Script saved to " + path);
+                logMessage("Script saved to " + realPath.string());
+                refreshGameScripts();
             }
         } catch (const std::exception& e) {
             logMessage("Failed to save script: " + std::string(e.what()));
@@ -589,14 +615,19 @@ public:
     }
 
     void loadScriptFromFile(const std::string& path) {
-        if (!std::filesystem::exists(path)) return;
-        std::ifstream in(path);
+        std::filesystem::path realPath = ProjectManager::get().resolveAssetPath(path);
+        if (!std::filesystem::exists(realPath)) {
+            if (std::filesystem::exists(path)) realPath = path;
+            else return;
+        }
+        std::ifstream in(realPath);
         if (in.is_open()) {
             std::stringstream ss;
             ss << in.rdbuf();
             _currentScript = ss.str();
             syncStringToScriptLines();
-            logMessage("Loaded script from " + path);
+            logMessage("Loaded script from " + realPath.string());
+            refreshGameScripts();
         }
     }
 
@@ -4151,16 +4182,61 @@ public:
             float vpH = (h - 22.0f) - 58.0f;
             float contentY = 58.0f + 26.0f; // below Viewport Tab Bar
             float contentH = vpH - 26.0f;
+
+            float scriptListW = 190.0f;
+            float listX = vpX + 4.0f;
+            float listY = contentY + 4.0f;
+            float listH = contentH - 8.0f - 24.0f;
+
+            // Click inside Left File Explorer Panel (strictly game://scripts)
+            if (mx >= listX && mx <= listX + scriptListW && my >= listY && my <= listY + listH) {
+                float newBtnY = listY + 38.0f;
+                // Click [+ New Script]
+                if (my >= newBtnY && my <= newBtnY + 22.0f && mx >= listX + 6.0f && mx <= listX + scriptListW - 6.0f) {
+                    std::string newFileName = "script_" + std::to_string(_gameScripts.size() + 1) + ".lua";
+                    auto fullPath = ProjectManager::get().getActiveProjectAssetsPath() / "scripts" / newFileName;
+                    std::error_code ec;
+                    std::filesystem::create_directories(fullPath.parent_path(), ec);
+                    std::ofstream out(fullPath);
+                    if (out.is_open()) {
+                        out << "-- " << newFileName << " (Game Script)\nfunction OnStart()\n    -- initialization\nend\n\nfunction OnUpdate(dt)\n    -- frame update\nend\n";
+                        out.close();
+                    }
+                    refreshGameScripts();
+                    _activeScriptPath = "game://scripts/" + newFileName;
+                    loadScriptFromFile(_activeScriptPath);
+                    logMessage("Created clean game script: " + _activeScriptPath);
+                    return;
+                }
+
+                // Click script item
+                float itemStartY = newBtnY + 28.0f;
+                for (size_t i = 0; i < _gameScripts.size(); ++i) {
+                    float iy = itemStartY + i * 24.0f;
+                    if (my >= iy && my <= iy + 22.0f) {
+                        _selectedGameScriptIndex = (int)i;
+                        _activeScriptPath = "game://scripts/" + _gameScripts[i];
+                        loadScriptFromFile(_activeScriptPath);
+                        _scriptEditorFocused = true;
+                        return;
+                    }
+                }
+                return;
+            }
+
+            // Right Code Toolbar & Editor Area
+            float codeX = listX + scriptListW + 6.0f;
+            float codeW = vpW - scriptListW - 14.0f;
             float actY = contentY + 3.0f;
 
             if (my >= actY && my <= actY + 28.0f) {
-                if (mx >= vpX + 6.0f && mx <= vpX + 166.0f) {
+                if (mx >= codeX && mx <= codeX + 150.0f) {
                     runCurrentScript();
                     return;
-                } else if (mx >= vpX + 172.0f && mx <= vpX + 292.0f) {
+                } else if (mx >= codeX + 156.0f && mx <= codeX + 266.0f) {
                     saveScriptToFile(_activeScriptPath);
                     return;
-                } else if (mx >= vpX + 298.0f && mx <= vpX + 448.0f) {
+                } else if (mx >= codeX + 272.0f && mx <= codeX + 412.0f) {
                     _currentScript =
                         "-- Preset 1: Moving Klocek + HUD Timer\n"
                         "function OnStart()\n"
@@ -4181,7 +4257,7 @@ public:
                     runCurrentScript();
                     logMessage("Loaded Script Preset: Moving Klocek + HUD Timer.");
                     return;
-                } else if (mx >= vpX + 454.0f && mx <= vpX + 594.0f) {
+                } else if (mx >= codeX + 418.0f && mx <= codeX + 548.0f) {
                     _currentScript =
                         "-- Preset 2: Multi-Genre HUD Game Loop\n"
                         "local health = 100.0\n"
@@ -4200,7 +4276,7 @@ public:
                     runCurrentScript();
                     logMessage("Loaded Script Preset: Multi-Genre HUD Game Loop.");
                     return;
-                } else if (mx >= vpX + 600.0f && mx <= vpX + 730.0f) {
+                } else if (mx >= codeX + 554.0f && mx <= codeX + 674.0f) {
                     _currentScript =
                         "-- Preset 3: Turret & Continuous Movement\n"
                         "local angle = 0.0\n"
@@ -4216,16 +4292,16 @@ public:
                     runCurrentScript();
                     logMessage("Loaded Script Preset: Turret Continuous Movement.");
                     return;
-                } else if (mx >= vpX + 736.0f && mx <= vpX + 886.0f) {
+                } else if (mx >= codeX + 680.0f && mx <= codeX + 810.0f) {
                     if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
                         _map->brushes[_selectedIndex].name = "Klocek1";
-                        _map->brushes[_selectedIndex].script = "assets/scripts/gameplay.lua";
+                        _map->brushes[_selectedIndex].script = _activeScriptPath;
                     } else if (_selectionType == SelectionType::Prop && _selectedIndex >= 0 && _selectedIndex < (int)_map->props.size()) {
                         _map->props[_selectedIndex].name = "Klocek1";
-                        _map->props[_selectedIndex].script = "assets/scripts/gameplay.lua";
+                        _map->props[_selectedIndex].script = _activeScriptPath;
                     } else if (_selectionType == SelectionType::Sprite && _selectedIndex >= 0 && _selectedIndex < (int)_map->sprites.size()) {
                         _map->sprites[_selectedIndex].name = "Klocek1";
-                        _map->sprites[_selectedIndex].script = "assets/scripts/gameplay.lua";
+                        _map->sprites[_selectedIndex].script = _activeScriptPath;
                     }
                     logMessage("Named selected entity 'Klocek1' (Controllable in Lua via World.getEntity('Klocek1'))");
                     return;
@@ -4233,9 +4309,7 @@ public:
             }
 
             // Click inside the Code Area to place cursor & focus
-            float codeX = vpX + 4.0f;
             float codeY = contentY + 34.0f;
-            float codeW = vpW - 8.0f;
             float codeH = contentH - 34.0f - 24.0f;
             if (mx >= codeX && mx <= codeX + codeW && my >= codeY && my <= codeY + codeH) {
                 _scriptEditorFocused = true;
@@ -6268,19 +6342,57 @@ public:
             Renderer::drawRect(vpX, contentY, vpW, contentH, Vec3(0.065f, 0.075f, 0.095f));
             drawDarkBevel(vpX, contentY, vpW, contentH, false);
 
+            // Left File Explorer Panel: Strictly Game Scripts (game://scripts)
+            float scriptListW = 190.0f;
+            float listX = vpX + 4.0f;
+            float listY = contentY + 4.0f;
+            float listH = contentH - 8.0f - 24.0f;
+            Renderer::drawRect(listX, listY, scriptListW, listH, Vec3(0.08f, 0.09f, 0.12f));
+            drawDarkBevel(listX, listY, scriptListW, listH, false);
+
+            LabFont::drawText(listX + 8.0f, listY + 6.0f, "GAME SCRIPTS", 1.35f, orangeGlow, LabFontType::System);
+            std::string subTitle = "game://scripts";
+            LabFont::drawText(listX + 8.0f, listY + 22.0f, subTitle, 1.05f, textDim, LabFontType::System);
+
+            // [+ New Script] Button
+            float newBtnY = listY + 38.0f;
+            drawDarkButton(listX + 6.0f, newBtnY, scriptListW - 12.0f, 22.0f, "+ New Script");
+
+            // Script items
+            float itemStartY = newBtnY + 28.0f;
+            if (_gameScripts.empty()) {
+                LabFont::drawText(listX + 8.0f, itemStartY + 6.0f, "(Brak skryptow w grze)", 1.15f, textDim, LabFontType::System);
+                LabFont::drawText(listX + 8.0f, itemStartY + 22.0f, "Clean: 0 engine scripts", 1.05f, Vec3(0.5f, 0.7f, 0.5f), LabFontType::System);
+            } else {
+                for (size_t i = 0; i < _gameScripts.size(); ++i) {
+                    float iy = itemStartY + i * 24.0f;
+                    if (iy + 22.0f > listY + listH) break;
+                    bool isSel = ((int)i == _selectedGameScriptIndex);
+                    bool isHov = (_mouseScreenX >= listX + 4.0f && _mouseScreenX <= listX + scriptListW - 4.0f &&
+                                  _mouseScreenY >= iy && _mouseScreenY <= iy + 22.0f);
+                    Vec3 itemBg = isSel ? Vec3(0.18f, 0.24f, 0.32f) : (isHov ? Vec3(0.12f, 0.15f, 0.20f) : Vec3(0.09f, 0.10f, 0.13f));
+                    Renderer::drawRect(listX + 4.0f, iy, scriptListW - 8.0f, 22.0f, itemBg);
+                    drawDarkBevel(listX + 4.0f, iy, scriptListW - 8.0f, 22.0f, isSel);
+                    if (isSel) {
+                        Renderer::drawRect(listX + 4.0f, iy, 3.0f, 22.0f, cyanGlow);
+                    }
+                    LabFont::drawText(listX + 10.0f, iy + 4.0f, _gameScripts[i], 1.15f, isSel ? Vec3(1, 1, 1) : textLight, LabFontType::Monospace);
+                }
+            }
+
             // Actions toolbar
+            float codeX = listX + scriptListW + 6.0f;
+            float codeW = vpW - scriptListW - 14.0f;
             float actY = contentY + 4.0f;
-            drawDarkButton(vpX + 6.0f, actY, 160.0f, 26.0f, "> RUN SCRIPT (Ctrl+R)", false, false, true);
-            drawDarkButton(vpX + 172.0f, actY, 120.0f, 26.0f, "SAVE (Ctrl+S)", false, false, true);
-            drawDarkButton(vpX + 298.0f, actY, 150.0f, 26.0f, "Preset: Klocek+Timer");
-            drawDarkButton(vpX + 454.0f, actY, 140.0f, 26.0f, "Preset: Player HUD");
-            drawDarkButton(vpX + 600.0f, actY, 130.0f, 26.0f, "Preset: Movement");
-            drawDarkButton(vpX + 736.0f, actY, 150.0f, 26.0f, "Name Sel 'Klocek1'", false, false, true);
+            drawDarkButton(codeX, actY, 150.0f, 26.0f, "> RUN (Ctrl+R)", false, false, true);
+            drawDarkButton(codeX + 156.0f, actY, 110.0f, 26.0f, "SAVE (Ctrl+S)", false, false, true);
+            drawDarkButton(codeX + 272.0f, actY, 140.0f, 26.0f, "Preset: Klocek+Timer");
+            drawDarkButton(codeX + 418.0f, actY, 130.0f, 26.0f, "Preset: Player HUD");
+            drawDarkButton(codeX + 554.0f, actY, 120.0f, 26.0f, "Preset: Movement");
+            drawDarkButton(codeX + 680.0f, actY, 130.0f, 26.0f, "Name 'Klocek1'", false, false, true);
 
             // Interactive Code Editor Area
-            float codeX = vpX + 4.0f;
             float codeY = contentY + 34.0f;
-            float codeW = vpW - 8.0f;
             float codeH = contentH - 34.0f - 24.0f;
             Renderer::drawRect(codeX, codeY, codeW, codeH, Vec3(0.045f, 0.055f, 0.075f));
             drawDarkBevel(codeX, codeY, codeW, codeH, true);
@@ -7691,8 +7803,10 @@ private:
     int _scriptScrollLine = 0;
     bool _scriptEditorFocused = true;
     float _scriptBlinkTimer = 0.0f;
-    std::string _activeScriptPath = "assets/scripts/gameplay.lua";
+    std::string _activeScriptPath = "game://scripts/gameplay.lua";
     bool _scriptModified = false;
+    std::vector<std::string> _gameScripts;
+    int _selectedGameScriptIndex = -1;
 
     // Unity / Blender Plugin & Package Manager State
     std::string _pluginSearchQuery = "";

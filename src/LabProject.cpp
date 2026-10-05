@@ -72,8 +72,7 @@ namespace Lab {
         std::error_code ec;
         std::filesystem::create_directories(m_userProjectsRoot, ec);
 
-        // Ensure default game exists in user documents
-        ensureProjectExists("LabRunner_Escape");
+        // Keep root workspace clean without force-populating legacy projects
         setupVFS();
     }
 
@@ -557,6 +556,24 @@ namespace Lab {
         if (std::filesystem::exists(inLegacy)) return inLegacy;
 
         return p;
+    }
+
+    std::vector<std::string> ProjectManager::getProjectScripts() const {
+        std::vector<std::string> scripts;
+        auto scriptsDir = getActiveProjectAssetsPath() / "scripts";
+        if (std::filesystem::exists(scriptsDir)) {
+            for (const auto& entry : std::filesystem::directory_iterator(scriptsDir)) {
+                if (entry.is_regular_file()) {
+                    std::string ext = entry.path().extension().string();
+                    std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return (char)::tolower(c); });
+                    if (ext == ".lua") {
+                        scripts.push_back(entry.path().filename().string());
+                    }
+                }
+            }
+        }
+        std::sort(scripts.begin(), scripts.end());
+        return scripts;
     }
 
     ExportResult ProjectManager::exportGame(const std::string& projectName, const ExportSettings& settings) {

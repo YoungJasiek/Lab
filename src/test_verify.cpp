@@ -9067,6 +9067,96 @@ int main() {
         std::cout << "  [PASS] Test 83 Legacy .labmap Detection, Modal Conversion to .labscene & Backup passed 100%!" << std::endl;
     }
 
+    // ----------------------------------------------------
+    {
+        std::cout << "\n[Test 84] Verifying Script & VFS Isolation (game://scripts vs engine://scripts, Clean Projects)...\n";
+        auto& pm = Lab::ProjectManager::get();
+
+        // Sub-test A: Create new project and verify assets/scripts is 100% clean (zero engine scripts copied)
+        std::string cleanProjName = "QA_Clean_Project_2026";
+        bool created = pm.createProject(cleanProjName);
+        if (!created) {
+            std::cerr << "Assertion failed: Failed to create new clean project!\n";
+            return 1;
+        }
+
+        auto cleanProjPath = pm.getUserProjectsRoot() / cleanProjName;
+        auto scriptsDir = cleanProjPath / "assets" / "scripts";
+        if (!std::filesystem::exists(scriptsDir)) {
+            std::cerr << "Assertion failed: Clean project missing assets/scripts folder!\n";
+            return 1;
+        }
+
+        size_t scriptCount = 0;
+        for (const auto& entry : std::filesystem::directory_iterator(scriptsDir)) {
+            if (entry.is_regular_file()) {
+                scriptCount++;
+            }
+        }
+        if (scriptCount != 0) {
+            std::cerr << "Assertion failed: New project is not clean! Found " << scriptCount << " scripts copied from engine.\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test A: New project created with 100% clean scripts directory (0 engine scripts copied).\n";
+
+        // Sub-test B: ProjectManager::getProjectScripts() returns strictly game://scripts with zero engine scripts leakage
+        pm.setActiveProject(cleanProjName);
+        auto cleanScripts = pm.getProjectScripts();
+        if (!cleanScripts.empty()) {
+            std::cerr << "Assertion failed: getProjectScripts() returned non-empty list for clean project! Count: " << cleanScripts.size() << "\n";
+            return 1;
+        }
+
+        // Verify none of the engine root scripts leak through getProjectScripts()
+        for (const auto& s : cleanScripts) {
+            if (s.rfind("qa_", 0) == 0 || s == "game_mechanics.lua" || s == "hud_test.lua") {
+                std::cerr << "Assertion failed: Engine script leaked into game script list: " << s << "\n";
+                return 1;
+            }
+        }
+        std::cout << "  [PASS] Sub-test B: getProjectScripts() returns 0 scripts for clean project (strictly game://scripts, no engine leakage).\n";
+
+        // Sub-test C: Adding a game script and verifying game://scripts virtual URI resolution
+        std::string customScriptName = "player_controller.lua";
+        auto customScriptPath = scriptsDir / customScriptName;
+        {
+            std::ofstream out(customScriptPath);
+            out << "-- Player Controller Script\nfunction OnStart()\nend\nfunction OnUpdate(dt)\nend\n";
+            out.close();
+        }
+
+        auto updatedCleanScripts = pm.getProjectScripts();
+        if (updatedCleanScripts.size() != 1 || updatedCleanScripts[0] != customScriptName) {
+            std::cerr << "Assertion failed: Custom game script not recognized in getProjectScripts()!\n";
+            return 1;
+        }
+
+        auto resolvedGameScript = pm.resolveAssetPath("game://scripts/" + customScriptName);
+        if (!std::filesystem::exists(resolvedGameScript) || resolvedGameScript != customScriptPath) {
+            std::cerr << "Assertion failed: Virtual URI game://scripts/" << customScriptName << " failed to resolve to project script!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test C: Custom game script registered and virtual URI game://scripts resolved accurately.\n";
+
+        // Sub-test D: Project switching isolation (Frozen-Life project vs root scripts)
+        pm.setActiveProject("frozen_life");
+        auto flScripts = pm.getProjectScripts();
+        for (const auto& s : flScripts) {
+            // Verify that root-only scripts (like qa_rpg_brooms.lua) do not appear in frozen_life
+            if (s == "qa_rpg_brooms.lua" || s == "qa_rpg_quests.lua" || s == "qa_rpg_wiring.lua") {
+                std::cerr << "Assertion failed: Root engine script '" << s << "' leaked into Frozen-Life project scripts!\n";
+                return 1;
+            }
+        }
+        std::cout << "  [PASS] Sub-test D: Project script isolation verified across active project switches.\n";
+
+        // Cleanup clean project safely
+        std::error_code ec;
+        std::filesystem::remove_all(cleanProjPath, ec);
+
+        std::cout << "  [PASS] Test 84 Script & VFS Isolation (game://scripts vs engine://scripts, Clean Projects) passed 100%!" << std::endl;
+    }
+
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();
