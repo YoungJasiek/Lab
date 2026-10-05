@@ -63,6 +63,7 @@ namespace Lab {
         virtual void onFixedUpdate(float /*fixedDelta*/) {}
         virtual void onRender() {}
         virtual void onShutdown() {}
+        virtual void onDrop(int count, const char** paths);
 
         static Engine* get();
         GLFWwindow* getWindow() const;

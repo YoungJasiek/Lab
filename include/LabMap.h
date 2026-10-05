@@ -103,6 +103,7 @@ namespace Lab {
 
     struct MapWeaponSpawner {
         int weaponId = 2; // 0..8 (maps to WeaponID)
+        std::string prefabRef = "weapon_shotgun";
         Vec3 position = { 0.0f, 0.0f, 0.0f };
         float yaw = 0.0f;
         float respawnTime = 60.0f; // Default 60s (1 min)
@@ -161,6 +162,8 @@ namespace Lab {
 
     class LabMap {
     public:
+        virtual ~LabMap() = default;
+
         MapMetadata metadata;
         MapSpawn spawn; // Legacy fallback single spawn
         std::vector<MapBrush> brushes;

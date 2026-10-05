@@ -217,11 +217,13 @@ target_link_libraries(LabAnimation PUBLIC LabCore LabRender)
 # 6. LabWorld.dll - .LABMAP Format, Spawner Pads, Weapon Arsenal, Particles, Doors
 add_library(LabWorld SHARED
     src/LabMap.cpp
+    src/LabScene.cpp
     src/LabPickups.cpp
     src/LabWeapon.cpp
     src/LabParticles.cpp
     src/LabInteractive.cpp
     include/LabMap.h
+    include/LabScene.h
     include/LabPickups.h
     include/LabWeapon.h
     include/LabParticles.h

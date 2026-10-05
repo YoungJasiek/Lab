@@ -1,4 +1,5 @@
 #include "Lab.h"
+#include "LabScene.h"
 #include "LabTheme.h"
 #include "LabFont.h"
 #include "LabDialogs.h"
@@ -427,18 +428,14 @@ public:
     }
 
     void openMapDialog() {
-        std::string openPath = LabDialogs::openFileDialog(getWindow(), "Lab Map Files (*.labmap)\0*.labmap\0All Files (*.*)\0*.*\0", "assets\\maps");
+        std::string openPath = LabDialogs::openFileDialog(getWindow(), "Lab Scene / Map (*.labscene;*.labmap)\0*.labscene;*.labmap\0Lab Scene (*.labscene)\0*.labscene\0Lab Map (*.labmap)\0*.labmap\0All Files (*.*)\0*.*\0", "assets\\maps");
         if (!openPath.empty()) {
-            auto loaded = LabMap::loadFromFile(openPath);
-            if (loaded) {
-                _map = std::move(loaded);
-                _currentMapPath = openPath;
-                _selectionType = SelectionType::None;
-                _selectedIndex = -1;
-                if (_map) {
-                    _scriptEngine.setActiveMap(_map.get());
-                }
-                logMessage("Loaded Map: " + openPath);
+            if (LabScene::isLegacyMapFile(openPath)) {
+                logMessage("Wykryto plik legacy .labmap: " + openPath + ". Wymagana konwersja na .labscene.");
+                _pendingMapPath = openPath;
+                _showConvertMapModal = true;
+            } else {
+                loadMapFromFile(openPath);
             }
         }
     }
@@ -842,15 +839,15 @@ public:
     void saveMapAction(bool forceSaveAs = false) {
         if (!_map) return;
         if (forceSaveAs || _currentMapPath.empty()) {
-            std::string savePath = LabDialogs::saveFileDialog(getWindow(), "Lab Map Files (*.labmap)\0*.labmap\0All Files (*.*)\0*.*\0", "my_level.labmap", "assets\\maps");
+            std::string savePath = LabDialogs::saveFileDialog(getWindow(), "Lab Scene Files (*.labscene)\0*.labscene\0Lab Map Files (*.labmap)\0*.labmap\0All Files (*.*)\0*.*\0", "my_level.labscene", "assets\\maps");
             if (!savePath.empty()) {
                 _currentMapPath = savePath;
                 _map->saveToFile(_currentMapPath);
-                logMessage("Map saved to: " + _currentMapPath);
+                logMessage("Scene saved to: " + _currentMapPath);
             }
         } else {
             _map->saveToFile(_currentMapPath);
-            logMessage("Map saved to: " + _currentMapPath);
+            logMessage("Scene saved to: " + _currentMapPath);
         }
     }
 
@@ -1366,6 +1363,40 @@ public:
                     _pluginSearchQuery += c;
                 }
                 s_lastPlugKeys[k] = Input::keys[k];
+            }
+        }
+
+        // Legacy Map Conversion Modal keyboard shortcuts (Enter to convert, Esc to cancel)
+        if (_showConvertMapModal) {
+            static bool s_convertEsc = false;
+            static bool s_convertEnter = false;
+            if (Input::isKeyPressed(256)) { // Esc -> Cancel
+                if (!s_convertEsc) {
+                    _showConvertMapModal = false;
+                    _pendingMapPath = "";
+                    logMessage("Wczytywanie mapy anulowane.");
+                }
+                s_convertEsc = true;
+            } else {
+                s_convertEsc = false;
+            }
+
+            if (Input::isKeyPressed(257)) { // Enter -> Convert
+                if (!s_convertEnter) {
+                    logMessage("Rozpoczynanie konwersji: " + _pendingMapPath);
+                    auto res = LabScene::convertLegacyMapToScene(_pendingMapPath);
+                    if (res.success) {
+                        logMessage("Konwersja udana! Kopia zapasowa: " + res.backupPath);
+                        loadMapFromFile(res.scenePath);
+                    } else {
+                        logMessage("Blad konwersji mapy: " + res.errorMessage);
+                    }
+                    _showConvertMapModal = false;
+                    _pendingMapPath = "";
+                }
+                s_convertEnter = true;
+            } else {
+                s_convertEnter = false;
             }
         }
 
@@ -3168,6 +3199,55 @@ public:
             return;
         }
 
+        // 3.8. Legacy Map Conversion Modal Handling
+        if (_showConvertMapModal) {
+            float bw = 560.0f;
+            float bh = 230.0f;
+            float bx = (w - bw) * 0.5f;
+            float by = (h - bh) * 0.5f;
+
+            // Close button [X]
+            if (mx >= bx + bw - 32.0f && mx <= bx + bw - 8.0f && my >= by + 5.0f && my <= by + 27.0f) {
+                _showConvertMapModal = false;
+                _pendingMapPath = "";
+                logMessage("Konwersja mapy anulowana.");
+                return;
+            }
+
+            // Buttons at bottom
+            float btnY = by + bh - 52.0f;
+            float btnW = 160.0f;
+            float btnH = 34.0f;
+
+            // "Konwertuj" button
+            float convX = bx + 60.0f;
+            if (mx >= convX && mx <= convX + btnW && my >= btnY && my <= btnY + btnH) {
+                logMessage("Rozpoczynanie konwersji: " + _pendingMapPath);
+                auto res = LabScene::convertLegacyMapToScene(_pendingMapPath);
+                if (res.success) {
+                    logMessage("Konwersja udana! Kopia zapasowa: " + res.backupPath);
+                    loadMapFromFile(res.scenePath);
+                } else {
+                    logMessage("Blad konwersji mapy: " + res.errorMessage);
+                }
+                _showConvertMapModal = false;
+                _pendingMapPath = "";
+                return;
+            }
+
+            // "Anuluj" button
+            float cancelX = bx + bw - 60.0f - btnW;
+            if (mx >= cancelX && mx <= cancelX + btnW && my >= btnY && my <= btnY + btnH) {
+                _showConvertMapModal = false;
+                _pendingMapPath = "";
+                logMessage("Wczytywanie mapy anulowane.");
+                return;
+            }
+
+            // Consume click while modal is open
+            return;
+        }
+
         // 4. Dropdown File Menu
         if (_fileMenuOpen) {
             float menuX = 10.0f;
@@ -4815,6 +4895,39 @@ public:
         }
     }
 
+    void onDrop(int count, const char** paths) override {
+        for (int i = 0; i < count; ++i) {
+            if (!paths[i]) continue;
+            std::string filePath = paths[i];
+            std::string ext = "";
+            size_t dot = filePath.rfind('.');
+            if (dot != std::string::npos) {
+                ext = filePath.substr(dot);
+                for (auto& c : ext) c = (char)tolower(c);
+            }
+
+            if (ext == ".labscene") {
+                // Direct load without prompt! Requirement: "ponowny drop .labscene bez pytania"
+                logMessage("[Drag&Drop] Dropped .labscene detected. Loading directly: " + filePath);
+                loadMapFromFile(filePath);
+            } else if (ext == ".labmap") {
+                if (LabScene::isLegacyMapFile(filePath)) {
+                    logMessage("[Drag&Drop] Legacy .labmap detected: " + filePath + ". Requesting conversion.");
+                    _pendingMapPath = filePath;
+                    _showConvertMapModal = true;
+                } else {
+                    loadMapFromFile(filePath);
+                }
+            } else if (ext == ".lua") {
+                std::string id = PackageManager::instance().importDropinFile(filePath);
+                if (!id.empty()) logMessage("[Drag&Drop] Plugin installed: " + id);
+            } else {
+                const char* singlePath = paths[i];
+                Engine::onDrop(1, &singlePath);
+            }
+        }
+    }
+
     void onRender() override {
         Profiler::instance().beginFrame();
 
@@ -4851,6 +4964,7 @@ public:
             if (_buildModalOpen) drawBuildModal();
             if (_inputModalOpen) drawInputModal();
             if (_asset2DModalOpen) drawAsset2DModal();
+            if (_showConvertMapModal) drawConvertMapModal();
 
             Profiler::instance().endFrame();
             return;
@@ -5151,6 +5265,11 @@ public:
         // 8. Render 2D Asset Browser & Spritesheet Slicer Modal if open
         if (_asset2DModalOpen) {
             drawAsset2DModal();
+        }
+
+        // 9. Render Legacy Map Conversion Modal if open
+        if (_showConvertMapModal) {
+            drawConvertMapModal();
         }
 
         Renderer::endFrame();
@@ -7442,6 +7561,52 @@ public:
         Renderer::endUI();
     }
 
+    // Modal Legacy Map Conversion Dialog
+    void drawConvertMapModal() {
+        int fbW = 0, fbH = 0;
+        getFramebufferSize(fbW, fbH);
+        float w = (fbW > 0) ? (float)fbW : (float)getWidth();
+        float h = (fbH > 0) ? (float)fbH : (float)getHeight();
+
+        Renderer::beginUI((int)w, (int)h);
+
+        // Dark modal overlay
+        Renderer::drawRect(0, 0, w, h, Vec3(0.04f, 0.05f, 0.06f));
+
+        float bw = 560.0f;
+        float bh = 230.0f;
+        float bx = (w - bw) * 0.5f;
+        float by = (h - bh) * 0.5f;
+
+        LabTheme::drawPanel(bx, by, bw, bh, "Wykryto format Legacy .labmap");
+        drawDarkButton(bx + bw - 32.0f, by + 5.0f, 24.0f, 22.0f, "X", false, true);
+
+        std::string fname = std::filesystem::path(_pendingMapPath).filename().string();
+        LabFont::drawText(bx + 24.0f, by + 48.0f, "Wykryto przestarzaly format mapy (.labmap):", 1.45f, Vec3(1.0f, 0.85f, 0.4f), LabFontType::System);
+        LabFont::drawText(bx + 24.0f, by + 74.0f, fname, 1.55f, Vec3(0.4f, 0.85f, 1.0f), LabFontType::System);
+        LabFont::drawText(bx + 24.0f, by + 106.0f, "Czy chcesz skonwertowac plik do nowego formatu .labscene?", 1.35f, Vec3(0.92f, 0.92f, 0.95f), LabFontType::System);
+        LabFont::drawText(bx + 24.0f, by + 128.0f, "Brushes -> static, encje, prefabRef. Oryginal zostanie zachowany jako .backup.", 1.2f, Vec3(0.7f, 0.72f, 0.75f), LabFontType::System);
+
+        // Buttons
+        float btnY = by + bh - 52.0f;
+        float btnW = 160.0f;
+        float btnH = 34.0f;
+
+        // "Konwertuj"
+        float convX = bx + 60.0f;
+        Renderer::drawRect(convX, btnY, btnW, btnH, Vec3(0.18f, 0.46f, 0.25f));
+        drawDarkBevel(convX, btnY, btnW, btnH, false);
+        LabFont::drawText(convX + 44.0f, btnY + 8.0f, "Konwertuj", 1.45f, Vec3(1, 1, 1), LabFontType::System);
+
+        // "Anuluj"
+        float cancelX = bx + bw - 60.0f - btnW;
+        Renderer::drawRect(cancelX, btnY, btnW, btnH, Vec3(0.46f, 0.18f, 0.18f));
+        drawDarkBevel(cancelX, btnY, btnW, btnH, false);
+        LabFont::drawText(cancelX + 54.0f, btnY + 8.0f, "Anuluj", 1.45f, Vec3(1, 1, 1), LabFontType::System);
+
+        Renderer::endUI();
+    }
+
     void onShutdown() override {
         Renderer::shutdown();
     }
@@ -7466,6 +7631,8 @@ private:
     bool _buildModalOpen = false;
     bool _inputModalOpen = false;
     bool _asset2DModalOpen = false;
+    bool _showConvertMapModal = false;
+    std::string _pendingMapPath = "";
     SpriteSheet2D _editorSpriteSheet;
     int _sliceCols = 4;
     int _sliceRows = 4;

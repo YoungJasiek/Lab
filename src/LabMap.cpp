@@ -1,4 +1,5 @@
 #include "LabMap.h"
+#include "LabScene.h"
 #include "LabCore.h"
 #include <fstream>
 #include <sstream>
@@ -22,6 +23,28 @@ namespace Lab {
 
     std::unique_ptr<LabMap> LabMap::loadFromFile(const std::string& filePath) {
         std::string resolved = resolveMapPath(filePath);
+
+        std::string ext = std::filesystem::path(resolved).extension().string();
+        for (auto& c : ext) c = (char)tolower(c);
+        if (ext == ".labscene") {
+            return LabScene::loadSceneFromFile(resolved);
+        }
+        {
+            std::ifstream peek(resolved);
+            if (peek.is_open()) {
+                std::string peekLine;
+                while (std::getline(peek, peekLine)) {
+                    size_t pFirst = peekLine.find_first_not_of(" \t\r\n");
+                    if (pFirst == std::string::npos || peekLine[pFirst] == '#') continue;
+                    if (peekLine.find("LABSCENE_VERSION") != std::string::npos) {
+                        peek.close();
+                        return LabScene::loadSceneFromFile(resolved);
+                    }
+                    break;
+                }
+            }
+        }
+
         std::ifstream file(resolved);
         if (!file.is_open()) {
             LabLog::error("Failed to open map file: " + filePath + " (resolved: " + resolved + ")");
@@ -243,6 +266,7 @@ namespace Lab {
                         try { ws.weaponId = std::stoi(wepToken); } catch (...) { ws.weaponId = 2; }
                     }
                     if (ws.respawnTime <= 0.0f) ws.respawnTime = 60.0f;
+                    ws.prefabRef = LabScene::weaponIdToPrefab(ws.weaponId);
                     map->weaponSpawners.push_back(ws);
                     lastParsed = LastParsedEntity::None;
                 } else if (token == "light" || token == "light_omni" || token == "light_spot") {
@@ -386,6 +410,13 @@ namespace Lab {
     }
 
     bool LabMap::saveToFile(const std::string& filePath) const {
+        std::string ext = std::filesystem::path(filePath).extension().string();
+        for (auto& c : ext) c = (char)tolower(c);
+        if (ext == ".labscene") {
+            auto sc = LabScene::fromLabMap(*this);
+            return sc->saveSceneToFile(filePath);
+        }
+
         std::ofstream file(filePath);
         if (!file.is_open()) {
             LabLog::error("Failed to save map to: " + filePath);

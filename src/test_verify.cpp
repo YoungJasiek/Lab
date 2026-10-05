@@ -1,4 +1,5 @@
 #include "Lab.h"
+#include "LabScene.h"
 #include "LabFont.h"
 #include "LabDialogs.h"
 #include "../games/frozen_life/include/FrozenLifeAnim.h"
@@ -8938,6 +8939,132 @@ int main() {
         std::cout << "  [PASS] Sub-test D: Engine Languages (Języki Silnika: English/Polish dictionary) verified.\n";
 
         std::cout << "  [PASS] Test 82 Unified UI Theme, Shared Widgets & Engine Languages passed 100%!\n";
+    }
+
+    // =========================================================================
+    // TEST 83: LEGACY .LABMAP DETECTION, CONVERSION TO .LABSCENE, .BACKUP & DIRECT LOAD
+    // =========================================================================
+    {
+        std::cout << "\n[Test 83] Verifying Legacy .labmap Detection, Conversion to .labscene, .backup Creation & Direct Loading...\n";
+
+        // Sub-test A: Legacy Detection (brush{, brush, spawn_player, weapon_spawner, LABMAP_VERSION)
+        std::string testLegacyMap = "assets/maps/qa_legacy_test.labmap";
+        {
+            std::ofstream out(testLegacyMap);
+            out << "LABMAP_VERSION 1\n\n";
+            out << "METADATA\n";
+            out << "    name \"QA Legacy Map\"\n";
+            out << "    ambient 0.25 0.3 0.35\n";
+            out << "    sun_dir -0.5 -0.7 -0.2\n";
+            out << "    sun_color 1.0 0.95 0.9\n";
+            out << "END_METADATA\n\n";
+            out << "ENTITIES\n";
+            out << "    spawn 0 1.8 0 0\n";
+            out << "    spawn_point info_player_deathmatch 0 1.8 0 0 ffa\n";
+            out << "    weapon_spawner 3 -8.0 0.0 -12.0 45.0 60.0\n"; // M4A4-S -> weapon_m4a4s
+            out << "    weapon_spawner 0 4.0 0.0 2.0 90.0 45.0\n";    // Pipe -> weapon_pipe
+            out << "    brush cube 0 -0.5 0 20 1 20 1 1 1 floor.bmp\n";
+            out << "    prop crate.stl 2 0 3 0 0 0 1 1 1 0.8 0.8 0.8 wood.bmp\n";
+            out << "    door security_door 0 1.75 -10 3 4 0.5 0 4 0 0.3 0.3 0.3 2.5 4.0\n";
+            out << "    light lamp_omni 0 3 0 1 0.9 0.8 3.0 12.0 point\n";
+            out << "END_ENTITIES\n";
+        }
+
+        if (!Lab::LabScene::isLegacyMapFile(testLegacyMap)) {
+            std::cerr << "Assertion failed: isLegacyMapFile failed to detect legacy .labmap tokens!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test A: Legacy .labmap format correctly detected by tokens.\n";
+
+        // Sub-test B: Conversion to .labscene, .backup creation & weaponId -> prefabRef mapping
+        auto convRes = Lab::LabScene::convertLegacyMapToScene(testLegacyMap);
+        if (!convRes.success) {
+            std::cerr << "Assertion failed: convertLegacyMapToScene failed: " << convRes.errorMessage << "\n";
+            return 1;
+        }
+
+        // Verify .backup exists
+        if (!std::filesystem::exists(convRes.backupPath)) {
+            std::cerr << "Assertion failed: Backup file not created at: " << convRes.backupPath << "\n";
+            return 1;
+        }
+
+        // Verify .labscene exists
+        if (!std::filesystem::exists(convRes.scenePath)) {
+            std::cerr << "Assertion failed: .labscene file not created at: " << convRes.scenePath << "\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test B: Conversion generated .labscene and .backup successfully.\n";
+
+        // Sub-test C: Content & Node Architecture Verification
+        auto scene = Lab::LabScene::loadSceneFromFile(convRes.scenePath);
+        if (!scene) {
+            std::cerr << "Assertion failed: Failed to load generated .labscene!\n";
+            return 1;
+        }
+
+        if (scene->environment.name != "QA Legacy Map" && scene->metadata.name != "QA Legacy Map") {
+            std::cerr << "Assertion failed: Environment metadata name mismatch!\n";
+            return 1;
+        }
+
+        // Verify brushes converted to static meshes
+        if (scene->brushes.size() != 1) {
+            std::cerr << "Assertion failed: Brushes not preserved as static geometry! Got count: " << scene->brushes.size() << "\n";
+            return 1;
+        }
+
+        // Verify entities (weapon_spawner prefabRef, doors, props, lights)
+        if (scene->weaponSpawners.size() != 2) {
+            std::cerr << "Assertion failed: Weapon spawners count mismatch! Got: " << scene->weaponSpawners.size() << "\n";
+            return 1;
+        }
+
+        if (scene->weaponSpawners[0].prefabRef != "weapon_m4a4s" || scene->weaponSpawners[0].weaponId != 3) {
+            std::cerr << "Assertion failed: Spawner 0 weaponId -> prefabRef failed! Got prefabRef: " 
+                      << scene->weaponSpawners[0].prefabRef << ", id: " << scene->weaponSpawners[0].weaponId << "\n";
+            return 1;
+        }
+
+        if (scene->weaponSpawners[1].prefabRef != "weapon_pipe" || scene->weaponSpawners[1].weaponId != 0) {
+            std::cerr << "Assertion failed: Spawner 1 weaponId -> prefabRef failed! Got prefabRef: " 
+                      << scene->weaponSpawners[1].prefabRef << ", id: " << scene->weaponSpawners[1].weaponId << "\n";
+            return 1;
+        }
+
+        if (scene->props.size() != 1 || scene->doors.size() != 1 || scene->lights.size() != 1) {
+            std::cerr << "Assertion failed: Scene entities (props/doors/lights) count mismatch!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test C: Brushes -> static, rest -> entities, weaponId -> prefabRef verified.\n";
+
+        // Sub-test D: Direct .labscene dropping & loading (no legacy prompt)
+        if (Lab::LabScene::isLegacyMapFile(convRes.scenePath)) {
+            std::cerr << "Assertion failed: Modern .labscene was incorrectly flagged as legacy!\n";
+            return 1;
+        }
+
+        // Verify LabMap::loadFromFile transparently loads .labscene
+        auto genericMapLoad = Lab::LabMap::loadFromFile(convRes.scenePath);
+        if (!genericMapLoad) {
+            std::cerr << "Assertion failed: Generic LabMap::loadFromFile returned null for: " << convRes.scenePath << "\n";
+            return 1;
+        }
+        if (genericMapLoad->brushes.size() != 1 || genericMapLoad->weaponSpawners.size() != 2) {
+            std::cerr << "Assertion failed: Generic LabMap::loadFromFile data mismatch! Brushes: " 
+                      << genericMapLoad->brushes.size() << ", Spawners: " << genericMapLoad->weaponSpawners.size() << "\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test D: Direct loading of .labscene without prompt verified 100%." << std::endl;
+
+        // Cleanup test files safely
+        std::error_code ec;
+        std::filesystem::remove(testLegacyMap, ec);
+        std::filesystem::remove(convRes.backupPath, ec);
+        std::filesystem::remove(convRes.scenePath, ec);
+        std::filesystem::remove(std::filesystem::path(testLegacyMap).replace_extension(".backup"), ec);
+
+        std::cout << "  [PASS] Test 83 Legacy .labmap Detection, Modal Conversion to .labscene & Backup passed 100%!" << std::endl;
     }
 
     Lab::Renderer::shutdown();

@@ -12,18 +12,24 @@
 
 namespace Lab {
 
-    // Drag & drop: upuszczony plik .lua ląduje w plugins/ i jest od razu ładowany.
+    // Drag & drop: delegacja do wirtualnej metody Engine::onDrop
     static void labDropCallback(GLFWwindow* window, int count, const char** paths) {
-        (void)window;
+        Engine* eng = static_cast<Engine*>(glfwGetWindowUserPointer(window));
+        if (eng) {
+            eng->onDrop(count, paths);
+        }
+    }
+
+    void Engine::onDrop(int count, const char** paths) {
         for (int i = 0; i < count; ++i) {
             std::string src = paths[i] ? paths[i] : "";
-            if (src.size() < 5 || src.substr(src.size() - 4) != ".lua") {
-                LabLog::warn("Drop ignored (only single-file .lua plugins accepted): " + src);
-                continue;
+            if (src.size() >= 4 && src.substr(src.size() - 4) == ".lua") {
+                std::string id = PackageManager::instance().importDropinFile(src);
+                if (!id.empty()) LabLog::info("Drag&drop plugin installed: " + id);
+                else LabLog::error("Drag&drop plugin failed: " + src);
+            } else {
+                LabLog::warn("Drop ignored: " + src);
             }
-            std::string id = PackageManager::instance().importDropinFile(src);
-            if (!id.empty()) LabLog::info("Drag&drop plugin installed: " + id);
-            else LabLog::error("Drag&drop plugin failed: " + src);
         }
     }
 
