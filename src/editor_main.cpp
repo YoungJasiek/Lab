@@ -4319,8 +4319,10 @@ public:
                     _scriptCursorLine = lineIdx;
                     float gutterW = 46.0f;
                     float textStartX = codeX + gutterW + 8.0f;
+                    float scriptFontScale = 1.35f;
+                    float charAdvance = LabFont::getMonospaceAdvance(scriptFontScale);
                     float relX = std::max(0.0f, mx - textStartX);
-                    int colIdx = (int)std::floor(relX / 8.5f);
+                    int colIdx = (int)std::floor((relX + charAdvance * 0.4f) / charAdvance);
                     _scriptCursorCol = std::clamp(colIdx, 0, (int)_scriptLines[_scriptCursorLine].size());
                     _scriptBlinkTimer = 0.0f;
                 }
@@ -6410,6 +6412,8 @@ public:
 
             // Render visible lines from _scriptLines
             float textStartX = codeX + gutterW + 8.0f;
+            float scriptFontScale = 1.35f;
+            float charAdvance = LabFont::getMonospaceAdvance(scriptFontScale);
             for (int i = 0; i < maxVisible; ++i) {
                 int lineIdx = _scriptScrollLine + i;
                 if (lineIdx >= (int)_scriptLines.size()) break;
@@ -6422,14 +6426,14 @@ public:
                 if (lText.rfind("--", 0) == 0) lColor = Vec3(0.35f, 0.75f, 0.35f);
                 else if (lText.find("function") != std::string::npos || lText.find("end") != std::string::npos || lText.find("local") != std::string::npos) lColor = orangeGlow;
                 else if (lText.find("World.") != std::string::npos || lText.find("HUD.") != std::string::npos || lText.find("Input.") != std::string::npos) lColor = cyanGlow;
-                LabFont::drawText(textStartX, ly, lText, 1.0f, lColor, LabFontType::Monospace);
+                LabFont::drawText(textStartX, ly, lText, scriptFontScale, lColor, LabFontType::Monospace);
             }
 
             // Blinking caret
             if (_scriptEditorFocused && ((int)(_scriptBlinkTimer * 2.0f) % 2 == 0)) {
                 if (curRel >= 0 && curRel < maxVisible) {
                     float caretY = codeY + 6.0f + curRel * 18.0f;
-                    float caretX = textStartX + _scriptCursorCol * 8.5f;
+                    float caretX = textStartX + _scriptCursorCol * charAdvance;
                     if (caretX < codeX + codeW - 4.0f) {
                         Renderer::drawRect(caretX, caretY, 2.0f, 16.0f, cyanGlow);
                     }

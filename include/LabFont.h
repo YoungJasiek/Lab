@@ -360,6 +360,18 @@ namespace Lab {
             return systemAtlas;
         }
 
+        static float getMonospaceAdvance(float scale = 1.0f) {
+            FontAtlas& atlas = getAtlas(LabFontType::Monospace);
+            if (atlas.valid) {
+                float visualScale = scale * (8.5f / atlas.fontHeight);
+                float adv = atlas.glyphs['0' - 32].xadvance;
+                if (adv <= 0.0f) adv = atlas.glyphs[0].xadvance;
+                if (adv <= 0.0f) adv = atlas.fontHeight * 0.55f;
+                return adv * visualScale;
+            }
+            return 6.0f * scale;
+        }
+
         // Draws formatted string with selected font type and crisp anti-aliasing
         // Defaults to System font (Windows font in engine/editor), GeoSans used in game
         static void drawText(float x, float y, const std::string& text, float scale = 1.0f, const Vec3& color = { 1, 1, 1 }, LabFontType fontType = LabFontType::System) {
@@ -370,12 +382,17 @@ namespace Lab {
                     float cursorX = x;
                     float cursorY = y;
                     float lineH = (atlas.fontHeight + 4.0f) * visualScale;
-                    float monoAdvance = 8.5f * scale;
+                    float monoAdvance = (fontType == LabFontType::Monospace) ? getMonospaceAdvance(scale) : 0.0f;
 
                     for (char c : text) {
                         if (c == '\n') {
                             cursorY += lineH;
                             cursorX = x;
+                            continue;
+                        }
+                        if (c == '\t') {
+                            float tabAdv = (fontType == LabFontType::Monospace) ? (monoAdvance * 4.0f) : (24.0f * visualScale);
+                            cursorX += tabAdv;
                             continue;
                         }
                         int idx = (int)c - 32;
@@ -407,11 +424,13 @@ namespace Lab {
             if (fontType == LabFontType::Monospace) {
                 float maxW = 0.0f;
                 float curW = 0.0f;
-                float adv = 8.5f * scale;
+                float adv = getMonospaceAdvance(scale);
                 for (char c : text) {
                     if (c == '\n') {
                         if (curW > maxW) maxW = curW;
                         curW = 0.0f;
+                    } else if (c == '\t') {
+                        curW += adv * 4.0f;
                     } else {
                         curW += adv;
                     }
