@@ -117,32 +117,6 @@ enum class EditorWorkspace {
     ProjectHub = 14
 };
 
-enum class HUDWidgetType {
-    TextLabel,
-    ProgressBar,
-    Button,
-    Icon,
-    Panel,
-    MinimapFrame,
-    DialogueBox
-};
-
-struct HUDDesignWidget {
-    std::string id;
-    std::string label;
-    HUDWidgetType type{ HUDWidgetType::TextLabel };
-    float x{ 100.0f };
-    float y{ 100.0f };
-    float w{ 200.0f };
-    float h{ 40.0f };
-    Vec3 color{ 1.0f, 1.0f, 1.0f };
-    Vec3 bgColor{ 0.15f, 0.18f, 0.22f };
-    float currentValue{ 100.0f };
-    float maxValue{ 100.0f };
-    std::string bindingKey{ "" };
-    std::string genreTag{ "General" }; // RPG, Platformer, RTS, Racing, Story, General
-};
-
 enum class BottomDockTab {
     Console,
     Profiler,
@@ -186,8 +160,10 @@ public:
         _characterStudio.init();
         _characterStudio.setWindow(getWindow());
 
-        // Initialize Multi-Genre HUD Widgets (RPG, Platformer, RTS, Racing, Story)
-        initDefaultHUDWidgets();
+        // Initialize embedded LabHUDEditor suite
+        _hudEditor.init();
+        _hudEditor.setWindow(getWindow());
+        _hudEditor.loadHUDFile("games/frozen_life/assets/hud/frozen_life_hud.labhud");
 
         // Initialize Package & Plugin System (drop-in: 1 plik .lua = 1 plugin)
         PackageManager::instance().registerBuiltinPackages();
@@ -201,30 +177,6 @@ public:
         // Initialize Engine Main Menu / Project Hub
         refreshProjectHub();
         setWorkspace(EditorWorkspace::Project_Hub);
-    }
-
-    void initDefaultHUDWidgets() {
-        _hudWidgets.clear();
-        // 1. RPG / Action Widgets
-        _hudWidgets.push_back({ "HealthBar", "HEALTH", HUDWidgetType::ProgressBar, 60.0f, 960.0f, 260.0f, 26.0f, Vec3(0.2f, 0.85f, 0.35f), Vec3(0.12f, 0.14f, 0.18f), 100.0f, 100.0f, "Health", "RPG" });
-        _hudWidgets.push_back({ "ManaBar", "MANA", HUDWidgetType::ProgressBar, 60.0f, 995.0f, 260.0f, 20.0f, Vec3(0.2f, 0.6f, 0.95f), Vec3(0.12f, 0.14f, 0.18f), 85.0f, 100.0f, "Mana", "RPG" });
-        _hudWidgets.push_back({ "XPBar", "XP", HUDWidgetType::ProgressBar, 60.0f, 1025.0f, 260.0f, 12.0f, Vec3(0.95f, 0.75f, 0.15f), Vec3(0.12f, 0.14f, 0.18f), 450.0f, 1000.0f, "XP", "RPG" });
-
-        // 2. Platformer / Arcade Widgets
-        _hudWidgets.push_back({ "ScoreText", "SCORE: 014500", HUDWidgetType::TextLabel, 60.0f, 60.0f, 220.0f, 32.0f, Vec3(1.0f, 0.95f, 0.3f), Vec3(0.10f, 0.12f, 0.16f), 14500.0f, 99999.0f, "Score", "Platformer" });
-        _hudWidgets.push_back({ "CoinCount", "COINS: x42", HUDWidgetType::TextLabel, 300.0f, 60.0f, 160.0f, 32.0f, Vec3(1.0f, 0.8f, 0.1f), Vec3(0.10f, 0.12f, 0.16f), 42.0f, 99.0f, "Coins", "Platformer" });
-        _hudWidgets.push_back({ "LivesDisplay", "LIVES: <3 <3 <3", HUDWidgetType::TextLabel, 480.0f, 60.0f, 180.0f, 32.0f, Vec3(0.95f, 0.25f, 0.35f), Vec3(0.10f, 0.12f, 0.16f), 3.0f, 3.0f, "Lives", "Platformer" });
-
-        // 3. Racing / Vehicle Widgets
-        _hudWidgets.push_back({ "Speedometer", "142 KM/H", HUDWidgetType::TextLabel, 1620.0f, 940.0f, 240.0f, 44.0f, Vec3(0.2f, 0.9f, 0.95f), Vec3(0.08f, 0.10f, 0.14f), 142.0f, 280.0f, "Speedometer", "Racing" });
-        _hudWidgets.push_back({ "LapTimer", "LAP 1 - 01:24.5", HUDWidgetType::TextLabel, 840.0f, 60.0f, 240.0f, 36.0f, Vec3(1.0f, 0.9f, 0.2f), Vec3(0.10f, 0.12f, 0.16f), 84.5f, 999.0f, "LapTimer", "Racing" });
-
-        // 4. Strategy / RTS Widgets
-        _hudWidgets.push_back({ "ResourceBar", "GOLD: 1200 | WOOD: 450 | FOOD: 80/100", HUDWidgetType::TextLabel, 1200.0f, 60.0f, 380.0f, 32.0f, Vec3(0.9f, 0.95f, 1.0f), Vec3(0.12f, 0.14f, 0.18f), 1200.0f, 5000.0f, "Resources", "RTS" });
-        _hudWidgets.push_back({ "MinimapFrame", "[ MINIMAP RADAR ]", HUDWidgetType::MinimapFrame, 60.0f, 780.0f, 180.0f, 160.0f, Vec3(0.3f, 0.85f, 0.65f), Vec3(0.06f, 0.08f, 0.10f), 1.0f, 1.0f, "Minimap", "RTS" });
-
-        // 5. Story / Adventure Widgets
-        _hudWidgets.push_back({ "DialogueBox", "Scientist: The containment field is holding.", HUDWidgetType::DialogueBox, 460.0f, 880.0f, 1000.0f, 75.0f, Vec3(0.95f, 0.95f, 0.95f), Vec3(0.08f, 0.10f, 0.14f), 1.0f, 1.0f, "DialogueText", "Story" });
     }
 
     void discoverTextures() {
@@ -1259,6 +1211,23 @@ public:
                     _characterStudio.handleKeyDown(k, ctrl, shift);
                 }
                 _lastStudioKeys[k] = Input::keys[k];
+            }
+        }
+
+        // 1.5. HUD Workspace Engine Tick (LabHUDEditor2D updates)
+        if (_workspace == EditorWorkspace::Level2D_HUD) {
+            _hudEditor.update(time.delta, mx, my, Input::isMouseButtonPressed(0), Input::isMouseButtonPressed(1), Input::scrollDelta);
+            if (_hudEditor.requestExit()) {
+                _hudEditor.clearRequestExit();
+                setWorkspace(EditorWorkspace::World3D_Level);
+            }
+            bool ctrl = Input::isKeyPressed(GLFW_KEY_LEFT_CONTROL) || Input::isKeyPressed(GLFW_KEY_RIGHT_CONTROL);
+            bool shift = Input::isKeyPressed(GLFW_KEY_LEFT_SHIFT) || Input::isKeyPressed(GLFW_KEY_RIGHT_SHIFT);
+            for (int k = 0; k < 512; ++k) {
+                if (Input::keys[k] && !_lastHudKeys[k]) {
+                    _hudEditor.handleKeyDown(k, ctrl, shift);
+                }
+                _lastHudKeys[k] = Input::keys[k];
             }
         }
 
@@ -4030,87 +3999,9 @@ public:
             }
         }
 
-        // 8.5. Native Multi-Genre HUD Canvas Workspace Interactions
+        // 8.5. Native LabHUDEditor2D Workspace Interactions
         if (_workspace == EditorWorkspace::Level2D_HUD) {
-            float vpX = leftW;
-            float vpW = l.rightX - vpX;
-            float vpH = (h - 22.0f) - 58.0f;
-            float cvW = std::min(vpW - 40.0f, 960.0f);
-            float cvH = std::min(vpH - 40.0f, 540.0f);
-            float cvX = vpX + (vpW - cvW) * 0.5f;
-            float cvY = 58.0f + (vpH - cvH) * 0.5f;
-
-            // Template Bar Clicks
-            float tbY = cvY + 30.0f;
-            if (my >= tbY && my <= tbY + 24.0f) {
-                if (mx >= cvX + 10.0f && mx <= cvX + 100.0f) {
-                    _hudWidgets.push_back({ "HealthBar" + std::to_string(_hudWidgets.size()), "HEALTH", HUDWidgetType::ProgressBar, 60.0f, 960.0f, 260.0f, 26.0f, Vec3(0.2f, 0.85f, 0.35f), Vec3(0.12f, 0.14f, 0.18f), 100.0f, 100.0f, "Health", "RPG" });
-                    logMessage("HUD: Added Health/Mana Widget Template");
-                    return;
-                } else if (mx >= cvX + 105.0f && mx <= cvX + 185.0f) {
-                    _hudWidgets.push_back({ "ScoreText" + std::to_string(_hudWidgets.size()), "SCORE: 0000", HUDWidgetType::TextLabel, 60.0f, 60.0f, 220.0f, 32.0f, Vec3(1.0f, 0.95f, 0.3f), Vec3(0.10f, 0.12f, 0.16f), 0.0f, 99999.0f, "Score", "Platformer" });
-                    logMessage("HUD: Added Score/Coin Widget Template");
-                    return;
-                } else if (mx >= cvX + 190.0f && mx <= cvX + 270.0f) {
-                    _hudWidgets.push_back({ "Resources" + std::to_string(_hudWidgets.size()), "GOLD: 500 | WOOD: 200", HUDWidgetType::TextLabel, 1200.0f, 60.0f, 320.0f, 30.0f, Vec3(0.9f, 0.95f, 1.0f), Vec3(0.12f, 0.14f, 0.18f), 500.0f, 9999.0f, "Resources", "RTS" });
-                    logMessage("HUD: Added Strategy Resource Bar Template");
-                    return;
-                } else if (mx >= cvX + 275.0f && mx <= cvX + 360.0f) {
-                    _hudWidgets.push_back({ "Speedometer" + std::to_string(_hudWidgets.size()), "0 KM/H", HUDWidgetType::TextLabel, 1620.0f, 940.0f, 220.0f, 40.0f, Vec3(0.2f, 0.9f, 0.95f), Vec3(0.08f, 0.10f, 0.14f), 0.0f, 300.0f, "Speedometer", "Racing" });
-                    logMessage("HUD: Added Racing Speedometer Template");
-                    return;
-                } else if (mx >= cvX + 365.0f && mx <= cvX + 450.0f) {
-                    _hudWidgets.push_back({ "Dialogue" + std::to_string(_hudWidgets.size()), "Narrator: Once upon a time in the Cryo Complex...", HUDWidgetType::DialogueBox, 460.0f, 880.0f, 1000.0f, 75.0f, Vec3(0.95f, 0.95f, 0.95f), Vec3(0.08f, 0.10f, 0.14f), 1.0f, 1.0f, "DialogueText", "Story" });
-                    logMessage("HUD: Added Adventure Dialogue Box Template");
-                    return;
-                } else if (mx >= cvX + 455.0f && mx <= cvX + 535.0f) {
-                    _hudWidgets.push_back({ "Timer" + std::to_string(_hudWidgets.size()), "TIME: 00:00", HUDWidgetType::TextLabel, 860.0f, 60.0f, 200.0f, 36.0f, Vec3(1.0f, 0.85f, 0.2f), Vec3(0.10f, 0.12f, 0.16f), 0.0f, 9999.0f, "TimerLabel", "General" });
-                    logMessage("HUD: Added Digital Timer Clock Template");
-                    return;
-                } else if (mx >= cvX + 540.0f && mx <= cvX + 615.0f) {
-                    _hudWidgets.push_back({ "Crosshair" + std::to_string(_hudWidgets.size()), "[ + ]", HUDWidgetType::Icon, 940.0f, 520.0f, 40.0f, 40.0f, Vec3(0.2f, 0.9f, 0.4f), Vec3(0.0f, 0.0f, 0.0f), 1.0f, 1.0f, "Crosshair", "General" });
-                    logMessage("HUD: Added Crosshair Template");
-                    return;
-                } else if (mx >= cvX + 620.0f && mx <= cvX + 690.0f) {
-                    _hudWidgets.push_back({ "ActionButton" + std::to_string(_hudWidgets.size()), "ACTION", HUDWidgetType::Button, 860.0f, 500.0f, 200.0f, 44.0f, Vec3(1.0f, 1.0f, 1.0f), Vec3(0.20f, 0.24f, 0.32f), 1.0f, 1.0f, "BtnAction", "General" });
-                    logMessage("HUD: Added Action Button Template");
-                    return;
-                }
-            }
-
-            // Bottom test controls
-            float botY = cvY + cvH - 38.0f;
-            if (my >= botY + 2.0f && my <= botY + 28.0f) {
-                if (mx >= cvX + 240.0f && mx <= cvX + 300.0f) {
-                    _hudTestSliderValue = std::max(0.0f, _hudTestSliderValue - 10.0f);
-                    ScriptEngine::setHUDValue("Health", _hudTestSliderValue);
-                    ScriptEngine::setHUDValue("Mana", _hudTestSliderValue * 0.85f);
-                    for (auto& widget : _hudWidgets) {
-                        if (widget.type == HUDWidgetType::ProgressBar) widget.currentValue = std::min(widget.maxValue, _hudTestSliderValue);
-                    }
-                    logMessage("HUD Live Test: Decreased value to " + std::to_string((int)_hudTestSliderValue));
-                    return;
-                } else if (mx >= cvX + 305.0f && mx <= cvX + 365.0f) {
-                    _hudTestSliderValue = std::min(100.0f, _hudTestSliderValue + 10.0f);
-                    ScriptEngine::setHUDValue("Health", _hudTestSliderValue);
-                    ScriptEngine::setHUDValue("Mana", _hudTestSliderValue * 0.85f);
-                    for (auto& widget : _hudWidgets) {
-                        if (widget.type == HUDWidgetType::ProgressBar) widget.currentValue = std::min(widget.maxValue, _hudTestSliderValue);
-                    }
-                    logMessage("HUD Live Test: Increased value to " + std::to_string((int)_hudTestSliderValue));
-                    return;
-                } else if (mx >= cvX + 370.0f && mx <= cvX + 470.0f) {
-                    _hudTestSliderValue = 100.0f;
-                    ScriptEngine::setHUDValue("Health", 100.0f);
-                    ScriptEngine::setHUDValue("Mana", 100.0f);
-                    for (auto& widget : _hudWidgets) widget.currentValue = widget.maxValue;
-                    logMessage("HUD Live Test: Reset gauges to maximum.");
-                    return;
-                } else if (mx >= cvX + 475.0f && mx <= cvX + 605.0f) {
-                    toggleSimulation();
-                    return;
-                }
-            }
+            return; // Handled directly by _hudEditor in onUpdate
         }
 
         // 8.6. 2D Spritesheet Animation Workspace Interactions
@@ -4899,6 +4790,12 @@ public:
             glViewport(0, 0, w, h);
             glClearColor(0.07f, 0.08f, 0.10f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+            if (_workspace == EditorWorkspace::Level2D_HUD) {
+                _hudEditor.render(w, h);
+                Profiler::instance().endFrame();
+                return;
+            }
 
             if (isStudioWorkspace(_workspace)) {
                 _characterStudio.render(w, h);
@@ -6155,90 +6052,7 @@ public:
             drawDarkBevel(cX, mvY + mvH - 34.0f, centerW, 26.0f, false);
             LabFont::drawText(cX + 12.0f, mvY + mvH - 28.0f, "Turntable Stage: Drag LMB to rotate, Wheel to zoom, Space to toggle spin", 1.35f, textDim, LabFontType::System);
         } else if (_workspace == EditorWorkspace::Level2D_HUD) {
-            // Interactive Multi-Genre HUD Canvas Designer - full viewport stage
-            Renderer::drawRect(vpX, contentY, vpW, contentH, Vec3(0.05f, 0.06f, 0.08f));
-            drawDarkBevel(vpX, contentY, vpW, contentH, false);
-
-            // Top Genre Template Toolbar
-            float htbY = contentY + 2.0f;
-            Renderer::drawRect(vpX, htbY, vpW, 28.0f, Vec3(0.09f, 0.10f, 0.13f));
-            drawDarkButton(vpX + 8.0f, htbY + 2.0f, 90.0f, 24.0f, "+ RPG Bars");
-            drawDarkButton(vpX + 104.0f, htbY + 2.0f, 85.0f, 24.0f, "+ Platform");
-            drawDarkButton(vpX + 195.0f, htbY + 2.0f, 85.0f, 24.0f, "+ RTS Bars");
-            drawDarkButton(vpX + 286.0f, htbY + 2.0f, 85.0f, 24.0f, "+ Racing");
-            drawDarkButton(vpX + 377.0f, htbY + 2.0f, 85.0f, 24.0f, "+ Story Box");
-            drawDarkButton(vpX + 468.0f, htbY + 2.0f, 80.0f, 24.0f, "+ Timer");
-            drawDarkButton(vpX + 554.0f, htbY + 2.0f, 80.0f, 24.0f, "+ Crosshair");
-            drawDarkButton(vpX + 640.0f, htbY + 2.0f, 75.0f, 24.0f, "+ Button");
-
-            // Calculate centered 16:9 Virtual Artboard (1920x1080)
-            float botH = 34.0f;
-            float availW = vpW - 20.0f;
-            float availH = contentH - 32.0f - botH - 10.0f;
-            float s = std::min(availW / 1920.0f, availH / 1080.0f);
-            float cvW = 1920.0f * s;
-            float cvH = 1080.0f * s;
-            float cvX = vpX + (vpW - cvW) * 0.5f;
-            float cvY = contentY + 32.0f + (availH - cvH) * 0.5f;
-
-            Renderer::drawRect(cvX, cvY, cvW, cvH, Vec3(0.07f, 0.08f, 0.11f));
-            drawDarkBevel(cvX, cvY, cvW, cvH, true);
-            LabFont::drawText(cvX + 8.0f, cvY + 4.0f, "1920x1080 Screen Artboard", 1.25f, cyanGlow, LabFontType::System);
-
-            // Render HUD Widgets onto Virtual Artboard
-            float scaleX = cvW / 1920.0f;
-            float scaleY = cvH / 1080.0f;
-
-            for (size_t i = 0; i < _hudWidgets.size(); ++i) {
-                const auto& widget = _hudWidgets[i];
-                float wx = cvX + widget.x * scaleX;
-                float wy = cvY + widget.y * scaleY;
-                float ww = std::max(20.0f, widget.w * scaleX);
-                float wh = std::max(12.0f, widget.h * scaleY);
-
-                bool isSel = ((int)i == _selectedHUDWidgetIndex);
-                if (widget.type == HUDWidgetType::ProgressBar) {
-                    Renderer::drawRect(wx, wy, ww, wh, widget.bgColor);
-                    drawDarkBevel(wx, wy, ww, wh, true);
-                    float fillRatio = std::clamp(widget.currentValue / std::max(1.0f, widget.maxValue), 0.0f, 1.0f);
-                    Renderer::drawRect(wx + 1.0f, wy + 1.0f, (ww - 2.0f) * fillRatio, wh - 2.0f, widget.color);
-                    LabFont::drawText(wx + 4.0f, wy - 14.0f, widget.label + " [" + widget.bindingKey + "]", 1.25f, widget.color, LabFontType::System);
-                } else if (widget.type == HUDWidgetType::TextLabel) {
-                    Renderer::drawRect(wx, wy, ww, wh, widget.bgColor);
-                    drawDarkBevel(wx, wy, ww, wh, false);
-                    LabFont::drawText(wx + 6.0f, wy + (wh - 14.0f) * 0.5f, widget.label, 1.4f, widget.color, LabFontType::System);
-                } else if (widget.type == HUDWidgetType::DialogueBox) {
-                    Renderer::drawRect(wx, wy, ww, wh, widget.bgColor);
-                    drawDarkBevel(wx, wy, ww, wh, false);
-                    Renderer::drawRect(wx, wy, ww, 2.0f, cyanGlow);
-                    LabFont::drawText(wx + 12.0f, wy + 8.0f, widget.label, 1.4f, widget.color, LabFontType::System);
-                } else if (widget.type == HUDWidgetType::Button) {
-                    Renderer::drawRect(wx, wy, ww, wh, widget.bgColor);
-                    drawDarkBevel(wx, wy, ww, wh, false);
-                    LabFont::drawText(wx + 10.0f, wy + (wh - 14.0f) * 0.5f, widget.label, 1.35f, widget.color, LabFontType::System);
-                } else if (widget.type == HUDWidgetType::Icon) {
-                    Renderer::drawRect(wx, wy, ww, wh, widget.color);
-                    drawDarkBevel(wx, wy, ww, wh, false);
-                    LabFont::drawText(wx + 4.0f, wy + 2.0f, widget.label, 1.3f, Vec3(1, 1, 1), LabFontType::System);
-                }
-
-                if (isSel) {
-                    Renderer::drawRect(wx - 2.0f, wy - 2.0f, ww + 4.0f, 2.0f, orangeGlow);
-                    Renderer::drawRect(wx - 2.0f, wy + wh, ww + 4.0f, 2.0f, orangeGlow);
-                    Renderer::drawRect(wx - 2.0f, wy - 2.0f, 2.0f, wh + 4.0f, orangeGlow);
-                    Renderer::drawRect(wx + ww, wy - 2.0f, 2.0f, wh + 4.0f, orangeGlow);
-                }
-            }
-
-            // Canvas Quick-Control Buttons (at bottom of canvas)
-            bool isSim = (_simState == EngineSimState::Playing);
-            float btnY = contentY + contentH - 30.0f;
-            drawDarkButton(vpX + 8.0f, btnY, 140.0f, 24.0f, isSim ? "Stop Sim (F9)" : "> Play Sim (F9)", isSim, false, !isSim);
-            drawDarkButton(vpX + 154.0f, btnY, 110.0f, 24.0f, "+1s Clock", false, false, true);
-            drawDarkButton(vpX + 270.0f, btnY, 100.0f, 24.0f, "Reset Timer");
-            drawDarkButton(vpX + 376.0f, btnY, 100.0f, 24.0f, "-15 Health", false, true);
-            drawDarkButton(vpX + 482.0f, btnY, 100.0f, 24.0f, "+25 Health", false, false, true);
-            drawDarkButton(vpX + 588.0f, btnY, 100.0f, 24.0f, "+50 Score", false, false, true);
+            // LabHUDEditor2D workspace rendered directly in onRender()
         } else if (_workspace == EditorWorkspace::Level2D_Animation) {
             // Dedicated 2D Spritesheet Animation Workspace
             float animW = std::min(vpW - 40.0f, 880.0f);
@@ -7863,10 +7677,9 @@ private:
     float _anim2DTimer = 0.0f;
     bool _anim2DLoop = true;
 
-    // Native Multi-Genre HUD Canvas Designer State
-    std::vector<HUDDesignWidget> _hudWidgets;
-    int _selectedHUDWidgetIndex = -1;
-    float _hudTestSliderValue = 100.0f;
+    // Native LabHUDEditor2D embedded integration
+    LabHUDEditor2D _hudEditor;
+    bool _lastHudKeys[512] = { false };
 
     // Hierarchy Context Menu with Real-Time Search Field
     bool _contextMenuOpen = false;

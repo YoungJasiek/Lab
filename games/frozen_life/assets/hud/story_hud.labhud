@@ -1,0 +1,23 @@
+LABHUD_VERSION 1
+
+METADATA
+    name "Story / Dialogue HUD"
+    author "Lab Engine"
+    resolution 1920 1080
+END_METADATA
+
+ASSETS
+END_ASSETS
+
+ELEMENTS
+    element DialogueBox Panel 460 880 1000 75 0.95 0.95 0.95 1.0 TopLeft 0
+        text "Scientist: The containment field is holding."
+        font 1.8 0
+        border 0.08 0.10 0.14 1.0 1.0
+        texture ""
+        binding "story.dialogue"
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        children 0
+END_ELEMENTS

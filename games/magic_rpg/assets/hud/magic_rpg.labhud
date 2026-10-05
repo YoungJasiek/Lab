@@ -1,0 +1,45 @@
+LABHUD_VERSION 1
+
+METADATA
+    name "Magic RPG HUD"
+    author "Lab Engine"
+    resolution 1920 1080
+END_METADATA
+
+ASSETS
+END_ASSETS
+
+ELEMENTS
+    element HealthBar ProgressBar 60 960 260 26 0.20 0.85 0.35 1.0 TopLeft 0
+        text "HEALTH"
+        font 1.8 0
+        border 0.12 0.14 0.18 1.0 1.0
+        texture ""
+        binding "player.health"
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        children 0
+
+    element ManaBar ProgressBar 60 995 260 20 0.20 0.60 0.95 1.0 TopLeft 0
+        text "MANA"
+        font 1.5 0
+        border 0.12 0.14 0.18 1.0 1.0
+        texture ""
+        binding "player.mana"
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        children 0
+
+    element QuestStatus Label 60 60 300 30 0.95 0.85 0.25 1.0 TopLeft 0
+        text "ZWOJE: 1/5"
+        font 1.6 0
+        border 0.12 0.14 0.18 1.0 0.0
+        texture ""
+        binding "rpg.quest_status"
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        children 0
+END_ELEMENTS

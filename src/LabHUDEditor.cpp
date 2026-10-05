@@ -15,6 +15,7 @@
 #include <cmath>
 #include <algorithm>
 #include <iomanip>
+#include <unordered_set>
 
 namespace Lab {
     
@@ -1595,23 +1596,59 @@ namespace Lab {
         return el;
     }
 
+    bool LabHUDEditor2D::loadHUDFile(const std::string& filepath) {
+        std::string resolved = resolveHUDPath(filepath);
+        auto loaded = HUDProject::loadFromFile(resolved);
+        if (loaded) {
+            _project = *loaded;
+            _projectFilePath = resolved;
+            _mode = HUDEditorMode::Editor;
+            _projectDirty = false;
+            scanAssets();
+            return true;
+        }
+        return false;
+    }
+
     std::string LabHUDEditor2D::resolveHUDPath(const std::string& path) {
         if (std::filesystem::exists(path)) return path;
         std::string fname = std::filesystem::path(path).filename().string();
-        if (std::filesystem::exists("assets/hud_projects/" + fname)) return "assets/hud_projects/" + fname;
-        if (std::filesystem::exists("../assets/hud_projects/" + fname)) return "../assets/hud_projects/" + fname;
-        if (std::filesystem::exists("../../assets/hud_projects/" + fname)) return "../../assets/hud_projects/" + fname;
+        std::vector<std::string> candidates = {
+            "games/frozen_life/assets/hud/" + fname,
+            "games/labrunner_escape/assets/hud/" + fname,
+            "games/magic_rpg/assets/hud/" + fname,
+            "assets/hud/" + fname,
+            "assets/hud_projects/" + fname,
+            "../assets/hud_projects/" + fname,
+            "../../assets/hud_projects/" + fname
+        };
+        for (const auto& c : candidates) {
+            if (std::filesystem::exists(c)) return c;
+        }
         return path;
     }
 
     void LabHUDEditor2D::scanProjects() {
         _discoveredProjects.clear();
-        std::vector<std::string> dirs = {"assets/hud_projects", "../assets/hud_projects", "../../assets/hud_projects"};
+        std::vector<std::string> dirs = {
+            "games/frozen_life/assets/hud",
+            "games/labrunner_escape/assets/hud",
+            "games/magic_rpg/assets/hud",
+            "assets/hud",
+            "assets/hud_projects",
+            "../assets/hud_projects",
+            "../../assets/hud_projects"
+        };
+        std::unordered_set<std::string> seen;
         for (const auto& d : dirs) {
             if (std::filesystem::exists(d)) {
                 for (const auto& entry : std::filesystem::directory_iterator(d)) {
                     if (entry.path().extension() == ".labhud") {
-                        _discoveredProjects.push_back(entry.path().string());
+                        std::string p = entry.path().string();
+                        if (!seen.contains(p)) {
+                            seen.insert(p);
+                            _discoveredProjects.push_back(p);
+                        }
                     }
                 }
             }
@@ -1717,6 +1754,10 @@ namespace Lab {
                 else _activeDropdown = (HUDEditorDropdown)i;
             }
             mx += 72.0f;
+        }
+
+        if (drawHammerButton(w - 180.0f, 3.0f, 170.0f, 26.0f, "< Back to SDK Editor")) {
+            _requestExit = true;
         }
     }
 

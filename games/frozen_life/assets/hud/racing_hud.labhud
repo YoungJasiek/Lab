@@ -1,0 +1,34 @@
+LABHUD_VERSION 1
+
+METADATA
+    name "Racing / Vehicle HUD"
+    author "Lab Engine"
+    resolution 1920 1080
+END_METADATA
+
+ASSETS
+END_ASSETS
+
+ELEMENTS
+    element Speedometer Label 1620 940 240 44 0.20 0.90 0.95 1.0 TopLeft 0
+        text "142 KM/H"
+        font 2.2 0
+        border 0.08 0.10 0.14 1.0 0.0
+        texture ""
+        binding "vehicle.speed"
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        children 0
+
+    element LapTimer Label 840 60 240 36 1.0 0.90 0.20 1.0 TopLeft 0
+        text "LAP 1 - 01:24.5"
+        font 2.0 0
+        border 0.10 0.12 0.16 1.0 0.0
+        texture ""
+        binding "match.timer"
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        children 0
+END_ELEMENTS

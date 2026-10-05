@@ -1,0 +1,45 @@
+LABHUD_VERSION 1
+
+METADATA
+    name "Platformer / Arcade HUD"
+    author "Lab Engine"
+    resolution 1920 1080
+END_METADATA
+
+ASSETS
+END_ASSETS
+
+ELEMENTS
+    element ScoreText Label 60 60 220 32 1.0 0.95 0.30 1.0 TopLeft 0
+        text "SCORE: 014500"
+        font 1.8 0
+        border 0.10 0.12 0.16 1.0 0.0
+        texture ""
+        binding "player.score"
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        children 0
+
+    element CoinCount Label 300 60 160 32 1.0 0.80 0.10 1.0 TopLeft 0
+        text "COINS: x42"
+        font 1.8 0
+        border 0.10 0.12 0.16 1.0 0.0
+        texture ""
+        binding "player.coins"
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        children 0
+
+    element LivesDisplay Label 480 60 180 32 0.95 0.25 0.35 1.0 TopLeft 0
+        text "LIVES: 3"
+        font 1.8 0
+        border 0.10 0.12 0.16 1.0 0.0
+        texture ""
+        binding "player.lives"
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        children 0
+END_ELEMENTS

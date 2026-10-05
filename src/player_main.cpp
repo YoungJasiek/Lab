@@ -656,13 +656,6 @@ public:
         // Render Custom HUD if loaded from .labhud
         if (_hudProject) {
             renderCustomHUD(w, h);
-        } else {
-            // Default Minimal In-Game HUD
-            LabFont::drawText(16.0f, 16.0f, _gameTitle, 1.8f, Vec3(1.0f, 0.95f, 0.8f), LabFontType::System);
-            if (_map) {
-                LabFont::drawText(16.0f, 38.0f, "Sector: " + _map->metadata.name, 1.3f, Vec3(0.6f, 0.7f, 0.85f), LabFontType::System);
-            }
-            LabFont::drawText(16.0f, h - 28.0f, "WASD: Move | SPACE: Jump | SHIFT: Sprint | ESC: Pause Menu", 1.2f, Vec3(0.7f, 0.7f, 0.7f), LabFontType::System);
         }
 
         // Window Focus Hint: displayed when mouse is not captured
@@ -781,30 +774,8 @@ public:
     }
 
     std::string resolveHUDValue(const std::string& binding) {
-        if (binding == "mission.cards") {
-            return std::to_string(_cardsCollected) + "/" + std::to_string(_totalCards);
-        }
-        if (binding == "mission.timer" || binding == "match.timer") {
-            return std::to_string((int)std::ceil(std::max(0.0f, _missionTimer)));
-        }
-        if (binding == "player.health") {
-            return std::to_string((int)_playerHealth);
-        }
-        if (binding == "weapon.name") {
-            return _currentWeaponName;
-        }
-        if (binding == "weapon.clip" || binding == "player.ammo") {
-            return std::to_string(_weaponClip) + "/" + std::to_string(_weaponReserve);
-        }
-        if (binding == "mission.name") {
-            return _scriptEngine.getMissionName().empty() ? _gameTitle : _scriptEngine.getMissionName();
-        }
-        if (binding == "mission.status") {
-            return _missionStatus;
-        }
-        std::string dynamicVal = ScriptEngine::getHUDText(binding);
-        if (!dynamicVal.empty()) return dynamicVal;
-        return "";
+        if (binding.empty()) return "";
+        return ScriptEngine::getHUDText(binding);
     }
 
     Texture* getTexture(const std::string& path) {

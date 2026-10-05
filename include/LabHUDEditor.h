@@ -262,6 +262,9 @@ namespace Lab {
         void setWindow(GLFWwindow* window) { _window = window; }
         GLFWwindow* getWindow() const { return _window; }
 
+        bool loadHUDFile(const std::string& filepath);
+        const std::string& getProjectFilePath() const { return _projectFilePath; }
+
         bool requestExit() const { return _requestExit; }
         void clearRequestExit() { _requestExit = false; }
 
