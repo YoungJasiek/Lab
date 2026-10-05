@@ -59,18 +59,8 @@ namespace Lab {
         Idle = 0,
         Walk = 1,
         Shoot = 2,
-        Reload = 3,
+        Action = 3,
         Inspect = 4
-    };
-
-    // --- Reload Animation Timeline Choreography ---
-    struct ReloadTimelineConfig {
-        float dipDuration = 0.35f;
-        float magDropTime = 0.28f;
-        float magInsertTime = 0.62f;
-        float boltRackTime = 0.88f;
-        float dipDepth = 0.08f;
-        float tiltAngle = 18.0f;
     };
 
     // --- Weapon Skin & Material System ---
@@ -132,7 +122,7 @@ namespace Lab {
 
     enum class StudioTab : int {
         GripPoser = 0,
-        ReloadTimeline = 1,
+        AnimationTimeline = 1,
         WeaponSkins = 2,
         Appearance = 3,
         FaceDialogue = 4
@@ -168,8 +158,14 @@ namespace Lab {
         WeaponSkinConfig& getWeaponSkinMut(WeaponID id);
         const CharacterAppearance& getAppearance() const { return _appearance; }
         CharacterAppearance& getAppearanceMut() { return _appearance; }
-        const ReloadTimelineConfig& getReloadTimeline() const { return _reloadTimeline; }
-        ReloadTimelineConfig& getReloadTimelineMut() { return _reloadTimeline; }
+        const AnimationTrack& getAnimationTrack() const { return _animTrack; }
+        AnimationTrack& getAnimationTrackMut() { return _animTrack; }
+        float getScrubberPos() const { return _scrubberPos; }
+        void setScrubberPos(float pos) { _scrubberPos = std::clamp(pos, 0.0f, 1.0f); }
+        bool isScrubberPlaying() const { return _scrubberPlaying; }
+        void setScrubberPlaying(bool playing) { _scrubberPlaying = playing; }
+        void stepScrubber(float delta) { _scrubberPos = std::clamp(_scrubberPos + delta, 0.0f, 1.0f); }
+        AnimKeyframe sampleTrack() const { return _animTrack.sample(_scrubberPos); }
 
         StudioTab getActiveTab() const { return _activeTab; }
         void setActiveTab(StudioTab tab) { _activeTab = tab; }
@@ -260,7 +256,7 @@ namespace Lab {
         void render3DScene(int viewportX, int viewportY, int viewportW, int viewportH);
         void renderGroundGrid();
         void renderWeaponGripView();
-        void renderReloadTimelineView();
+        void renderAnimationTimelineView();
         void renderCharacterBody();
         void renderFaceDialogueView();
         void renderSocketGizmo(const Vec3& pos, const Vec3& rot);
@@ -277,7 +273,7 @@ namespace Lab {
 
         // Tab inspectors
         void renderTabGripPoser(float x, float y, float w, float h);
-        void renderTabReloadTimeline(float x, float y, float w, float h);
+        void renderTabAnimationTimeline(float x, float y, float w, float h);
         void renderTabWeaponSkins(float x, float y, float w, float h);
         void renderTabAppearance(float x, float y, float w, float h);
         void renderTabFaceDialogue(float x, float y, float w, float h);
@@ -295,7 +291,7 @@ namespace Lab {
         struct StudioSnapshot {
             std::array<WeaponGripConfig, 9> grips;
             std::array<WeaponSkinConfig, 9> skins;
-            ReloadTimelineConfig reloadTimeline;
+            AnimationTrack animTrack;
             CharacterAppearance appearance;
             FaceMorphWeights faceMorphs;
         };
@@ -315,7 +311,7 @@ namespace Lab {
         // Subsystems and state
         std::array<WeaponGripConfig, 9> _weaponGrips;
         std::array<WeaponSkinConfig, 9> _weaponSkins;
-        ReloadTimelineConfig _reloadTimeline;
+        AnimationTrack _animTrack;
         CharacterAppearance _appearance;
         FaceMorphWeights _faceMorphs;
 
@@ -332,7 +328,7 @@ namespace Lab {
         float _cameraDist = 1.6f;
         Vec3 _cameraTarget{0.0f, 0.0f, 0.0f};
 
-        // Reload Timeline Scrubber State
+        // Animation Timeline Scrubber State
         float _scrubberPos = 0.0f; // [0.0 ... 1.0]
         bool _scrubberPlaying = false;
         bool _scrubberLoop = true;
@@ -358,7 +354,6 @@ namespace Lab {
         // Models and Assets
         std::unique_ptr<FacialMesh> _facialHead;
         std::unique_ptr<ViewModelArms> _arms;
-        std::unique_ptr<WeaponAnimator> _animator;
         std::shared_ptr<Skeleton> _botSkeleton;
         std::vector<AnimationClip> _botAnimations;
         std::unique_ptr<SkinnedMesh> _botMesh;

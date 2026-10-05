@@ -34,50 +34,6 @@ namespace Lab {
         }
     };
 
-    enum class WeaponAnimState {
-        Idle,
-        Fire,
-        Reload,
-        Inspect,
-        MeleeSwing
-    };
-
-    // Procedural FPS Viewmodel Controller (Half-Life 2 style weapon sway, bobbing, recoil,
-    // state-driven multi-phase reload, cinematic inspect, and melee swing kinematics)
-    class WeaponAnimator {
-    public:
-        SpringDamper recoilSpring;
-        SpringDamper swaySpring;
-        float bobTimer = 0.0f;
-        float currentSpeed = 0.0f;
-
-        WeaponAnimState state = WeaponAnimState::Idle;
-        float stateTimer = 0.0f;
-        float stateDuration = 0.0f;
-
-        WeaponAnimator();
-
-        void onFire(bool isMelee = false);
-        void onReload(float duration = 1.8f);
-        void onInspect(float duration = 2.4f);
-        void cancelInspect();
-
-        bool isReloading() const { return state == WeaponAnimState::Reload; }
-        bool isInspecting() const { return state == WeaponAnimState::Inspect; }
-        bool isMeleeSwinging() const { return state == WeaponAnimState::MeleeSwing; }
-        float getStateProgress() const { return stateDuration > 0.0f ? std::clamp(stateTimer / stateDuration, 0.0f, 1.0f) : 0.0f; }
-
-        void update(float dt, const Vec2& mouseDelta, float moveSpeed);
-
-        Vec3 calculatePositionOffset(const Vec3& defaultOffset) const;
-        Vec3 calculateRotationOffset(const Vec3& defaultRot) const;
-
-        // Kinematic offset for support (left) hand during reload cycle
-        Vec3 getLeftHandReloadOffset() const;
-        Vec3 getLeftHandReloadRotation() const;
-        bool isReloadMagazineVisible() const;
-    };
-
     // glTF 2.0 / Blender Animation Keyframe structures
     struct AnimKeyframe {
         float time = 0.0f;
@@ -87,7 +43,9 @@ namespace Lab {
     };
 
     struct AnimationTrack {
-        std::string nodeName;
+        std::string name = "Track";
+        std::string nodeName = "Root";
+        float duration = 1.0f;
         std::vector<AnimKeyframe> keyframes;
 
         AnimKeyframe sample(float t) const {

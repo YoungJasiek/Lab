@@ -15,7 +15,7 @@ namespace Lab {
     struct BotWeaponCombatStats {
         float interval;
         int clipSize;
-        float reloadTime;
+        float refillTime;
         SoundID sound;
         float damage;
         float range;
@@ -57,7 +57,7 @@ namespace Lab {
         shootCooldown = shootInterval;
         maxClipAmmo = stats.clipSize;
         ammoInClip = maxClipAmmo;
-        reloadTimer = 0.0f;
+        refillTimer = 0.0f;
         shootAnimTimer = 0.0f;
     }
 
@@ -114,7 +114,7 @@ namespace Lab {
                 shootCooldown = shootInterval;
                 maxClipAmmo = stats.clipSize;
                 ammoInClip = maxClipAmmo;
-                reloadTimer = 0.0f;
+                refillTimer = 0.0f;
                 shootAnimTimer = 0.0f;
                 hurtTimer = 0.0f;
                 muzzleFlashTimer = 0.0f;
@@ -126,9 +126,9 @@ namespace Lab {
         if (muzzleFlashTimer > 0.0f) muzzleFlashTimer -= dt;
         if (shootAnimTimer > 0.0f) shootAnimTimer -= dt;
 
-        if (reloadTimer > 0.0f) {
-            reloadTimer -= dt;
-            if (reloadTimer <= 0.0f) {
+        if (refillTimer > 0.0f) {
+            refillTimer -= dt;
+            if (refillTimer <= 0.0f) {
                 ammoInClip = maxClipAmmo;
             }
         }
@@ -177,11 +177,11 @@ namespace Lab {
 
             // Combat weapons firing with weapon cadence, reload, and human recoil arc
             shootCooldown -= dt;
-            if (shootCooldown <= 0.0f && reloadTimer <= 0.0f) {
+            if (shootCooldown <= 0.0f && refillTimer <= 0.0f) {
                 auto stats = getBotWeaponStats(equippedWeapon);
-                if (ammoInClip <= 0 && stats.reloadTime > 0.0f) {
-                    reloadTimer = stats.reloadTime;
-                    AudioEngine::playSound3D(SoundID::Reload, position + Vec3(0.0f, 1.2f, 0.0f), 0.75f);
+                if (ammoInClip <= 0 && stats.refillTime > 0.0f) {
+                    refillTimer = stats.refillTime;
+                    AudioEngine::playSound3D(SoundID::Refill, position + Vec3(0.0f, 1.2f, 0.0f), 0.75f);
                 } else {
                     if (ammoInClip > 0) ammoInClip--;
                     shootCooldown = stats.interval;
@@ -236,7 +236,7 @@ namespace Lab {
                 animator.playAnimation(deathAnim, false);
             } else if (hurtTimer > 0.0f) {
                 animator.playAnimation("Hit Reaction", false, 0.05f);
-            } else if (reloadTimer > 0.0f) {
+            } else if (refillTimer > 0.0f) {
                 animator.playAnimation("Reload", false, 0.1f);
             } else if (shootAnimTimer > 0.0f) {
                 if (equippedWeapon == WeaponID::Pipe) {
@@ -859,7 +859,7 @@ namespace Lab {
                     bot.shootCooldown = bot.shootInterval;
                     bot.maxClipAmmo = stats.clipSize;
                     bot.ammoInClip = bot.maxClipAmmo;
-                    bot.reloadTimer = 0.0f;
+                    bot.refillTimer = 0.0f;
                     bot.shootAnimTimer = 0.0f;
                     bot.hurtTimer = 0.0f;
                     bot.muzzleFlashTimer = 0.0f;
@@ -871,9 +871,9 @@ namespace Lab {
             if (bot.muzzleFlashTimer > 0.0f) bot.muzzleFlashTimer -= dt;
             if (bot.shootAnimTimer > 0.0f) bot.shootAnimTimer -= dt;
 
-            if (bot.reloadTimer > 0.0f) {
-                bot.reloadTimer -= dt;
-                if (bot.reloadTimer <= 0.0f) {
+            if (bot.refillTimer > 0.0f) {
+                bot.refillTimer -= dt;
+                if (bot.refillTimer <= 0.0f) {
                     bot.ammoInClip = bot.maxClipAmmo;
                 }
             }
@@ -965,11 +965,11 @@ namespace Lab {
 
                 // ==================== WEAPONS FIRING ====================
                 bot.shootCooldown -= dt;
-                if (bot.shootCooldown <= 0.0f && bot.reloadTimer <= 0.0f) {
+                if (bot.shootCooldown <= 0.0f && bot.refillTimer <= 0.0f) {
                     auto stats = getBotWeaponStats(bot.equippedWeapon);
-                    if (bot.ammoInClip <= 0 && stats.reloadTime > 0.0f) {
-                        bot.reloadTimer = stats.reloadTime;
-                        AudioEngine::playSound3D(SoundID::Reload, bot.position + Vec3(0.0f, 1.2f, 0.0f), 0.75f);
+                    if (bot.ammoInClip <= 0 && stats.refillTime > 0.0f) {
+                        bot.refillTimer = stats.refillTime;
+                        AudioEngine::playSound3D(SoundID::Refill, bot.position + Vec3(0.0f, 1.2f, 0.0f), 0.75f);
                     } else {
                         if (bot.ammoInClip > 0) bot.ammoInClip--;
                         bot.shootCooldown = stats.interval;
@@ -1073,7 +1073,7 @@ namespace Lab {
                     bot.animator.playAnimation(bot.deathAnim, false);
                 } else if (bot.hurtTimer > 0.0f) {
                     bot.animator.playAnimation("Hit Reaction", false, 0.05f);
-                } else if (bot.reloadTimer > 0.0f) {
+                } else if (bot.refillTimer > 0.0f) {
                     bot.animator.playAnimation("Reload", false, 0.1f);
                 } else if (bot.shootAnimTimer > 0.0f) {
                     if (bot.equippedWeapon == WeaponID::Pipe) {

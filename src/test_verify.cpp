@@ -1,6 +1,8 @@
 #include "Lab.h"
 #include "LabFont.h"
 #include "LabDialogs.h"
+#include "../games/frozen_life/include/FrozenLifeAnim.h"
+namespace FrozenLife = FrozenLifeGame;
 #include "LabPlugin.h"
 #include "LabApplication.h"
 #include "LabEvent.h"
@@ -1423,8 +1425,10 @@ int main() {
 
         // Switch to Pipe and render viewmodel with user's STL model
         ws.switchWeapon(Lab::WeaponID::Pipe);
-        Lab::WeaponAnimator anim;
-        ws.renderViewModel(weaponCam, anim, pipeTex.get(), pipeStl.get(), 0.0f);
+        FrozenLife::WeaponAnimator anim;
+        ws.renderViewModel(weaponCam, pipeTex.get(), pipeStl.get(), 0.0f,
+                           anim.calculateOffset(Lab::Vec3(0, 0, 0)),
+                           anim.calculateRotationOffset(Lab::Vec3(0, 0, 0)));
 
         // Render HUD with Weapon selection bar
         Lab::LabHUD weaponHud;
@@ -1788,15 +1792,15 @@ int main() {
     // ==========================================
     std::cout << "\n[Test 24] Verifying First-Person Tactical Arms & Animation State Machine...\n";
     {
-        Lab::WeaponAnimator animator;
-        if (animator.getStateProgress() != 0.0f || animator.state != Lab::WeaponAnimState::Idle) {
+        FrozenLife::WeaponAnimator animator;
+        if (animator.getStateProgress() != 0.0f || animator.state != FrozenLife::WeaponAnimState::Idle) {
             std::cerr << "Assertion failed: Animator should start in Idle state\n";
             return 1;
         }
 
         // 1. Test Weapon Inspect State (F key)
         animator.onInspect(2.4f);
-        if (!animator.isInspecting() || animator.state != Lab::WeaponAnimState::Inspect) {
+        if (!animator.isInspecting() || animator.state != FrozenLife::WeaponAnimState::Inspect) {
             std::cerr << "Assertion failed: Animator should enter Inspect state\n";
             return 1;
         }
@@ -1816,7 +1820,7 @@ int main() {
 
         // Cancel inspect on combat action
         animator.cancelInspect();
-        if (animator.isInspecting() || animator.state != Lab::WeaponAnimState::Idle) {
+        if (animator.isInspecting() || animator.state != FrozenLife::WeaponAnimState::Idle) {
             std::cerr << "Assertion failed: cancelInspect should return to Idle\n";
             return 1;
         }
@@ -1842,7 +1846,7 @@ int main() {
 
         // Advance past reload completion
         animator.update(1.2f, Lab::Vec2(0, 0), 0.0f);
-        if (animator.isReloading() || animator.state != Lab::WeaponAnimState::Idle) {
+        if (animator.isReloading() || animator.state != FrozenLife::WeaponAnimState::Idle) {
             std::cerr << "Assertion failed: Reload should complete and return to Idle\n";
             return 1;
         }
@@ -1877,11 +1881,11 @@ int main() {
         ws.update(0.5f); // Complete switch transition
 
         // Advance animator into reload phase 2: left hand holding fresh magazine under receiver
-        Lab::WeaponAnimator testAnim;
+        FrozenLife::WeaponAnimator testAnim;
         testAnim.onReload(2.0f);
         testAnim.update(0.70f, Lab::Vec2(0, 0), 0.0f);
 
-        ws.renderViewModel(armsCam, testAnim, nullptr, nullptr, 0.0f);
+        ws.renderViewModel(armsCam, nullptr, nullptr, 0.0f, testAnim.calculatePositionOffset(Lab::Vec3(0,0,0)), testAnim.calculateRotationOffset(Lab::Vec3(0,0,0)));
 
         // UI Overlay indicating FPP tactical arms validation
         Lab::Renderer::beginUI(w, h);
@@ -1988,9 +1992,11 @@ int main() {
         ws.switchWeapon(Lab::WeaponID::M4A4S);
         ws.update(0.5f);
 
-        Lab::WeaponAnimator testAnim;
+        FrozenLife::WeaponAnimator testAnim;
         testAnim.update(0.1f, Lab::Vec2(0, 0), 0.0f);
-        ws.renderViewModel(lightCam, testAnim, nullptr, nullptr, 0.0f);
+        ws.renderViewModel(lightCam, nullptr, nullptr, 0.0f,
+                           testAnim.calculateOffset(Lab::Vec3(0, 0, 0)),
+                           testAnim.calculateRotationOffset(Lab::Vec3(0, 0, 0)));
 
         Lab::Renderer::disableShadowMap();
         Lab::Renderer::disableFlashlight();
@@ -3426,14 +3432,26 @@ int main() {
         }
         std::cout << "  [PASS] Weapon Grip & dual-socket transforms validated!\n";
 
-        // 2. Verify Reload Timeline Configuration
-        const auto& reloadConf = studio.getReloadTimeline();
+        // 2. Verify AnimationTrack Timeline & FrozenLife Reload Configuration
+        studio.setActiveTab(Lab::StudioTab::AnimationTimeline);
+        const auto& animTrack = studio.getAnimationTrack();
+        if (animTrack.keyframes.empty()) {
+            std::cerr << "Assertion failed: AnimationTrack keyframes empty!\n";
+            return 1;
+        }
+        studio.setScrubberPos(0.5f);
+        auto sampled = studio.sampleTrack();
+        if (std::abs(sampled.scale.x - 1.0f) > 0.01f) {
+            std::cerr << "Assertion failed: Sampled keyframe scale invalid!\n";
+            return 1;
+        }
+        FrozenLife::ReloadTimelineConfig reloadConf;
         if (reloadConf.dipDuration <= 0.0f || reloadConf.magDropTime >= reloadConf.magInsertTime ||
             reloadConf.magInsertTime >= reloadConf.boltRackTime) {
             std::cerr << "Assertion failed: Reload timeline keyframe sequence invalid!\n";
             return 1;
         }
-        std::cout << "  [PASS] Reload Timeline choreography & keyframe ordering verified!\n";
+        std::cout << "  [PASS] AnimationTrack keyframe timeline & FrozenLife reload choreography verified!\n";
 
         // 3. Verify Facial Mesh Blend Shapes (6 targets)
         auto head = Lab::FacialMesh::createProceduralHead();
@@ -3679,9 +3697,11 @@ int main() {
         Lab::WeaponSystem customWs;
         customWs.init();
         customWs.switchWeapon(Lab::WeaponID::Pistol);
-        Lab::WeaponAnimator customAnim;
+        FrozenLife::WeaponAnimator customAnim;
         std::unique_ptr<Lab::Mesh> customModelMesh(Lab::Mesh::loadSTL("assets/models/Model.stl"));
-        customWs.renderViewModel(customModelCam, customAnim, nullptr, customModelMesh.get(), 0.0f);
+        customWs.renderViewModel(customModelCam, nullptr, customModelMesh.get(), 0.0f,
+                                 customAnim.calculateOffset(Lab::Vec3(0, 0, 0)),
+                                 customAnim.calculateRotationOffset(Lab::Vec3(0, 0, 0)));
         Lab::Renderer::endFrame();
 
         glFinish();
@@ -3711,9 +3731,11 @@ int main() {
             Lab::WeaponSystem pipeWs;
             pipeWs.init();
             pipeWs.switchWeapon(Lab::WeaponID::Pipe);
-            Lab::WeaponAnimator pipeAnim;
+            FrozenLife::WeaponAnimator pipeAnim;
             std::unique_ptr<Lab::Mesh> pipeMesh(Lab::Mesh::loadSTL("assets/models/pipe.stl"));
-            pipeWs.renderViewModel(pipeTexCam, pipeAnim, pipePng.get(), pipeMesh.get(), 0.0f);
+            pipeWs.renderViewModel(pipeTexCam, pipePng.get(), pipeMesh.get(), 0.0f,
+                                   pipeAnim.calculateOffset(Lab::Vec3(0, 0, 0)),
+                                   pipeAnim.calculateRotationOffset(Lab::Vec3(0, 0, 0)));
             Lab::Renderer::endFrame();
 
             glFinish();
@@ -3730,13 +3752,15 @@ int main() {
             Lab::WeaponSystem lockWs;
             lockWs.init();
             lockWs.switchWeapon(Lab::WeaponID::Pipe);
-            Lab::WeaponAnimator lockAnim;
+            FrozenLife::WeaponAnimator lockAnim;
             Lab::Vec3 customWeaponOffset(0.02f, -0.01f, 0.04f);
             Lab::Vec3 customWeaponRot(5.0f, -8.0f, 3.0f);
             Lab::Vec3 customWeaponScale(1.0f, 1.0f, 1.0f);
             Lab::Vec3 defaultWhite(1.0f, 1.0f, 1.0f);
             // Render with lockHands = true: arms stay in base stance, weapon translates & rotates independently
-            lockWs.renderViewModel(lockHandsCam, lockAnim, pipePng.get(), pipeMesh.get(), 0.0f,
+            lockWs.renderViewModel(lockHandsCam, pipePng.get(), pipeMesh.get(), 0.0f,
+                                   lockAnim.calculateOffset(Lab::Vec3(0, 0, 0)),
+                                   lockAnim.calculateRotationOffset(Lab::Vec3(0, 0, 0)),
                                    nullptr, nullptr, nullptr, nullptr,
                                    &defaultWhite, &customWeaponOffset, &customWeaponRot, &customWeaponScale,
                                    0.25f, true);
@@ -4341,9 +4365,9 @@ int main() {
         assert(studio.getStudioAnimState() == Lab::StudioAnimState::Shoot);
         assert(studio.getActiveBotClipName() == "Shoot");
 
-        studio.setStudioAnimation(Lab::StudioAnimState::Reload);
-        assert(studio.getStudioAnimState() == Lab::StudioAnimState::Reload);
-        assert(studio.getActiveBotClipName() == "Reload");
+        studio.setStudioAnimation(Lab::StudioAnimState::Action);
+        assert(studio.getStudioAnimState() == Lab::StudioAnimState::Action);
+        assert(studio.getActiveBotClipName() == "Action");
 
         studio.setStudioAnimation(Lab::StudioAnimState::Inspect);
         assert(studio.getStudioAnimState() == Lab::StudioAnimState::Inspect);
@@ -4362,7 +4386,7 @@ int main() {
         studio.setAnimPlaying(true);
 
         // 2. Viewmodel Walking Roll & Pitch Kinematics
-        Lab::WeaponAnimator wpnAnim;
+        FrozenLife::WeaponAnimator wpnAnim;
         wpnAnim.update(0.25f, Lab::Vec2(0.0f, 0.0f), 4.8f); // Tactical walk speed
         Lab::Vec3 walkRot = wpnAnim.calculateRotationOffset(Lab::Vec3(0, 0, 0));
         assert(std::abs(walkRot.z) > 0.001f || std::abs(walkRot.x) > 0.001f);
@@ -4512,7 +4536,7 @@ int main() {
         // 2. Verify "Reload" & "Hit Reaction"
         Lab::CombatBot botReload(2, "Reload-Bot", Lab::Vec3(0, 0, 0), Lab::Vec3(0, 0, 5), -1, Lab::WeaponID::Shotgun);
         botReload.initAnimation(aiMgr.skeleton, aiMgr.animations);
-        botReload.reloadTimer = 1.2f;
+        botReload.refillTimer = 1.2f;
         botReload.update(0.016f, Lab::Vec3(0, 0, 10), testMap, tracers, dmgToPlayer);
         if (botReload.animator.getCurrentAnimationName() != "Reload") {
             std::cerr << "Assertion failed: Bot reload did not execute Reload!\n";
@@ -7976,7 +8000,7 @@ int main() {
             World3D_Animation = 1,
             World3D_ModelViewer = 2,
             Studio_GripPoser = 3,
-            Studio_ReloadTimeline = 4,
+            Studio_AnimationTimeline = 4,
             Studio_WeaponSkins = 5,
             Studio_Appearance = 6,
             Studio_FaceDialogue = 7,
@@ -7993,7 +8017,7 @@ int main() {
                 case TestWorkspace::World3D_Animation: return "3D > Animation Keyframe Scrubber";
                 case TestWorkspace::World3D_ModelViewer: return "3D > Model Viewer & Inspector Stage";
                 case TestWorkspace::Studio_GripPoser: return "3D > Weapon Grip Poser";
-                case TestWorkspace::Studio_ReloadTimeline: return "3D > Reload Animation Timeline";
+                case TestWorkspace::Studio_AnimationTimeline: return "3D > Keyframe Animation Timeline";
                 case TestWorkspace::Studio_WeaponSkins: return "3D > Weapon Skins & Materials";
                 case TestWorkspace::Studio_Appearance: return "3D > Character Appearance Studio";
                 case TestWorkspace::Studio_FaceDialogue: return "3D > Face Dialogue & Lip-Sync";

@@ -76,7 +76,7 @@ namespace Lab {
     }
 
     void ViewModelArms::drawTacticalGlove(const Vec3& wristPos, const Vec3& wristRot,
-                                         bool isLeft, WeaponID weaponId, const WeaponAnimator& animator) {
+                                         bool isLeft, WeaponID weaponId) {
         // Glove base palette: dark textured military leather & carbon composite
         Vec3 gloveLeather = { 0.15f, 0.16f, 0.19f };
         Vec3 carbonPlate  = { 0.08f, 0.08f, 0.10f };
@@ -116,19 +116,7 @@ namespace Lab {
             }
         } else {
             // LEFT HAND (Support Hand):
-            if (animator.isReloading()) {
-                // Fingers holding / guiding the magazine during reload
-                for (int f = 0; f < 4; ++f) {
-                    float yOff = 0.015f - f * 0.016f;
-                    Vec3 gripLocal = Vec3(0.018f, yOff, -0.045f);
-                    Vec3 gripPos = wristPos + rotateOffset(gripLocal, wristRot);
-                    Renderer::drawCube(gripPos, wristRot + Vec3(10.0f, -15.0f, 0.0f), { 0.019f, 0.016f, 0.036f }, fingerJoint, nullptr, true);
-                }
-                // Thumb bracing magazine back
-                Vec3 thumbLocal = Vec3(-0.022f, 0.020f, -0.030f);
-                Vec3 thumbPos = wristPos + rotateOffset(thumbLocal, wristRot);
-                Renderer::drawCube(thumbPos, wristRot + Vec3(0, 20.0f, -25.0f), { 0.022f, 0.019f, 0.038f }, gloveLeather, nullptr, true);
-            } else if (weaponId == WeaponID::Pistol) {
+            if (weaponId == WeaponID::Pistol) {
                 // Two-handed Pistol Stance: Support hand cups underneath right fist
                 Vec3 cupLocal = Vec3(0.00f, -0.025f, -0.035f);
                 Vec3 cupPos = wristPos + rotateOffset(cupLocal, wristRot);
@@ -157,21 +145,6 @@ namespace Lab {
         }
     }
 
-    void ViewModelArms::drawReloadMagazine(const Vec3& magPos, const Vec3& magRot, WeaponID weaponId) {
-        (void)weaponId;
-        // High-detail tactical magazine box
-        Vec3 magBodyColor = { 0.08f, 0.09f, 0.11f };
-        Vec3 magPlateColor = { 0.16f, 0.18f, 0.22f };
-        Vec3 brassBulletColor = { 0.85f, 0.72f, 0.24f };
-
-        // Magazine housing body
-        Renderer::drawCube(magPos, magRot, { 0.038f, 0.13f, 0.065f }, magBodyColor, nullptr, true);
-        // Baseplate
-        Renderer::drawCube(magPos - Vec3(0.0f, 0.065f, 0.0f), magRot, { 0.044f, 0.015f, 0.072f }, magPlateColor, nullptr, true);
-        // Visible brass bullet cartridges at the feed lips
-        Renderer::drawCube(magPos + Vec3(0.0f, 0.068f, -0.008f), magRot, { 0.022f, 0.014f, 0.042f }, brassBulletColor, nullptr, true);
-    }
-
     void ViewModelArms::renderMeleeTrail(const Vec3& pipeTipPos, const Vec3& pipeBasePos, float alpha) {
         if (alpha <= 0.01f) return;
 
@@ -187,12 +160,14 @@ namespace Lab {
     }
 
     void ViewModelArms::render(const Vec3& weaponBasePos, const Vec3& weaponRot,
-                              WeaponID weaponId, const WeaponAnimator& animator,
+                              WeaponID weaponId,
                               Texture* sleeveTexture,
                               const Vec3* rightSocketOffset,
                               const Vec3* rightSocketRot,
                               const Vec3* leftSocketOffset,
-                              const Vec3* leftSocketRot) {
+                              const Vec3* leftSocketRot,
+                              const Vec3* supportHandOffset,
+                              const Vec3* supportHandRot) {
         // Shoulder roots (where arms emerge from offscreen bottom corners)
         Vec3 rightElbowStart = { 0.38f, -0.42f, -0.22f };
         Vec3 leftElbowStart  = { -0.38f, -0.42f, -0.22f };
@@ -205,79 +180,35 @@ namespace Lab {
         Vec3 rightWristRot = weaponRot + (rightSocketRot ? *rightSocketRot : defaultRightRot);
 
         drawForearmSleeve(rightElbowStart, rightWristPos, rightWristRot, false, sleeveTexture);
-        drawTacticalGlove(rightWristPos, rightWristRot, false, weaponId, animator);
+        drawTacticalGlove(rightWristPos, rightWristRot, false, weaponId);
 
         // 2. Left Arm / Support Hand Socket:
         Vec3 leftWristPos;
         Vec3 leftWristRot;
 
-        if (animator.isReloading()) {
-            // During reload: left hand detaches and follows magazine retrieval and insertion path
-            Vec3 reloadOff = animator.getLeftHandReloadOffset();
-            Vec3 reloadRot = animator.getLeftHandReloadRotation();
-
-            leftWristPos = weaponBasePos + Vec3(-0.12f, -0.10f, -0.22f) + reloadOff;
-            leftWristRot = weaponRot + Vec3(18.0f, -15.0f, 25.0f) + reloadRot;
-
-            drawForearmSleeve(leftElbowStart, leftWristPos, leftWristRot, true, sleeveTexture);
-            drawTacticalGlove(leftWristPos, leftWristRot, true, weaponId, animator);
-
-            // Draw fresh magazine held in left hand
-            if (animator.isReloadMagazineVisible()) {
-                Vec3 magPos = leftWristPos + Vec3(0.02f, 0.04f, 0.0f);
-                drawReloadMagazine(magPos, leftWristRot, weaponId);
-            }
-        } else if (animator.isInspecting()) {
-            // During inspect: left hand drops slightly to showcase weapon model
-            float p = animator.getStateProgress();
-            float dropY = (p < 0.5f) ? (p * 2.0f * -0.12f) : ((1.0f - p) * 2.0f * -0.12f);
-
-            leftWristPos = weaponBasePos + Vec3(-0.18f, -0.14f + dropY, -0.22f);
-            leftWristRot = weaponRot + Vec3(15.0f, 20.0f, -15.0f);
-
-            drawForearmSleeve(leftElbowStart, leftWristPos, leftWristRot, true, sleeveTexture);
-            drawTacticalGlove(leftWristPos, leftWristRot, true, weaponId, animator);
+        if (supportHandOffset) {
+            leftWristPos = weaponBasePos + *supportHandOffset;
+            leftWristRot = weaponRot + (supportHandRot ? *supportHandRot : Vec3(0.0f, 0.0f, 0.0f));
         } else if (leftSocketOffset) {
-            // User-configured custom socket support hand placement
             leftWristPos = weaponBasePos + *leftSocketOffset;
             leftWristRot = weaponRot + (leftSocketRot ? *leftSocketRot : Vec3(20.0f, 10.0f, -18.0f));
-
-            drawForearmSleeve(leftElbowStart, leftWristPos, leftWristRot, true, sleeveTexture);
-            drawTacticalGlove(leftWristPos, leftWristRot, true, weaponId, animator);
         } else if (weaponId == WeaponID::Pipe) {
             // Two-handed baseball bat stance for Pipe
             leftWristPos = weaponBasePos + Vec3(-0.01f, -0.125f, -0.02f);
             leftWristRot = weaponRot + Vec3(12.0f, -5.0f, 6.0f);
-
-            drawForearmSleeve(leftElbowStart, leftWristPos, leftWristRot, true, sleeveTexture);
-            drawTacticalGlove(leftWristPos, leftWristRot, true, weaponId, animator);
-
-            // If melee swing is active, render the kinetic motion trail along the pipe tip!
-            if (animator.isMeleeSwinging()) {
-                float p = animator.getStateProgress();
-                if (p >= 0.22f && p <= 0.72f) {
-                    float trailAlpha = std::sin((p - 0.22f) / 0.50f * 3.14159265f);
-                    Vec3 pipeTipPos = weaponBasePos + Vec3(0.08f, 0.35f, -0.22f);
-                    Vec3 pipeBasePos = weaponBasePos + Vec3(0.0f, 0.02f, 0.0f);
-                    renderMeleeTrail(pipeTipPos, pipeBasePos, trailAlpha);
-                }
-            }
         } else if (weaponId == WeaponID::Pistol) {
             // Two-handed Pistol Support Grip (cup and saucer under right fist)
             leftWristPos = weaponBasePos + Vec3(-0.055f, -0.105f, -0.035f);
             leftWristRot = weaponRot + Vec3(14.0f, -12.0f, 15.0f);
-
-            drawForearmSleeve(leftElbowStart, leftWristPos, leftWristRot, true, sleeveTexture);
-            drawTacticalGlove(leftWristPos, leftWristRot, true, weaponId, animator);
         } else {
             // Two-handed Rifle/Shotgun/RPG Foregrip Support
             float fwdReach = (weaponId == WeaponID::Shotgun || weaponId == WeaponID::Minigun) ? -0.26f : -0.34f;
             leftWristPos = weaponBasePos + Vec3(-0.065f, -0.060f, fwdReach);
             leftWristRot = weaponRot + Vec3(22.0f, 12.0f, -22.0f);
-
-            drawForearmSleeve(leftElbowStart, leftWristPos, leftWristRot, true, sleeveTexture);
-            drawTacticalGlove(leftWristPos, leftWristRot, true, weaponId, animator);
         }
+
+        drawForearmSleeve(leftElbowStart, leftWristPos, leftWristRot, true, sleeveTexture);
+        drawTacticalGlove(leftWristPos, leftWristRot, true, weaponId);
     }
 
 } // namespace Lab

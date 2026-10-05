@@ -20,7 +20,7 @@ namespace Lab {
         RPGLaunch,
         RPGExplosion,
         DryFire,
-        Reload,
+        Refill,
         FootstepConcrete,
         FootstepMetal,
         FootstepIce,

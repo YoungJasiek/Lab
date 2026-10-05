@@ -1,6 +1,7 @@
 #include "Lab.h"
 #include "LabFont.h"
 #include "LabDialogs.h"
+#include "../games/frozen_life/include/FrozenLifeAnim.h"
 #include <iostream>
 #include <algorithm>
 #include <memory>
@@ -1526,11 +1527,11 @@ public:
         if (Input::isKeyPressed('R') || Input::isKeyPressed('r')) {
             if (!_hammerEditor.active && !_chat.isOpen && !_isPlayerDead) {
                 auto& curWep = _weaponSystem.getActiveWeapon();
-                if (curWep.canReload() && !_weaponAnimator.isReloading()) {
-                    curWep.reload();
+                if (curWep.canRefill() && !_weaponAnimator.isReloading()) {
+                    curWep.refillClip();
                     syncHudWeapon();
                     _weaponAnimator.onReload(1.8f);
-                    AudioEngine::playSound(SoundID::Reload);
+                    AudioEngine::playSound(SoundID::Refill);
                 }
             }
         }
@@ -2195,7 +2196,10 @@ public:
             stlMesh = _cachedWeaponMeshes[curIdx];
         }
 
-        _weaponSystem.renderViewModel(_camera, _weaponAnimator, tex, stlMesh, _muzzleFlashTime,
+        Vec3 animPosOffset = _weaponAnimator.calculatePositionOffset(Vec3(0, 0, 0));
+        Vec3 animRotOffset = _weaponAnimator.calculateRotationOffset(Vec3(0, 0, 0));
+        _weaponSystem.renderViewModel(_camera, tex, stlMesh, _muzzleFlashTime,
+                                      animPosOffset, animRotOffset,
                                       &grip.rightSocketPos, &grip.rightSocketRot,
                                       &grip.leftSocketPos, &grip.leftSocketRot,
                                       &skin.tintColor,
@@ -3071,7 +3075,7 @@ private:
     bool _fireLmbLast = false;
 
     // Animation & Combat state
-    WeaponAnimator _weaponAnimator;
+    FrozenLifeGame::WeaponAnimator _weaponAnimator;
     AIManager _aiManager;
     PhysicsWorld _physicsWorld;
     std::vector<BulletTracer> _tracers;

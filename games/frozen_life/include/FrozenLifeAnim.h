@@ -1,0 +1,426 @@
+#pragma once
+#include <vector>
+#include <string>
+#include <array>
+#include <cmath>
+#include <algorithm>
+#include "LabMath.h"
+#include "LabAnim.h"
+#include "LabWeapon.h"
+
+namespace FrozenLifeGame {
+
+    using namespace Lab;
+
+    enum class WeaponAnimState {
+        Idle,
+        Fire,
+        Reload,
+        Inspect,
+        MeleeSwing
+    };
+
+    // Procedural FPS Viewmodel Controller for Frozen-Life
+    class WeaponAnimator {
+    public:
+        SpringDamper recoilSpring;
+        SpringDamper swaySpring;
+        float bobTimer = 0.0f;
+        float currentSpeed = 0.0f;
+
+        WeaponAnimState state = WeaponAnimState::Idle;
+        float stateTimer = 0.0f;
+        float stateDuration = 0.0f;
+
+        WeaponAnimator() {
+            recoilSpring.stiffness = 220.0f;
+            recoilSpring.damping = 22.0f;
+            swaySpring.stiffness = 140.0f;
+            swaySpring.damping = 16.0f;
+        }
+
+        void onFire(bool isMelee = false) {
+            cancelInspect();
+            if (isMelee) {
+                state = WeaponAnimState::MeleeSwing;
+                stateTimer = 0.0f;
+                stateDuration = 0.42f;
+                recoilSpring.addImpulse(Vec3(-0.01f, 0.02f, 0.06f));
+            } else {
+                recoilSpring.addImpulse(Vec3(0.015f, 0.04f, 0.16f));
+            }
+        }
+
+        void onReload(float duration = 1.8f) {
+            cancelInspect();
+            state = WeaponAnimState::Reload;
+            stateTimer = 0.0f;
+            stateDuration = duration;
+            recoilSpring.addImpulse(Vec3(-0.01f, -0.04f, 0.04f));
+        }
+
+        void onInspect(float duration = 2.4f) {
+            if (state == WeaponAnimState::Reload || state == WeaponAnimState::MeleeSwing) return;
+            state = WeaponAnimState::Inspect;
+            stateTimer = 0.0f;
+            stateDuration = duration;
+        }
+
+        void cancelInspect() {
+            if (state == WeaponAnimState::Inspect) {
+                state = WeaponAnimState::Idle;
+                stateTimer = 0.0f;
+            }
+        }
+
+        bool isReloading() const { return state == WeaponAnimState::Reload; }
+        bool isInspecting() const { return state == WeaponAnimState::Inspect; }
+        bool isMeleeSwinging() const { return state == WeaponAnimState::MeleeSwing; }
+        float getStateProgress() const { return stateDuration > 0.0f ? std::clamp(stateTimer / stateDuration, 0.0f, 1.0f) : 0.0f; }
+
+        void update(float dt, const Vec2& mouseDelta, float moveSpeed) {
+            currentSpeed = moveSpeed;
+            if (moveSpeed > 0.1f) {
+                bobTimer += dt * (moveSpeed > 6.0f ? 11.0f : 7.5f);
+            }
+
+            if (state != WeaponAnimState::Idle) {
+                stateTimer += dt;
+                if (stateTimer >= stateDuration) {
+                    state = WeaponAnimState::Idle;
+                    stateTimer = 0.0f;
+                    stateDuration = 0.0f;
+                }
+            }
+
+            float targetSwayX = std::clamp(mouseDelta.x * -0.0018f, -0.08f, 0.08f);
+            float targetSwayY = std::clamp(mouseDelta.y * 0.0018f, -0.08f, 0.08f);
+            swaySpring.target = Vec3(targetSwayX, targetSwayY, 0.0f);
+
+            swaySpring.update(dt);
+            recoilSpring.update(dt);
+        }
+
+        Vec3 calculateOffset(const Vec3& defaultOffset = Vec3(0, 0, 0)) const {
+            return calculatePositionOffset(defaultOffset);
+        }
+
+        Vec3 calculatePositionOffset(const Vec3& defaultOffset) const {
+            float bobX = 0.0f;
+            float bobY = 0.0f;
+            if (currentSpeed > 0.1f) {
+                bobX = std::cos(bobTimer * 0.5f) * 0.025f;
+                bobY = std::abs(std::sin(bobTimer)) * 0.022f;
+            }
+
+            Vec3 statePosOffset(0.0f, 0.0f, 0.0f);
+            float p = getStateProgress();
+
+            if (state == WeaponAnimState::Reload) {
+                if (p < 0.22f) {
+                    float t = p / 0.22f;
+                    float s = t * t * (3.0f - 2.0f * t);
+                    statePosOffset = Vec3(-0.05f * s, -0.05f * s, 0.03f * s);
+                } else if (p < 0.65f) {
+                    statePosOffset = Vec3(-0.05f, -0.05f, 0.03f);
+                } else if (p < 0.78f) {
+                    float t = (p - 0.65f) / 0.13f;
+                    float bump = std::sin(t * 3.14159265f) * 0.025f;
+                    statePosOffset = Vec3(-0.05f, -0.05f + bump, 0.03f);
+                } else if (p < 0.88f) {
+                    float t = (p - 0.78f) / 0.10f;
+                    statePosOffset = Vec3(-0.05f, -0.05f, 0.03f - t * 0.02f);
+                } else {
+                    float t = (p - 0.88f) / 0.12f;
+                    float ease = 1.0f - (t * t * (3.0f - 2.0f * t));
+                    statePosOffset = Vec3(-0.05f * ease, -0.05f * ease, 0.03f * ease);
+                }
+            } else if (state == WeaponAnimState::Inspect) {
+                if (p < 0.38f) {
+                    float t = p / 0.38f;
+                    float s = t * t * (3.0f - 2.0f * t);
+                    statePosOffset = Vec3(-0.08f * s, 0.05f * s, 0.04f * s);
+                } else if (p < 0.75f) {
+                    float t = (p - 0.38f) / 0.37f;
+                    float s = t * t * (3.0f - 2.0f * t);
+                    statePosOffset = Vec3(-0.08f + 0.14f * s, 0.05f - 0.03f * s, 0.04f - 0.02f * s);
+                } else {
+                    float t = (p - 0.75f) / 0.25f;
+                    float ease = 1.0f - (t * t * (3.0f - 2.0f * t));
+                    statePosOffset = Vec3(0.06f * ease, 0.02f * ease, 0.02f * ease);
+                }
+            } else if (state == WeaponAnimState::MeleeSwing) {
+                if (p < 0.25f) {
+                    float t = p / 0.25f;
+                    float s = t * t;
+                    statePosOffset = Vec3(0.14f * s, 0.16f * s, 0.08f * s);
+                } else if (p < 0.65f) {
+                    float t = (p - 0.25f) / 0.40f;
+                    float curve = t * t * (3.0f - 2.0f * t);
+                    statePosOffset = Vec3(0.14f - 0.48f * curve, 0.16f - 0.42f * curve, 0.08f - 0.25f * curve);
+                } else {
+                    float t = (p - 0.65f) / 0.35f;
+                    float ease = 1.0f - t;
+                    statePosOffset = Vec3(-0.34f * ease * 0.35f, -0.26f * ease * 0.35f, -0.17f * ease * 0.35f);
+                }
+            }
+
+            return defaultOffset 
+                + swaySpring.position 
+                + Vec3(bobX, -bobY, 0.0f) 
+                + recoilSpring.position
+                + statePosOffset;
+        }
+
+        Vec3 calculateRotationOffset(const Vec3& defaultRot) const {
+            float kickPitch = recoilSpring.position.y * 80.0f;
+            float swayRoll = swaySpring.position.x * 35.0f;
+            float walkRoll = 0.0f;
+            float walkPitch = 0.0f;
+            if (currentSpeed > 0.1f) {
+                walkRoll = std::sin(bobTimer * 0.5f) * 1.8f;
+                walkPitch = std::sin(bobTimer) * 1.2f;
+            }
+            Vec3 stateRotOffset(0.0f, 0.0f, 0.0f);
+            float p = getStateProgress();
+
+            if (state == WeaponAnimState::Reload) {
+                if (p < 0.22f) {
+                    float t = p / 0.22f;
+                    float s = t * t * (3.0f - 2.0f * t);
+                    stateRotOffset = Vec3(-10.0f * s, 8.0f * s, 28.0f * s);
+                } else if (p < 0.65f) {
+                    stateRotOffset = Vec3(-10.0f, 8.0f, 28.0f);
+                } else if (p < 0.78f) {
+                    float t = (p - 0.65f) / 0.13f;
+                    float bump = std::sin(t * 3.14159265f) * 6.0f;
+                    stateRotOffset = Vec3(-10.0f - bump, 8.0f, 28.0f);
+                } else if (p < 0.88f) {
+                    stateRotOffset = Vec3(-10.0f, 8.0f, 28.0f);
+                } else {
+                    float t = (p - 0.88f) / 0.12f;
+                    float ease = 1.0f - (t * t * (3.0f - 2.0f * t));
+                    stateRotOffset = Vec3(-10.0f * ease, 8.0f * ease, 28.0f * ease);
+                }
+            } else if (state == WeaponAnimState::Inspect) {
+                if (p < 0.38f) {
+                    float t = p / 0.38f;
+                    float s = t * t * (3.0f - 2.0f * t);
+                    stateRotOffset = Vec3(14.0f * s, -36.0f * s, 18.0f * s);
+                } else if (p < 0.75f) {
+                    float t = (p - 0.38f) / 0.37f;
+                    float s = t * t * (3.0f - 2.0f * t);
+                    stateRotOffset = Vec3(14.0f - 18.0f * s, -36.0f + 72.0f * s, 18.0f - 46.0f * s);
+                } else {
+                    float t = (p - 0.75f) / 0.25f;
+                    float ease = 1.0f - (t * t * (3.0f - 2.0f * t));
+                    stateRotOffset = Vec3(-4.0f * ease, 36.0f * ease, -28.0f * ease);
+                }
+            } else if (state == WeaponAnimState::MeleeSwing) {
+                if (p < 0.25f) {
+                    float t = p / 0.25f;
+                    float s = t * t;
+                    stateRotOffset = Vec3(28.0f * s, -45.0f * s, 32.0f * s);
+                } else if (p < 0.65f) {
+                    float t = (p - 0.25f) / 0.40f;
+                    float curve = t * t * (3.0f - 2.0f * t);
+                    stateRotOffset = Vec3(28.0f - 65.0f * curve, -45.0f + 110.0f * curve, 32.0f - 95.0f * curve);
+                } else {
+                    float t = (p - 0.65f) / 0.35f;
+                    float ease = 1.0f - t;
+                    stateRotOffset = Vec3(-37.0f * ease * 0.35f, 65.0f * ease * 0.35f, -63.0f * ease * 0.35f);
+                }
+            }
+
+            return defaultRot + Vec3(kickPitch + walkPitch, 0.0f, swayRoll + walkRoll) + stateRotOffset;
+        }
+
+        Vec3 getLeftHandReloadOffset() const {
+            if (state != WeaponAnimState::Reload) return Vec3(0, 0, 0);
+            float p = getStateProgress();
+            if (p < 0.22f) {
+                float t = p / 0.22f;
+                return Vec3(-0.06f * t, -0.18f * t, 0.05f * t);
+            } else if (p < 0.65f) {
+                float t = (p - 0.22f) / 0.43f;
+                return Vec3(-0.06f * (1.0f - t) + 0.02f * t, -0.18f * (1.0f - t) - 0.06f * t, 0.05f * (1.0f - t) - 0.06f * t);
+            } else if (p < 0.78f) {
+                return Vec3(0.02f, 0.01f, -0.06f);
+            } else if (p < 0.88f) {
+                return Vec3(-0.02f, 0.04f, -0.14f);
+            } else {
+                float t = (p - 0.88f) / 0.12f;
+                float ease = 1.0f - t;
+                return Vec3(-0.02f * ease, 0.04f * ease, -0.14f * ease);
+            }
+        }
+
+        Vec3 getLeftHandReloadRotation() const {
+            if (state != WeaponAnimState::Reload) return Vec3(0, 0, 0);
+            float p = getStateProgress();
+            if (p < 0.65f) {
+                return Vec3(25.0f, -15.0f, 40.0f);
+            } else if (p < 0.78f) {
+                return Vec3(10.0f, -5.0f, 20.0f);
+            } else {
+                return Vec3(0, 0, 0);
+            }
+        }
+
+        bool isReloadMagazineVisible() const {
+            if (state != WeaponAnimState::Reload) return false;
+            float p = getStateProgress();
+            return (p >= 0.22f && p < 0.72f);
+        }
+    };
+
+    // --- Weapon Grip & Socket Configuration (9 Weapons) ---
+    struct WeaponGripConfig {
+        Vec3 rightSocketPos{-0.015f, -0.065f, -0.04f};
+        Vec3 rightSocketRot{8.0f, 0.0f, -4.0f};
+        Vec3 leftSocketPos{0.015f, 0.012f, -0.045f};
+        Vec3 leftSocketRot{25.0f, 0.0f, -20.0f};
+        Vec3 adsOffset{0.0f, -0.05f, 0.12f};
+        Vec3 weaponOffset{0.0f, 0.0f, 0.0f};
+        Vec3 weaponRotation{0.0f, 0.0f, 0.0f};
+        Vec3 weaponScale{1.0f, 1.0f, 1.0f};
+        bool lockHands = false;
+        BotWeaponConfig botSocket;
+    };
+
+    // --- Reload Animation Timeline Choreography ---
+    struct ReloadTimelineConfig {
+        float dipDuration = 0.35f;
+        float magDropTime = 0.28f;
+        float magInsertTime = 0.62f;
+        float boltRackTime = 0.88f;
+        float dipDepth = 0.08f;
+        float tiltAngle = 18.0f;
+    };
+
+    // --- Weapon Skin & Material System ---
+    struct WeaponSkinConfig {
+        std::string modelFile = "";
+        std::string textureFile = "weapon_m4a4s.bmp";
+        float uvScale = 1.0f;
+        Vec3 tintColor{1.0f, 1.0f, 1.0f};
+        float metallic = 0.5f;
+        float roughness = 0.5f;
+    };
+
+    // --- Character Outfit & Appearance ---
+    enum class ArmorClass : int {
+        LightScout = 0,
+        CryoMarine = 1,
+        TacticalOfficer = 2
+    };
+
+    enum class HelmetType : int {
+        CombatVisor = 0,
+        SealedHelmet = 1,
+        TacticalBeanie = 2
+    };
+
+    enum class CamoPattern : int {
+        UrbanSlate = 0,
+        ArcticWhite = 1,
+        CryoNavy = 2,
+        HazardRust = 3
+    };
+
+    struct CharacterAppearance {
+        ArmorClass armorClass = ArmorClass::CryoMarine;
+        HelmetType helmetType = HelmetType::CombatVisor;
+        Vec3 visorGlowColor{0.2f, 0.85f, 1.0f};
+        CamoPattern camo = CamoPattern::UrbanSlate;
+        Vec3 fatiguesColor{0.18f, 0.20f, 0.24f};
+        Vec3 armorPlateColor{0.26f, 0.28f, 0.32f};
+    };
+
+    // Frozen-Life 9 authored weapon grip configurations
+    inline std::array<WeaponGripConfig, 9> getFrozenLifeDefaultGrips() {
+        std::array<WeaponGripConfig, 9> grips;
+        grips[0] = {
+            Vec3(0.0f, -0.065f, -0.04f), Vec3(8.0f, 0.0f, -4.0f),
+            Vec3(-0.01f, -0.125f, -0.02f), Vec3(12.0f, -5.0f, 6.0f),
+            Vec3(0.0f, -0.04f, 0.08f)
+        };
+        grips[1] = {
+            Vec3(-0.015f, -0.065f, -0.04f), Vec3(8.0f, 0.0f, -4.0f),
+            Vec3(-0.055f, -0.105f, -0.035f), Vec3(14.0f, -12.0f, 15.0f),
+            Vec3(0.0f, -0.06f, 0.12f)
+        };
+        grips[2] = {
+            Vec3(-0.015f, -0.065f, -0.04f), Vec3(8.0f, 0.0f, -4.0f),
+            Vec3(-0.065f, -0.060f, -0.26f), Vec3(22.0f, 12.0f, -22.0f),
+            Vec3(0.0f, -0.07f, 0.14f)
+        };
+        grips[3] = {
+            Vec3(-0.015f, -0.065f, -0.04f), Vec3(8.0f, 0.0f, -4.0f),
+            Vec3(-0.065f, -0.060f, -0.34f), Vec3(22.0f, 12.0f, -22.0f),
+            Vec3(0.0f, -0.07f, 0.15f)
+        };
+        grips[4] = {
+            Vec3(-0.015f, -0.065f, -0.04f), Vec3(8.0f, 0.0f, -4.0f),
+            Vec3(-0.065f, -0.060f, -0.34f), Vec3(22.0f, 12.0f, -22.0f),
+            Vec3(0.0f, -0.07f, 0.15f)
+        };
+        grips[5] = {
+            Vec3(0.0f, -0.05f, 0.02f), Vec3(0.0f, 0.0f, 0.0f),
+            Vec3(0.0f, 0.08f, -0.15f), Vec3(-15.0f, 0.0f, 0.0f),
+            Vec3(0.0f, -0.05f, 0.10f)
+        };
+        grips[6] = {
+            Vec3(-0.015f, -0.065f, -0.04f), Vec3(8.0f, 0.0f, -4.0f),
+            Vec3(-0.065f, -0.060f, -0.30f), Vec3(20.0f, 10.0f, -20.0f),
+            Vec3(0.0f, -0.07f, 0.15f)
+        };
+        grips[7] = {
+            Vec3(-0.015f, -0.065f, -0.04f), Vec3(8.0f, 0.0f, -4.0f),
+            Vec3(-0.065f, -0.060f, -0.36f), Vec3(20.0f, 10.0f, -20.0f),
+            Vec3(0.0f, -0.07f, 0.15f)
+        };
+        grips[8] = {
+            Vec3(-0.02f, -0.08f, -0.02f), Vec3(5.0f, 0.0f, -2.0f),
+            Vec3(-0.06f, -0.05f, -0.28f), Vec3(25.0f, 15.0f, -15.0f),
+            Vec3(0.0f, -0.08f, 0.16f)
+        };
+        for (int i = 0; i < 9; ++i) {
+            grips[i].botSocket = { Vec3(0.0f, -0.05f, 0.02f), Vec3(5.73f, -11.46f, 0.0f), Vec3(1.0f, 1.0f, 1.0f) };
+        }
+        return grips;
+    }
+
+    inline ReloadTimelineConfig getFrozenLifeDefaultReload() {
+        return { 0.35f, 0.28f, 0.62f, 0.88f, 0.08f, 18.0f };
+    }
+
+    inline std::array<WeaponSkinConfig, 9> getFrozenLifeDefaultSkins() {
+        std::array<WeaponSkinConfig, 9> skins;
+        skins[0] = { "pipe.stl", "weapon_pipe.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.7f, 0.3f };
+        skins[1] = { "", "weapon_pistol.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.8f, 0.2f };
+        skins[2] = { "", "weapon_shotgun.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.6f, 0.4f };
+        skins[3] = { "", "weapon_m4a4s.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.6f, 0.4f };
+        skins[4] = { "", "weapon_sg553.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.5f, 0.5f };
+        skins[5] = { "", "weapon_minigun.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.8f, 0.2f };
+        skins[6] = { "", "weapon_plasma.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.9f, 0.1f };
+        skins[7] = { "railgun.stl", "weapon_railgun.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.9f, 0.1f };
+        skins[8] = { "", "weapon_rpg.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.4f, 0.6f };
+        return skins;
+    }
+
+    inline CharacterAppearance getFrozenLifeDefaultAppearance() {
+        CharacterAppearance app;
+        app.armorClass = ArmorClass::CryoMarine;
+        app.helmetType = HelmetType::CombatVisor;
+        app.visorGlowColor = Vec3(0.2f, 0.85f, 1.0f);
+        app.camo = CamoPattern::UrbanSlate;
+        app.fatiguesColor = Vec3(0.18f, 0.20f, 0.24f);
+        app.armorPlateColor = Vec3(0.26f, 0.28f, 0.32f);
+        return app;
+    }
+
+} // namespace FrozenLifeGame
+
+namespace FLGame = FrozenLifeGame;
+namespace FL = FrozenLifeGame;

@@ -311,7 +311,7 @@ private:
         if (rNow && !rPrev) {
             _physicsWorld.clear();
             spawnInitialPhysicsScene();
-            AudioEngine::playSound(SoundID::Reload);
+            AudioEngine::playSound(SoundID::Refill);
         }
         rPrev = rNow;
     }

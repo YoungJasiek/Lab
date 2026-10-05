@@ -21,17 +21,17 @@ namespace Lab {
         return currentClip > 0;
     }
 
-    bool Weapon::needsReload() const {
+    bool Weapon::needsRefill() const {
         if (def.isMelee) return false;
         return currentClip <= 0 && currentReserve > 0;
     }
 
-    bool Weapon::canReload() const {
+    bool Weapon::canRefill() const {
         if (def.isMelee) return false;
         return currentClip < def.clipSize && currentReserve > 0;
     }
 
-    int Weapon::reload() {
+    int Weapon::refillClip() {
         if (def.isMelee) return 0;
         int needed = def.clipSize - currentClip;
         int transfer = std::min(needed, currentReserve);
@@ -480,7 +480,7 @@ namespace Lab {
                 drawCube(basePos + Vec3(0.0f, 0.02f, 0.05f), sRot, { 0.095f, 0.13f, 0.38f }, { 0.20f, 0.22f, 0.25f }, tex);
                 // Upper barrel
                 drawCube(basePos + Vec3(0.0f, 0.065f, -0.25f), sRot, { 0.065f, 0.065f, 0.52f }, { 0.18f, 0.18f, 0.20f }, tex);
-                // Underbarrel magazine tube
+                // Underbarrel tube
                 drawCube(basePos + Vec3(0.0f, 0.0f, -0.20f), sRot, { 0.055f, 0.055f, 0.44f }, { 0.25f, 0.26f, 0.28f });
                 // Sliding pump forend
                 drawCube(basePos + Vec3(0.0f, 0.0f, -0.16f), sRot, { 0.08f, 0.08f, 0.20f }, { 0.12f, 0.12f, 0.14f }, tex);
@@ -497,7 +497,7 @@ namespace Lab {
                 drawCube(basePos + Vec3(0.0f, 0.02f, 0.02f), mRot, { 0.085f, 0.12f, 0.42f }, { 0.16f, 0.18f, 0.22f }, tex);
                 // Top carry handle / Picatinny rail
                 drawCube(basePos + Vec3(0.0f, 0.09f, -0.04f), mRot, { 0.04f, 0.045f, 0.30f }, { 0.12f, 0.14f, 0.16f });
-                // Curved 25-round magazine
+                // Curved 25-round clip housing
                 drawCube(basePos + Vec3(0.0f, -0.12f, 0.02f), mRot + Vec3(-12.0f, 0.0f, 0.0f), { 0.05f, 0.18f, 0.10f }, { 0.10f, 0.12f, 0.15f });
                 // Handguard
                 drawCube(basePos + Vec3(0.0f, 0.03f, -0.24f), mRot, { 0.075f, 0.085f, 0.22f }, { 0.18f, 0.20f, 0.22f }, tex);
@@ -523,7 +523,7 @@ namespace Lab {
                 drawCube(basePos + Vec3(0.0f, 0.03f, -0.26f), gRot, { 0.078f, 0.085f, 0.24f }, { 0.20f, 0.26f, 0.20f }, tex);
                 // Muzzle brake
                 drawCube(basePos + Vec3(0.0f, 0.03f, -0.42f), gRot, { 0.05f, 0.05f, 0.08f }, { 0.12f, 0.12f, 0.14f });
-                // Translucent angled magazine
+                // Translucent angled lower clip
                 drawCube(basePos + Vec3(0.0f, -0.13f, 0.04f), gRot + Vec3(-16.0f, 0.0f, 0.0f), { 0.052f, 0.19f, 0.10f }, { 0.35f, 0.32f, 0.20f });
                 if (muzzleFlash > 0.0f) {
                     drawCube(basePos + Vec3(0.0f, 0.03f, -0.48f), gRot, { 0.18f, 0.18f, 0.18f }, { 1.0f, 0.85f, 0.2f }, nullptr, false);
@@ -614,8 +614,10 @@ namespace Lab {
         }
     }
 
-    void WeaponSystem::renderViewModel(const Camera& camera, WeaponAnimator& animator,
+    void WeaponSystem::renderViewModel(const Camera& camera,
                                        Texture* texture, Mesh* stlMesh, float muzzleFlash,
+                                       const Vec3& animOffsetPos,
+                                       const Vec3& animOffsetRot,
                                        const Vec3* rightSocketPos,
                                        const Vec3* rightSocketRot,
                                        const Vec3* leftSocketPos,
@@ -639,8 +641,8 @@ namespace Lab {
             defaultRot.x -= std::sin(switchRatio * 3.14159265f) * 25.0f;
         }
 
-        Vec3 gunBasePos = animator.calculatePositionOffset(defaultPos);
-        Vec3 gunRot = animator.calculateRotationOffset(defaultRot);
+        Vec3 gunBasePos = defaultPos + animOffsetPos;
+        Vec3 gunRot = defaultRot + animOffsetRot;
 
         // Apply weapon translation & rotation offset from studio configuration
         Vec3 finalPos = gunBasePos + (weaponOffset ? *weaponOffset : Vec3(0.0f, 0.0f, 0.0f));
@@ -653,7 +655,7 @@ namespace Lab {
 
         // 1. Render First-Person Tactical Arms & Hands (kinematically bound to armsPos & armsRot with socket overrides)
         static ViewModelArms s_viewmodelArms;
-        s_viewmodelArms.render(armsPos, armsRot, _currentWeapon, animator, nullptr,
+        s_viewmodelArms.render(armsPos, armsRot, _currentWeapon, nullptr,
                               rightSocketPos, rightSocketRot, leftSocketPos, leftSocketRot);
 
         Vec3 finalTint = tintColor ? *tintColor : Vec3(1.0f, 1.0f, 1.0f);

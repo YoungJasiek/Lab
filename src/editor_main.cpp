@@ -92,7 +92,7 @@ enum class EditorWorkspace {
     World3D_Animation = 1,     // 3D Prop/Model timeline & keyframe scrubber
     World3D_ModelViewer = 2,   // Dedicated 3D Model Viewer & Inspector (Turntable, Stats, Wireframe)
     Studio_GripPoser = 3,      // LabStudio: Weapon Grip & Hand Socket Poser
-    Studio_ReloadTimeline = 4, // LabStudio: Reload Animation Choreography Timeline
+    Studio_AnimationTimeline = 4, // LabStudio: Keyframe Animation Timeline
     Studio_WeaponSkins = 5,    // LabStudio: Weapon Skins, Materials & Shaders
     Studio_Appearance = 6,     // LabStudio: Character Outfit, Armor, Helmet & Camo
     Studio_FaceDialogue = 7,   // LabStudio: Face Dialogue, Lip-Sync & Morph Targets
@@ -155,6 +155,16 @@ public:
         }
         _scriptEngine.executeString(_currentScript);
         syncStringToScriptLines();
+
+        // Initialize default 3D animation track
+        _editorAnimTrack.name = "SceneTrack";
+        _editorAnimTrack.duration = 1.0f;
+        _editorAnimTrack.keyframes = {
+            { 0.0f, Vec3(0.0f, 0.0f, 0.0f), Vec3(0.0f, 0.0f, 0.0f), Vec3(1.0f, 1.0f, 1.0f) },
+            { 0.33f, Vec3(0.0f, 0.8f, 0.0f), Vec3(0.0f, 45.0f, 0.0f), Vec3(1.0f, 1.0f, 1.0f) },
+            { 0.66f, Vec3(0.0f, 0.4f, -0.4f), Vec3(20.0f, 0.0f, 0.0f), Vec3(1.0f, 1.0f, 1.0f) },
+            { 1.0f, Vec3(0.0f, 0.0f, 0.0f), Vec3(0.0f, 0.0f, 0.0f), Vec3(1.0f, 1.0f, 1.0f) }
+        };
 
         // Initialize embedded LabStudio suite
         _characterStudio.init();
@@ -459,7 +469,7 @@ public:
 
     bool isStudioWorkspace(EditorWorkspace ws) const {
         return ws == EditorWorkspace::Studio_GripPoser ||
-               ws == EditorWorkspace::Studio_ReloadTimeline ||
+               ws == EditorWorkspace::Studio_AnimationTimeline ||
                ws == EditorWorkspace::Studio_WeaponSkins ||
                ws == EditorWorkspace::Studio_Appearance ||
                ws == EditorWorkspace::Studio_FaceDialogue;
@@ -472,7 +482,7 @@ public:
             case EditorWorkspace::World3D_Animation: return "3D > Animation 3D Timeline";
             case EditorWorkspace::World3D_ModelViewer: return "3D > 3D Model Viewer & Inspector";
             case EditorWorkspace::Studio_GripPoser: return "3D > Character & Weapon Studio > Weapon Grip Poser";
-            case EditorWorkspace::Studio_ReloadTimeline: return "3D > Character & Weapon Studio > Reload Timeline";
+            case EditorWorkspace::Studio_AnimationTimeline: return "3D > Character & Weapon Studio > Animation Timeline";
             case EditorWorkspace::Studio_WeaponSkins: return "3D > Character & Weapon Studio > Weapon Skins & Materials";
             case EditorWorkspace::Studio_Appearance: return "3D > Character & Weapon Studio > Character Appearance";
             case EditorWorkspace::Studio_FaceDialogue: return "3D > Character & Weapon Studio > Face Dialogue & Lip-Sync";
@@ -493,7 +503,7 @@ public:
             case EditorWorkspace::World3D_Animation: return "3D > Anim 3D";
             case EditorWorkspace::World3D_ModelViewer: return "3D > Model Viewer";
             case EditorWorkspace::Studio_GripPoser: return "Studio > Grip Poser";
-            case EditorWorkspace::Studio_ReloadTimeline: return "Studio > Reload";
+            case EditorWorkspace::Studio_AnimationTimeline: return "Studio > Timeline";
             case EditorWorkspace::Studio_WeaponSkins: return "Studio > Skins";
             case EditorWorkspace::Studio_Appearance: return "Studio > Appearance";
             case EditorWorkspace::Studio_FaceDialogue: return "Studio > Dialogue";
@@ -524,8 +534,8 @@ public:
         // Configure Studio tabs if in Studio workspace
         if (ws == EditorWorkspace::Studio_GripPoser) {
             _characterStudio.setActiveTab(StudioTab::GripPoser);
-        } else if (ws == EditorWorkspace::Studio_ReloadTimeline) {
-            _characterStudio.setActiveTab(StudioTab::ReloadTimeline);
+        } else if (ws == EditorWorkspace::Studio_AnimationTimeline) {
+            _characterStudio.setActiveTab(StudioTab::AnimationTimeline);
         } else if (ws == EditorWorkspace::Studio_WeaponSkins) {
             _characterStudio.setActiveTab(StudioTab::WeaponSkins);
         } else if (ws == EditorWorkspace::Studio_Appearance) {
@@ -1368,12 +1378,11 @@ public:
 
         // Timeline playback in Animation Workspace
         if (_timelinePlaying) {
-            static float animTimer = 0.0f;
-            animTimer += time.delta;
-            if (animTimer >= 1.0f / 30.0f) {
-                animTimer = 0.0f;
-                _timelineFrame = (_timelineFrame + 1) % 60;
+            _animScrubberPos += time.delta * 0.5f;
+            if (_animScrubberPos > 1.0f) {
+                _animScrubberPos = 0.0f;
             }
+            _timelineFrame = static_cast<int>(_animScrubberPos * 60.0f);
         }
 
         // Keyboard Shortcuts
@@ -3236,7 +3245,7 @@ public:
                         else if (subIdx == 1) setWorkspace(EditorWorkspace::World3D_Animation);
                         else if (subIdx == 2) setWorkspace(EditorWorkspace::World3D_ModelViewer);
                         else if (subIdx == 3) setWorkspace(EditorWorkspace::Studio_GripPoser);
-                        else if (subIdx == 4) setWorkspace(EditorWorkspace::Studio_ReloadTimeline);
+                        else if (subIdx == 4) setWorkspace(EditorWorkspace::Studio_AnimationTimeline);
                         else if (subIdx == 5) setWorkspace(EditorWorkspace::Studio_WeaponSkins);
                         else if (subIdx == 6) setWorkspace(EditorWorkspace::Studio_Appearance);
                         else if (subIdx == 7) setWorkspace(EditorWorkspace::Studio_FaceDialogue);
@@ -4653,25 +4662,54 @@ public:
             float vpX = leftW;
             float vpW = l.rightX - vpX;
             float tlW = std::min(vpW - 40.0f, 860.0f);
-            float tlH = 75.0f;
+            float tlH = 80.0f;
             float tlX = vpX + (vpW - tlW) * 0.5f;
             float tlY = (h - 22.0f) - tlH - 15.0f;
 
             if (my >= tlY + 10.0f && my <= tlY + 36.0f) {
-                if (mx >= tlX + 10.0f && mx <= tlX + 90.0f) {
+                if (mx >= tlX + 10.0f && mx <= tlX + 80.0f) {
+                    _animScrubberPos = 0.0f;
                     _timelineFrame = 0;
+                    _timelinePlaying = false;
                     return;
-                } else if (mx >= tlX + 96.0f && mx <= tlX + 196.0f) {
+                } else if (mx >= tlX + 84.0f && mx <= tlX + 149.0f) {
+                    _animScrubberPos = std::max(0.0f, _animScrubberPos - 0.05f);
+                    _timelineFrame = static_cast<int>(_animScrubberPos * 60.0f);
+                    return;
+                } else if (mx >= tlX + 153.0f && mx <= tlX + 238.0f) {
                     _timelinePlaying = !_timelinePlaying;
+                    return;
+                } else if (mx >= tlX + 242.0f && mx <= tlX + 307.0f) {
+                    _animScrubberPos = std::min(1.0f, _animScrubberPos + 0.05f);
+                    _timelineFrame = static_cast<int>(_animScrubberPos * 60.0f);
+                    return;
+                } else if (mx >= tlX + 311.0f && mx <= tlX + 376.0f) {
+                    AnimKeyframe sampled = _editorAnimTrack.sample(_animScrubberPos);
+                    sampled.time = _animScrubberPos;
+                    _editorAnimTrack.keyframes.push_back(sampled);
+                    std::sort(_editorAnimTrack.keyframes.begin(), _editorAnimTrack.keyframes.end(),
+                              [](const AnimKeyframe& a, const AnimKeyframe& b) { return a.time < b.time; });
+                    return;
+                } else if (mx >= tlX + 380.0f && mx <= tlX + 445.0f) {
+                    if (_editorAnimTrack.keyframes.size() > 1) {
+                        auto closestIt = _editorAnimTrack.keyframes.begin();
+                        float minDist = 999.0f;
+                        for (auto it = _editorAnimTrack.keyframes.begin(); it != _editorAnimTrack.keyframes.end(); ++it) {
+                            float d = std::abs(it->time - _animScrubberPos);
+                            if (d < minDist) { minDist = d; closestIt = it; }
+                        }
+                        _editorAnimTrack.keyframes.erase(closestIt);
+                    }
                     return;
                 }
             }
             // Scrubber bar click
-            if (my >= tlY + 44.0f && my <= tlY + 62.0f) {
+            if (my >= tlY + 44.0f && my <= tlY + 68.0f) {
                 float barX = tlX + 10.0f;
                 float barW = tlW - 20.0f;
                 if (mx >= barX && mx <= barX + barW) {
-                    _timelineFrame = std::clamp((int)((mx - barX) / barW * 60.0f), 0, 59);
+                    _animScrubberPos = std::clamp((mx - barX) / barW, 0.0f, 1.0f);
+                    _timelineFrame = std::clamp(static_cast<int>(_animScrubberPos * 60.0f), 0, 59);
                     return;
                 }
             }
@@ -6105,29 +6143,43 @@ public:
         } else if (_workspace == EditorWorkspace::World3D_Animation) {
             // 3D Animation timeline scrubber dock
             float tlW = std::min(vpW - 40.0f, 860.0f);
-            float tlH = 75.0f;
+            float tlH = 80.0f;
             float tlX = vpX + (vpW - tlW) * 0.5f;
             float tlY = (h - 22.0f) - tlH - 15.0f;
 
             Renderer::drawRect(tlX, tlY, tlW, tlH, Vec3(0.12f, 0.14f, 0.18f));
             drawDarkBevel(tlX, tlY, tlW, tlH, false);
 
-            drawDarkButton(tlX + 10.0f, tlY + 10.0f, 80.0f, 26.0f, "|< Reset");
-            drawDarkButton(tlX + 96.0f, tlY + 10.0f, 100.0f, 26.0f, _timelinePlaying ? "Pause" : "> Play", _timelinePlaying, false, !_timelinePlaying);
+            drawDarkButton(tlX + 10.0f, tlY + 10.0f, 70.0f, 26.0f, "|< Reset");
+            drawDarkButton(tlX + 84.0f, tlY + 10.0f, 65.0f, 26.0f, "< Step");
+            drawDarkButton(tlX + 153.0f, tlY + 10.0f, 85.0f, 26.0f, _timelinePlaying ? "Pause" : "> Play", _timelinePlaying, false, !_timelinePlaying);
+            drawDarkButton(tlX + 242.0f, tlY + 10.0f, 65.0f, 26.0f, "Step >");
+            drawDarkButton(tlX + 311.0f, tlY + 10.0f, 65.0f, 26.0f, "+ Key");
+            drawDarkButton(tlX + 380.0f, tlY + 10.0f, 65.0f, 26.0f, "- Key");
 
-            std::string fInfo = "3D Frame: " + std::to_string(_timelineFrame) + " / 60  (30 FPS)";
-            LabFont::drawText(tlX + 210.0f, tlY + 15.0f, fInfo, 1.5f, cyanGlow, LabFontType::System);
+            AnimKeyframe sampled = _editorAnimTrack.sample(_animScrubberPos);
+            char infoBuf[128];
+            snprintf(infoBuf, sizeof(infoBuf), "Scrubber: %.2f / 1.00 (%zu keys) Pos:(%.2f,%.2f,%.2f)",
+                     _animScrubberPos, _editorAnimTrack.keyframes.size(),
+                     sampled.translation.x, sampled.translation.y, sampled.translation.z);
+            LabFont::drawText(tlX + 455.0f, tlY + 16.0f, infoBuf, 1.4f, cyanGlow, LabFontType::System);
 
             // Scrubber Bar
             float barX = tlX + 10.0f;
-            float barY = tlY + 44.0f;
+            float barY = tlY + 46.0f;
             float barW = tlW - 20.0f;
-            float barH = 18.0f;
+            float barH = 20.0f;
             Renderer::drawRect(barX, barY, barW, barH, Vec3(0.08f, 0.09f, 0.11f));
             drawDarkBevel(barX, barY, barW, barH, true);
 
-            float playheadX = barX + (_timelineFrame / 60.0f) * barW;
-            Renderer::drawRect(playheadX - 2.0f, barY, 5.0f, barH, orangeGlow);
+            // Keyframe tick markers
+            for (const auto& kf : _editorAnimTrack.keyframes) {
+                float kfX = barX + std::clamp(kf.time, 0.0f, 1.0f) * barW;
+                Renderer::drawRect(kfX - 1.0f, barY + 2.0f, 3.0f, barH - 4.0f, Vec3(0.3f, 0.8f, 1.0f));
+            }
+
+            float playheadX = barX + _animScrubberPos * barW;
+            Renderer::drawRect(playheadX - 2.0f, barY - 2.0f, 5.0f, barH + 4.0f, orangeGlow);
         } else if (_workspace == EditorWorkspace::Scripting_Editor || _workspace == EditorWorkspace::Scripting_Console) {
             // Full In-Engine Lua Script Studio IDE - occupies full central viewport
             Renderer::drawRect(vpX, contentY, vpW, contentH, Vec3(0.065f, 0.075f, 0.095f));
@@ -6872,7 +6924,7 @@ public:
                         { "3D Model Viewer & Inspector", EditorWorkspace::World3D_ModelViewer },
                         { "Character Appearance Studio", EditorWorkspace::Studio_Appearance },
                         { "Weapon Grip Poser", EditorWorkspace::Studio_GripPoser },
-                        { "Weapon Reload Timeline", EditorWorkspace::Studio_ReloadTimeline },
+                        { "Animation Timeline", EditorWorkspace::Studio_AnimationTimeline },
                         { "Weapon Skins & Materials", EditorWorkspace::Studio_WeaponSkins },
                         { "Face Dialogue & Lip-Sync", EditorWorkspace::Studio_FaceDialogue }
                     };
@@ -7496,6 +7548,8 @@ private:
         "        klocek:move(0, math.sin(timer * 3.5) * 0.05, 0)\n"
         "    end\n"
         "end\n";
+    AnimationTrack _editorAnimTrack;
+    float _animScrubberPos = 0.0f;
     int _timelineFrame = 0;
     bool _timelinePlaying = false;
 

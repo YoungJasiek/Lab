@@ -34,9 +34,9 @@ namespace Lab {
         bindKeyToAction("Interact", GLFW_KEY_E);
         bindGamepadButtonToAction("Interact", GamepadButton::X);
 
-        registerAction("Reload", "Reload Weapon");
-        bindKeyToAction("Reload", GLFW_KEY_R);
-        bindGamepadButtonToAction("Reload", GamepadButton::B);
+        registerAction("Refill", "Refill Weapon");
+        bindKeyToAction("Refill", GLFW_KEY_R);
+        bindGamepadButtonToAction("Refill", GamepadButton::B);
 
         registerAction("Sprint", "Sprint / Speed Boost");
         bindKeyToAction("Sprint", GLFW_KEY_LEFT_SHIFT);

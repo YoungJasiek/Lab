@@ -98,9 +98,9 @@ namespace Lab {
         explicit Weapon(const WeaponDef& definition, bool startUnlocked = false);
 
         bool canFire(float cooldownTimer) const;
-        bool needsReload() const;
-        bool canReload() const;
-        int reload();
+        bool needsRefill() const;
+        bool canRefill() const;
+        int refillClip();
         void addAmmo(int amount);
     };
 
@@ -147,17 +147,19 @@ namespace Lab {
         void applyScriptOverrides(int weaponId, float damage, float fireRate, int clipSize, int maxReserve, float splashDamage, float splashRadius);
 
         // Viewmodel procedural and STL renderer
-        void renderViewModel(const Camera& camera, WeaponAnimator& animator,
+        void renderViewModel(const Camera& camera,
                              Texture* texture, Mesh* stlMesh, float muzzleFlash,
+                             const Vec3& animOffsetPos = Vec3(0, 0, 0),
+                             const Vec3& animOffsetRot = Vec3(0, 0, 0),
                              const Vec3* rightSocketPos = nullptr,
                              const Vec3* rightSocketRot = nullptr,
                              const Vec3* leftSocketPos = nullptr,
                              const Vec3* leftSocketRot = nullptr,
-                             const Vec3* tintColor = nullptr,
+                             const Vec3* weaponTint = nullptr,
                              const Vec3* weaponOffset = nullptr,
-                             const Vec3* weaponRotation = nullptr,
+                             const Vec3* weaponRot = nullptr,
                              const Vec3* weaponScale = nullptr,
-                             float uvScale = 1.0f,
+                             float weaponUvScale = 1.0f,
                              bool lockHands = false);
 
         // Static factory of all 9 weapon definitions

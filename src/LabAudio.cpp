@@ -46,7 +46,7 @@ namespace Lab {
         { SoundID::RPGLaunch,        "weapon_rpg_fire.wav",   "RPG Launch",        0.95f, 1.0f, 2.5f, 50.0f },
         { SoundID::RPGExplosion,     "explosion.wav",         "Explosion",         1.00f, 1.0f, 4.0f, 75.0f },
         { SoundID::DryFire,          "dry_fire.wav",          "Dry Fire Click",    0.75f, 1.0f, 1.0f, 15.0f },
-        { SoundID::Reload,           "reload.wav",            "Reload Weapon",     0.85f, 1.0f, 1.0f, 20.0f },
+        { SoundID::Refill,           "refill.wav",            "Refill Weapon",     0.85f, 1.0f, 1.0f, 20.0f },
         { SoundID::FootstepConcrete, "footstep_concrete.wav", "Footstep Concrete", 0.65f, 1.0f, 1.0f, 18.0f },
         { SoundID::FootstepMetal,    "footstep_metal.wav",    "Footstep Metal",    0.70f, 1.0f, 1.0f, 20.0f },
         { SoundID::FootstepIce,      "footstep_ice.wav",      "Footstep Ice",      0.65f, 1.0f, 1.0f, 18.0f },
@@ -118,7 +118,7 @@ namespace Lab {
             case SoundID::RPGLaunch:        duration = 0.48f; break;
             case SoundID::RPGExplosion:     duration = 1.15f; break;
             case SoundID::DryFire:          duration = 0.08f; break;
-            case SoundID::Reload:           duration = 0.38f; break;
+            case SoundID::Refill:           duration = 0.38f; break;
             case SoundID::FootstepConcrete: duration = 0.14f; break;
             case SoundID::FootstepMetal:    duration = 0.18f; break;
             case SoundID::FootstepIce:      duration = 0.15f; break;
@@ -247,8 +247,8 @@ namespace Lab {
                     out = std::sin(2.0f * PI * 1450.0f * t) * env * 0.8f;
                     break;
                 }
-                case SoundID::Reload: {
-                    // Mechanical mag slide insertion and bolt click
+                case SoundID::Refill: {
+                    // Mechanical slide insertion and bolt click
                     float click1 = (t > 0.04f && t < 0.09f) ? (std::sin(2.0f * PI * 950.0f * t) * 0.6f) : 0.0f;
                     float slide  = (t > 0.16f && t < 0.28f) ? (nextNoise() * 0.35f) : 0.0f;
                     float click2 = (t > 0.30f && t < 0.35f) ? (std::sin(2.0f * PI * 1250.0f * t) * 0.8f) : 0.0f;

@@ -121,8 +121,15 @@ namespace Lab {
         };
         _weaponSkins[8] = { "", "weapon_rpg.bmp", 1.0f, Vec3(1.0f, 1.0f, 1.0f), 0.4f, 0.6f };
 
-        // Reload timeline defaults
-        _reloadTimeline = { 0.35f, 0.28f, 0.62f, 0.88f, 0.08f, 18.0f };
+        // Animation track keyframe defaults
+        _animTrack.name = "StudioTrack";
+        _animTrack.duration = 1.0f;
+        _animTrack.keyframes = {
+            { 0.0f, Vec3(0.0f, 0.0f, 0.0f), Vec3(0.0f, 0.0f, 0.0f), Vec3(1.0f, 1.0f, 1.0f) },
+            { 0.35f, Vec3(0.0f, -0.08f, -0.05f), Vec3(15.0f, 5.0f, 0.0f), Vec3(1.0f, 1.0f, 1.0f) },
+            { 0.70f, Vec3(0.0f, -0.04f, 0.02f), Vec3(-5.0f, 0.0f, 0.0f), Vec3(1.0f, 1.0f, 1.0f) },
+            { 1.0f, Vec3(0.0f, 0.0f, 0.0f), Vec3(0.0f, 0.0f, 0.0f), Vec3(1.0f, 1.0f, 1.0f) }
+        };
 
         // Appearance defaults
         _appearance.armorClass = ArmorClass::CryoMarine;
@@ -152,7 +159,7 @@ namespace Lab {
         StudioSnapshot snap;
         snap.grips = _weaponGrips;
         snap.skins = _weaponSkins;
-        snap.reloadTimeline = _reloadTimeline;
+        snap.animTrack = _animTrack;
         snap.appearance = _appearance;
         snap.faceMorphs = _faceMorphs;
         _undoStack.push_back(snap);
@@ -170,7 +177,7 @@ namespace Lab {
         StudioSnapshot current;
         current.grips = _weaponGrips;
         current.skins = _weaponSkins;
-        current.reloadTimeline = _reloadTimeline;
+        current.animTrack = _animTrack;
         current.appearance = _appearance;
         current.faceMorphs = _faceMorphs;
         _redoStack.push_back(current);
@@ -179,7 +186,7 @@ namespace Lab {
         _undoStack.pop_back();
         _weaponGrips = snap.grips;
         _weaponSkins = snap.skins;
-        _reloadTimeline = snap.reloadTimeline;
+        _animTrack = snap.animTrack;
         _appearance = snap.appearance;
         _faceMorphs = snap.faceMorphs;
         log("Undo: reverted to previous modification.");
@@ -193,7 +200,7 @@ namespace Lab {
         StudioSnapshot current;
         current.grips = _weaponGrips;
         current.skins = _weaponSkins;
-        current.reloadTimeline = _reloadTimeline;
+        current.animTrack = _animTrack;
         current.appearance = _appearance;
         current.faceMorphs = _faceMorphs;
         _undoStack.push_back(current);
@@ -202,7 +209,7 @@ namespace Lab {
         _redoStack.pop_back();
         _weaponGrips = snap.grips;
         _weaponSkins = snap.skins;
-        _reloadTimeline = snap.reloadTimeline;
+        _animTrack = snap.animTrack;
         _appearance = snap.appearance;
         _faceMorphs = snap.faceMorphs;
         log("Redo: re-applied modification.");
@@ -316,7 +323,7 @@ namespace Lab {
                 return;
             }
             if (key == 50 || key == '2') {
-                _activeTab = StudioTab::ReloadTimeline;
+                _activeTab = StudioTab::AnimationTimeline;
                 resetCamera();
                 return;
             }
@@ -336,7 +343,7 @@ namespace Lab {
                 return;
             }
             if (key == 32) { // GLFW_KEY_SPACE
-                if (_activeTab == StudioTab::ReloadTimeline) {
+                if (_activeTab == StudioTab::AnimationTimeline) {
                     _scrubberPlaying = !_scrubberPlaying;
                 } else if (_activeTab == StudioTab::FaceDialogue) {
                     _dialoguePlaying = !_dialoguePlaying;
@@ -354,7 +361,6 @@ namespace Lab {
         LabLog::info("CharacterStudio: Initializing Lab Character & Weapon Studio...");
 
         _arms = std::make_unique<ViewModelArms>();
-        _animator = std::make_unique<WeaponAnimator>();
         _facialHead = FacialMesh::createProceduralHead();
 
         // Dialogue Test lines
@@ -479,7 +485,6 @@ namespace Lab {
         _meshes.clear();
         _facialHead.reset();
         _arms.reset();
-        _animator.reset();
         _botMesh.reset();
         _botSkeleton.reset();
         _botAnimations.clear();
@@ -635,35 +640,30 @@ namespace Lab {
         switch (state) {
             case StudioAnimState::Idle:
                 _viewmodelWalkSpeed = 0.0f;
-                if (_animator) _animator->state = WeaponAnimState::Idle;
                 if (_botAnimator.getSkeleton()) _botAnimator.playAnimation("Idle", true);
                 _activeBotClipName = "Idle";
                 log("Animation: Idle (Viewmodel stationary, Bot idle stance)");
                 break;
             case StudioAnimState::Walk:
                 _viewmodelWalkSpeed = 4.8f; // Tactical walking speed triggers dynamic walk sway & bobbing
-                if (_animator) _animator->state = WeaponAnimState::Idle;
                 if (_botAnimator.getSkeleton()) _botAnimator.playAnimation("Walk", true);
                 _activeBotClipName = "Walk";
                 log("Animation: Walk (Viewmodel tactical walking bob/sway, Bot run/walk cycle)");
                 break;
             case StudioAnimState::Shoot:
                 _viewmodelWalkSpeed = 0.0f;
-                if (_animator) _animator->onFire();
                 if (_botAnimator.getSkeleton()) _botAnimator.playAnimation("Shoot", false);
                 _activeBotClipName = "Shoot";
                 log("Animation: Shoot (Viewmodel weapon recoil kick, Bot human-like firing arc)");
                 break;
-            case StudioAnimState::Reload:
+            case StudioAnimState::Action:
                 _viewmodelWalkSpeed = 0.0f;
-                if (_animator) _animator->onReload();
-                if (_botAnimator.getSkeleton()) _botAnimator.playAnimation("Reload", false);
-                _activeBotClipName = "Reload";
-                log("Animation: Reload (Viewmodel reload choreography, Bot reload clip)");
+                if (_botAnimator.getSkeleton()) _botAnimator.playAnimation("Action", false);
+                _activeBotClipName = "Action";
+                log("Animation: Action (Keyframe track sampling, Bot action clip)");
                 break;
             case StudioAnimState::Inspect:
                 _viewmodelWalkSpeed = 0.0f;
-                if (_animator) _animator->onInspect();
                 if (_botAnimator.getSkeleton()) _botAnimator.playAnimation("Inspect", false);
                 _activeBotClipName = "Inspect";
                 log("Animation: Inspect (Viewmodel weapon inspect rotation, Bot showcase pose)");
@@ -820,7 +820,7 @@ namespace Lab {
             }
         }
 
-        // Reload Timeline Scrubber update
+        // Animation Timeline Scrubber update
         if (_scrubberPlaying) {
             _scrubberPos += (dt * _scrubberSpeed) / _scrubberTotalDuration;
             if (_scrubberPos >= 1.0f) {
@@ -870,13 +870,6 @@ namespace Lab {
 
         if (_animPlaying) {
             float effDt = dt * _animPlaybackSpeed;
-            if (_animator) {
-                _animator->update(effDt, Vec2(0.0f, 0.0f), _viewmodelWalkSpeed);
-                // Return to Idle once single shot recoil animation finishes
-                if (_activeAnimState == StudioAnimState::Shoot && _animator->state == WeaponAnimState::Idle) {
-                    _activeAnimState = StudioAnimState::Idle;
-                }
-            }
             if (_botAnimator.getSkeleton()) {
                 _botAnimator.update(effDt);
                 if (_activeAnimState == StudioAnimState::Shoot && !_botAnimator.isPlaying()) {
@@ -962,8 +955,8 @@ namespace Lab {
         // Draw Content according to Tab
         if (_activeTab == StudioTab::GripPoser) {
             renderWeaponGripView();
-        } else if (_activeTab == StudioTab::ReloadTimeline) {
-            renderReloadTimelineView();
+        } else if (_activeTab == StudioTab::AnimationTimeline) {
+            renderAnimationTimelineView();
         } else if (_activeTab == StudioTab::WeaponSkins) {
             renderWeaponGripView();
         } else if (_activeTab == StudioTab::Appearance) {
@@ -1068,11 +1061,17 @@ namespace Lab {
             return;
         }
 
-        // Weapon Base Transform (including user offset, rotation and scale, plus active procedural animator kinematics!)
+        // Weapon Base Transform
         Vec3 baseWepPos = grip.weaponOffset;
         Vec3 baseWepRot = grip.weaponRotation;
-        Vec3 weaponPos = _animator ? _animator->calculatePositionOffset(baseWepPos) : baseWepPos;
-        Vec3 weaponRot = _animator ? _animator->calculateRotationOffset(baseWepRot) : baseWepRot;
+        Vec3 weaponPos = baseWepPos;
+        Vec3 weaponRot = baseWepRot;
+        if (_activeAnimState == StudioAnimState::Shoot) {
+            weaponPos += Vec3(0.0f, 0.015f, 0.035f);
+            weaponRot += Vec3(-4.0f, 0.0f, 0.0f);
+        } else if (_activeAnimState == StudioAnimState::Inspect) {
+            weaponRot += Vec3(-5.0f, 35.0f, -15.0f);
+        }
         Vec3 weaponScale = grip.weaponScale;
 
         // Render Weapon with active skin, tint and scale (normalized to 0.7m base human-hand size)
@@ -1087,10 +1086,10 @@ namespace Lab {
         }
 
         // Render Tactical Arms aligned to configured sockets!
-        if (_arms && _animator) {
+        if (_arms) {
             Vec3 armsPos = grip.lockHands ? Vec3(0.0f, 0.0f, 0.0f) : baseWepPos;
             Vec3 armsRot = grip.lockHands ? Vec3(0.0f, 0.0f, 0.0f) : baseWepRot;
-            _arms->render(armsPos, armsRot, wid, *_animator, nullptr,
+            _arms->render(armsPos, armsRot, wid, nullptr,
                           &grip.rightSocketPos, &grip.rightSocketRot,
                           &grip.leftSocketPos, &grip.leftSocketRot);
         }
@@ -1105,7 +1104,7 @@ namespace Lab {
         }
     }
 
-    void CharacterStudio::renderReloadTimelineView() {
+    void CharacterStudio::renderAnimationTimelineView() {
         const auto& grip = _weaponGrips[_selectedWeaponIndex];
         const auto& skin = _weaponSkins[_selectedWeaponIndex];
         WeaponID wid = static_cast<WeaponID>(_selectedWeaponIndex);
@@ -1125,40 +1124,12 @@ namespace Lab {
             weaponMesh = getMesh(stlNames[_selectedWeaponIndex]);
         }
 
-        // Evaluate timeline curve at _scrubberPos [0.0 ... 1.0]
-        float p = _scrubberPos;
-        float dipY = 0.0f;
-        float tiltRoll = 0.0f;
-        float magY = 0.0f;
-        bool magDetached = false;
+        // Sample animation track at _scrubberPos [0.0 ... 1.0]
+        AnimKeyframe kf = _animTrack.sample(_scrubberPos);
 
-        // Phase 1: Dip & Tilt (0.0 -> dipDuration)
-        if (p < _reloadTimeline.dipDuration) {
-            float phaseP = p / _reloadTimeline.dipDuration;
-            float smooth = std::sin(phaseP * PI * 0.5f);
-            dipY = -_reloadTimeline.dipDepth * smooth;
-            tiltRoll = _reloadTimeline.tiltAngle * smooth;
-        } else if (p < _reloadTimeline.boltRackTime) {
-            dipY = -_reloadTimeline.dipDepth;
-            tiltRoll = _reloadTimeline.tiltAngle;
-        } else {
-            // Phase 4: Recover to ready pose
-            float recoverP = (p - _reloadTimeline.boltRackTime) / (1.0f - _reloadTimeline.boltRackTime);
-            float smooth = 1.0f - std::sin(recoverP * PI * 0.5f);
-            dipY = -_reloadTimeline.dipDepth * smooth;
-            tiltRoll = _reloadTimeline.tiltAngle * smooth;
-        }
-
-        // Phase 2 & 3: Magazine choreography
-        if (p >= _reloadTimeline.magDropTime && p < _reloadTimeline.magInsertTime) {
-            magDetached = true;
-            float magP = (p - _reloadTimeline.magDropTime) / (_reloadTimeline.magInsertTime - _reloadTimeline.magDropTime);
-            magY = (magP < 0.5f) ? (-magP * 2.0f * 0.25f) : (-(1.0f - magP) * 2.0f * 0.25f);
-        }
-
-        Vec3 weaponPos = grip.weaponOffset + Vec3(0.0f, dipY, 0.0f);
-        Vec3 weaponRot = grip.weaponRotation + Vec3(0.0f, 0.0f, tiltRoll);
-        Vec3 weaponScale = grip.weaponScale;
+        Vec3 weaponPos = grip.weaponOffset + kf.translation;
+        Vec3 weaponRot = grip.weaponRotation + kf.rotationEuler;
+        Vec3 weaponScale = { grip.weaponScale.x * kf.scale.x, grip.weaponScale.y * kf.scale.y, grip.weaponScale.z * kf.scale.z };
 
         if (weaponMesh) {
             float baseScale = weaponMesh->getBaseScale(0.70f);
@@ -1168,20 +1139,13 @@ namespace Lab {
             Renderer::drawCube(weaponPos, weaponRot, Vec3(0.06f * weaponScale.x, 0.12f * weaponScale.y, 0.65f * weaponScale.z), skin.tintColor, skinTex, true);
         }
 
-        // Draw fresh or dropping magazine
-        if (magDetached) {
-            Vec3 magPos = weaponPos + Vec3(0.0f, -0.15f + magY, -0.05f);
-            Renderer::drawCube(magPos, weaponRot, Vec3(0.035f, 0.14f, 0.065f), Vec3(0.12f, 0.14f, 0.16f), nullptr, true);
-        }
-
-        // Arms following reload kinematics
-        if (_arms && _animator) {
-            Vec3 leftHandOffset = grip.leftSocketPos + Vec3(0.0f, magY * 0.7f, 0.0f);
-            Vec3 armsPos = grip.lockHands ? Vec3(0.0f, dipY, 0.0f) : weaponPos;
-            Vec3 armsRot = grip.lockHands ? Vec3(0.0f, 0.0f, tiltRoll) : weaponRot;
-            _arms->render(armsPos, armsRot, wid, *_animator, nullptr,
+        // Arms following keyframe animation
+        if (_arms) {
+            Vec3 armsPos = grip.lockHands ? kf.translation : weaponPos;
+            Vec3 armsRot = grip.lockHands ? kf.rotationEuler : weaponRot;
+            _arms->render(armsPos, armsRot, wid, nullptr,
                           &grip.rightSocketPos, &grip.rightSocketRot,
-                          &leftHandOffset, &grip.leftSocketRot);
+                          &grip.leftSocketPos, &grip.leftSocketRot);
         }
     }
 
@@ -1493,8 +1457,8 @@ namespace Lab {
             items.push_back({ "Weapon Grip Poser", "1", false, _activeTab == StudioTab::GripPoser, true, [this]() {
                 _activeTab = StudioTab::GripPoser; resetCamera();
             }});
-            items.push_back({ "Reload Timeline", "2", false, _activeTab == StudioTab::ReloadTimeline, true, [this]() {
-                _activeTab = StudioTab::ReloadTimeline; resetCamera();
+            items.push_back({ "Animation Timeline", "2", false, _activeTab == StudioTab::AnimationTimeline, true, [this]() {
+                _activeTab = StudioTab::AnimationTimeline; resetCamera();
             }});
             items.push_back({ "Weapon Materials", "3", false, _activeTab == StudioTab::WeaponSkins, true, [this]() {
                 _activeTab = StudioTab::WeaponSkins; resetCamera();
@@ -1520,9 +1484,9 @@ namespace Lab {
                 _viewportToolMode = ViewportToolMode::OrbitCamera;
             }});
             items.push_back({ "", "", true, false, false, nullptr }); // Separator
-            items.push_back({ "Audition Reload SFX", "", false, false, false, [this]() {
-                AudioEngine::playSound(SoundID::Reload, 1.0f, 1.0f);
-                log("Auditioned active reload sound FX.");
+            items.push_back({ "Audition Refill SFX", "", false, false, false, [this]() {
+                AudioEngine::playSound(SoundID::Refill, 1.0f, 1.0f);
+                log("Auditioned sound FX.");
             }});
             items.push_back({ "Test Dialogue Speech", "Space", false, _dialoguePlaying, true, [this]() {
                 _dialoguePlaying = !_dialoguePlaying;
@@ -1718,7 +1682,7 @@ namespace Lab {
         struct ToolTab { StudioTab tab; std::string code; std::string name; };
         ToolTab tools[] = {
             { StudioTab::GripPoser, "GRIP", "Grip Poser" },
-            { StudioTab::ReloadTimeline, "RELOAD", "Timeline" },
+            { StudioTab::AnimationTimeline, "ANIM", "Timeline" },
             { StudioTab::WeaponSkins, "SKINS", "Materials" },
             { StudioTab::Appearance, "BODY", "Outfits" },
             { StudioTab::FaceDialogue, "FACE", "Lip-Sync" }
@@ -1849,8 +1813,8 @@ namespace Lab {
         if (drawHammerButton(x + 14.0f + 2 * (aBtnW + aBtnPad), curY + 20.0f, aBtnW, 20.0f, "SHOOT", _activeAnimState == StudioAnimState::Shoot)) {
             setStudioAnimation(StudioAnimState::Shoot);
         }
-        if (drawHammerButton(x + 14.0f + 3 * (aBtnW + aBtnPad), curY + 20.0f, aBtnW, 20.0f, "RELOAD", _activeAnimState == StudioAnimState::Reload)) {
-            setStudioAnimation(StudioAnimState::Reload);
+        if (drawHammerButton(x + 14.0f + 3 * (aBtnW + aBtnPad), curY + 20.0f, aBtnW, 20.0f, "ACTION", _activeAnimState == StudioAnimState::Action)) {
+            setStudioAnimation(StudioAnimState::Action);
         }
         if (drawHammerButton(x + 14.0f + 4 * (aBtnW + aBtnPad), curY + 20.0f, aBtnW, 20.0f, "INSPECT", _activeAnimState == StudioAnimState::Inspect)) {
             setStudioAnimation(StudioAnimState::Inspect);
@@ -2089,11 +2053,11 @@ namespace Lab {
         }
     }
 
-    void CharacterStudio::renderTabReloadTimeline(float x, float y, float w, float h) {
+    void CharacterStudio::renderTabAnimationTimeline(float x, float y, float w, float h) {
         (void)h;
         float curY = y + 26.0f;
 
-        LabFont::drawText(x + 10.0f, curY, "RELOAD ANIMATION CHOREOGRAPHY & PHASES", 1.5f, Vec3(0.95f, 0.85f, 0.3f), LabFontType::System);
+        LabFont::drawText(x + 10.0f, curY, "KEYFRAME ANIMATION TRACK & SCRUBBER", 1.5f, Vec3(0.95f, 0.85f, 0.3f), LabFontType::System);
         curY += 22.0f;
 
         // Timeline Scrubber Bar
@@ -2104,86 +2068,116 @@ namespace Lab {
         Renderer::drawRect(scrubX, curY, scrubW, scrubH, Vec3(0.12f, 0.13f, 0.15f));
         drawHammerBevel(scrubX, curY, scrubW, scrubH, true);
 
-        // Phase zone color blocks along scrubber
-        float pDip = _reloadTimeline.dipDuration;
-        float pDrop = _reloadTimeline.magDropTime;
-        float pInsert = _reloadTimeline.magInsertTime;
-        float pBolt = _reloadTimeline.boltRackTime;
+        // Draw keyframe markers along the scrubber track
+        for (const auto& kf : _animTrack.keyframes) {
+            float kfX = scrubX + (scrubW - 6.0f) * std::clamp(kf.time, 0.0f, 1.0f);
+            Renderer::drawRect(kfX, curY + 2.0f, 4.0f, scrubH - 4.0f, Vec3(0.3f, 0.8f, 1.0f));
+        }
 
-        // Phase 1: Dip
-        Renderer::drawRect(scrubX + 2.0f, curY + 2.0f, (scrubW - 4.0f) * pDip, scrubH - 4.0f, Vec3(0.18f, 0.28f, 0.45f));
-        // Phase 2: Mag Drop
-        Renderer::drawRect(scrubX + (scrubW - 4.0f) * pDrop, curY + 2.0f, (scrubW - 4.0f) * (pInsert - pDrop), scrubH - 4.0f, Vec3(0.55f, 0.32f, 0.15f));
-        // Phase 3: Mag Insert
-        Renderer::drawRect(scrubX + (scrubW - 4.0f) * pInsert, curY + 2.0f, (scrubW - 4.0f) * (pBolt - pInsert), scrubH - 4.0f, Vec3(0.20f, 0.55f, 0.35f));
-        // Phase 4: Bolt Rack
-        Renderer::drawRect(scrubX + (scrubW - 4.0f) * pBolt, curY + 2.0f, (scrubW - 4.0f) * (1.0f - pBolt), scrubH - 4.0f, Vec3(0.45f, 0.20f, 0.45f));
-
-        // Playhead
+        // Playhead indicator
         float headX = scrubX + (scrubW - 6.0f) * _scrubberPos;
         Renderer::drawRect(headX, curY - 3.0f, 6.0f, scrubH + 6.0f, Vec3(1.0f, 0.95f, 0.2f));
 
         // Scrubber Drag
         if (_lmbPressed && _mouseX >= scrubX && _mouseX <= scrubX + scrubW && _mouseY >= curY && _mouseY <= curY + scrubH) {
-            _scrubberPos = std::clamp((_mouseX - scrubX) / scrubW, 0.0f, 1.0f);
+            _scrubberPos = std::clamp((_mouseX - scrubX) / (scrubW - 6.0f), 0.0f, 1.0f);
             _isDraggingScrubber = true;
         }
         curY += 34.0f;
 
+        // Sample current track
+        AnimKeyframe sampled = _animTrack.sample(_scrubberPos);
+
         // Readout
-        char timeBuf[64];
-        snprintf(timeBuf, sizeof(timeBuf), "Playhead: %.2f / %.2fs  (Phase: %s)",
-                 _scrubberPos * _scrubberTotalDuration, _scrubberTotalDuration,
-                 (_scrubberPos < pDrop) ? "1. Dip Weapon" :
-                 (_scrubberPos < pInsert) ? "2. Mag Eject" :
-                 (_scrubberPos < pBolt) ? "3. Mag Insert" : "4. Bolt Rack");
+        char timeBuf[128];
+        snprintf(timeBuf, sizeof(timeBuf), "Playhead: %.2f / 1.00s | Keys: %zu | Pos: (%.2f, %.2f, %.2f)",
+                 _scrubberPos, _animTrack.keyframes.size(),
+                 sampled.translation.x, sampled.translation.y, sampled.translation.z);
         LabFont::drawText(x + 12.0f, curY, timeBuf, 1.4f, Vec3(0.85f, 0.90f, 0.95f), LabFontType::System);
         curY += 22.0f;
 
-        // Playback Buttons
-        float pbPad = 6.0f;
-        float pbW = (w - 24.0f - 2.0f * pbPad) / 3.0f;
-        if (drawHammerButton(x + 12.0f, curY, pbW, 24.0f, _scrubberPlaying ? "PAUSE" : "PLAY")) {
+        // Transport Controls
+        float pbPad = 4.0f;
+        float pbW = (w - 24.0f - 4.0f * pbPad) / 5.0f;
+        if (drawHammerButton(x + 12.0f + 0 * (pbW + pbPad), curY, pbW, 24.0f, "< STEP")) {
+            _scrubberPos = std::max(0.0f, _scrubberPos - 0.05f);
+        }
+        if (drawHammerButton(x + 12.0f + 1 * (pbW + pbPad), curY, pbW, 24.0f, _scrubberPlaying ? "PAUSE" : "PLAY")) {
             _scrubberPlaying = !_scrubberPlaying;
         }
-        if (drawHammerButton(x + 12.0f + 1 * (pbW + pbPad), curY, pbW, 24.0f, "STOP")) {
-            _scrubberPlaying = false;
-            _scrubberPos = 0.0f;
+        if (drawHammerButton(x + 12.0f + 2 * (pbW + pbPad), curY, pbW, 24.0f, "STEP >")) {
+            _scrubberPos = std::min(1.0f, _scrubberPos + 0.05f);
         }
-        if (drawHammerButton(x + 12.0f + 2 * (pbW + pbPad), curY, pbW, 24.0f, _scrubberLoop ? "LOOP: ON" : "LOOP: OFF", _scrubberLoop)) {
+        if (drawHammerButton(x + 12.0f + 3 * (pbW + pbPad), curY, pbW, 24.0f, "RESET")) {
+            _scrubberPos = 0.0f;
+            _scrubberPlaying = false;
+        }
+        if (drawHammerButton(x + 12.0f + 4 * (pbW + pbPad), curY, pbW, 24.0f, _scrubberLoop ? "LOOP: ON" : "LOOP: OFF", _scrubberLoop)) {
             _scrubberLoop = !_scrubberLoop;
         }
         curY += 32.0f;
 
-        // Phase Timing Sliders
-        Renderer::drawRect(x + 8.0f, curY, w - 16.0f, 140.0f, Vec3(0.18f, 0.19f, 0.21f));
-        drawHammerBevel(x + 8.0f, curY, w - 16.0f, 140.0f, true);
-        LabFont::drawText(x + 14.0f, curY + 6.0f, "KEYFRAME PHASE TIMING POINTS:", 1.4f, Vec3(0.4f, 0.85f, 1.0f), LabFontType::System);
+        // Keyframe Management Buttons
+        float kfBtnW = (w - 24.0f - pbPad) / 2.0f;
+        if (drawHammerButton(x + 12.0f, curY, kfBtnW, 24.0f, "+ ADD KEYFRAME")) {
+            pushUndoState();
+            AnimKeyframe newKf;
+            newKf.time = _scrubberPos;
+            newKf.translation = sampled.translation;
+            newKf.rotationEuler = sampled.rotationEuler;
+            newKf.scale = sampled.scale;
+            _animTrack.keyframes.push_back(newKf);
+            std::sort(_animTrack.keyframes.begin(), _animTrack.keyframes.end(),
+                      [](const AnimKeyframe& a, const AnimKeyframe& b) { return a.time < b.time; });
+            log("Added keyframe at t=" + std::to_string(_scrubberPos));
+        }
+        if (drawHammerButton(x + 12.0f + kfBtnW + pbPad, curY, kfBtnW, 24.0f, "- DEL KEYFRAME")) {
+            if (_animTrack.keyframes.size() > 1) {
+                pushUndoState();
+                auto closestIt = _animTrack.keyframes.begin();
+                float closestDist = 999.0f;
+                for (auto it = _animTrack.keyframes.begin(); it != _animTrack.keyframes.end(); ++it) {
+                    float dist = std::abs(it->time - _scrubberPos);
+                    if (dist < closestDist) {
+                        closestDist = dist;
+                        closestIt = it;
+                    }
+                }
+                _animTrack.keyframes.erase(closestIt);
+                log("Deleted keyframe near t=" + std::to_string(_scrubberPos));
+            }
+        }
+        curY += 32.0f;
 
-        drawHammerSlider(x + 14.0f, curY + 26.0f, w - 28.0f, 18.0f, "Dip Duration:", _reloadTimeline.dipDuration, 0.15f, 0.50f);
-        drawHammerSlider(x + 14.0f, curY + 46.0f, w - 28.0f, 18.0f, "Mag Drop Cue:", _reloadTimeline.magDropTime, 0.15f, 0.55f);
-        drawHammerSlider(x + 14.0f, curY + 66.0f, w - 28.0f, 18.0f, "Mag Insert Cue:", _reloadTimeline.magInsertTime, 0.45f, 0.85f);
-        drawHammerSlider(x + 14.0f, curY + 86.0f, w - 28.0f, 18.0f, "Bolt Rack Cue:", _reloadTimeline.boltRackTime, 0.70f, 0.98f);
-        drawHammerSlider(x + 14.0f, curY + 106.0f, w - 28.0f, 18.0f, "Dip Depth (m):", _reloadTimeline.dipDepth, 0.03f, 0.16f);
-        curY += 150.0f;
+        // Find closest keyframe to edit
+        AnimKeyframe* activeKf = nullptr;
+        float bestDist = 0.08f;
+        for (auto& kf : _animTrack.keyframes) {
+            float dist = std::abs(kf.time - _scrubberPos);
+            if (dist < bestDist) {
+                bestDist = dist;
+                activeKf = &kf;
+            }
+        }
 
-        // Sound Trigger Previews
-        LabFont::drawText(x + 12.0f, curY, "SOUND FX TIMELINE CUES:", 1.4f, Vec3(0.85f, 0.90f, 0.95f), LabFontType::System);
-        curY += 18.0f;
-        float sfxPad = 6.0f;
-        float sfxW = (w - 24.0f - 2.0f * sfxPad) / 3.0f;
-        if (drawHammerButton(x + 12.0f + 0 * (sfxW + sfxPad), curY, sfxW, 22.0f, "Mag Out SFX")) {
-            AudioEngine::playSound(SoundID::Reload, 1.0f, 1.15f);
-            log("Auditioned sound: Mag Out SFX");
+        // Keyframe Pose Sliders
+        Renderer::drawRect(x + 8.0f, curY, w - 16.0f, 150.0f, Vec3(0.18f, 0.19f, 0.21f));
+        drawHammerBevel(x + 8.0f, curY, w - 16.0f, 150.0f, true);
+        std::string panelTitle = activeKf ? "EDITING KEYFRAME AT t=" + std::to_string(activeKf->time).substr(0, 4)
+                                          : "INTERPOLATED SAMPLE POSE:";
+        LabFont::drawText(x + 14.0f, curY + 6.0f, panelTitle, 1.4f, Vec3(0.4f, 0.85f, 1.0f), LabFontType::System);
+
+        if (activeKf) {
+            drawHammerSlider(x + 14.0f, curY + 26.0f, w - 28.0f, 18.0f, "Pos X (m):", activeKf->translation.x, -0.5f, 0.5f);
+            drawHammerSlider(x + 14.0f, curY + 46.0f, w - 28.0f, 18.0f, "Pos Y (m):", activeKf->translation.y, -0.5f, 0.5f);
+            drawHammerSlider(x + 14.0f, curY + 66.0f, w - 28.0f, 18.0f, "Pos Z (m):", activeKf->translation.z, -0.5f, 0.5f);
+            drawHammerSlider(x + 14.0f, curY + 86.0f, w - 28.0f, 18.0f, "Rot Pitch:", activeKf->rotationEuler.x, -90.0f, 90.0f);
+            drawHammerSlider(x + 14.0f, curY + 106.0f, w - 28.0f, 18.0f, "Rot Yaw:", activeKf->rotationEuler.y, -90.0f, 90.0f);
+            drawHammerSlider(x + 14.0f, curY + 126.0f, w - 28.0f, 18.0f, "Rot Roll:", activeKf->rotationEuler.z, -90.0f, 90.0f);
+        } else {
+            LabFont::drawText(x + 14.0f, curY + 36.0f, "Scrub playhead near a keyframe marker to edit its pose values.", 1.3f, Vec3(0.7f, 0.7f, 0.75f), LabFontType::System);
         }
-        if (drawHammerButton(x + 12.0f + 1 * (sfxW + sfxPad), curY, sfxW, 22.0f, "Mag In SFX")) {
-            AudioEngine::playSound(SoundID::Reload, 1.0f, 0.95f);
-            log("Auditioned sound: Mag In SFX");
-        }
-        if (drawHammerButton(x + 12.0f + 2 * (sfxW + sfxPad), curY, sfxW, 22.0f, "Bolt Rack SFX")) {
-            AudioEngine::playSound(SoundID::Reload, 1.0f, 1.35f);
-            log("Auditioned sound: Bolt Rack SFX");
-        }
+        curY += 160.0f;
     }
 
     void CharacterStudio::renderTabWeaponSkins(float x, float y, float w, float h) {
@@ -2485,8 +2479,8 @@ namespace Lab {
 
         if (_activeTab == StudioTab::GripPoser) {
             renderTabGripPoser(panelX, panelY, panelW, panelH);
-        } else if (_activeTab == StudioTab::ReloadTimeline) {
-            renderTabReloadTimeline(panelX, panelY, panelW, panelH);
+        } else if (_activeTab == StudioTab::AnimationTimeline) {
+            renderTabAnimationTimeline(panelX, panelY, panelW, panelH);
         } else if (_activeTab == StudioTab::WeaponSkins) {
             renderTabWeaponSkins(panelX, panelY, panelW, panelH);
         } else if (_activeTab == StudioTab::Appearance) {
@@ -2591,14 +2585,19 @@ namespace Lab {
             out << "Metallic=" << _weaponSkins[i].metallic << "\n\n";
         }
 
-        // Save reload timeline
-        out << "[ReloadTimeline]\n";
-        out << "DipDuration=" << _reloadTimeline.dipDuration << "\n";
-        out << "MagDropTime=" << _reloadTimeline.magDropTime << "\n";
-        out << "MagInsertTime=" << _reloadTimeline.magInsertTime << "\n";
-        out << "BoltRackTime=" << _reloadTimeline.boltRackTime << "\n";
-        out << "DipDepth=" << _reloadTimeline.dipDepth << "\n";
-        out << "TiltAngle=" << _reloadTimeline.tiltAngle << "\n\n";
+        // Save animation track
+        out << "[AnimationTrack]\n";
+        out << "TrackName=" << _animTrack.name << "\n";
+        out << "Duration=" << _animTrack.duration << "\n";
+        out << "KeyframeCount=" << _animTrack.keyframes.size() << "\n";
+        for (size_t i = 0; i < _animTrack.keyframes.size(); ++i) {
+            const auto& kf = _animTrack.keyframes[i];
+            out << "Key_" << i << "_Time=" << kf.time << "\n";
+            out << "Key_" << i << "_Pos=" << kf.translation.x << "," << kf.translation.y << "," << kf.translation.z << "\n";
+            out << "Key_" << i << "_Rot=" << kf.rotationEuler.x << "," << kf.rotationEuler.y << "," << kf.rotationEuler.z << "\n";
+            out << "Key_" << i << "_Scale=" << kf.scale.x << "," << kf.scale.y << "," << kf.scale.z << "\n";
+        }
+        out << "\n";
 
         // Save character appearance
         out << "[CharacterAppearance]\n";
@@ -2741,13 +2740,25 @@ namespace Lab {
                     else if (key == "Tint") _weaponSkins[id].tintColor = parseVec3(val, _weaponSkins[id].tintColor);
                     else if (key == "Metallic") _weaponSkins[id].metallic = std::stof(val);
                 }
-            } else if (currentSection == "ReloadTimeline") {
-                if (key == "DipDuration") _reloadTimeline.dipDuration = std::stof(val);
-                else if (key == "MagDropTime") _reloadTimeline.magDropTime = std::stof(val);
-                else if (key == "MagInsertTime") _reloadTimeline.magInsertTime = std::stof(val);
-                else if (key == "BoltRackTime") _reloadTimeline.boltRackTime = std::stof(val);
-                else if (key == "DipDepth") _reloadTimeline.dipDepth = std::stof(val);
-                else if (key == "TiltAngle") _reloadTimeline.tiltAngle = std::stof(val);
+            } else if (currentSection == "AnimationTrack") {
+                if (key == "TrackName") _animTrack.name = val;
+                else if (key == "Duration") _animTrack.duration = std::stof(val);
+                else if (key == "KeyframeCount") {
+                    size_t count = std::stoul(val);
+                    _animTrack.keyframes.resize(count);
+                } else if (key.rfind("Key_", 0) == 0) {
+                    size_t secondUnderscore = key.find('_', 4);
+                    if (secondUnderscore != std::string::npos) {
+                        size_t idx = std::stoul(key.substr(4, secondUnderscore - 4));
+                        std::string prop = key.substr(secondUnderscore + 1);
+                        if (idx < _animTrack.keyframes.size()) {
+                            if (prop == "Time") _animTrack.keyframes[idx].time = std::stof(val);
+                            else if (prop == "Pos") _animTrack.keyframes[idx].translation = parseVec3(val, Vec3(0.0f, 0.0f, 0.0f));
+                            else if (prop == "Rot") _animTrack.keyframes[idx].rotationEuler = parseVec3(val, Vec3(0.0f, 0.0f, 0.0f));
+                            else if (prop == "Scale") _animTrack.keyframes[idx].scale = parseVec3(val, Vec3(1.0f, 1.0f, 1.0f));
+                        }
+                    }
+                }
             } else if (currentSection == "CharacterAppearance") {
                 if (key == "ArmorClass") _appearance.armorClass = static_cast<ArmorClass>(std::stoi(val));
                 else if (key == "HelmetType") _appearance.helmetType = static_cast<HelmetType>(std::stoi(val));

@@ -526,7 +526,7 @@ namespace Lab {
                 case 7: // Security Door
                     drawHammerIcon(4, x + 1.0f, y + 1.0f, color, bg);
                     break;
-                case 8: // Weapon Spawn Silhouette (Gun barrel + grip + magazine)
+                case 8: // Weapon Spawn Silhouette (Gun barrel + grip + reservoir)
                     Renderer::drawRect(x + 5.0f, y + 10.0f, 16.0f, 4.0f, color);
                     Renderer::drawRect(x + 7.0f, y + 14.0f, 4.0f, 7.0f, color);
                     Renderer::drawRect(x + 13.0f, y + 14.0f, 3.0f, 5.0f, Vec3(0.2f, 0.2f, 0.2f));

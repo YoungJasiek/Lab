@@ -13,7 +13,7 @@ namespace Lab {
 
     // Tactical first-person arms and hands rendering system
     // Provides anatomical dual-arm kinematics, glove knuckles, cyber-gauntlet status LED,
-    // dynamic support hand placement, animated magazine during reload, and melee motion trail.
+    // dynamic support hand placement, and melee motion trail.
     class ViewModelArms {
     public:
         ViewModelArms();
@@ -21,12 +21,14 @@ namespace Lab {
 
         // Render both arms and hands relative to active weapon transform (with optional custom socket overrides)
         void render(const Vec3& weaponBasePos, const Vec3& weaponRot,
-                    WeaponID weaponId, const WeaponAnimator& animator,
+                    WeaponID weaponId,
                     Texture* sleeveTexture = nullptr,
                     const Vec3* rightSocketOffset = nullptr,
                     const Vec3* rightSocketRot = nullptr,
                     const Vec3* leftSocketOffset = nullptr,
-                    const Vec3* leftSocketRot = nullptr);
+                    const Vec3* leftSocketRot = nullptr,
+                    const Vec3* supportHandOffset = nullptr,
+                    const Vec3* supportHandRot = nullptr);
 
         // Render melee motion ribbon during pipe slash
         void renderMeleeTrail(const Vec3& pipeTipPos, const Vec3& pipeBasePos, float alpha);
@@ -38,10 +40,7 @@ namespace Lab {
 
         // Draw a tactical combat glove (palm, knuckle armor plate, 5 articulated fingers)
         void drawTacticalGlove(const Vec3& wristPos, const Vec3& wristRot,
-                               bool isLeft, WeaponID weaponId, const WeaponAnimator& animator);
-
-        // Draw fresh magazine held in left hand during reload cycle
-        void drawReloadMagazine(const Vec3& magPos, const Vec3& magRot, WeaponID weaponId);
+                               bool isLeft, WeaponID weaponId);
 
         // Recent history of pipe tip positions for motion ribbon
         std::vector<Vec3> _trailHistory;
