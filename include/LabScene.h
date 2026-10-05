@@ -34,6 +34,9 @@ namespace Lab {
         LabScene() = default;
         virtual ~LabScene() = default;
 
+        /// @brief Applies scene environment (sun, ambient, fog, skybox) to renderer
+        void applyEnvironment() const;
+
         /// @brief Converts an existing LabMap into a modern LabScene object
         static std::unique_ptr<LabScene> fromLabMap(const LabMap& map);
 

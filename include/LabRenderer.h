@@ -125,8 +125,12 @@ namespace Lab {
         static void clearPointLights();
         static const std::vector<PointLight>& getPointLights();
 
-        // Atmospheric Volumetric Distance Fog
+        // Atmospheric Volumetric Distance & Height Fog
         static void setFog(bool enable, const Vec3& color = { 0.05f, 0.07f, 0.10f }, float startDist = 12.0f, float endDist = 85.0f);
+        static void setHeightFog(bool enable, float baseHeight = 0.0f, float density = 0.04f);
+        static bool isHeightFogEnabled();
+        static float getHeightFogBase();
+        static float getHeightFogDensity();
 
         // Shadow depth pass rendering
         static void beginShadowDepthPass(const Mat4& lightSpaceMatrix);
@@ -194,10 +198,13 @@ namespace Lab {
         static Mat4 _lightSpaceMatrix;
         static unsigned int _shadowDepthTexture;
 
-        // Atmospheric Distance Fog State
+        // Atmospheric Distance & Height Fog State
         static bool _enableFog;
         static Vec3 _fogColor;
         static float _fogStart;
         static float _fogEnd;
+        static bool _enableHeightFog;
+        static float _heightFogBase;
+        static float _heightFogDensity;
     };
 }

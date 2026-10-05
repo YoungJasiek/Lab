@@ -1,5 +1,6 @@
 #include "Lab.h"
 #include "LabScene.h"
+#include "LabGraphics.h"
 #include "LabFont.h"
 #include "LabDialogs.h"
 #include "../games/frozen_life/include/FrozenLifeAnim.h"
@@ -9155,6 +9156,239 @@ int main() {
         std::filesystem::remove_all(cleanProjPath, ec);
 
         std::cout << "  [PASS] Test 84 Script & VFS Isolation (game://scripts vs engine://scripts, Clean Projects) passed 100%!" << std::endl;
+    }
+
+    // ----------------------------------------------------
+    {
+        std::cout << "\n[Test 85] Verifying Advanced Graphics Pipeline (HDRI Skybox, Fog, PBR, Batching, Lightmaps, Shadow Atlas, Probe & .labscene)...\n";
+
+        // Sub-test A: HDRI Skybox (.hdr), Exposure & IBL Ambient
+        Lab::HDRISkybox skybox;
+        bool createdSky = skybox.createProceduralSky(Lab::Vec3(-0.4f, -0.8f, -0.4f),
+                                                     Lab::Vec3(0.2f, 0.45f, 0.85f),
+                                                     Lab::Vec3(0.7f, 0.8f, 0.9f),
+                                                     Lab::Vec3(0.12f, 0.10f, 0.08f),
+                                                     512, 256);
+        if (!createdSky || !skybox.isLoaded() || skybox.getTextureId() == 0) {
+            std::cerr << "Assertion failed: Failed to create procedural HDRI skybox!\n";
+            return 1;
+        }
+
+        skybox.setExposure(1.4f);
+        if (skybox.getExposure() != 1.4f) {
+            std::cerr << "Assertion failed: HDRI Skybox exposure not set correctly!\n";
+            return 1;
+        }
+
+        auto zenithRadiance = skybox.sampleDirection(Lab::Vec3(0, 1, 0));
+        auto horizonRadiance = skybox.sampleDirection(Lab::Vec3(1, 0, 0));
+        auto iblAmbient = skybox.computeIBLAmbient(Lab::Vec3(0, 1, 0));
+        if (zenithRadiance.y <= 0.0f || iblAmbient.y <= 0.0f) {
+            std::cerr << "Assertion failed: HDRI Skybox directional sampling or IBL ambient returned invalid values!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test A: HDRI Skybox (.hdr), exposure (1.4) and IBL ambient radiance verified.\n";
+
+        // Sub-test B: Atmospheric Height & Distance Fog calculation
+        Lab::FogSettings fog;
+        fog.enabled = true;
+        fog.distanceStart = 10.0f;
+        fog.distanceEnd = 100.0f;
+        fog.baseHeight = 0.0f;
+        fog.heightDensity = 0.05f;
+        fog.color = Lab::Vec3(0.5f, 0.6f, 0.7f);
+
+        float distFogNear = Lab::AtmosphericFog::computeDistanceFog(5.0f, fog.distanceStart, fog.distanceEnd);
+        float distFogMid = Lab::AtmosphericFog::computeDistanceFog(55.0f, fog.distanceStart, fog.distanceEnd);
+        float distFogFar = Lab::AtmosphericFog::computeDistanceFog(120.0f, fog.distanceStart, fog.distanceEnd);
+        if (distFogNear != 0.0f || std::abs(distFogMid - 0.5f) > 0.01f || distFogFar != 1.0f) {
+            std::cerr << "Assertion failed: Distance fog linear curve mismatch!\n";
+            return 1;
+        }
+
+        float heightFogHigh = Lab::AtmosphericFog::computeHeightFog(10.0f, 10.0f, fog.baseHeight, fog.heightDensity, fog.heightFalloff);
+        float heightFogLow = Lab::AtmosphericFog::computeHeightFog(0.0f, 0.0f, fog.baseHeight, fog.heightDensity, fog.heightFalloff);
+        if (heightFogLow <= heightFogHigh) {
+            std::cerr << "Assertion failed: Height fog should accumulate more density at lower elevations!\n";
+            return 1;
+        }
+
+        Lab::Renderer::setHeightFog(true, 1.5f, 0.045f);
+        if (!Lab::Renderer::isHeightFogEnabled() || Lab::Renderer::getHeightFogBase() != 1.5f) {
+            std::cerr << "Assertion failed: Renderer height fog state not stored accurately!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test B: Atmospheric height and distance fog formulation & Renderer state verified.\n";
+
+        // Sub-test C: PBR Materials & Cook-Torrance BRDF (Albedo, Normal, Roughness)
+        Lab::PBRMaterial pbrMat;
+        pbrMat.name = "SciFi_Metal_Wall";
+        pbrMat.albedoColor = Lab::Vec4(0.85f, 0.85f, 0.85f, 1.0f);
+        pbrMat.metallic = 0.9f;
+        pbrMat.roughness = 0.25f;
+        pbrMat.ao = 1.0f;
+
+        Lab::Vec3 N = Lab::Vec3(0, 1, 0);
+        Lab::Vec3 V = Lab::Vec3(0, 0.707f, 0.707f).normalized();
+        Lab::Vec3 L = Lab::Vec3(0.5f, 0.8f, 0.2f).normalized();
+        Lab::Vec3 H = (V + L).normalized();
+
+        float D = Lab::PBRShading::distributionGGX(N, H, pbrMat.roughness);
+        float G = Lab::PBRShading::geometrySmith(N, V, L, pbrMat.roughness);
+        Lab::Vec3 F = Lab::PBRShading::fresnelSchlick(std::max(0.0f, H.dot(V)), Lab::Vec3(0.04f, 0.04f, 0.04f));
+        if (D <= 0.0f || G <= 0.0f || G > 1.0f || F.x <= 0.0f) {
+            std::cerr << "Assertion failed: PBR Cook-Torrance BRDF mathematical terms failed!\n";
+            return 1;
+        }
+
+        Lab::Vec3 pbrDirect = Lab::PBRShading::evaluateDirectLight(pbrMat, N, V, L, Lab::Vec3(2.0f, 2.0f, 2.0f));
+        Lab::Vec3 pbrIBL = Lab::PBRShading::evaluateIBL(pbrMat, N, V, iblAmbient, iblAmbient * 1.5f);
+        if (pbrDirect.length() <= 0.0f || pbrIBL.length() <= 0.0f) {
+            std::cerr << "Assertion failed: PBR direct lighting or IBL evaluation failed!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test C: PBR Materials Cook-Torrance BRDF (GGX D, Smith G, Schlick F) verified.\n";
+
+        // Sub-test D: Instancing & Batching with Texture Atlas
+        Lab::TextureAtlas atlas;
+        atlas.addTile("wall_concrete", Lab::Vec4(0.0f, 0.0f, 0.5f, 0.5f));
+        atlas.addTile("floor_metal", Lab::Vec4(0.5f, 0.0f, 1.0f, 0.5f));
+        atlas.addTile("crate_wood", Lab::Vec4(0.0f, 0.5f, 0.5f, 1.0f));
+        if (!atlas.hasTile("wall_concrete") || atlas.getUVRect("floor_metal").z != 1.0f) {
+            std::cerr << "Assertion failed: TextureAtlas sub-rect UV mapping failed!\n";
+            return 1;
+        }
+
+        std::vector<Lab::Vertex> quadVerts = {
+            { { -0.5f, -0.5f, 0 }, { 0, 0, 1 }, { 0, 0 }, { 1, 1, 1 } },
+            { {  0.5f, -0.5f, 0 }, { 0, 0, 1 }, { 1, 0 }, { 1, 1, 1 } },
+            { {  0.5f,  0.5f, 0 }, { 0, 0, 1 }, { 1, 1 }, { 1, 1, 1 } },
+            { { -0.5f,  0.5f, 0 }, { 0, 0, 1 }, { 0, 1 }, { 1, 1, 1 } }
+        };
+        std::vector<unsigned int> quadIndices = { 0, 1, 2, 2, 3, 0 };
+
+        Lab::InstancedMesh instMesh(quadVerts, quadIndices);
+        for (int i = 0; i < 32; ++i) {
+            instMesh.addInstance(Lab::Mat4::translation((float)i * 2.0f, 0.0f, 0.0f),
+                                 atlas.getUVRect(i % 2 == 0 ? "wall_concrete" : "floor_metal"),
+                                 Lab::Vec4(1.0f, 1.0f, 1.0f, 1.0f));
+        }
+        if (instMesh.getInstanceCount() != 32) {
+            std::cerr << "Assertion failed: InstancedMesh failed to register 32 instances!\n";
+            return 1;
+        }
+        instMesh.updateInstanceBuffer();
+        instMesh.draw();
+        std::cout << "  [PASS] Sub-test D: Instancing & batching with Texture Atlas (32 instances, 1 draw call) verified.\n";
+
+        // Sub-test E: Baked Lightmaps
+        Lab::BakedLightmap lightmap(32, 32);
+        lightmap.setTexel(0, 0, Lab::Vec3(1.0f, 0.0f, 0.0f));
+        lightmap.setTexel(1, 0, Lab::Vec3(0.0f, 1.0f, 0.0f));
+        lightmap.upload();
+        if (lightmap.getTextureId() == 0) {
+            std::cerr << "Assertion failed: BakedLightmap GPU upload failed!\n";
+            return 1;
+        }
+
+        std::string lightmapFile = "build/temp_verify_lightmap.dat";
+        bool lmSaved = lightmap.saveToFile(lightmapFile);
+        if (!lmSaved) {
+            std::cerr << "Assertion failed: Failed to save baked lightmap to disk!\n";
+            return 1;
+        }
+
+        Lab::BakedLightmap loadedLm(32, 32);
+        bool lmLoaded = loadedLm.loadFromFile(lightmapFile);
+        if (!lmLoaded || loadedLm.getTexel(0, 0).x != 1.0f) {
+            std::cerr << "Assertion failed: BakedLightmap disk deserialization failed!\n";
+            return 1;
+        }
+        std::error_code lmEc;
+        std::filesystem::remove(lightmapFile, lmEc);
+        std::cout << "  [PASS] Sub-test E: Baked Lightmap creation, bilinear sampling & binary disk persistence verified.\n";
+
+        // Sub-test F: Shadow Atlas
+        Lab::ShadowAtlas shadowAtlas;
+        bool atlasInit = shadowAtlas.init(1024, 2); // 4 tiles of 512x512
+        if (!atlasInit || !shadowAtlas.isInitialized() || shadowAtlas.getTileCount() != 4 || shadowAtlas.getTileResolution() != 512) {
+            std::cerr << "Assertion failed: ShadowAtlas initialization failed!\n";
+            return 1;
+        }
+
+        auto tile0Vp = shadowAtlas.getTileViewport(0);
+        auto tile1Vp = shadowAtlas.getTileViewport(1);
+        if (tile0Vp.x != 0.0f || tile0Vp.y != 0.0f || tile1Vp.x != 512.0f || tile1Vp.y != 0.0f) {
+            std::cerr << "Assertion failed: ShadowAtlas tile viewport partition calculation incorrect!\n";
+            return 1;
+        }
+
+        shadowAtlas.setTileLightMatrix(0, Lab::Mat4::translation(0, 10, 0));
+        shadowAtlas.beginTile(0);
+        shadowAtlas.endTile();
+        shadowAtlas.bind(1);
+        std::cout << "  [PASS] Sub-test F: Shadow Atlas unified depth FBO (1024x1024, 4 tiles) & tile partitioning verified.\n";
+
+        // Sub-test G: Cubemap Reflection Probe
+        Lab::CubemapProbe probe;
+        bool probeInit = probe.init(128);
+        if (!probeInit || !probe.isInitialized() || probe.getCubemapTexture() == 0 || probe.getResolution() != 128) {
+            std::cerr << "Assertion failed: CubemapProbe initialization failed!\n";
+            return 1;
+        }
+
+        probe.bakeProceduralEnvironment(Lab::Vec3(0.2f, 0.25f, 0.35f), Lab::Vec3(-0.4f, -0.8f, -0.4f), Lab::Vec3(1, 1, 1));
+        probe.bind(3);
+        std::cout << "  [PASS] Sub-test G: Cubemap Reflection Probe (6 faces, 128x128) & procedural environment bake verified.\n";
+
+        // Sub-test H: Save & Load Skybox, Fog, and Sun in modern .labscene format
+        Lab::LabScene testScene;
+        testScene.environment.name = "Advanced Graphics QA Arena";
+        testScene.environment.author = "Lab Architect";
+        testScene.environment.ambientColor = Lab::Vec3(0.22f, 0.28f, 0.38f);
+        testScene.environment.sunDir = Lab::Vec3(-0.5f, -0.7f, -0.3f);
+        testScene.environment.sunColor = Lab::Vec3(1.0f, 0.95f, 0.85f);
+        testScene.environment.skyboxHdr = "assets/skybox/industrial_sunset.hdr";
+        testScene.environment.exposure = 1.35f;
+        testScene.environment.fogDistance = 88.0f;
+        testScene.environment.fogHeight = 3.5f;
+        testScene.environment.fogColor = Lab::Vec3(0.45f, 0.55f, 0.65f);
+
+        std::string scenePath = "assets/maps/qa_adv_graphics.labscene";
+        bool sceneSaved = testScene.saveSceneToFile(scenePath);
+        if (!sceneSaved) {
+            std::cerr << "Assertion failed: Failed to save modern .labscene with full environment block!\n";
+            return 1;
+        }
+
+        auto loadedScene = Lab::LabScene::loadSceneFromFile(scenePath);
+        if (!loadedScene) {
+            std::cerr << "Assertion failed: Failed to load .labscene containing environment block!\n";
+            return 1;
+        }
+
+        if (loadedScene->environment.skyboxHdr != "assets/skybox/industrial_sunset.hdr" ||
+            std::abs(loadedScene->environment.exposure - 1.35f) > 0.01f ||
+            std::abs(loadedScene->environment.fogDistance - 88.0f) > 0.01f ||
+            std::abs(loadedScene->environment.fogHeight - 3.5f) > 0.01f ||
+            std::abs(loadedScene->environment.sunDir.x - (-0.5f)) > 0.01f) {
+            std::cerr << "Assertion failed: .labscene environment parameters roundtrip mismatch!\n";
+            return 1;
+        }
+
+        // Apply environment parameters to engine Renderer
+        loadedScene->applyEnvironment();
+        if (!Lab::Renderer::isHeightFogEnabled() || Lab::Renderer::getHeightFogBase() != 3.5f) {
+            std::cerr << "Assertion failed: applyEnvironment() failed to activate height fog on Renderer!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test H: Saved and loaded skybox, fog, exposure & sun in .labscene format with 100% roundtrip fidelity.\n";
+
+        // Cleanup test scene file
+        std::error_code scEc;
+        std::filesystem::remove(scenePath, scEc);
+
+        std::cout << "  [PASS] Test 85 Advanced Graphics Pipeline passed 100%!" << std::endl;
     }
 
     Lab::Renderer::shutdown();

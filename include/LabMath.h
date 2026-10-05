@@ -44,11 +44,13 @@ namespace Lab {
         Vec3 operator-(const Vec3& v) const { return { x - v.x, y - v.y, z - v.z }; }
         Vec3 operator-() const { return { -x, -y, -z }; }
         Vec3 operator*(float s) const { return { x * s, y * s, z * s }; }
+        Vec3 operator*(const Vec3& v) const { return { x * v.x, y * v.y, z * v.z }; }
         Vec3 operator/(float s) const { return { x / s, y / s, z / s }; }
 
         Vec3& operator+=(const Vec3& v) { x += v.x; y += v.y; z += v.z; return *this; }
         Vec3& operator-=(const Vec3& v) { x -= v.x; y -= v.y; z -= v.z; return *this; }
         Vec3& operator*=(float s) { x *= s; y *= s; z *= s; return *this; }
+        Vec3& operator*=(const Vec3& v) { x *= v.x; y *= v.y; z *= v.z; return *this; }
 
         float lengthSq() const { return x * x + y * y + z * z; }
         float lengthSquared() const { return lengthSq(); }
@@ -61,6 +63,14 @@ namespace Lab {
 
         float dot(const Vec3& o) const { return x * o.x + y * o.y + z * o.z; }
         static float dot(const Vec3& a, const Vec3& b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+
+        Vec3 cross(const Vec3& o) const {
+            return {
+                y * o.z - z * o.y,
+                z * o.x - x * o.z,
+                x * o.y - y * o.x
+            };
+        }
         static Vec3 cross(const Vec3& a, const Vec3& b) {
             return {
                 a.y * b.z - a.z * b.y,
@@ -113,6 +123,9 @@ namespace Lab {
             res.m[14] = v.z;
             return res;
         }
+
+        static Mat4 translation(const Vec3& v) { return translate(v); }
+        static Mat4 translation(float x, float y, float z) { return translate({ x, y, z }); }
 
         static Mat4 rotate(float angle, const Vec3& axis) {
             Mat4 res;

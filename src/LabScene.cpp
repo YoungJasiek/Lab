@@ -1,5 +1,6 @@
 #include "LabScene.h"
 #include "LabCore.h"
+#include "LabRenderer.h"
 #include <fstream>
 #include <sstream>
 #include <filesystem>
@@ -125,6 +126,16 @@ namespace Lab {
         }
 
         return scene;
+    }
+
+    void LabScene::applyEnvironment() const {
+        Renderer::setSunLight(environment.sunDir, environment.sunColor, environment.ambientColor);
+        Renderer::setFog(true, environment.fogColor, 5.0f, environment.fogDistance);
+        if (environment.fogHeight > 0.001f) {
+            Renderer::setHeightFog(true, environment.fogHeight, 0.04f);
+        } else {
+            Renderer::setHeightFog(false);
+        }
     }
 
     SceneConversionResult LabScene::convertLegacyMapToScene(const std::string& labmapPath) {

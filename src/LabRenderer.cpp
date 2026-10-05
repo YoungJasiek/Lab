@@ -126,11 +126,14 @@ namespace Lab {
         uniform int enableShadows;
         uniform sampler2D shadowMap;
 
-        // Atmospheric Distance Fog
+        // Atmospheric Distance & Height Fog
         uniform int uEnableFog;
         uniform vec3 uFogColor;
         uniform float uFogStart;
         uniform float uFogEnd;
+        uniform int uEnableHeightFog;
+        uniform float uHeightFogBase;
+        uniform float uHeightFogDensity;
 
         float calculateShadow(vec4 fragPosLightSpace, vec3 normal, vec3 lightDirection) {
             vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
@@ -239,11 +242,15 @@ namespace Lab {
 
             vec3 result = baseLighting + spotResult + pointLightsResult;
 
-            // Volumetric Distance Blizzard Fog
+            // Volumetric Distance & Height Fog
             if (uEnableFog == 1) {
                 float dist = length(viewPos - FragPos);
                 float fogFactor = clamp((dist - uFogStart) / max(uFogEnd - uFogStart, 0.001), 0.0, 1.0);
                 fogFactor = fogFactor * fogFactor;
+                if (uEnableHeightFog == 1) {
+                    float heightFactor = clamp(exp(-uHeightFogDensity * max(0.0, FragPos.y - uHeightFogBase)), 0.0, 1.0);
+                    fogFactor = clamp(fogFactor + heightFactor * 0.5, 0.0, 1.0);
+                }
                 result = mix(result, uFogColor, fogFactor);
             }
 
@@ -1010,6 +1017,9 @@ namespace Lab {
     Vec3 Renderer::_fogColor = { 0.05f, 0.07f, 0.10f };
     float Renderer::_fogStart = 12.0f;
     float Renderer::_fogEnd = 85.0f;
+    bool Renderer::_enableHeightFog = false;
+    float Renderer::_heightFogBase = 0.0f;
+    float Renderer::_heightFogDensity = 0.04f;
 
     void Renderer::applyLightingAndShadowUniforms(Shader* shader) {
         shader->setVec3("viewPos", _cameraPos);
@@ -1025,6 +1035,9 @@ namespace Lab {
         shader->setVec3("uFogColor", Renderer::_fogColor);
         shader->setFloat("uFogStart", Renderer::_fogStart);
         shader->setFloat("uFogEnd", Renderer::_fogEnd);
+        shader->setInt("uEnableHeightFog", Renderer::_enableHeightFog ? 1 : 0);
+        shader->setFloat("uHeightFogBase", Renderer::_heightFogBase);
+        shader->setFloat("uHeightFogDensity", Renderer::_heightFogDensity);
 
         if (Renderer::_enableSpotlight) {
             shader->setVec3("spotLightPos", Renderer::_spotLightPos);
@@ -1200,6 +1213,24 @@ namespace Lab {
         _fogColor = color;
         _fogStart = startDist;
         _fogEnd = endDist;
+    }
+
+    void Renderer::setHeightFog(bool enable, float baseHeight, float density) {
+        _enableHeightFog = enable;
+        _heightFogBase = baseHeight;
+        _heightFogDensity = density;
+    }
+
+    bool Renderer::isHeightFogEnabled() {
+        return _enableHeightFog;
+    }
+
+    float Renderer::getHeightFogBase() {
+        return _heightFogBase;
+    }
+
+    float Renderer::getHeightFogDensity() {
+        return _heightFogDensity;
     }
 
     void Renderer::beginShadowDepthPass(const Mat4& lightSpaceMatrix) {
