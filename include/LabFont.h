@@ -25,7 +25,8 @@ namespace Lab {
     enum class LabFontType {
         GeoSans,    // Geo Sans Light (fonts/geo_sans_light/GeosansLight.ttf)
         System,     // Windows native UI font (Segoe UI / Arial)
-        DotMatrix   // Classic 5x7 dot-matrix font
+        DotMatrix,  // Classic 5x7 dot-matrix font
+        Monospace   // Monospaced code font (Consolas / Courier New)
     };
 
     struct GlyphMetric {
@@ -330,6 +331,7 @@ namespace Lab {
         static FontAtlas& getAtlas(LabFontType type) {
             static FontAtlas geoSansAtlas;
             static FontAtlas systemAtlas;
+            static FontAtlas monospaceAtlas;
             static bool initialized = false;
 
             if (!initialized) {
@@ -342,11 +344,19 @@ namespace Lab {
                 if (!geoSansAtlas.valid && systemAtlas.valid) {
                     geoSansAtlas = buildAtlas("Segoe UI", "");
                 }
+                monospaceAtlas = buildAtlas("Consolas", "");
+                if (!monospaceAtlas.valid) {
+                    monospaceAtlas = buildAtlas("Courier New", "");
+                }
+                if (!monospaceAtlas.valid && systemAtlas.valid) {
+                    monospaceAtlas = buildAtlas("Courier New", "");
+                }
 #endif
                 initialized = true;
             }
 
             if (type == LabFontType::GeoSans) return geoSansAtlas;
+            if (type == LabFontType::Monospace) return monospaceAtlas.valid ? monospaceAtlas : systemAtlas;
             return systemAtlas;
         }
 
@@ -360,6 +370,7 @@ namespace Lab {
                     float cursorX = x;
                     float cursorY = y;
                     float lineH = (atlas.fontHeight + 4.0f) * visualScale;
+                    float monoAdvance = 8.5f * scale;
 
                     for (char c : text) {
                         if (c == '\n') {
@@ -369,7 +380,7 @@ namespace Lab {
                         }
                         int idx = (int)c - 32;
                         if (idx < 0 || idx >= 95) {
-                            cursorX += 6.0f * visualScale;
+                            cursorX += (fontType == LabFontType::Monospace) ? monoAdvance : (6.0f * visualScale);
                             continue;
                         }
                         const GlyphMetric& gm = atlas.glyphs[idx];
@@ -382,7 +393,7 @@ namespace Lab {
                                 color
                             );
                         }
-                        cursorX += (gm.xadvance + 1.0f) * visualScale;
+                        cursorX += (fontType == LabFontType::Monospace) ? monoAdvance : ((gm.xadvance + 1.0f) * visualScale);
                     }
                     return;
                 }
@@ -393,6 +404,20 @@ namespace Lab {
         }
 
         static float getTextWidth(const std::string& text, float scale = 1.0f, LabFontType fontType = LabFontType::System) {
+            if (fontType == LabFontType::Monospace) {
+                float maxW = 0.0f;
+                float curW = 0.0f;
+                float adv = 8.5f * scale;
+                for (char c : text) {
+                    if (c == '\n') {
+                        if (curW > maxW) maxW = curW;
+                        curW = 0.0f;
+                    } else {
+                        curW += adv;
+                    }
+                }
+                return (std::max)(maxW, curW);
+            }
             if (fontType != LabFontType::DotMatrix) {
                 FontAtlas& atlas = getAtlas(fontType);
                 if (atlas.valid) {
