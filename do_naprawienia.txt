@@ -1,0 +1,9 @@
+- text editor
+- wysylanie assetow do builda
+- hud editor
+- anim editor
+- addony fizyki
+- elementy kosmetyczne (UI SILNIKA)
+- Watermark (logo przedurchomieniem gry z napisem powered by Lab a lab jako logo )
+- dokumentacja
+

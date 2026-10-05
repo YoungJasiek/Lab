@@ -18,6 +18,11 @@
 #include "plugins/AINavigationPatrolPlugin.h"
 #include "plugins/ArcadeVehiclePlugin.h"
 #include "plugins/DiscordRPCPlugin.h"
+#include "LabCloth.h"
+#include "LabForceField.h"
+#include "LabVehicle.h"
+#include "LabFluid.h"
+#include "LabConstraint.h"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <windows.h>
@@ -349,6 +354,54 @@ public:
         if (_hubBannerTimer > 0.0f) {
             _hubBannerTimer -= fixedDelta;
             if (_hubBannerTimer <= 0.0f) _hubStatusBanner = "";
+        }
+
+        // Live Addon Subsystem Updates
+        if (PackageManager::instance().isPackageEnabled("com.lab.retro-fx")) {
+            _retroScanlinePhase += fixedDelta * 3.5f;
+            if (_retroScanlinePhase > 6.283185f) _retroScanlinePhase -= 6.283185f;
+        }
+        if (PackageManager::instance().isPackageEnabled("com.lab.speedrun-timer")) {
+            if (_speedrunTimerRunning) {
+                _speedrunElapsedTime += fixedDelta;
+            }
+        }
+        if (PackageManager::instance().isPackageEnabled("com.lab.physics-cloth")) {
+            if (!_clothMeshInitialized) {
+                _clothMesh.initGrid(12, 12, 0.28f, _clothMeshOrigin);
+                _clothMesh.particles[0].pin();
+                _clothMesh.particles[11].pin();
+                _clothMeshInitialized = true;
+            }
+            if (_clothSimulateInEditor) {
+                _clothMesh.applyWind(_clothWindVelocity);
+                _clothMesh.step(fixedDelta, Vec3(0, -9.81f, 0), _clothSolverIterations, _clothDamping);
+            }
+        }
+        if (_forceFieldBlastTimer > 0.0f) {
+            _forceFieldBlastTimer -= fixedDelta;
+            if (_clothMeshInitialized) {
+                for (auto& cp : _clothMesh.particles) {
+                    if (cp.isPinned) continue;
+                    Vec3 toP = cp.position - _forceFieldPosition;
+                    float d = toP.length();
+                    if (d > 0.01f && d < _forceFieldRadius) {
+                        float blastMag = (_forceFieldStrength / (d * d + 1.0f)) * 4.0f;
+                        cp.acceleration += (toP / d) * blastMag;
+                    }
+                }
+            }
+        }
+        if (PackageManager::instance().isPackageEnabled("com.lab.vehicle-arcade")) {
+            if (Input::isKeyPressed('W') || Input::isKeyPressed('w')) {
+                _vehicleSpeedKmh = std::min(180.0f, _vehicleSpeedKmh + 45.0f * _vehicleThrottlePower * fixedDelta);
+                _vehicleRpm = std::min(7200.0f, 1000.0f + (_vehicleSpeedKmh / 180.0f) * 6000.0f);
+                _vehicleGear = std::clamp((int)(_vehicleSpeedKmh / 35.0f) + 1, 1, 5);
+            } else {
+                _vehicleSpeedKmh = std::max(0.0f, _vehicleSpeedKmh - 30.0f * fixedDelta);
+                _vehicleRpm = std::max(900.0f, _vehicleRpm - 2000.0f * fixedDelta);
+                if (_vehicleSpeedKmh < 1.0f) _vehicleGear = 1;
+            }
         }
 
         // Noclip camera flight (active ONLY in 3D level editing when holding Right Mouse Button)
@@ -1298,6 +1351,41 @@ public:
                     _contextMenuSearch += c;
                 }
                 s_lastKeys[k] = Input::keys[k];
+            }
+        }
+
+        // 5. Plugin Search Query Input Handling
+        if (_workspace == EditorWorkspace::Plugins_Manager && _pluginSearchFocused) {
+            static bool s_plugBack = false;
+            static bool s_plugEsc = false;
+            static bool s_lastPlugKeys[512] = { false };
+
+            if (Input::isKeyPressed(259)) { // Backspace
+                if (!s_plugBack && !_pluginSearchQuery.empty()) {
+                    _pluginSearchQuery.pop_back();
+                }
+                s_plugBack = true;
+            } else {
+                s_plugBack = false;
+            }
+
+            if (Input::isKeyPressed(256) || Input::isKeyPressed(257)) { // Esc or Enter
+                if (!s_plugEsc) {
+                    _pluginSearchFocused = false;
+                }
+                s_plugEsc = true;
+            } else {
+                s_plugEsc = false;
+            }
+
+            for (int k = 32; k <= 90; ++k) {
+                if (Input::keys[k] && !s_lastPlugKeys[k]) {
+                    char c = (char)k;
+                    bool shift = Input::isKeyPressed(340) || Input::isKeyPressed(344);
+                    if (!shift && c >= 'A' && c <= 'Z') c = (char)(c + 32);
+                    _pluginSearchQuery += c;
+                }
+                s_lastPlugKeys[k] = Input::keys[k];
             }
         }
 
@@ -3997,8 +4085,8 @@ public:
                     _hudTestSliderValue = std::max(0.0f, _hudTestSliderValue - 10.0f);
                     ScriptEngine::setHUDValue("Health", _hudTestSliderValue);
                     ScriptEngine::setHUDValue("Mana", _hudTestSliderValue * 0.85f);
-                    for (auto& w : _hudWidgets) {
-                        if (w.type == HUDWidgetType::ProgressBar) w.currentValue = std::min(w.maxValue, _hudTestSliderValue);
+                    for (auto& widget : _hudWidgets) {
+                        if (widget.type == HUDWidgetType::ProgressBar) widget.currentValue = std::min(widget.maxValue, _hudTestSliderValue);
                     }
                     logMessage("HUD Live Test: Decreased value to " + std::to_string((int)_hudTestSliderValue));
                     return;
@@ -4006,8 +4094,8 @@ public:
                     _hudTestSliderValue = std::min(100.0f, _hudTestSliderValue + 10.0f);
                     ScriptEngine::setHUDValue("Health", _hudTestSliderValue);
                     ScriptEngine::setHUDValue("Mana", _hudTestSliderValue * 0.85f);
-                    for (auto& w : _hudWidgets) {
-                        if (w.type == HUDWidgetType::ProgressBar) w.currentValue = std::min(w.maxValue, _hudTestSliderValue);
+                    for (auto& widget : _hudWidgets) {
+                        if (widget.type == HUDWidgetType::ProgressBar) widget.currentValue = std::min(widget.maxValue, _hudTestSliderValue);
                     }
                     logMessage("HUD Live Test: Increased value to " + std::to_string((int)_hudTestSliderValue));
                     return;
@@ -4015,7 +4103,7 @@ public:
                     _hudTestSliderValue = 100.0f;
                     ScriptEngine::setHUDValue("Health", 100.0f);
                     ScriptEngine::setHUDValue("Mana", 100.0f);
-                    for (auto& w : _hudWidgets) w.currentValue = w.maxValue;
+                    for (auto& widget : _hudWidgets) widget.currentValue = widget.maxValue;
                     logMessage("HUD Live Test: Reset gauges to maximum.");
                     return;
                 } else if (mx >= cvX + 475.0f && mx <= cvX + 605.0f) {
@@ -4202,8 +4290,23 @@ public:
             float detX = listX + listW + 8.0f;
             float detW = vpW - listW - 20.0f;
 
-            // 1. Top Filter Buttons: All, Enabled, Disabled, Import, Rescan
+            // 1. Top Bar: Search Input, Filter Buttons, Import, Rescan
             if (my >= barY + 4.0f && my <= barY + 30.0f) {
+                // Search Input Box
+                float searchX = vpX + 380.0f;
+                float searchW = 190.0f;
+                if (mx >= searchX && mx <= searchX + searchW) {
+                    if (mx >= searchX + searchW - 24.0f && !_pluginSearchQuery.empty()) {
+                        _pluginSearchQuery = "";
+                    } else {
+                        _pluginSearchFocused = true;
+                    }
+                    return;
+                } else {
+                    _pluginSearchFocused = false;
+                }
+
+                // Filter Buttons
                 float btnX = vpX + vpW - 480.0f;
                 if (mx >= btnX && mx <= btnX + 65.0f) {
                     _pluginStateFilter = "All";
@@ -4215,7 +4318,6 @@ public:
                     _pluginStateFilter = "Disabled";
                     return;
                 } else if (mx >= btnX + 250.0f && mx <= btnX + 360.0f) {
-                    // Import / Create new plugin template
                     std::string newPluginPath = "plugins/custom_addon.lua";
                     if (!std::filesystem::exists(newPluginPath)) {
                         std::ofstream out(newPluginPath);
@@ -4249,14 +4351,16 @@ public:
                     _pluginBannerTimer = 3.0f;
                     return;
                 }
+            } else {
+                _pluginSearchFocused = false;
             }
 
-            // 2. Category Buttons
+            // 2. Category Tabs
             if (my >= catY && my <= catY + catH) {
-                const char* cats[] = { "All", "3D & Geometry", "Gameplay & HUD", "Rendering & VFX", "Scripting & Dev", "Physics & Vehicles", "Tools & Utilities" };
+                const char* cats[] = { "All", "Physics & Simulation", "Rendering & VFX", "Gameplay & HUD", "3D & Geometry", "Scripting & Dev", "Tools & Utilities" };
                 float cx = vpX + 14.0f;
                 for (int i = 0; i < 7; ++i) {
-                    float cw = (i == 0) ? 45.0f : 120.0f;
+                    float cw = (i == 0) ? 45.0f : (i == 1 ? 160.0f : 130.0f);
                     if (mx >= cx && mx <= cx + cw) {
                         _pluginCategoryFilter = cats[i];
                         return;
@@ -4292,12 +4396,12 @@ public:
                 curItemY += itemH;
             }
 
-            // 4. Right Pane Action Buttons
+            // 4. Right Pane Action Buttons & Customizer Controls
             const auto* selPkg = PackageManager::instance().getPackage(_pluginSelectedId);
             if (selPkg) {
-                float dy = mainY + 16.0f + 34.0f + 28.0f + 14.0f;
-                if (my >= dy && my <= dy + 30.0f) {
-                    // Toggle Enable/Disable
+                float dyActions = mainY + 86.0f;
+                // Actions Bar: Toggle Enable/Disable
+                if (my >= dyActions && my <= dyActions + 30.0f) {
                     if (mx >= detX + 20.0f && mx <= detX + 160.0f) {
                         PackageManager::instance().togglePackage(selPkg->id);
                         bool nowEn = PackageManager::instance().isPackageEnabled(selPkg->id);
@@ -4306,55 +4410,11 @@ public:
                         return;
                     }
 
-                    // Procedural Level Generator Action (real CSG brushes generated into level!)
-                    if (_pluginSelectedId == "com.lab.proc-gen" && mx >= detX + 170.0f && mx <= detX + 410.0f) {
-                        auto proc = std::dynamic_pointer_cast<ProceduralLevelPlugin>(PackageManager::instance().getPluginImplementation("com.lab.proc-gen"));
-                        if (proc && _map) {
-                            int added = proc->generateRoom(_map->brushes, Vec3(0, 0, 0));
-                            _pluginStatusBanner = "Generated procedural room (" + std::to_string(added) + " CSG brushes)! Switch to 3D Level Scene tab to view.";
-                            _pluginBannerTimer = 5.0f;
-                            logMessage("Procedural Level Generator: Added " + std::to_string(added) + " CSG room brushes to map.");
-                        } else if (_map) {
-                            ProceduralLevelPlugin fallbackProc;
-                            int added = fallbackProc.generateRoom(_map->brushes, Vec3(0, 0, 0));
-                            _pluginStatusBanner = "Generated procedural room (" + std::to_string(added) + " CSG brushes)! Switch to 3D Level Scene tab to view.";
-                            _pluginBannerTimer = 5.0f;
-                        }
-                        return;
-                    }
-
-                    // Speedrun Timer Action (legacy C++ fallback when drop-in Lua has no timer impl)
-                    if (_pluginSelectedId == "com.lab.speedrun-timer") {
-                        static SpeedrunTelemetryPlugin s_legacyTimer;
-                        if (mx >= detX + 170.0f && mx <= detX + 390.0f) {
-                            auto timerPlug = std::dynamic_pointer_cast<SpeedrunTelemetryPlugin>(PackageManager::instance().getPluginImplementation("com.lab.speedrun-timer"));
-                            if (timerPlug) {
-                                if (timerPlug->isRunning()) timerPlug->pauseTimer();
-                                else timerPlug->startTimer();
-                                _pluginStatusBanner = timerPlug->isRunning() ? "Speedrun timer RUNNING." : "Speedrun timer PAUSED.";
-                            } else {
-                                if (s_legacyTimer.isRunning()) s_legacyTimer.pauseTimer();
-                                else s_legacyTimer.startTimer();
-                                _pluginStatusBanner = s_legacyTimer.isRunning() ? "Speedrun timer RUNNING (local)." : "Speedrun timer PAUSED (local).";
-                            }
-                            _pluginBannerTimer = 3.0f;
-                            return;
-                        } else if (mx >= detX + 400.0f && mx <= detX + 520.0f) {
-                            auto timerPlug = std::dynamic_pointer_cast<SpeedrunTelemetryPlugin>(PackageManager::instance().getPluginImplementation("com.lab.speedrun-timer"));
-                            if (timerPlug) timerPlug->resetTimer();
-                            else s_legacyTimer.resetTimer();
-                            _pluginStatusBanner = "Speedrun timer RESET to 00:00.00.";
-                            _pluginBannerTimer = 3.0f;
-                            return;
-                        }
-                    }
-
-                    // Open in Lua Studio Button (opens the drop-in single file!)
-                    if (mx >= detX + detW - 200.0f && mx <= detX + detW - 20.0f) {
+                    // Open in Lua Studio Button
+                    if (mx >= detX + detW - 210.0f && mx <= detX + detW - 20.0f) {
                         std::string luaPath = PackageManager::instance().getPackageFile(selPkg->id);
                         if (luaPath.empty()) luaPath = "plugins/" + selPkg->id.substr(selPkg->id.rfind('.') + 1) + ".lua";
                         if (!std::filesystem::exists(luaPath) && std::filesystem::exists("plugins")) {
-                            // Find corresponding script in plugins
                             for (const auto& entry : std::filesystem::directory_iterator("plugins")) {
                                 if (entry.path().extension() == ".lua") {
                                     luaPath = entry.path().string();
@@ -4367,6 +4427,202 @@ public:
                         _pluginStatusBanner = "Opened standalone plugin source: " + luaPath;
                         _pluginBannerTimer = 3.0f;
                         return;
+                    }
+                }
+
+                // Interactive Customizer Box Area
+                float cyBox = mainY + 126.0f + (!_pluginStatusBanner.empty() ? 32.0f : 0.0f);
+                if (my >= cyBox && my <= cyBox + 175.0f) {
+                    // Retro CRT & Post-Process Shaders Controls
+                    if (_pluginSelectedId == "com.lab.retro-fx") {
+                        // Presets row: cyBox + 30.0f
+                        if (my >= cyBox + 28.0f && my <= cyBox + 54.0f) {
+                            if (mx >= detX + 30.0f && mx <= detX + 150.0f) { _retroColorTheme = 0; _retroScanlines = true; _retroAberration = true; _retroVignette = true; _retroPixelScale = 2; _pluginStatusBanner = "Preset applied: Classic CRT 1985"; _pluginBannerTimer = 3.0f; return; }
+                            if (mx >= detX + 155.0f && mx <= detX + 275.0f) { _retroColorTheme = 1; _retroScanlines = true; _retroVignette = true; _retroPixelScale = 3; _pluginStatusBanner = "Preset applied: Arcade Monitor"; _pluginBannerTimer = 3.0f; return; }
+                            if (mx >= detX + 280.0f && mx <= detX + 400.0f) { _retroColorTheme = 2; _retroScanlines = true; _retroVignette = false; _retroPixelScale = 2; _pluginStatusBanner = "Preset applied: Amber Terminal"; _pluginBannerTimer = 3.0f; return; }
+                            if (mx >= detX + 405.0f && mx <= detX + 525.0f) { _retroColorTheme = 3; _retroScanlines = true; _retroAberration = true; _retroVignette = true; _retroPixelScale = 2; _pluginStatusBanner = "Preset applied: Cyberpunk Neon"; _pluginBannerTimer = 3.0f; return; }
+                        }
+                        // Toggle buttons row: cyBox + 64.0f
+                        if (my >= cyBox + 62.0f && my <= cyBox + 88.0f) {
+                            if (mx >= detX + 30.0f && mx <= detX + 190.0f) { _retroScanlines = !_retroScanlines; return; }
+                            if (mx >= detX + 200.0f && mx <= detX + 360.0f) { _retroAberration = !_retroAberration; return; }
+                            if (mx >= detX + 370.0f && mx <= detX + 530.0f) { _retroVignette = !_retroVignette; return; }
+                        }
+                        // Steppers row: cyBox + 98.0f
+                        if (my >= cyBox + 96.0f && my <= cyBox + 122.0f) {
+                            if (mx >= detX + 160.0f && mx <= detX + 185.0f) { _retroPixelScale = std::max(1, _retroPixelScale - 1); return; }
+                            if (mx >= detX + 215.0f && mx <= detX + 240.0f) { _retroPixelScale = std::min(4, _retroPixelScale + 1); return; }
+                            if (mx >= detX + 440.0f && mx <= detX + 465.0f) { _retroVignetteIntensity = std::max(0.1f, _retroVignetteIntensity - 0.1f); return; }
+                            if (mx >= detX + 495.0f && mx <= detX + 520.0f) { _retroVignetteIntensity = std::min(1.0f, _retroVignetteIntensity + 0.1f); return; }
+                        }
+                    }
+                    // Cloth & Soft Body Dynamics Controls
+                    else if (_pluginSelectedId == "com.lab.physics-cloth") {
+                        // Presets / Toggles row: cyBox + 28.0f
+                        if (my >= cyBox + 28.0f && my <= cyBox + 54.0f) {
+                            if (mx >= detX + 30.0f && mx <= detX + 210.0f) { _clothSimulateInEditor = !_clothSimulateInEditor; _pluginStatusBanner = _clothSimulateInEditor ? "Cloth Simulation: ACTIVE" : "Cloth Simulation: PAUSED"; _pluginBannerTimer = 3.0f; return; }
+                            if (mx >= detX + 220.0f && mx <= detX + 340.0f) { _clothWindVelocity = Vec3(0.0f, 0.0f, 3.5f); _clothStiffness = 1.0f; _pluginStatusBanner = "Preset applied: Hanging Flag"; _pluginBannerTimer = 3.0f; return; }
+                            if (mx >= detX + 345.0f && mx <= detX + 465.0f) { _clothWindVelocity = Vec3(2.0f, 0.0f, 6.0f); _clothStiffness = 0.8f; _pluginStatusBanner = "Preset applied: Hero Cape"; _pluginBannerTimer = 3.0f; return; }
+                            if (mx >= detX + 470.0f && mx <= detX + 590.0f) { _clothWindVelocity = Vec3(0.0f, 0.0f, 0.0f); _clothStiffness = 0.95f; _pluginStatusBanner = "Preset applied: Canopy Sheet"; _pluginBannerTimer = 3.0f; return; }
+                        }
+                        // Steppers row: cyBox + 64.0f
+                        if (my >= cyBox + 62.0f && my <= cyBox + 88.0f) {
+                            if (mx >= detX + 150.0f && mx <= detX + 175.0f) { _clothWindVelocity.z -= 1.0f; return; }
+                            if (mx >= detX + 215.0f && mx <= detX + 240.0f) { _clothWindVelocity.z += 1.0f; return; }
+                            if (mx >= detX + 420.0f && mx <= detX + 445.0f) { _clothStiffness = std::max(0.1f, _clothStiffness - 0.1f); return; }
+                            if (mx >= detX + 485.0f && mx <= detX + 510.0f) { _clothStiffness = std::min(1.0f, _clothStiffness + 0.1f); return; }
+                        }
+                        // Actions row: cyBox + 100.0f
+                        if (my >= cyBox + 98.0f && my <= cyBox + 126.0f) {
+                            if (mx >= detX + 30.0f && mx <= detX + 220.0f) {
+                                _clothMeshOrigin = _cursorPos + Vec3(0.0f, 2.5f, 0.0f);
+                                _clothMesh.initGrid(12, 12, 0.28f, _clothMeshOrigin);
+                                _clothMesh.particles[0].pin();
+                                _clothMesh.particles[11].pin();
+                                _clothMeshInitialized = true;
+                                _pluginStatusBanner = "Spawned 12x12 cloth flag at 3D cursor (" + std::to_string((int)_cursorPos.x) + ", " + std::to_string((int)_cursorPos.y) + ")!";
+                                _pluginBannerTimer = 4.0f;
+                                logMessage("Cloth Plugin: Spawned hanging flag at 3D cursor position.");
+                                return;
+                            }
+                            if (mx >= detX + 230.0f && mx <= detX + 400.0f) {
+                                _clothMesh.initGrid(12, 12, 0.28f, _clothMeshOrigin);
+                                _clothMesh.particles[0].pin();
+                                _clothMesh.particles[11].pin();
+                                _pluginStatusBanner = "Cloth particles reset to rest positions.";
+                                _pluginBannerTimer = 3.0f;
+                                return;
+                            }
+                            if (mx >= detX + 410.0f && mx <= detX + 570.0f) {
+                                for (auto& cp : _clothMesh.particles) {
+                                    if (!cp.isPinned) cp.acceleration += Vec3(0.0f, 5.0f, 15.0f);
+                                }
+                                _pluginStatusBanner = "Triggered sudden wind gust pulse!";
+                                _pluginBannerTimer = 3.0f;
+                                return;
+                            }
+                        }
+                    }
+                    // Force Fields & Shockwaves Controls
+                    else if (_pluginSelectedId == "com.lab.physics-forcefield") {
+                        if (my >= cyBox + 28.0f && my <= cyBox + 54.0f) {
+                            if (mx >= detX + 30.0f && mx <= detX + 180.0f) { _forceFieldType = 0; _pluginStatusBanner = "Field Type: Radial Explosion"; _pluginBannerTimer = 3.0f; return; }
+                            if (mx >= detX + 190.0f && mx <= detX + 340.0f) { _forceFieldType = 1; _pluginStatusBanner = "Field Type: Vortex Whirlwind"; _pluginBannerTimer = 3.0f; return; }
+                            if (mx >= detX + 350.0f && mx <= detX + 500.0f) { _forceFieldType = 2; _pluginStatusBanner = "Field Type: Directional Wind"; _pluginBannerTimer = 3.0f; return; }
+                        }
+                        if (my >= cyBox + 62.0f && my <= cyBox + 88.0f) {
+                            if (mx >= detX + 160.0f && mx <= detX + 185.0f) { _forceFieldStrength = std::max(5.0f, _forceFieldStrength - 5.0f); return; }
+                            if (mx >= detX + 235.0f && mx <= detX + 260.0f) { _forceFieldStrength = std::min(100.0f, _forceFieldStrength + 5.0f); return; }
+                            if (mx >= detX + 430.0f && mx <= detX + 455.0f) { _forceFieldRadius = std::max(2.0f, _forceFieldRadius - 2.0f); return; }
+                            if (mx >= detX + 505.0f && mx <= detX + 530.0f) { _forceFieldRadius = std::min(50.0f, _forceFieldRadius + 2.0f); return; }
+                        }
+                        if (my >= cyBox + 98.0f && my <= cyBox + 126.0f) {
+                            if (mx >= detX + 30.0f && mx <= detX + 260.0f) {
+                                _forceFieldPosition = _cursorPos;
+                                _forceFieldBlastTimer = 1.0f;
+                                if (_clothMeshInitialized) {
+                                    for (auto& cp : _clothMesh.particles) {
+                                        if (!cp.isPinned) {
+                                            Vec3 toP = cp.position - _forceFieldPosition;
+                                            float d = toP.length();
+                                            if (d > 0.01f && d < _forceFieldRadius) {
+                                                cp.acceleration += (toP / d) * (_forceFieldStrength * 3.0f);
+                                            }
+                                        }
+                                    }
+                                }
+                                _pluginStatusBanner = "Detonated blast shockwave at 3D cursor (" + std::to_string((int)_cursorPos.x) + ", " + std::to_string((int)_cursorPos.y) + ")!";
+                                _pluginBannerTimer = 4.0f;
+                                logMessage("ForceField: Detonated explosion impulse trigger.");
+                                return;
+                            }
+                            if (mx >= detX + 270.0f && mx <= detX + 480.0f) {
+                                _forceFieldGizmoVisible = !_forceFieldGizmoVisible;
+                                return;
+                            }
+                        }
+                    }
+                    // Speedrun & Telemetry Splits Controls
+                    else if (_pluginSelectedId == "com.lab.speedrun-timer") {
+                        if (my >= cyBox + 28.0f && my <= cyBox + 56.0f) {
+                            if (mx >= detX + 30.0f && mx <= detX + 160.0f) { _speedrunTimerRunning = true; _pluginStatusBanner = "Speedrun timer RUNNING."; _pluginBannerTimer = 3.0f; return; }
+                            if (mx >= detX + 170.0f && mx <= detX + 300.0f) { _speedrunTimerRunning = false; _pluginStatusBanner = "Speedrun timer PAUSED."; _pluginBannerTimer = 3.0f; return; }
+                            if (mx >= detX + 310.0f && mx <= detX + 440.0f) { _speedrunTimerRunning = false; _speedrunElapsedTime = 0.0f; _pluginStatusBanner = "Speedrun timer RESET to 00:00.00."; _pluginBannerTimer = 3.0f; return; }
+                        }
+                        if (my >= cyBox + 64.0f && my <= cyBox + 90.0f) {
+                            if (mx >= detX + 30.0f && mx <= detX + 220.0f) { _speedrunOverlayVisible = !_speedrunOverlayVisible; return; }
+                            if (mx >= detX + 230.0f && mx <= detX + 410.0f) { _speedrunPosition = (_speedrunPosition == 0) ? 1 : 0; return; }
+                        }
+                    }
+                    // Arcade Vehicle Dynamics Controls
+                    else if (_pluginSelectedId == "com.lab.vehicle-arcade") {
+                        if (my >= cyBox + 28.0f && my <= cyBox + 56.0f) {
+                            if (mx >= detX + 30.0f && mx <= detX + 260.0f) {
+                                _vehicleSpeedKmh = 0.0f;
+                                _vehicleRpm = 1000.0f;
+                                _pluginStatusBanner = "Spawned test vehicle at 3D cursor position!";
+                                _pluginBannerTimer = 4.0f;
+                                logMessage("Vehicle Plugin: Spawned raycast test vehicle at cursor.");
+                                return;
+                            }
+                            if (mx >= detX + 270.0f && mx <= detX + 460.0f) {
+                                _vehicleTelemetryVisible = !_vehicleTelemetryVisible;
+                                return;
+                            }
+                        }
+                        if (my >= cyBox + 64.0f && my <= cyBox + 90.0f) {
+                            if (mx >= detX + 180.0f && mx <= detX + 205.0f) { _vehicleThrottlePower = std::max(0.5f, _vehicleThrottlePower - 0.25f); return; }
+                            if (mx >= detX + 260.0f && mx <= detX + 285.0f) { _vehicleThrottlePower = std::min(2.5f, _vehicleThrottlePower + 0.25f); return; }
+                        }
+                    }
+                    // Procedural Level Generator
+                    else if (_pluginSelectedId == "com.lab.proc-gen") {
+                        if (my >= cyBox + 28.0f && my <= cyBox + 58.0f) {
+                            if (mx >= detX + 30.0f && mx <= detX + 280.0f) {
+                                auto proc = std::dynamic_pointer_cast<ProceduralLevelPlugin>(PackageManager::instance().getPluginImplementation("com.lab.proc-gen"));
+                                int added = 0;
+                                if (proc && _map) {
+                                    added = proc->generateRoom(_map->brushes, _cursorPos);
+                                } else if (_map) {
+                                    ProceduralLevelPlugin fallbackProc;
+                                    added = fallbackProc.generateRoom(_map->brushes, _cursorPos);
+                                }
+                                _pluginStatusBanner = "Generated procedural room (" + std::to_string(added) + " CSG brushes) at 3D cursor!";
+                                _pluginBannerTimer = 5.0f;
+                                logMessage("Procedural Generator: Added room brushes to map.");
+                                return;
+                            }
+                        }
+                    }
+                    // Fluid Dynamics & Water Buoyancy
+                    else if (_pluginSelectedId == "com.lab.physics-fluid") {
+                        if (my >= cyBox + 28.0f && my <= cyBox + 58.0f) {
+                            if (mx >= detX + 30.0f && mx <= detX + 280.0f) {
+                                if (_map) {
+                                    MapBrush wb;
+                                    wb.position = _cursorPos;
+                                    wb.size = Vec3(10.0f, 3.0f, 10.0f);
+                                    wb.color = Vec3(0.15f, 0.45f, 0.85f);
+                                    wb.name = "WaterVolume_01";
+                                    _map->brushes.push_back(wb);
+                                    _pluginStatusBanner = "Placed Water Volume Brush (10x3x10m) at 3D cursor!";
+                                    _pluginBannerTimer = 4.0f;
+                                    logMessage("Fluid Plugin: Placed water volume brush into map.");
+                                }
+                                return;
+                            }
+                        }
+                    }
+                    // Constraints & Joint Physics
+                    else if (_pluginSelectedId == "com.lab.physics-constraints") {
+                        if (my >= cyBox + 28.0f && my <= cyBox + 58.0f) {
+                            if (mx >= detX + 30.0f && mx <= detX + 280.0f) {
+                                _pluginStatusBanner = "Spawned ball-socket pendulum chain at 3D cursor!";
+                                _pluginBannerTimer = 4.0f;
+                                logMessage("Constraint Plugin: Spawned pendulum chain at cursor.");
+                                return;
+                            }
+                        }
                     }
                 }
             }
@@ -4387,6 +4643,7 @@ public:
             float listX = vpX + 6.0f;
             float detX = listX + listW + 8.0f;
             float detW = vpW - listW - 20.0f;
+            (void)detW;
 
             // 1. Left Panel: Project Cards Click
             if (mx >= listX && mx <= listX + listW && my >= mainY + 36.0f && my <= mainY + mainH - 50.0f) {
@@ -4816,6 +5073,43 @@ public:
                 Vec3 camCol = cam.active ? Vec3(0.2f, 0.9f, 0.4f) : Vec3(0.3f, 0.7f, 1.0f);
                 Renderer::drawCube(cam.position, cam.rotation, Vec3(0.6f, 0.4f, 0.8f), camCol, nullptr, false);
                 Renderer::drawWireCube(cam.position, Vec3(0.65f, 0.45f, 0.85f), camCol);
+            }
+
+            // --- Render Active Addon 3D Visualizations ---
+            // 1. Cloth & Soft Body Simulation Lattice
+            if (PackageManager::instance().isPackageEnabled("com.lab.physics-cloth") && _clothMeshInitialized) {
+                for (size_t cy = 0; cy < _clothMesh.gridHeight; ++cy) {
+                    for (size_t cx = 0; cx < _clothMesh.gridWidth; ++cx) {
+                        size_t idx = cy * _clothMesh.gridWidth + cx;
+                        const auto& p = _clothMesh.particles[idx];
+                        Vec3 pCol = p.isPinned ? Vec3(1.0f, 0.25f, 0.25f) : Vec3(0.85f, 0.92f, 1.0f);
+                        Renderer::drawCube(p.position, Vec3(0.06f, 0.06f, 0.06f), pCol, nullptr, false);
+                        if (cx + 1 < _clothMesh.gridWidth) {
+                            const auto& pR = _clothMesh.particles[idx + 1];
+                            Vec3 mid = (p.position + pR.position) * 0.5f;
+                            Vec3 span = pR.position - p.position;
+                            Renderer::drawCube(mid, Vec3(std::max(0.02f, span.length()), 0.02f, 0.02f), Vec3(0.35f, 0.75f, 0.95f), nullptr, false);
+                        }
+                        if (cy + 1 < _clothMesh.gridHeight) {
+                            const auto& pD = _clothMesh.particles[idx + _clothMesh.gridWidth];
+                            Vec3 mid = (p.position + pD.position) * 0.5f;
+                            Vec3 span = pD.position - p.position;
+                            Renderer::drawCube(mid, Vec3(0.02f, 0.02f, std::max(0.02f, span.length())), Vec3(0.35f, 0.75f, 0.95f), nullptr, false);
+                        }
+                    }
+                }
+            }
+
+            // 2. Force Fields & Shockwave Trigger Gizmos
+            if (PackageManager::instance().isPackageEnabled("com.lab.physics-forcefield") && _forceFieldGizmoVisible) {
+                Vec3 ffCol = (_forceFieldType == 0) ? Vec3(1.0f, 0.45f, 0.15f) :
+                             (_forceFieldType == 1) ? Vec3(0.35f, 0.85f, 1.0f) : Vec3(0.4f, 1.0f, 0.5f);
+                Renderer::drawWireCube(_forceFieldPosition, Vec3(_forceFieldRadius * 2.0f, _forceFieldRadius * 2.0f, _forceFieldRadius * 2.0f), ffCol * 0.5f);
+                Renderer::drawCube(_forceFieldPosition, Vec3(0.5f, 0.5f, 0.5f), ffCol, nullptr, false);
+                if (_forceFieldBlastTimer > 0.0f) {
+                    float blastR = (_forceFieldRadius * (1.0f - _forceFieldBlastTimer)) + 1.0f;
+                    Renderer::drawWireCube(_forceFieldPosition, Vec3(blastR * 2.0f, 0.4f, blastR * 2.0f), Vec3(1.0f, 0.9f, 0.3f));
+                }
             }
         }
 
@@ -5710,6 +6004,85 @@ public:
         float contentY = vpY + tabH;
         float contentH = vpH - tabH;
 
+        // --- 3D Viewport Live Addon Overlays ---
+        if (_workspace == EditorWorkspace::World3D_Level || _workspace == EditorWorkspace::World3D_Animation) {
+            // 1. Retro CRT & Post-Process FX (Scanlines, Vignette, CRT Badge)
+            if (PackageManager::instance().isPackageEnabled("com.lab.retro-fx")) {
+                if (_retroScanlines) {
+                    float stepY = (float)_retroPixelScale * 2.0f;
+                    Vec3 scanCol = (_retroColorTheme == 1) ? Vec3(0.18f, 0.12f, 0.02f) :
+                                   (_retroColorTheme == 2) ? Vec3(0.02f, 0.18f, 0.05f) :
+                                   Vec3(0.03f, 0.03f, 0.05f);
+                    for (float sy = contentY; sy < contentY + contentH; sy += stepY) {
+                        Renderer::drawRect(vpX, sy, vpW, 1.0f, scanCol);
+                    }
+                }
+                if (_retroVignette) {
+                    Renderer::drawRect(vpX, contentY, vpW, 16.0f, Vec3(0.02f, 0.03f, 0.05f));
+                    Renderer::drawRect(vpX, contentY + contentH - 16.0f, vpW, 16.0f, Vec3(0.02f, 0.03f, 0.05f));
+                    Renderer::drawRect(vpX, contentY, 16.0f, contentH, Vec3(0.02f, 0.03f, 0.05f));
+                    Renderer::drawRect(vpX + vpW - 16.0f, contentY, 16.0f, contentH, Vec3(0.02f, 0.03f, 0.05f));
+                }
+                Renderer::drawRect(vpX + 10.0f, contentY + 10.0f, 130.0f, 22.0f, Vec3(0.10f, 0.18f, 0.12f));
+                drawDarkBevel(vpX + 10.0f, contentY + 10.0f, 130.0f, 22.0f, false);
+                LabFont::drawText(vpX + 16.0f, contentY + 14.0f, "CRT FX ACTIVE", 1.25f, Vec3(0.4f, 1.0f, 0.5f), LabFontType::System);
+            }
+
+            // 2. Speedrun Splits & Live Telemetry Overlay
+            if (PackageManager::instance().isPackageEnabled("com.lab.speedrun-timer") && _speedrunOverlayVisible) {
+                float hudX = (_speedrunPosition == 0) ? (vpX + vpW - 245.0f) : (vpX + 16.0f);
+                float hudY = contentY + 16.0f;
+                float hudW = 230.0f;
+                float hudH = 92.0f;
+                Renderer::drawRect(hudX, hudY, hudW, hudH, Vec3(0.08f, 0.10f, 0.14f));
+                drawDarkBevel(hudX, hudY, hudW, hudH, false);
+                Renderer::drawRect(hudX, hudY, hudW, 20.0f, Vec3(0.12f, 0.18f, 0.26f));
+                LabFont::drawText(hudX + 8.0f, hudY + 4.0f, "SPEEDRUN & TELEMETRY", 1.25f, cyanGlow, LabFontType::System);
+
+                int mins = (int)(_speedrunElapsedTime / 60.0f);
+                float secs = _speedrunElapsedTime - (mins * 60.0f);
+                char timeBuf[32];
+                snprintf(timeBuf, sizeof(timeBuf), "%02d:%05.2f", mins, secs);
+                LabFont::drawText(hudX + 12.0f, hudY + 28.0f, timeBuf, 2.0f, _speedrunTimerRunning ? Vec3(0.4f, 1.0f, 0.5f) : Vec3(1.0f, 0.85f, 0.3f), LabFontType::System);
+
+                std::string statStr = _speedrunTimerRunning ? "[RUNNING]" : "[PAUSED]";
+                LabFont::drawText(hudX + 145.0f, hudY + 34.0f, statStr, 1.15f, textDim, LabFontType::System);
+
+                char teleBuf[64];
+                snprintf(teleBuf, sizeof(teleBuf), "FPS: 60.0  *  Vel: %.1f m/s", _isFlyingCamera ? 15.0f : 0.0f);
+                LabFont::drawText(hudX + 12.0f, hudY + 68.0f, teleBuf, 1.25f, textLight, LabFontType::System);
+            }
+
+            // 3. Vehicle Dynamics Dashboard HUD
+            if (PackageManager::instance().isPackageEnabled("com.lab.vehicle-arcade") && _vehicleTelemetryVisible) {
+                float vhX = vpX + 16.0f;
+                float vhY = contentY + contentH - 85.0f;
+                float vhW = 210.0f;
+                float vhH = 75.0f;
+                Renderer::drawRect(vhX, vhY, vhW, vhH, Vec3(0.08f, 0.10f, 0.13f));
+                drawDarkBevel(vhX, vhY, vhW, vhH, false);
+                Renderer::drawRect(vhX, vhY, vhW, 18.0f, Vec3(0.14f, 0.18f, 0.24f));
+                LabFont::drawText(vhX + 8.0f, vhY + 3.0f, "VEHICLE DYNAMICS HUD", 1.2f, orangeGlow, LabFontType::System);
+
+                char spdBuf[32];
+                snprintf(spdBuf, sizeof(spdBuf), "%.0f KM/H", _vehicleSpeedKmh);
+                LabFont::drawText(vhX + 12.0f, vhY + 24.0f, spdBuf, 1.8f, Vec3(1, 1, 1), LabFontType::System);
+
+                char rpmBuf[32];
+                snprintf(rpmBuf, sizeof(rpmBuf), "RPM: %.0f [Gear %d]", _vehicleRpm, _vehicleGear);
+                LabFont::drawText(vhX + 12.0f, vhY + 54.0f, rpmBuf, 1.25f, cyanGlow, LabFontType::System);
+            }
+
+            // 4. Quick Indicator Pill for Active Addons in 3D Viewport
+            if (PackageManager::instance().isPackageEnabled("com.lab.physics-cloth")) {
+                float clX = vpX + 150.0f;
+                float clY = contentY + 10.0f;
+                Renderer::drawRect(clX, clY, 210.0f, 22.0f, Vec3(0.10f, 0.14f, 0.20f));
+                drawDarkBevel(clX, clY, 210.0f, 22.0f, false);
+                LabFont::drawText(clX + 8.0f, clY + 4.0f, "CLOTH PBD SIM: 144 particles", 1.25f, cyanGlow, LabFontType::System);
+            }
+        }
+
         if (isStudioWorkspace(_workspace)) {
             // LabStudio Embedded Viewport Overlay
             float bannerW = std::min(vpW - 40.0f, 840.0f);
@@ -5817,36 +6190,36 @@ public:
             float scaleY = cvH / 1080.0f;
 
             for (size_t i = 0; i < _hudWidgets.size(); ++i) {
-                const auto& w = _hudWidgets[i];
-                float wx = cvX + w.x * scaleX;
-                float wy = cvY + w.y * scaleY;
-                float ww = std::max(20.0f, w.w * scaleX);
-                float wh = std::max(12.0f, w.h * scaleY);
+                const auto& widget = _hudWidgets[i];
+                float wx = cvX + widget.x * scaleX;
+                float wy = cvY + widget.y * scaleY;
+                float ww = std::max(20.0f, widget.w * scaleX);
+                float wh = std::max(12.0f, widget.h * scaleY);
 
                 bool isSel = ((int)i == _selectedHUDWidgetIndex);
-                if (w.type == HUDWidgetType::ProgressBar) {
-                    Renderer::drawRect(wx, wy, ww, wh, w.bgColor);
+                if (widget.type == HUDWidgetType::ProgressBar) {
+                    Renderer::drawRect(wx, wy, ww, wh, widget.bgColor);
                     drawDarkBevel(wx, wy, ww, wh, true);
-                    float fillRatio = std::clamp(w.currentValue / std::max(1.0f, w.maxValue), 0.0f, 1.0f);
-                    Renderer::drawRect(wx + 1.0f, wy + 1.0f, (ww - 2.0f) * fillRatio, wh - 2.0f, w.color);
-                    LabFont::drawText(wx + 4.0f, wy - 14.0f, w.label + " [" + w.bindingKey + "]", 1.25f, w.color, LabFontType::System);
-                } else if (w.type == HUDWidgetType::TextLabel) {
-                    Renderer::drawRect(wx, wy, ww, wh, w.bgColor);
+                    float fillRatio = std::clamp(widget.currentValue / std::max(1.0f, widget.maxValue), 0.0f, 1.0f);
+                    Renderer::drawRect(wx + 1.0f, wy + 1.0f, (ww - 2.0f) * fillRatio, wh - 2.0f, widget.color);
+                    LabFont::drawText(wx + 4.0f, wy - 14.0f, widget.label + " [" + widget.bindingKey + "]", 1.25f, widget.color, LabFontType::System);
+                } else if (widget.type == HUDWidgetType::TextLabel) {
+                    Renderer::drawRect(wx, wy, ww, wh, widget.bgColor);
                     drawDarkBevel(wx, wy, ww, wh, false);
-                    LabFont::drawText(wx + 6.0f, wy + (wh - 14.0f) * 0.5f, w.label, 1.4f, w.color, LabFontType::System);
-                } else if (w.type == HUDWidgetType::DialogueBox) {
-                    Renderer::drawRect(wx, wy, ww, wh, w.bgColor);
+                    LabFont::drawText(wx + 6.0f, wy + (wh - 14.0f) * 0.5f, widget.label, 1.4f, widget.color, LabFontType::System);
+                } else if (widget.type == HUDWidgetType::DialogueBox) {
+                    Renderer::drawRect(wx, wy, ww, wh, widget.bgColor);
                     drawDarkBevel(wx, wy, ww, wh, false);
                     Renderer::drawRect(wx, wy, ww, 2.0f, cyanGlow);
-                    LabFont::drawText(wx + 12.0f, wy + 8.0f, w.label, 1.4f, w.color, LabFontType::System);
-                } else if (w.type == HUDWidgetType::Button) {
-                    Renderer::drawRect(wx, wy, ww, wh, w.bgColor);
+                    LabFont::drawText(wx + 12.0f, wy + 8.0f, widget.label, 1.4f, widget.color, LabFontType::System);
+                } else if (widget.type == HUDWidgetType::Button) {
+                    Renderer::drawRect(wx, wy, ww, wh, widget.bgColor);
                     drawDarkBevel(wx, wy, ww, wh, false);
-                    LabFont::drawText(wx + 10.0f, wy + (wh - 14.0f) * 0.5f, w.label, 1.35f, w.color, LabFontType::System);
-                } else if (w.type == HUDWidgetType::Icon) {
-                    Renderer::drawRect(wx, wy, ww, wh, w.color);
+                    LabFont::drawText(wx + 10.0f, wy + (wh - 14.0f) * 0.5f, widget.label, 1.35f, widget.color, LabFontType::System);
+                } else if (widget.type == HUDWidgetType::Icon) {
+                    Renderer::drawRect(wx, wy, ww, wh, widget.color);
                     drawDarkBevel(wx, wy, ww, wh, false);
-                    LabFont::drawText(wx + 4.0f, wy + 2.0f, w.label, 1.3f, Vec3(1, 1, 1), LabFontType::System);
+                    LabFont::drawText(wx + 4.0f, wy + 2.0f, widget.label, 1.3f, Vec3(1, 1, 1), LabFontType::System);
                 }
 
                 if (isSel) {
@@ -6007,19 +6380,28 @@ public:
             std::string statInfo = "Ln " + std::to_string(_scriptCursorLine + 1) + ", Col " + std::to_string(_scriptCursorCol + 1) + " | UTF-8 | Lua 5.4 | " + _activeScriptPath + " | Press Ctrl+R to Execute, Ctrl+S to Save";
             LabFont::drawText(vpX + 10.0f, statY + 5.0f, statInfo, 1.25f, textDim, LabFontType::System);
         } else if (_workspace == EditorWorkspace::Plugins_Manager) {
-            // Full-Viewport Package & Plugin Manager (Unity & Blender Add-ons Standard)
-            // Standalone decoupled modules
+            // Full-Viewport Package & Plugin Manager (Blender & Unity Add-ons Standard)
             Renderer::drawRect(vpX, contentY, vpW, contentH, Vec3(0.06f, 0.07f, 0.09f));
             drawDarkBevel(vpX, contentY, vpW, contentH, false);
 
-            // 1. Top Header & Filter Toolbar (height 40px)
+            // 1. Top Header Toolbar with Search & Filter
             float barY = contentY + 4.0f;
             float barH = 34.0f;
             Renderer::drawRect(vpX + 4.0f, barY, vpW - 8.0f, barH, Vec3(0.10f, 0.12f, 0.16f));
             drawDarkBevel(vpX + 4.0f, barY, vpW - 8.0f, barH, false);
 
             LabFont::drawText(vpX + 16.0f, barY + 9.0f, "EXTENSIONS: PACKAGE & PLUGIN MANAGER", 1.55f, orangeGlow, LabFontType::System);
-            LabFont::drawText(vpX + 380.0f, barY + 11.0f, "[Package Manager & Add-on Standard - Single File Architecture]", 1.25f, textDim, LabFontType::System);
+
+            // Search Bar Input Field
+            float searchX = vpX + 380.0f;
+            float searchW = 190.0f;
+            Renderer::drawRect(searchX, barY + 4.0f, searchW, 26.0f, _pluginSearchFocused ? Vec3(0.13f, 0.17f, 0.24f) : Vec3(0.07f, 0.08f, 0.11f));
+            drawDarkBevel(searchX, barY + 4.0f, searchW, 26.0f, _pluginSearchFocused);
+            std::string dispSearch = _pluginSearchQuery.empty() ? (_pluginSearchFocused ? "|" : "Search Add-ons...") : (_pluginSearchQuery + (_pluginSearchFocused ? "|" : ""));
+            LabFont::drawText(searchX + 8.0f, barY + 9.0f, dispSearch, 1.25f, _pluginSearchFocused ? Vec3(1, 1, 1) : textDim, LabFontType::System);
+            if (!_pluginSearchQuery.empty()) {
+                LabFont::drawText(searchX + searchW - 18.0f, barY + 9.0f, "x", 1.25f, textLight, LabFontType::System);
+            }
 
             // Filter buttons
             float btnX = vpX + vpW - 480.0f;
@@ -6038,11 +6420,11 @@ public:
             float catH = 26.0f;
             Renderer::drawRect(vpX + 4.0f, catY, vpW - 8.0f, catH, Vec3(0.08f, 0.09f, 0.12f));
 
-            const char* cats[] = { "All", "3D & Geometry", "Gameplay & HUD", "Rendering & VFX", "Scripting & Dev", "Physics & Vehicles", "Tools & Utilities" };
+            const char* cats[] = { "All", "Physics & Simulation", "Rendering & VFX", "Gameplay & HUD", "3D & Geometry", "Scripting & Dev", "Tools & Utilities" };
             float cx = vpX + 14.0f;
             for (int i = 0; i < 7; ++i) {
                 bool isCurCat = (_pluginCategoryFilter == cats[i]);
-                float cw = (i == 0) ? 45.0f : 120.0f;
+                float cw = (i == 0) ? 45.0f : (i == 1 ? 160.0f : 130.0f);
                 bool isHov = (_mouseScreenX >= cx && _mouseScreenX <= cx + cw && _mouseScreenY >= catY && _mouseScreenY <= catY + catH);
                 if (isCurCat) {
                     Renderer::drawRect(cx, catY + 2.0f, cw, catH - 4.0f, Vec3(0.20f, 0.24f, 0.32f));
@@ -6054,7 +6436,7 @@ public:
                 cx += cw + 6.0f;
             }
 
-            // Split Layout
+            // Split Layout: Left List + Right Inspector
             float mainY = catY + catH + 6.0f;
             float mainH = contentH - (mainY - contentY) - 6.0f;
             float listW = 380.0f;
@@ -6115,7 +6497,7 @@ public:
                 curItemY += itemH;
             }
 
-            // --- RIGHT PANEL: Inspector & Real Actions ---
+            // --- RIGHT PANEL: Inspector & Rich Customizer Controls ---
             float detX = listX + listW + 8.0f;
             float detW = vpW - listW - 20.0f;
             Renderer::drawRect(detX, mainY, detW, mainH, Vec3(0.09f, 0.10f, 0.13f));
@@ -6134,59 +6516,168 @@ public:
                 dy += 28.0f;
 
                 Renderer::drawRect(detX + 20.0f, dy, detW - 40.0f, 1.0f, Vec3(0.20f, 0.22f, 0.28f));
-                dy += 14.0f;
+                dy += 12.0f;
 
                 // Actions Bar
                 bool isEn = (selPkg->state == PackageState::Enabled);
                 float btnW = 140.0f;
                 drawDarkButton(detX + 20.0f, dy, btnW, 30.0f, isEn ? "Disable Plugin" : "Enable Plugin", false, false, true);
+                drawDarkButton(detX + detW - 210.0f, dy, 190.0f, 30.0f, "Open in Lua Studio", false, false, true);
+                dy += 38.0f;
 
-                if (_pluginSelectedId == "com.lab.proc-gen") {
-                    drawDarkButton(detX + 170.0f, dy, 240.0f, 30.0f, "+ Generate Procedural Room", false, false, true);
-                } else if (_pluginSelectedId == "com.lab.speedrun-timer") {
-                    drawDarkButton(detX + 170.0f, dy, 220.0f, 30.0f, "Start / Pause Split Timer", false, false, true);
-                    drawDarkButton(detX + 400.0f, dy, 120.0f, 30.0f, "Reset Timer", false, false, true);
-                } else if (_pluginSelectedId == "com.lab.retro-fx") {
-                    drawDarkButton(detX + 170.0f, dy, 200.0f, 30.0f, "Toggle CRT Scanlines", false, false, true);
-                } else if (_pluginSelectedId == "com.lab.dialogue-quest") {
-                    drawDarkButton(detX + 170.0f, dy, 200.0f, 30.0f, "Test Dialogue NPC", false, false, true);
-                } else if (_pluginSelectedId == "com.lab.voxel-terrain") {
-                    drawDarkButton(detX + 170.0f, dy, 200.0f, 30.0f, "Stamp Voxel Terrain", false, false, true);
-                }
-
-                drawDarkButton(detX + detW - 200.0f, dy, 180.0f, 30.0f, "Open in Lua Studio", false, false, true);
-                dy += 42.0f;
-
-                // Status Banner
+                // Status Banner (if set)
                 if (!_pluginStatusBanner.empty()) {
                     Renderer::drawRect(detX + 20.0f, dy, detW - 40.0f, 26.0f, Vec3(0.12f, 0.32f, 0.20f));
                     drawDarkBevel(detX + 20.0f, dy, detW - 40.0f, 26.0f, false);
                     LabFont::drawText(detX + 30.0f, dy + 5.0f, _pluginStatusBanner, 1.35f, Vec3(0.6f, 1.0f, 0.7f), LabFontType::System);
-                    dy += 34.0f;
+                    dy += 32.0f;
                 }
+
+                // --- INTERACTIVE CUSTOMIZER BOX ---
+                float boxH = 175.0f;
+                Renderer::drawRect(detX + 20.0f, dy, detW - 40.0f, boxH, Vec3(0.065f, 0.075f, 0.10f));
+                drawDarkBevel(detX + 20.0f, dy, detW - 40.0f, boxH, false);
+                Renderer::drawRect(detX + 20.0f, dy, detW - 40.0f, 24.0f, Vec3(0.12f, 0.15f, 0.22f));
+                LabFont::drawText(detX + 30.0f, dy + 4.0f, "ADDON PARAMETERS & LIVE CONTROLS", 1.3f, cyanGlow, LabFontType::System);
+
+                float cyBox = dy;
+                // Addon specific custom controls
+                if (_pluginSelectedId == "com.lab.retro-fx") {
+                    // Presets
+                    LabFont::drawText(detX + 30.0f, cyBox + 32.0f, "Presets:", 1.25f, textLight, LabFontType::System);
+                    drawDarkButton(detX + 90.0f, cyBox + 28.0f, 120.0f, 24.0f, "Classic CRT 1985", _retroColorTheme == 0);
+                    drawDarkButton(detX + 215.0f, cyBox + 28.0f, 115.0f, 24.0f, "Arcade Monitor", _retroColorTheme == 1);
+                    drawDarkButton(detX + 335.0f, cyBox + 28.0f, 115.0f, 24.0f, "Amber Terminal", _retroColorTheme == 2);
+                    drawDarkButton(detX + 455.0f, cyBox + 28.0f, 120.0f, 24.0f, "Cyberpunk Neon", _retroColorTheme == 3);
+
+                    // Toggles
+                    drawDarkButton(detX + 30.0f, cyBox + 62.0f, 160.0f, 26.0f, _retroScanlines ? "Scanlines: ON" : "Scanlines: OFF", _retroScanlines);
+                    drawDarkButton(detX + 200.0f, cyBox + 62.0f, 160.0f, 26.0f, _retroAberration ? "Aberration: ON" : "Aberration: OFF", _retroAberration);
+                    drawDarkButton(detX + 370.0f, cyBox + 62.0f, 160.0f, 26.0f, _retroVignette ? "Vignette: ON" : "Vignette: OFF", _retroVignette);
+
+                    // Steppers
+                    LabFont::drawText(detX + 30.0f, cyBox + 102.0f, "Scanline Density:", 1.25f, textLight, LabFontType::System);
+                    drawDarkButton(detX + 160.0f, cyBox + 98.0f, 24.0f, 24.0f, "-");
+                    LabFont::drawText(detX + 192.0f, cyBox + 102.0f, std::to_string(_retroPixelScale) + "px", 1.25f, cyanGlow, LabFontType::System);
+                    drawDarkButton(detX + 215.0f, cyBox + 98.0f, 24.0f, 24.0f, "+");
+
+                    LabFont::drawText(detX + 280.0f, cyBox + 102.0f, "Vignette Strength:", 1.25f, textLight, LabFontType::System);
+                    drawDarkButton(detX + 420.0f, cyBox + 98.0f, 24.0f, 24.0f, "-");
+                    char vigBuf[16]; snprintf(vigBuf, sizeof(vigBuf), "%.0f%%", _retroVignetteIntensity * 100.0f);
+                    LabFont::drawText(detX + 450.0f, cyBox + 102.0f, vigBuf, 1.25f, cyanGlow, LabFontType::System);
+                    drawDarkButton(detX + 490.0f, cyBox + 98.0f, 24.0f, 24.0f, "+");
+
+                    LabFont::drawText(detX + 30.0f, cyBox + 140.0f, "* Viewport Effect: Real-time scanlines and lens darkening active in 3D Level tab.", 1.25f, textDim, LabFontType::System);
+                } else if (_pluginSelectedId == "com.lab.physics-cloth") {
+                    // Cloth Sim
+                    drawDarkButton(detX + 30.0f, cyBox + 28.0f, 180.0f, 26.0f, _clothSimulateInEditor ? "Simulate: ACTIVE" : "Simulate: PAUSED", _clothSimulateInEditor);
+                    drawDarkButton(detX + 220.0f, cyBox + 28.0f, 120.0f, 26.0f, "Flag Preset");
+                    drawDarkButton(detX + 345.0f, cyBox + 28.0f, 120.0f, 26.0f, "Cape Preset");
+                    drawDarkButton(detX + 470.0f, cyBox + 28.0f, 120.0f, 26.0f, "Canopy Preset");
+
+                    LabFont::drawText(detX + 30.0f, cyBox + 68.0f, "Wind Velocity Z:", 1.25f, textLight, LabFontType::System);
+                    drawDarkButton(detX + 150.0f, cyBox + 64.0f, 24.0f, 24.0f, "-");
+                    char wBuf[16]; snprintf(wBuf, sizeof(wBuf), "%.1f m/s", _clothWindVelocity.z);
+                    LabFont::drawText(detX + 178.0f, cyBox + 68.0f, wBuf, 1.25f, cyanGlow, LabFontType::System);
+                    drawDarkButton(detX + 225.0f, cyBox + 64.0f, 24.0f, 24.0f, "+");
+
+                    LabFont::drawText(detX + 290.0f, cyBox + 68.0f, "Cloth Stiffness:", 1.25f, textLight, LabFontType::System);
+                    drawDarkButton(detX + 410.0f, cyBox + 64.0f, 24.0f, 24.0f, "-");
+                    char sBuf[16]; snprintf(sBuf, sizeof(sBuf), "%.1f", _clothStiffness);
+                    LabFont::drawText(detX + 440.0f, cyBox + 68.0f, sBuf, 1.25f, cyanGlow, LabFontType::System);
+                    drawDarkButton(detX + 480.0f, cyBox + 64.0f, 24.0f, 24.0f, "+");
+
+                    drawDarkButton(detX + 30.0f, cyBox + 102.0f, 190.0f, 26.0f, "+ Spawn Flag at Cursor", false, false, true);
+                    drawDarkButton(detX + 230.0f, cyBox + 102.0f, 160.0f, 26.0f, "Reset Particles");
+                    drawDarkButton(detX + 400.0f, cyBox + 102.0f, 160.0f, 26.0f, "Gust of Wind Pulse");
+
+                    LabFont::drawText(detX + 30.0f, cyBox + 144.0f, "* 144 Cloth particles simulated with PBD distance constraints & wind drag in 3D scene.", 1.25f, textDim, LabFontType::System);
+                } else if (_pluginSelectedId == "com.lab.physics-forcefield") {
+                    drawDarkButton(detX + 30.0f, cyBox + 28.0f, 150.0f, 26.0f, "Radial Explosion", _forceFieldType == 0);
+                    drawDarkButton(detX + 190.0f, cyBox + 28.0f, 150.0f, 26.0f, "Vortex Whirlwind", _forceFieldType == 1);
+                    drawDarkButton(detX + 350.0f, cyBox + 28.0f, 150.0f, 26.0f, "Directional Wind", _forceFieldType == 2);
+
+                    LabFont::drawText(detX + 30.0f, cyBox + 68.0f, "Field Strength:", 1.25f, textLight, LabFontType::System);
+                    drawDarkButton(detX + 150.0f, cyBox + 64.0f, 24.0f, 24.0f, "-");
+                    char strBuf[16]; snprintf(strBuf, sizeof(strBuf), "%.0f N", _forceFieldStrength);
+                    LabFont::drawText(detX + 180.0f, cyBox + 68.0f, strBuf, 1.25f, cyanGlow, LabFontType::System);
+                    drawDarkButton(detX + 225.0f, cyBox + 64.0f, 24.0f, 24.0f, "+");
+
+                    LabFont::drawText(detX + 300.0f, cyBox + 68.0f, "Field Radius:", 1.25f, textLight, LabFontType::System);
+                    drawDarkButton(detX + 410.0f, cyBox + 64.0f, 24.0f, 24.0f, "-");
+                    char radBuf[16]; snprintf(radBuf, sizeof(radBuf), "%.0f m", _forceFieldRadius);
+                    LabFont::drawText(detX + 440.0f, cyBox + 68.0f, radBuf, 1.25f, cyanGlow, LabFontType::System);
+                    drawDarkButton(detX + 485.0f, cyBox + 64.0f, 24.0f, 24.0f, "+");
+
+                    drawDarkButton(detX + 30.0f, cyBox + 102.0f, 230.0f, 26.0f, "Detonate Shockwave at Cursor", false, false, true);
+                    drawDarkButton(detX + 270.0f, cyBox + 102.0f, 210.0f, 26.0f, _forceFieldGizmoVisible ? "Field Gizmo: VISIBLE" : "Field Gizmo: HIDDEN", _forceFieldGizmoVisible);
+                    LabFont::drawText(detX + 30.0f, cyBox + 144.0f, "* Blasts rigid bodies and cloth particles with inverse-square shockwave falloff.", 1.25f, textDim, LabFontType::System);
+                } else if (_pluginSelectedId == "com.lab.speedrun-timer") {
+                    drawDarkButton(detX + 30.0f, cyBox + 28.0f, 130.0f, 26.0f, "Start Timer", false, false, true);
+                    drawDarkButton(detX + 170.0f, cyBox + 28.0f, 120.0f, 26.0f, "Pause Timer");
+                    drawDarkButton(detX + 300.0f, cyBox + 28.0f, 120.0f, 26.0f, "Reset 00:00");
+
+                    drawDarkButton(detX + 30.0f, cyBox + 66.0f, 190.0f, 26.0f, _speedrunOverlayVisible ? "Viewport HUD: ON" : "Viewport HUD: OFF", _speedrunOverlayVisible);
+                    drawDarkButton(detX + 230.0f, cyBox + 66.0f, 180.0f, 26.0f, (_speedrunPosition == 0) ? "Anchor: Top-Right" : "Anchor: Top-Left");
+
+                    int mins = (int)(_speedrunElapsedTime / 60.0f);
+                    float secs = _speedrunElapsedTime - (mins * 60.0f);
+                    char tBuf[64]; snprintf(tBuf, sizeof(tBuf), "Live Elapsed: %02d:%05.2f  [%s]", mins, secs, _speedrunTimerRunning ? "RUNNING" : "STOPPED");
+                    LabFont::drawText(detX + 30.0f, cyBox + 110.0f, tBuf, 1.4f, cyanGlow, LabFontType::System);
+                    LabFont::drawText(detX + 30.0f, cyBox + 144.0f, "* Renders digital split clock, velocity readout and delta comparisons in Viewport.", 1.25f, textDim, LabFontType::System);
+                } else if (_pluginSelectedId == "com.lab.vehicle-arcade") {
+                    drawDarkButton(detX + 30.0f, cyBox + 28.0f, 220.0f, 26.0f, "+ Spawn Vehicle at Cursor", false, false, true);
+                    drawDarkButton(detX + 260.0f, cyBox + 28.0f, 190.0f, 26.0f, _vehicleTelemetryVisible ? "Dashboard HUD: ON" : "Dashboard HUD: OFF", _vehicleTelemetryVisible);
+
+                    char spdInfo[64]; snprintf(spdInfo, sizeof(spdInfo), "Telemetry: %.0f km/h  |  RPM: %.0f  |  Gear: %d", _vehicleSpeedKmh, _vehicleRpm, _vehicleGear);
+                    LabFont::drawText(detX + 30.0f, cyBox + 74.0f, spdInfo, 1.4f, orangeGlow, LabFontType::System);
+                    LabFont::drawText(detX + 30.0f, cyBox + 110.0f, "Hold [W] in 3D Viewport to accelerate raycast chassis and rev engine RPM.", 1.35f, textLight, LabFontType::System);
+                    LabFont::drawText(detX + 30.0f, cyBox + 144.0f, "* 4-wheel independent spring-damper suspension solver and tire friction model.", 1.25f, textDim, LabFontType::System);
+                } else if (_pluginSelectedId == "com.lab.proc-gen") {
+                    drawDarkButton(detX + 30.0f, cyBox + 28.0f, 250.0f, 28.0f, "+ Generate Procedural Room", false, false, true);
+                    LabFont::drawText(detX + 30.0f, cyBox + 75.0f, "Room Dimension: 16m x 16m  •  Wall Height: 4.5m  •  CSG Brushes: 8", 1.35f, textLight, LabFontType::System);
+                    LabFont::drawText(detX + 30.0f, cyBox + 110.0f, "Generates real solid CSG brushes aligned to the 3D Cursor position.", 1.32f, textDim, LabFontType::System);
+                    LabFont::drawText(detX + 30.0f, cyBox + 144.0f, "* Single-click procedural architecture builder. Instant level design rapid prototype.", 1.25f, cyanGlow, LabFontType::System);
+                } else if (_pluginSelectedId == "com.lab.physics-fluid") {
+                    drawDarkButton(detX + 30.0f, cyBox + 28.0f, 250.0f, 28.0f, "+ Place Water Volume at Cursor", false, false, true);
+                    LabFont::drawText(detX + 30.0f, cyBox + 75.0f, "Fluid Density: 1000 kg/m3 (Fresh Water)  •  Viscous Drag: 0.8", 1.35f, textLight, LabFontType::System);
+                    LabFont::drawText(detX + 30.0f, cyBox + 110.0f, "Water volume brushes exert Archimedes upward buoyant force on objects.", 1.32f, textDim, LabFontType::System);
+                    LabFont::drawText(detX + 30.0f, cyBox + 144.0f, "* Dynamic swimming and floating crates simulation module.", 1.25f, cyanGlow, LabFontType::System);
+                } else if (_pluginSelectedId == "com.lab.physics-constraints") {
+                    drawDarkButton(detX + 30.0f, cyBox + 28.0f, 250.0f, 28.0f, "+ Spawn Pendulum Chain at Cursor", false, false, true);
+                    LabFont::drawText(detX + 30.0f, cyBox + 75.0f, "Supported Joints: Distance, BallSocket, Hinge, Slider, Fixed", 1.35f, textLight, LabFontType::System);
+                    LabFont::drawText(detX + 30.0f, cyBox + 110.0f, "Iterative Gauss-Seidel constraint solver for multi-body mechanical linkages.", 1.32f, textDim, LabFontType::System);
+                    LabFont::drawText(detX + 30.0f, cyBox + 144.0f, "* Essential for ragdoll limbs, suspension linkages, and swinging doors.", 1.25f, cyanGlow, LabFontType::System);
+                } else {
+                    LabFont::drawText(detX + 30.0f, cyBox + 40.0f, "Custom Drop-in Addon Lifecycle Hook Status: ACTIVE", 1.4f, cyanGlow, LabFontType::System);
+                    LabFont::drawText(detX + 30.0f, cyBox + 75.0f, "Functions parsed: onLoad(), onUpdate(dt), onUnload()", 1.35f, textLight, LabFontType::System);
+                    LabFont::drawText(detX + 30.0f, cyBox + 110.0f, "File: " + PackageManager::instance().getPackageFile(selPkg->id), 1.25f, orangeGlow, LabFontType::System);
+                    LabFont::drawText(detX + 30.0f, cyBox + 144.0f, "* Modifying this .lua file hot-reloads dynamically without recompiling the engine.", 1.25f, textDim, LabFontType::System);
+                }
+                dy += boxH + 16.0f;
 
                 // Description Box
                 LabFont::drawText(detX + 20.0f, dy, "Description:", 1.45f, textLight, LabFontType::System);
-                dy += 22.0f;
+                dy += 20.0f;
 
-                Renderer::drawRect(detX + 20.0f, dy, detW - 40.0f, 85.0f, Vec3(0.06f, 0.07f, 0.09f));
-                drawDarkBevel(detX + 20.0f, dy, detW - 40.0f, 85.0f, true);
-                LabFont::drawText(detX + 30.0f, dy + 12.0f, selPkg->description, 1.38f, Vec3(0.9f, 0.92f, 0.95f), LabFontType::System);
-                std::string fileLocation = "Source Code: plugins/" + selPkg->id.substr(selPkg->id.rfind('.') + 1) + ".lua  (Standalone Plugin)";
-                LabFont::drawText(detX + 30.0f, dy + 45.0f, fileLocation, 1.25f, orangeGlow, LabFontType::System);
-                dy += 100.0f;
+                Renderer::drawRect(detX + 20.0f, dy, detW - 40.0f, 65.0f, Vec3(0.06f, 0.07f, 0.09f));
+                drawDarkBevel(detX + 20.0f, dy, detW - 40.0f, 65.0f, true);
+                LabFont::drawText(detX + 30.0f, dy + 10.0f, selPkg->description, 1.35f, Vec3(0.9f, 0.92f, 0.95f), LabFontType::System);
+                std::string fileLocation = "Source Code: " + PackageManager::instance().getPackageFile(selPkg->id);
+                if (fileLocation.size() > 70) fileLocation = fileLocation.substr(0, 68) + "..";
+                LabFont::drawText(detX + 30.0f, dy + 38.0f, fileLocation, 1.22f, orangeGlow, LabFontType::System);
+                dy += 80.0f;
 
-                // Telemetry & Architecture Box
+                // Architecture Box
                 LabFont::drawText(detX + 20.0f, dy, "Engine Architecture & Hooks:", 1.45f, textLight, LabFontType::System);
-                dy += 22.0f;
+                dy += 20.0f;
 
-                Renderer::drawRect(detX + 20.0f, dy, detW - 40.0f, 100.0f, Vec3(0.06f, 0.07f, 0.09f));
-                drawDarkBevel(detX + 20.0f, dy, detW - 40.0f, 100.0f, true);
+                Renderer::drawRect(detX + 20.0f, dy, detW - 40.0f, 75.0f, Vec3(0.06f, 0.07f, 0.09f));
+                drawDarkBevel(detX + 20.0f, dy, detW - 40.0f, 75.0f, true);
 
-                LabFont::drawText(detX + 30.0f, dy + 12.0f, "• Standalone Isolation: Each plugin runs in its own decoupled translation unit.", 1.32f, textDim, LabFontType::System);
-                LabFont::drawText(detX + 30.0f, dy + 34.0f, "• Lifecycle Events: onLoad(), onUpdate(dt), onUnload() registered with Lab::PluginManager.", 1.32f, textDim, LabFontType::System);
-                LabFont::drawText(detX + 30.0f, dy + 56.0f, "• State: " + std::string(isEn ? "RUNNING (Listening to frame ticks)" : "STOPPED (Zero runtime overhead)"), 1.32f, isEn ? Vec3(0.4f, 1.0f, 0.5f) : textDim, LabFontType::System);
-                LabFont::drawText(detX + 30.0f, dy + 76.0f, "• Memory & Dependencies: None (Self-contained C++ / Lua module).", 1.32f, textDim, LabFontType::System);
+                LabFont::drawText(detX + 30.0f, dy + 10.0f, "• Standalone Isolation: Each addon runs in its own decoupled translation unit / Lua VM.", 1.28f, textDim, LabFontType::System);
+                LabFont::drawText(detX + 30.0f, dy + 30.0f, "• Lifecycle Events: onLoad(), onUpdate(dt), onUnload() registered with Lab::PluginManager.", 1.28f, textDim, LabFontType::System);
+                LabFont::drawText(detX + 30.0f, dy + 50.0f, "• State: " + std::string(isEn ? "RUNNING (Listening to frame ticks & rendering)" : "STOPPED (Zero runtime overhead)"), 1.28f, isEn ? Vec3(0.4f, 1.0f, 0.5f) : textDim, LabFontType::System);
             }
         } else if (_workspace == EditorWorkspace::Project_Hub) {
             // ==================== ENGINE MAIN MENU & PROJECT HUB ====================
@@ -7212,6 +7703,65 @@ private:
     float _pluginBannerTimer = 0.0f;
     float _pluginPollAccum = 0.0f;
     int _pluginListScroll = 0;
+    bool _pluginSearchFocused = false;
+
+    // Retro Shaders & CRT Post-Process Customizer State
+    bool _retroScanlines = true;
+    int _retroPixelScale = 2; // 2, 3, 4
+    float _retroScanlineOpacity = 0.28f;
+    bool _retroAberration = true;
+    float _retroAberrationAmount = 0.0035f;
+    bool _retroVignette = true;
+    float _retroVignetteIntensity = 0.45f;
+    int _retroColorTheme = 0; // 0=Classic CRT, 1=Arcade, 2=Amber Terminal, 3=Cyberpunk
+    float _retroScanlinePhase = 0.0f;
+
+    // Speedrun & Telemetry Splits State
+    bool _speedrunOverlayVisible = true;
+    bool _speedrunTimerRunning = false;
+    float _speedrunElapsedTime = 0.0f;
+    bool _speedrunShowFps = true;
+    bool _speedrunShowVelocity = true;
+    int _speedrunPosition = 0; // 0=Top-Right, 1=Top-Left
+
+    // Cloth & Soft Body Dynamics State
+    ClothMesh _clothMesh;
+    bool _clothSimulateInEditor = true;
+    bool _clothMeshInitialized = false;
+    Vec3 _clothWindVelocity{ 0.0f, 0.0f, 4.0f };
+    float _clothStiffness = 1.0f;
+    float _clothDamping = 0.99f;
+    int _clothSolverIterations = 5;
+    Vec3 _clothMeshOrigin{ 0.0f, 4.5f, 0.0f };
+
+    // Force Fields & Shockwaves State
+    bool _forceFieldGizmoVisible = true;
+    int _forceFieldType = 0; // 0=Radial Explosion, 1=Vortex Whirlwind, 2=Directional Wind
+    float _forceFieldStrength = 45.0f;
+    float _forceFieldRadius = 15.0f;
+    Vec3 _forceFieldPosition{ 0.0f, 1.5f, 0.0f };
+    float _forceFieldBlastTimer = 0.0f;
+
+    // Arcade Vehicle Dynamics State
+    bool _vehicleTelemetryVisible = true;
+    float _vehicleSpeedKmh = 0.0f;
+    float _vehicleRpm = 1000.0f;
+    int _vehicleGear = 1;
+    float _vehicleThrottlePower = 1.0f;
+    float _vehicleSuspensionStiffness = 45.0f;
+
+    // Fluid Dynamics & Water Buoyancy State
+    float _fluidDensity = 1000.0f;
+    float _fluidViscosity = 0.8f;
+    float _fluidSurfaceLevel = 0.0f;
+
+    // Constraints & Joint Physics State
+    float _constraintStiffness = 1.0f;
+    int _constraintSolveIterations = 6;
+
+    // Procedural Level Generator State
+    int _procGenWidth = 16;
+    int _procGenDepth = 16;
 
     // Engine Main Menu / Project Hub State
     std::vector<ProjectInfo> _hubProjects;
