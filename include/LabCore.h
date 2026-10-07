@@ -46,6 +46,9 @@ namespace Lab {
         static float getMouseX();
         static float getMouseY();
         static Vec2 getMouseDelta();
+
+        static Vec3 mousePosition;
+        static float GetAxis(const std::string& axisName);
     };
 
     class LAB_CORE_API Engine {

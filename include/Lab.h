@@ -1,7 +1,12 @@
 #pragma once
 #include "LabCore.h"
 #include "LabMath.h"
+#include "LabComponent.h"
+#include "LabTransform.h"
+#include "LabEntity.h"
 #include "LabCamera.h"
+#include "LabCameraScripts.h"
+#include "LabComponents.h"
 #include "LabRenderer.h"
 #include "LabMap.h"
 #include "LabAnim.h"

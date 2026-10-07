@@ -1,6 +1,13 @@
+---
+docid: LH01
+name: Authoritative Multiplayer Architecture
+related_docs: [LA01, LE01, LF01]
+tags: [network, multiplayer, udp, replication, dedicated-server]
+---
+
 # 🌐 Authoritative Multiplayer Architecture
 
-The **Lab Engine Multiplayer Subsystem** (`LabNetwork`, `LabServer.exe`) implements an authoritative client-server architecture over connectionless **UDP sockets**, engineered for competitive low-latency deathmatch play.
+The **Lab Engine Multiplayer Subsystem** (`LabNetwork`, `LabServer.exe`) implements a high-performance authoritative client-server architecture over connectionless **UDP sockets**, engineered for low-latency networked gameplay, client prediction, and state replication.
 
 ---
 
@@ -55,24 +62,20 @@ The dedicated server runs completely headless without requiring an OpenGL contex
 ### `server.cfg` Reference Format:
 ```ini
 # ===================================================================
-# FROZEN-LIFE : LAB MULTIPLAYER SERVER CONFIGURATION (server.cfg)
+# LAB MULTIPLAYER SERVER CONFIGURATION (server.cfg)
 # Supports both Linux Headless and Windows Dedicated Servers
 # ===================================================================
 
 [Server]
 port = 27015
-server_name = Lab Dedicated Arena [Linux/Windows]
+server_name = Lab Dedicated Server [Linux/Windows]
 map = assets/maps/facility_alpha.labmap
-game_mode = FFA
-max_players = 16
 tickrate = 64
+max_clients = 16
 
 [Match]
-frag_limit = 25
-time_limit = 10
-enable_bots = 1
-bot_count = 4
-bot_difficulty = 1
+round_limit = 10
+time_limit = 600
 
 [Network]
 lan_mode = 1

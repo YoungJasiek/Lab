@@ -1,3 +1,10 @@
+---
+docid: LG01
+name: Spatial Audio & Procedural Synthesizer
+related_docs: [LA01, LB01, LF01]
+tags: [audio, miniaudio, spatial, procedural-wav, lip-sync]
+---
+
 # 🔊 Spatial Audio & Procedural Synthesizer
 
 The **Lab Audio Subsystem** (`LabAudio`) provides immersive 3D spatial soundscapes, real-time listener positioning, and procedural audio synthesis without external DLL dependencies.
@@ -17,7 +24,7 @@ Audio playback is driven by **miniaudio v0.11.25** compiled directly into the st
 
 Audio sources exist in 3D world space:
 ```cpp
-AudioEngine::playSound3D(SoundID::SG553Shot, muzzleWorldPos, volume);
+AudioEngine::playSound3D(SoundID::FootstepConcrete, worldPosition, volume);
 ```
 
 ### Attenuation Model

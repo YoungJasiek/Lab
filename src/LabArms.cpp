@@ -67,7 +67,7 @@ namespace Lab {
         Vec3 gauntletSize = { 0.098f, 0.090f, armLength * 0.28f };
         Renderer::drawCube(gauntletPos, sleeveRot, gauntletSize, gauntletColor, nullptr, true);
 
-        // 4. Gauntlet Telemetry LED Diode Strip (Cyan Frozen-Life HUD link)
+        // 4. Gauntlet Telemetry LED Diode Strip
         Vec3 ledLocal = Vec3(isLeft ? -0.032f : 0.032f, 0.048f, 0.0f);
         Vec3 ledPos = gauntletPos + rotateOffset(ledLocal, sleeveRot);
         Vec3 ledSize = { 0.040f, 0.012f, armLength * 0.18f };

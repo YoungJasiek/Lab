@@ -25,6 +25,12 @@
 #include "LabVehicle.h"
 #include "LabFluid.h"
 #include "LabConstraint.h"
+#include "LabDecals.h"
+#include "LabParticles.h"
+#include "LabAudio.h"
+#include "LabVCS.h"
+#include "LabCCD.h"
+#include "LabComponents.h"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <windows.h>
@@ -186,6 +192,13 @@ public:
         logMessage("Lua 5.4 Script Engine active. Workspaces: 3D, 2D, HUD, Animation, Scripting, Plugins.");
         logMessage("Frustum Culling active: 'To czego oko nie widzi tego maszyna renderowac nie musi'");
 
+        // Initialize Native Engine Subsystems
+        AudioEngine::init(true);
+        _decalSystem.init();
+        _particleSystem.init();
+        VCSManager::instance().setRepoRoot(".");
+        logMessage("Native Engine Subsystems active: DecalSystem, ParticleSystem, AudioEngine, VCSManager.");
+
         // Initialize Engine Main Menu / Project Hub
         refreshProjectHub();
         setWorkspace(EditorWorkspace::Project_Hub);
@@ -311,6 +324,12 @@ public:
             PackageManager::instance().pollDropinChanges();
         }
         PluginManager::get().updateAll(fixedDelta);
+
+        // Native Subsystem Real-Time Simulation
+        _decalSystem.update(fixedDelta);
+        _particleSystem.update(fixedDelta, _map.get());
+        AudioEngine::update(fixedDelta);
+
         if (_pluginBannerTimer > 0.0f) {
             _pluginBannerTimer -= fixedDelta;
             if (_pluginBannerTimer <= 0.0f) _pluginStatusBanner = "";
@@ -2849,10 +2868,15 @@ public:
                 { "Magic Add: Door", "Door" },
                 { "Script (Lua)", "Script" },
                 { "Point Light", "Light" },
-                { "2D Sprite", "Sprite" },
+                { "Audio Source", "Audio" },
+                { "RigidBody Dynamic", "Physics" },
                 { "Box Collider", "Physics" },
-                { "Audio Source", "Sound" },
-                { "Timer Trigger", "Trigger" },
+                { "Verlet Cloth", "Cloth" },
+                { "Water Volume", "Fluid" },
+                { "Force Field", "Physics" },
+                { "Arcade Vehicle", "Vehicle" },
+                { "Decal Projected", "Decal" },
+                { "Post-Process", "Render" },
                 { "Particle Emitter", "FX" }
             };
 
@@ -2868,7 +2892,7 @@ public:
                 }
             }
 
-            int itemCount = std::min((int)filtered.size(), 8);
+            int itemCount = std::min((int)filtered.size(), 12);
             float cmH = 68.0f + itemCount * 22.0f + 65.0f;
             int winW = 1600, winH = 900;
             getWindowSize(winW, winH);
@@ -2957,7 +2981,47 @@ public:
                             setWorkspace(EditorWorkspace::Scripting_Editor);
                             logMessage("Context Menu: Attached Script (Lua) - opened Lua Script Editor IDE");
                         } else {
-                            logMessage("Context Menu: Attached " + picked + " to entity #" + std::to_string(_contextMenuTargetIndex));
+                            if (_selectionType == SelectionType::Prop && _selectedIndex >= 0 && _selectedIndex < (int)_map->props.size()) {
+                                auto& prop = _map->props[_selectedIndex];
+                                if (picked.find("Audio") != std::string::npos) {
+                                    prop.hasAudio = true;
+                                    logMessage("Context Menu: Attached AudioSourceComponent to Prop #" + std::to_string(_selectedIndex));
+                                } else if (picked.find("Physics") != std::string::npos || picked.find("Collider") != std::string::npos || picked.find("RigidBody") != std::string::npos) {
+                                    prop.hasPhysics = true;
+                                    logMessage("Context Menu: Attached RigidBody Physics Component to Prop #" + std::to_string(_selectedIndex));
+                                } else if (picked.find("Cloth") != std::string::npos) {
+                                    prop.hasCloth = true;
+                                    logMessage("Context Menu: Attached ClothComponent to Prop #" + std::to_string(_selectedIndex));
+                                } else if (picked.find("Water") != std::string::npos) {
+                                    prop.hasWaterVolume = true;
+                                    logMessage("Context Menu: Attached WaterVolumeComponent to Prop #" + std::to_string(_selectedIndex));
+                                } else if (picked.find("Force") != std::string::npos) {
+                                    prop.hasForceField = true;
+                                    logMessage("Context Menu: Attached ForceFieldComponent to Prop #" + std::to_string(_selectedIndex));
+                                } else if (picked.find("Vehicle") != std::string::npos) {
+                                    prop.hasVehicle = true;
+                                    logMessage("Context Menu: Attached VehicleComponent to Prop #" + std::to_string(_selectedIndex));
+                                } else if (picked.find("Decal") != std::string::npos) {
+                                    prop.hasDecal = true;
+                                    logMessage("Context Menu: Attached DecalComponent to Prop #" + std::to_string(_selectedIndex));
+                                } else if (picked.find("Post-Process") != std::string::npos) {
+                                    prop.hasPostProcess = true;
+                                    logMessage("Context Menu: Attached PostProcessComponent to Prop #" + std::to_string(_selectedIndex));
+                                } else {
+                                    logMessage("Context Menu: Attached " + picked + " to Prop #" + std::to_string(_selectedIndex));
+                                }
+                            } else {
+                                if (picked.find("Audio") != std::string::npos) placePrebuilt(11);
+                                else if (picked.find("Physics") != std::string::npos || picked.find("RigidBody") != std::string::npos) placePrebuilt(6);
+                                else if (picked.find("Cloth") != std::string::npos) placePrebuilt(15);
+                                else if (picked.find("Water") != std::string::npos) placePrebuilt(14);
+                                else if (picked.find("Force") != std::string::npos) placePrebuilt(17);
+                                else if (picked.find("Vehicle") != std::string::npos) placePrebuilt(13);
+                                else if (picked.find("Particle") != std::string::npos) placePrebuilt(12);
+                                else {
+                                    logMessage("Context Menu: Action performed for " + picked);
+                                }
+                            }
                         }
                         _contextMenuOpen = false;
                         return;
@@ -3537,6 +3601,36 @@ public:
                 }
                 return;
             }
+            // 7. [* SPARKS] Live particle test button
+            if (mx >= 1040.0f && mx <= 1116.0f) {
+                _particleSystem.spawnImpact(_cursorPos, Vec3(0, 1, 0), SurfaceType::Metal);
+                logMessage("Spawned metal impact sparks at 3D Cursor (" + std::to_string((int)_cursorPos.x) + ", " + std::to_string((int)_cursorPos.y) + ", " + std::to_string((int)_cursorPos.z) + ")");
+                return;
+            }
+            // 8. [* SMOKE] Live explosion particle test button
+            if (mx >= 1122.0f && mx <= 1198.0f) {
+                _particleSystem.spawnExplosion(_cursorPos, 3.5f);
+                logMessage("Spawned explosion smoke burst at 3D Cursor");
+                return;
+            }
+            // 9. [* SCORCH] Live decal projection test button
+            if (mx >= 1204.0f && mx <= 1280.0f) {
+                _decalSystem.spawnExplosionScorch(_cursorPos, 2.0f, _map ? _map->brushes : std::vector<MapBrush>{});
+                logMessage("Spawned explosion scorch decal at 3D Cursor");
+                return;
+            }
+            // 10. [> 3D AUDIO] Live audio engine test button
+            if (mx >= 1286.0f && mx <= 1368.0f) {
+                AudioEngine::playSound3D(SoundID::PistolShot, _cursorPos, 1.0f, 1.0f);
+                logMessage("Auditioned 3D sound effect at 3D Cursor position");
+                return;
+            }
+            // 11. [VCS SNAP] Live version control commit
+            if (mx >= 1374.0f && mx <= 1452.0f) {
+                VCSManager::instance().addCommit("snap-" + std::to_string(std::time(nullptr)), "Lead Architect", "Editor Live Snapshot");
+                logMessage("VCS Manager: Created live level snapshot commit");
+                return;
+            }
         }
 
         // 7. Left Tools Palette (x: 0..42, y: 58..878)
@@ -3871,6 +3965,113 @@ public:
                     }
                 }
 
+                // Camera Component Properties Interactions
+                if (_selectionType == SelectionType::Camera && _selectedIndex >= 0 && _selectedIndex < (int)_map->cameras.size()) {
+                    auto& cam = _map->cameras[_selectedIndex];
+                    float propY = l.rightY + 38.0f;
+
+                    // MainCamera Tag Toggle & Projection Toggle
+                    float tagBtnY = propY + 70.0f;
+                    if (my >= tagBtnY && my <= tagBtnY + 24.0f) {
+                        if (mx >= l.rightX + 10.0f && mx <= l.rightX + 140.0f) {
+                            cam.active = !cam.active;
+                            for (size_t ci = 0; ci < _map->cameras.size(); ++ci) {
+                                if ((int)ci != _selectedIndex && cam.active) _map->cameras[ci].active = false;
+                            }
+                            logMessage(std::string("Camera '") + cam.name + "' MainCamera Tag: " + (cam.active ? "ENABLED" : "DISABLED"));
+                            return;
+                        }
+                        if (mx >= l.rightX + 150.0f && mx <= l.rightX + 285.0f) {
+                            cam.orthographic = !cam.orthographic;
+                            logMessage(std::string("Camera Projection: ") + (cam.orthographic ? "Orthographic" : "Perspective"));
+                            return;
+                        }
+                    }
+
+                    // FOV / Ortho adjusters
+                    float fovBtnY = tagBtnY + 44.0f;
+                    if (my >= fovBtnY && my <= fovBtnY + 24.0f) {
+                        if (mx >= l.rightX + 10.0f && mx <= l.rightX + 60.0f) { cam.fov = std::clamp(cam.fov - 5.0f, 20.0f, 130.0f); cam.orthoSize = std::max(1.0f, cam.orthoSize - 1.0f); return; }
+                        if (mx >= l.rightX + 65.0f && mx <= l.rightX + 115.0f) { cam.fov = 60.0f; cam.orthoSize = 5.0f; return; }
+                        if (mx >= l.rightX + 120.0f && mx <= l.rightX + 170.0f) { cam.fov = 75.0f; cam.orthoSize = 8.0f; return; }
+                        if (mx >= l.rightX + 175.0f && mx <= l.rightX + 225.0f) { cam.fov = 90.0f; cam.orthoSize = 10.0f; return; }
+                        if (mx >= l.rightX + 230.0f && mx <= l.rightX + 280.0f) { cam.fov = std::clamp(cam.fov + 5.0f, 20.0f, 130.0f); cam.orthoSize += 1.0f; return; }
+                    }
+
+                    // Clipping planes: Near & Far
+                    float clipBtnY = fovBtnY + 44.0f;
+                    if (my >= clipBtnY && my <= clipBtnY + 24.0f) {
+                        if (mx >= l.rightX + 10.0f && mx <= l.rightX + 70.0f) { cam.nearClip = std::max(0.01f, cam.nearClip - 0.1f); return; }
+                        if (mx >= l.rightX + 75.0f && mx <= l.rightX + 135.0f) { cam.nearClip += 0.1f; return; }
+                        if (mx >= l.rightX + 155.0f && mx <= l.rightX + 215.0f) { cam.farClip = std::max(50.0f, cam.farClip - 100.0f); return; }
+                        if (mx >= l.rightX + 220.0f && mx <= l.rightX + 280.0f) { cam.farClip += 100.0f; return; }
+                    }
+
+                    // Clear Flags: SolidColor, Skybox, DepthOnly, Nothing
+                    float clearBtnY = clipBtnY + 44.0f;
+                    if (my >= clearBtnY && my <= clearBtnY + 24.0f) {
+                        float cW = 66.0f;
+                        if (mx >= l.rightX + 10.0f && mx <= l.rightX + 10.0f + cW) { cam.clearFlags = "SolidColor"; return; }
+                        if (mx >= l.rightX + 80.0f && mx <= l.rightX + 80.0f + cW) { cam.clearFlags = "Skybox"; return; }
+                        if (mx >= l.rightX + 150.0f && mx <= l.rightX + 150.0f + cW) { cam.clearFlags = "DepthOnly"; return; }
+                        if (mx >= l.rightX + 220.0f && mx <= l.rightX + 220.0f + cW) { cam.clearFlags = "Nothing"; return; }
+                    }
+
+                    // Depth & Viewport Rect
+                    float depthBtnY = clearBtnY + 44.0f;
+                    if (my >= depthBtnY && my <= depthBtnY + 24.0f) {
+                        if (mx >= l.rightX + 10.0f && mx <= l.rightX + 60.0f) { cam.depth = std::max(0, cam.depth - 1); return; }
+                        if (mx >= l.rightX + 65.0f && mx <= l.rightX + 115.0f) { cam.depth += 1; return; }
+                        if (mx >= l.rightX + 125.0f && mx <= l.rightX + 205.0f) { cam.viewportRect = Vec4(0, 0, 1, 1); logMessage("Camera Rect: Fullscreen (0, 0, 1, 1)"); return; }
+                        if (mx >= l.rightX + 210.0f && mx <= l.rightX + 290.0f) { cam.viewportRect = Vec4(0.7f, 0.7f, 0.3f, 0.3f); logMessage("Camera Rect: Minimap (0.7, 0.7, 0.3, 0.3)"); return; }
+                    }
+
+                    // Background Color Presets
+                    float bgBtnY = depthBtnY + 44.0f;
+                    if (my >= bgBtnY && my <= bgBtnY + 24.0f) {
+                        if (mx >= l.rightX + 38.0f && mx <= l.rightX + 94.0f) {
+                            cam.backgroundColor = Vec4(0.0f, 0.0f, 0.0f, 1.0f);
+                            logMessage("Camera Background: Solid Black");
+                            return;
+                        }
+                        if (mx >= l.rightX + 98.0f && mx <= l.rightX + 156.0f) {
+                            cam.backgroundColor = Vec4(0.05f, 0.08f, 0.22f, 1.0f);
+                            logMessage("Camera Background: Deep Navy");
+                            return;
+                        }
+                        if (mx >= l.rightX + 160.0f && mx <= l.rightX + 218.0f) {
+                            cam.backgroundColor = Vec4(0.12f, 0.14f, 0.18f, 1.0f);
+                            logMessage("Camera Background: Dark Slate");
+                            return;
+                        }
+                        if (mx >= l.rightX + 222.0f && mx <= l.rightX + 284.0f) {
+                            cam.backgroundColor = Vec4(0.45f, 0.65f, 0.90f, 1.0f);
+                            logMessage("Camera Background: Sky Fog");
+                            return;
+                        }
+                    }
+
+                    // Culling Mask & Target Texture
+                    float maskBtnY = bgBtnY + 44.0f;
+                    if (my >= maskBtnY && my <= maskBtnY + 24.0f) {
+                        if (mx >= l.rightX + 10.0f && mx <= l.rightX + 92.0f) {
+                            cam.cullingMask = 0xFFFFFFFF;
+                            logMessage("Camera Culling Mask: All Layers (0xFFFFFFFF)");
+                            return;
+                        }
+                        if (mx >= l.rightX + 96.0f && mx <= l.rightX + 178.0f) {
+                            cam.cullingMask = 0x1;
+                            logMessage("Camera Culling Mask: Default Layer Only (0x1)");
+                            return;
+                        }
+                        if (mx >= l.rightX + 182.0f && mx <= l.rightX + 284.0f) {
+                            cam.targetTexture = (cam.targetTexture == "Screen" ? "FBO_Minimap" : "Screen");
+                            logMessage("Camera Target Texture: " + cam.targetTexture);
+                            return;
+                        }
+                    }
+                }
+
                 // Entity Name & Script Assignment buttons
                 float propY = l.rightY + 38.0f;
                 if (my >= propY + 74.0f && my <= propY + 98.0f) {
@@ -3898,48 +4099,286 @@ public:
                     }
                 }
 
-                // UV Scale buttons [0.125] [0.25] [0.5] [1.0]
-                float scales[4] = { 0.125f, 0.25f, 0.5f, 1.0f };
-                for (int i = 0; i < 4; ++i) {
-                    float sx = l.rightX + 10.0f + i * 70.0f;
-                    if (mx >= sx && mx <= sx + l.uvBtnW && my >= l.uvBtnY && my <= l.uvBtnY + l.uvBtnH) {
-                        _activeUvScale = Vec2(scales[i], scales[i]);
-                        if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
-                            _map->brushes[_selectedIndex].uvScale = _activeUvScale;
-                        }
-                        logMessage("Set UV Scale: " + std::to_string(scales[i]));
+                // If selection is Prop, handle Prop-specific controls (Model picker, ECS Components)
+                if (_selectionType == SelectionType::Prop && _selectedIndex >= 0 && _selectedIndex < (int)_map->props.size()) {
+                    auto& p = _map->props[_selectedIndex];
+                    float propY2 = l.rightY + 38.0f;
+                    float mBoxY = propY2 + 112.0f;
+
+                    // Browse 3D Models
+                    if (mx >= l.rightX + 10.0f && mx <= l.rightX + 290.0f && my >= mBoxY + 26.0f && my <= mBoxY + 50.0f) {
+                        _modelBrowserOpen = true;
                         return;
                     }
-                }
 
-                // Thumbnail click -> open texture browser
-                if (mx >= l.thumbX && mx <= l.thumbX + l.thumbS && my >= l.thumbY && my <= l.thumbY + l.thumbS) {
-                    _browserOpen = true;
-                    return;
-                }
-
-                // Browse Textures button
-                if (mx >= l.texBrowseX && mx <= l.texBrowseX + l.texBrowseW && my >= l.texBrowseY && my <= l.texBrowseY + l.texBrowseH) {
-                    _browserOpen = true;
-                    return;
-                }
-
-                // Apply Texture button
-                if (mx >= l.texApplyX && mx <= l.texApplyX + l.texApplyW && my >= l.texApplyY && my <= l.texApplyY + l.texApplyH) {
-                    if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
-                        _map->brushes[_selectedIndex].texturePath = _selectedTexture;
-                        _map->brushes[_selectedIndex].uvScale = _activeUvScale;
-                        logMessage("Applied texture '" + _selectedTexture + "' to Brush #" + std::to_string(_selectedIndex));
-                    } else {
-                        placeCurrentObject();
+                    // Quick Add Component Row 1
+                    float compY = mBoxY + 58.0f;
+                    float addBtnY = compY + 18.0f;
+                    if (my >= addBtnY && my <= addBtnY + 22.0f) {
+                        if (mx >= l.rightX + 10.0f && mx <= l.rightX + 75.0f) {
+                            p.hasAudio = !p.hasAudio;
+                            logMessage(p.hasAudio ? "Added AudioSourceComponent to Prop" : "Removed AudioSourceComponent from Prop");
+                            return;
+                        }
+                        if (mx >= l.rightX + 80.0f && mx <= l.rightX + 145.0f) {
+                            p.hasPhysics = !p.hasPhysics;
+                            logMessage(p.hasPhysics ? "Added RigidBodyComponent to Prop" : "Removed RigidBodyComponent from Prop");
+                            return;
+                        }
+                        if (mx >= l.rightX + 150.0f && mx <= l.rightX + 215.0f) {
+                            p.hasCloth = !p.hasCloth;
+                            logMessage(p.hasCloth ? "Added ClothComponent to Prop" : "Removed ClothComponent from Prop");
+                            return;
+                        }
+                        if (mx >= l.rightX + 220.0f && mx <= l.rightX + 290.0f) {
+                            p.hasWaterVolume = !p.hasWaterVolume;
+                            logMessage(p.hasWaterVolume ? "Added WaterVolumeComponent to Prop" : "Removed WaterVolumeComponent from Prop");
+                            return;
+                        }
                     }
-                    return;
-                }
 
-                // Browse Models button
-                if (mx >= l.modelBrowseX && mx <= l.modelBrowseX + l.modelBrowseW && my >= l.modelBrowseY && my <= l.modelBrowseY + l.modelBrowseH) {
-                    _modelBrowserOpen = true;
-                    return;
+                    // Quick Add Component Row 2
+                    float addBtn2Y = addBtnY + 26.0f;
+                    if (my >= addBtn2Y && my <= addBtn2Y + 22.0f) {
+                        if (mx >= l.rightX + 10.0f && mx <= l.rightX + 98.0f) {
+                            p.hasForceField = !p.hasForceField;
+                            logMessage(p.hasForceField ? "Added ForceFieldComponent to Prop" : "Removed ForceFieldComponent from Prop");
+                            return;
+                        }
+                        if (mx >= l.rightX + 104.0f && mx <= l.rightX + 192.0f) {
+                            p.hasDecal = !p.hasDecal;
+                            logMessage(p.hasDecal ? "Added DecalComponent to Prop" : "Removed DecalComponent from Prop");
+                            return;
+                        }
+                        if (mx >= l.rightX + 198.0f && mx <= l.rightX + 290.0f) {
+                            p.hasPostProcess = !p.hasPostProcess;
+                            logMessage(p.hasPostProcess ? "Added PostProcessComponent to Prop" : "Removed PostProcessComponent from Prop");
+                            return;
+                        }
+                    }
+
+                    // Active Component Mini-Panels
+                    float cardY = addBtn2Y + 28.0f;
+                    if (p.hasAudio) {
+                        float aBtnY = cardY + 16.0f;
+                        if (my >= aBtnY && my <= aBtnY + 20.0f) {
+                            if (mx >= l.rightX + 10.0f && mx <= l.rightX + 58.0f) {
+                                p.audioVolume = std::max(0.0f, p.audioVolume - 0.2f);
+                                logMessage("Audio Volume: " + std::to_string(p.audioVolume));
+                                return;
+                            }
+                            if (mx >= l.rightX + 62.0f && mx <= l.rightX + 110.0f) {
+                                p.audioVolume = std::min(2.0f, p.audioVolume + 0.2f);
+                                logMessage("Audio Volume: " + std::to_string(p.audioVolume));
+                                return;
+                            }
+                            if (mx >= l.rightX + 114.0f && mx <= l.rightX + 166.0f) {
+                                p.audioLoop = !p.audioLoop;
+                                logMessage(p.audioLoop ? "Audio Loop: ON" : "Audio Loop: OFF");
+                                return;
+                            }
+                            if (mx >= l.rightX + 170.0f && mx <= l.rightX + 238.0f) {
+                                if (p.audioSound.empty() || p.audioSound == "assets/audio/shoot.wav" || p.audioSound == "shoot.wav") {
+                                    AudioEngine::playSound3D(SoundID::PistolShot, p.position, p.audioVolume, p.audioPitch);
+                                } else {
+                                    AudioEngine::playCustomSound3D(p.audioSound, p.position, p.audioVolume);
+                                }
+                                logMessage("Auditioned 3D sound at entity position");
+                                return;
+                            }
+                            if (mx >= l.rightX + 242.0f && mx <= l.rightX + 290.0f) {
+                                p.hasAudio = false;
+                                logMessage("Removed AudioSourceComponent");
+                                return;
+                            }
+                        }
+                        cardY += 42.0f;
+                    }
+                    if (p.hasPhysics) {
+                        float phBtnY = cardY + 16.0f;
+                        if (my >= phBtnY && my <= phBtnY + 20.0f) {
+                            if (mx >= l.rightX + 10.0f && mx <= l.rightX + 64.0f) {
+                                p.physicsMass = std::max(1.0f, p.physicsMass - 5.0f);
+                                logMessage("RigidBody Mass: " + std::to_string((int)p.physicsMass) + " kg");
+                                return;
+                            }
+                            if (mx >= l.rightX + 68.0f && mx <= l.rightX + 122.0f) {
+                                p.physicsMass += 5.0f;
+                                logMessage("RigidBody Mass: " + std::to_string((int)p.physicsMass) + " kg");
+                                return;
+                            }
+                            if (mx >= l.rightX + 126.0f && mx <= l.rightX + 186.0f) {
+                                p.physicsDynamic = !p.physicsDynamic;
+                                logMessage(p.physicsDynamic ? "RigidBody: Dynamic Mode" : "RigidBody: Static Mode");
+                                return;
+                            }
+                            if (mx >= l.rightX + 190.0f && mx <= l.rightX + 236.0f) {
+                                p.physicsRestitution = (p.physicsRestitution >= 0.8f) ? 0.1f : (p.physicsRestitution + 0.3f);
+                                logMessage("RigidBody Restitution (Bounce): " + std::to_string(p.physicsRestitution));
+                                return;
+                            }
+                            if (mx >= l.rightX + 242.0f && mx <= l.rightX + 290.0f) {
+                                p.hasPhysics = false;
+                                logMessage("Removed RigidBodyComponent");
+                                return;
+                            }
+                        }
+                        cardY += 42.0f;
+                    }
+                    if (p.hasCloth) {
+                        float clBtnY = cardY + 16.0f;
+                        if (my >= clBtnY && my <= clBtnY + 20.0f) {
+                            if (mx >= l.rightX + 10.0f && mx <= l.rightX + 68.0f) {
+                                p.clothStiffness = std::max(0.1f, p.clothStiffness - 0.1f);
+                                logMessage("Cloth Stiffness: " + std::to_string(p.clothStiffness));
+                                return;
+                            }
+                            if (mx >= l.rightX + 72.0f && mx <= l.rightX + 130.0f) {
+                                p.clothStiffness = std::min(1.0f, p.clothStiffness + 0.1f);
+                                logMessage("Cloth Stiffness: " + std::to_string(p.clothStiffness));
+                                return;
+                            }
+                            if (mx >= l.rightX + 242.0f && mx <= l.rightX + 290.0f) {
+                                p.hasCloth = false;
+                                logMessage("Removed ClothComponent");
+                                return;
+                            }
+                        }
+                        cardY += 42.0f;
+                    }
+                    if (p.hasWaterVolume) {
+                        float wBtnY = cardY + 16.0f;
+                        if (my >= wBtnY && my <= wBtnY + 20.0f) {
+                            if (mx >= l.rightX + 10.0f && mx <= l.rightX + 100.0f) {
+                                p.waterDensity = (p.waterDensity > 1010.0f) ? 1000.0f : 1030.0f;
+                                logMessage("Water Density: " + std::to_string((int)p.waterDensity) + " kg/m3");
+                                return;
+                            }
+                            if (mx >= l.rightX + 242.0f && mx <= l.rightX + 290.0f) {
+                                p.hasWaterVolume = false;
+                                logMessage("Removed WaterVolumeComponent");
+                                return;
+                            }
+                        }
+                        cardY += 42.0f;
+                    }
+                    if (p.hasForceField) {
+                        float fBtnY = cardY + 16.0f;
+                        if (my >= fBtnY && my <= fBtnY + 20.0f) {
+                            if (mx >= l.rightX + 10.0f && mx <= l.rightX + 66.0f) {
+                                p.forceFieldType = (p.forceFieldType + 1) % 3;
+                                logMessage("ForceField Type: " + std::to_string(p.forceFieldType));
+                                return;
+                            }
+                            if (mx >= l.rightX + 70.0f && mx <= l.rightX + 120.0f) {
+                                p.forceFieldStrength = (p.forceFieldStrength >= 500.0f) ? 100.0f : (p.forceFieldStrength + 100.0f);
+                                logMessage("ForceField Strength: " + std::to_string((int)p.forceFieldStrength) + " N");
+                                return;
+                            }
+                            if (mx >= l.rightX + 124.0f && mx <= l.rightX + 174.0f) {
+                                p.forceFieldRadius = (p.forceFieldRadius >= 20.0f) ? 5.0f : (p.forceFieldRadius + 5.0f);
+                                logMessage("ForceField Radius: " + std::to_string((int)p.forceFieldRadius) + " m");
+                                return;
+                            }
+                            if (mx >= l.rightX + 178.0f && mx <= l.rightX + 238.0f) {
+                                _particleSystem.spawnExplosion(p.position, p.forceFieldRadius);
+                                logMessage("Triggered ForceField Shockwave pulse!");
+                                return;
+                            }
+                            if (mx >= l.rightX + 242.0f && mx <= l.rightX + 290.0f) {
+                                p.hasForceField = false;
+                                logMessage("Removed ForceFieldComponent");
+                                return;
+                            }
+                        }
+                        cardY += 42.0f;
+                    }
+                    if (p.hasDecal) {
+                        float decBtnY = cardY + 16.0f;
+                        if (my >= decBtnY && my <= decBtnY + 20.0f) {
+                            if (mx >= l.rightX + 10.0f && mx <= l.rightX + 120.0f) {
+                                p.decalTexture = (p.decalTexture == "blood_splatter.png" ? "bullet_hole.png" : "blood_splatter.png");
+                                logMessage("Decal Texture: " + p.decalTexture);
+                                return;
+                            }
+                            if (mx >= l.rightX + 124.0f && mx <= l.rightX + 184.0f) {
+                                p.decalOpacity = (p.decalOpacity >= 1.0f) ? 0.2f : (p.decalOpacity + 0.2f);
+                                logMessage("Decal Opacity: " + std::to_string(p.decalOpacity));
+                                return;
+                            }
+                            if (mx >= l.rightX + 242.0f && mx <= l.rightX + 290.0f) {
+                                p.hasDecal = false;
+                                logMessage("Removed DecalComponent");
+                                return;
+                            }
+                        }
+                        cardY += 42.0f;
+                    }
+                    if (p.hasPostProcess) {
+                        float ppBtnY = cardY + 16.0f;
+                        if (my >= ppBtnY && my <= ppBtnY + 20.0f) {
+                            if (mx >= l.rightX + 10.0f && mx <= l.rightX + 72.0f) {
+                                p.ppBloom = (p.ppBloom >= 1.0f) ? 0.0f : (p.ppBloom + 0.25f);
+                                logMessage("PostProcess Bloom: " + std::to_string(p.ppBloom));
+                                return;
+                            }
+                            if (mx >= l.rightX + 76.0f && mx <= l.rightX + 138.0f) {
+                                p.ppVignette = (p.ppVignette >= 1.0f) ? 0.0f : (p.ppVignette + 0.25f);
+                                logMessage("PostProcess Vignette: " + std::to_string(p.ppVignette));
+                                return;
+                            }
+                            if (mx >= l.rightX + 242.0f && mx <= l.rightX + 290.0f) {
+                                p.hasPostProcess = false;
+                                logMessage("Removed PostProcessComponent");
+                                return;
+                            }
+                        }
+                        cardY += 42.0f;
+                    }
+                } else {
+                    // UV Scale buttons [0.125] [0.25] [0.5] [1.0]
+                    float scales[4] = { 0.125f, 0.25f, 0.5f, 1.0f };
+                    for (int i = 0; i < 4; ++i) {
+                        float sx = l.rightX + 10.0f + i * 70.0f;
+                        if (mx >= sx && mx <= sx + l.uvBtnW && my >= l.uvBtnY && my <= l.uvBtnY + l.uvBtnH) {
+                            _activeUvScale = Vec2(scales[i], scales[i]);
+                            if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
+                                _map->brushes[_selectedIndex].uvScale = _activeUvScale;
+                            }
+                            logMessage("Set UV Scale: " + std::to_string(scales[i]));
+                            return;
+                        }
+                    }
+
+                    // Thumbnail click -> open texture browser
+                    if (mx >= l.thumbX && mx <= l.thumbX + l.thumbS && my >= l.thumbY && my <= l.thumbY + l.thumbS) {
+                        _browserOpen = true;
+                        return;
+                    }
+
+                    // Browse Textures button
+                    if (mx >= l.texBrowseX && mx <= l.texBrowseX + l.texBrowseW && my >= l.texBrowseY && my <= l.texBrowseY + l.texBrowseH) {
+                        _browserOpen = true;
+                        return;
+                    }
+
+                    // Apply Texture button
+                    if (mx >= l.texApplyX && mx <= l.texApplyX + l.texApplyW && my >= l.texApplyY && my <= l.texApplyY + l.texApplyH) {
+                        if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
+                            _map->brushes[_selectedIndex].texturePath = _selectedTexture;
+                            _map->brushes[_selectedIndex].uvScale = _activeUvScale;
+                            logMessage("Applied texture '" + _selectedTexture + "' to Brush #" + std::to_string(_selectedIndex));
+                        } else {
+                            placeCurrentObject();
+                        }
+                        return;
+                    }
+
+                    // Browse Models button
+                    if (mx >= l.modelBrowseX && mx <= l.modelBrowseX + l.modelBrowseW && my >= l.modelBrowseY && my <= l.modelBrowseY + l.modelBrowseH) {
+                        _modelBrowserOpen = true;
+                        return;
+                    }
                 }
 
                 // Position translation buttons [-] [+] (Move X / Y / Z on grid)
@@ -5310,6 +5749,10 @@ public:
             drawGizmo(_cursorPos);
         }
 
+        // Render Native Subsystem 3D Pass (Decals & Particles)
+        _decalSystem.render(_camera);
+        _particleSystem.render(_camera);
+
         // 2. Render 2D Lab Hammer Desktop Interface
         drawHammerInterface();
 
@@ -5511,6 +5954,51 @@ public:
         Renderer::drawRect(presetX, tbY + 4.0f, presetW, 26.0f, presetBtnBg);
         drawDarkBevel(presetX, tbY + 4.0f, presetW, 26.0f, false);
         LabFont::drawText(presetX + 8.0f, tbY + 9.0f, "DARK PRESET", 1.25f, Vec3(0.6f, 0.85f, 1.0f), LabFontType::System);
+
+        // 7. [* SPARKS] Live particle test button
+        float testSpkX = 1040.0f;
+        float testSpkW = 76.0f;
+        bool isSpkHov = (_mouseScreenX >= testSpkX && _mouseScreenX <= testSpkX + testSpkW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        Vec3 spkBg = isSpkHov ? Vec3(0.9f, 0.6f, 0.1f) : Vec3(0.35f, 0.28f, 0.15f);
+        Renderer::drawRect(testSpkX, tbY + 4.0f, testSpkW, 26.0f, spkBg);
+        drawDarkBevel(testSpkX, tbY + 4.0f, testSpkW, 26.0f, false);
+        LabFont::drawText(testSpkX + 6.0f, tbY + 9.0f, "* SPARKS", 1.25f, Vec3(1.0f, 0.9f, 0.4f), LabFontType::System);
+
+        // 8. [* SMOKE] Live explosion particle test button
+        float testSmkX = 1122.0f;
+        float testSmkW = 76.0f;
+        bool isSmkHov = (_mouseScreenX >= testSmkX && _mouseScreenX <= testSmkX + testSmkW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        Vec3 smkBg = isSmkHov ? Vec3(0.85f, 0.4f, 0.2f) : Vec3(0.35f, 0.20f, 0.15f);
+        Renderer::drawRect(testSmkX, tbY + 4.0f, testSmkW, 26.0f, smkBg);
+        drawDarkBevel(testSmkX, tbY + 4.0f, testSmkW, 26.0f, false);
+        LabFont::drawText(testSmkX + 7.0f, tbY + 9.0f, "* SMOKE", 1.25f, Vec3(1.0f, 0.6f, 0.3f), LabFontType::System);
+
+        // 9. [* SCORCH] Live decal projection test button
+        float testDecX = 1204.0f;
+        float testDecW = 76.0f;
+        bool isDecHov = (_mouseScreenX >= testDecX && _mouseScreenX <= testDecX + testDecW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        Vec3 decBg = isDecHov ? Vec3(0.4f, 0.5f, 0.7f) : Vec3(0.20f, 0.22f, 0.30f);
+        Renderer::drawRect(testDecX, tbY + 4.0f, testDecW, 26.0f, decBg);
+        drawDarkBevel(testDecX, tbY + 4.0f, testDecW, 26.0f, false);
+        LabFont::drawText(testDecX + 6.0f, tbY + 9.0f, "* SCORCH", 1.25f, Vec3(0.8f, 0.9f, 1.0f), LabFontType::System);
+
+        // 10. [> 3D AUDIO] Live audio engine test button
+        float testAudX = 1286.0f;
+        float testAudW = 82.0f;
+        bool isAudHov = (_mouseScreenX >= testAudX && _mouseScreenX <= testAudX + testAudW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        Vec3 audBg = isAudHov ? Vec3(0.25f, 0.7f, 0.5f) : Vec3(0.18f, 0.30f, 0.24f);
+        Renderer::drawRect(testAudX, tbY + 4.0f, testAudW, 26.0f, audBg);
+        drawDarkBevel(testAudX, tbY + 4.0f, testAudW, 26.0f, false);
+        LabFont::drawText(testAudX + 6.0f, tbY + 9.0f, "> 3D AUDIO", 1.25f, Vec3(0.5f, 1.0f, 0.8f), LabFontType::System);
+
+        // 11. [VCS SNAP] Live version control commit button
+        float testVcsX = 1374.0f;
+        float testVcsW = 78.0f;
+        bool isVcsHov = (_mouseScreenX >= testVcsX && _mouseScreenX <= testVcsX + testVcsW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        Vec3 vcsBg = isVcsHov ? Vec3(0.4f, 0.6f, 0.9f) : Vec3(0.20f, 0.26f, 0.36f);
+        Renderer::drawRect(testVcsX, tbY + 4.0f, testVcsW, 26.0f, vcsBg);
+        drawDarkBevel(testVcsX, tbY + 4.0f, testVcsW, 26.0f, false);
+        LabFont::drawText(testVcsX + 6.0f, tbY + 9.0f, "VCS SNAP", 1.25f, Vec3(0.7f, 0.85f, 1.0f), LabFontType::System);
 
         // ==================== 3. LEFT TOOLS PALETTE (Tools 0..7) ====================
         float leftW = 42.0f;
@@ -5855,6 +6343,124 @@ public:
                 // Deselect & Delete buttons
                 drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect All");
                 drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete Lamp Light", false, true);
+            } else if (_selectionType == SelectionType::Camera && _selectedIndex >= 0 && _selectedIndex < (int)_map->cameras.size()) {
+                auto& cam = _map->cameras[_selectedIndex];
+                std::string selHeader = "Selection: Camera Component #" + std::to_string(_selectedIndex);
+                LabFont::drawText(l.rightX + 12.0f, propY, selHeader, 1.7f, orangeGlow, LabFontType::System);
+
+                std::string classStr = "Type: Lab::Camera (ECS Component)";
+                LabFont::drawText(l.rightX + 12.0f, propY + 22.0f, classStr, 1.5f, greenAccent, LabFontType::System);
+
+                std::string posStr = "Pos: (" + std::to_string((int)cam.position.x) + ", " + std::to_string((int)cam.position.y) + ", " + std::to_string((int)cam.position.z) + ")";
+                LabFont::drawText(l.rightX + 12.0f, propY + 44.0f, posStr, 1.5f, textLight, LabFontType::System);
+
+                // MainCamera Tag & Projection Toggles
+                float tagBtnY = propY + 68.0f;
+                drawDarkButton(l.rightX + 10.0f, tagBtnY, 130.0f, 24.0f, cam.active ? "[*] MainCamera" : "Tag: MainCam", cam.active, false, cam.active);
+                drawDarkButton(l.rightX + 150.0f, tagBtnY, 135.0f, 24.0f, cam.orthographic ? "Orthographic" : "Perspective", cam.orthographic);
+
+                // FOV / Ortho Size adjusters
+                float fovY = tagBtnY + 30.0f;
+                if (!cam.orthographic) {
+                    char fovBuf[64];
+                    std::snprintf(fovBuf, sizeof(fovBuf), "Field of View (FOV): %.0f deg", cam.fov);
+                    LabFont::drawText(l.rightX + 12.0f, fovY, fovBuf, 1.55f, cyanGlow, LabFontType::System);
+                } else {
+                    char orthoBuf[64];
+                    std::snprintf(orthoBuf, sizeof(orthoBuf), "Orthographic Size: %.1f", cam.orthoSize);
+                    LabFont::drawText(l.rightX + 12.0f, fovY, orthoBuf, 1.55f, cyanGlow, LabFontType::System);
+                }
+                float fovBtnY = fovY + 18.0f;
+                drawDarkButton(l.rightX + 10.0f, fovBtnY, 48.0f, 22.0f, "-5");
+                drawDarkButton(l.rightX + 62.0f, fovBtnY, 52.0f, 22.0f, "60 deg", std::abs(cam.fov - 60.0f) < 1.0f);
+                drawDarkButton(l.rightX + 118.0f, fovBtnY, 52.0f, 22.0f, "75 deg", std::abs(cam.fov - 75.0f) < 1.0f);
+                drawDarkButton(l.rightX + 174.0f, fovBtnY, 52.0f, 22.0f, "90 deg", std::abs(cam.fov - 90.0f) < 1.0f);
+                drawDarkButton(l.rightX + 230.0f, fovBtnY, 48.0f, 22.0f, "+5");
+
+                // Near & Far Clipping Planes
+                float clipY = fovBtnY + 28.0f;
+                char clipBuf[64];
+                std::snprintf(clipBuf, sizeof(clipBuf), "Clipping: Near=%.2fm | Far=%.0fm", cam.nearClip, cam.farClip);
+                LabFont::drawText(l.rightX + 12.0f, clipY, clipBuf, 1.5f, textLight, LabFontType::System);
+                float clipBtnY = clipY + 18.0f;
+                drawDarkButton(l.rightX + 10.0f, clipBtnY, 60.0f, 22.0f, "Near -");
+                drawDarkButton(l.rightX + 74.0f, clipBtnY, 60.0f, 22.0f, "Near +");
+                drawDarkButton(l.rightX + 148.0f, clipBtnY, 64.0f, 22.0f, "Far -100");
+                drawDarkButton(l.rightX + 216.0f, clipBtnY, 64.0f, 22.0f, "Far +100");
+
+                // Clear Flags
+                float clrY = clipBtnY + 28.0f;
+                LabFont::drawText(l.rightX + 12.0f, clrY, "Clear Flags (Background Buffer):", 1.5f, textLight, LabFontType::System);
+                float clrBtnY = clrY + 18.0f;
+                float cW = 66.0f;
+                bool isSolid = (cam.clearFlags == "SolidColor");
+                bool isSky = (cam.clearFlags == "Skybox");
+                bool isDepth = (cam.clearFlags == "DepthOnly");
+                bool isNoth = (cam.clearFlags == "Nothing");
+                drawDarkButton(l.rightX + 10.0f, clrBtnY, cW, 22.0f, "Solid", isSolid, false, isSolid);
+                drawDarkButton(l.rightX + 80.0f, clrBtnY, cW, 22.0f, "Skybox", isSky, false, isSky);
+                drawDarkButton(l.rightX + 150.0f, clrBtnY, cW, 22.0f, "Depth", isDepth, false, isDepth);
+                drawDarkButton(l.rightX + 220.0f, clrBtnY, cW, 22.0f, "Nothing", isNoth, false, isNoth);
+
+                // Depth & Viewport Rect
+                float dpY = clrBtnY + 28.0f;
+                char dpBuf[64];
+                std::snprintf(dpBuf, sizeof(dpBuf), "Depth: %d | Rect: (%.1f, %.1f, %.1f, %.1f)", cam.depth, cam.viewportRect.x, cam.viewportRect.y, cam.viewportRect.z, cam.viewportRect.w);
+                LabFont::drawText(l.rightX + 12.0f, dpY, dpBuf, 1.5f, cyanGlow, LabFontType::System);
+                float dpBtnY = dpY + 18.0f;
+                drawDarkButton(l.rightX + 10.0f, dpBtnY, 52.0f, 22.0f, "Dp -");
+                drawDarkButton(l.rightX + 66.0f, dpBtnY, 52.0f, 22.0f, "Dp +");
+                bool isFull = (cam.viewportRect.z >= 0.99f && cam.viewportRect.w >= 0.99f);
+                drawDarkButton(l.rightX + 124.0f, dpBtnY, 78.0f, 22.0f, "Full (1x1)", isFull);
+                drawDarkButton(l.rightX + 206.0f, dpBtnY, 82.0f, 22.0f, "Minimap", !isFull, false, !isFull);
+
+                // Background Clear Color Presets & Swatch
+                float bgY = dpBtnY + 28.0f;
+                char bgBuf[64];
+                std::snprintf(bgBuf, sizeof(bgBuf), "Background Color: (%.2f, %.2f, %.2f)", cam.backgroundColor.x, cam.backgroundColor.y, cam.backgroundColor.z);
+                LabFont::drawText(l.rightX + 12.0f, bgY, bgBuf, 1.5f, textLight, LabFontType::System);
+                float bgBtnY = bgY + 18.0f;
+                Renderer::drawRect(l.rightX + 10.0f, bgBtnY, 22.0f, 22.0f, Vec3(cam.backgroundColor.x, cam.backgroundColor.y, cam.backgroundColor.z));
+                drawDarkBevel(l.rightX + 10.0f, bgBtnY, 22.0f, 22.0f, true);
+                bool isBgBlack = (cam.backgroundColor.x < 0.05f && cam.backgroundColor.y < 0.05f && cam.backgroundColor.z < 0.05f);
+                bool isBgNavy = (cam.backgroundColor.z > 0.15f && cam.backgroundColor.x < 0.1f);
+                bool isBgSlate = (cam.backgroundColor.x > 0.08f && cam.backgroundColor.x < 0.2f);
+                bool isBgSky = (cam.backgroundColor.y > 0.4f);
+                drawDarkButton(l.rightX + 38.0f, bgBtnY, 56.0f, 22.0f, "Black", isBgBlack, false, isBgBlack);
+                drawDarkButton(l.rightX + 98.0f, bgBtnY, 58.0f, 22.0f, "Navy", isBgNavy, false, isBgNavy);
+                drawDarkButton(l.rightX + 160.0f, bgBtnY, 58.0f, 22.0f, "Slate", isBgSlate, false, isBgSlate);
+                drawDarkButton(l.rightX + 222.0f, bgBtnY, 62.0f, 22.0f, "Sky", isBgSky, false, isBgSky);
+
+                // Culling Mask & Target Texture
+                float maskY = bgBtnY + 28.0f;
+                char maskBuf[64];
+                std::snprintf(maskBuf, sizeof(maskBuf), "Mask: 0x%X | Target: %s", cam.cullingMask, cam.targetTexture.c_str());
+                LabFont::drawText(l.rightX + 12.0f, maskY, maskBuf, 1.45f, orangeGlow, LabFontType::System);
+                float maskBtnY = maskY + 18.0f;
+                drawDarkButton(l.rightX + 10.0f, maskBtnY, 82.0f, 22.0f, "Mask: All", cam.cullingMask == 0xFFFFFFFF);
+                drawDarkButton(l.rightX + 96.0f, maskBtnY, 82.0f, 22.0f, "Mask: Def", cam.cullingMask == 0x1);
+                drawDarkButton(l.rightX + 182.0f, maskBtnY, 102.0f, 22.0f, cam.targetTexture == "Screen" ? "Target: Screen" : "Target: FBO", cam.targetTexture == "Screen");
+
+                // Position Translation [-] [+]
+                LabFont::drawText(l.rightX + 12.0f, l.posBtnsY - 18.0f, "Move Camera (X / Y / Z):", 1.7f, cyanGlow, LabFontType::System);
+                LabFont::drawText(l.rightX + 12.0f, l.posBtnsY + 4.0f, "X:", 1.6f, textLight, LabFontType::System);
+                drawDarkButton(l.rightX + 30.0f, l.posBtnsY, l.posBtnW, l.posBtnH, "-");
+                drawDarkButton(l.rightX + 60.0f, l.posBtnsY, l.posBtnW, l.posBtnH, "+");
+                LabFont::drawText(l.rightX + 105.0f, l.posBtnsY + 4.0f, "Y:", 1.6f, greenAccent, LabFontType::System);
+                drawDarkButton(l.rightX + 123.0f, l.posBtnsY, l.posBtnW, l.posBtnH, "-");
+                drawDarkButton(l.rightX + 153.0f, l.posBtnsY, l.posBtnW, l.posBtnH, "+");
+                LabFont::drawText(l.rightX + 198.0f, l.posBtnsY + 4.0f, "Z:", 1.6f, textLight, LabFontType::System);
+                drawDarkButton(l.rightX + 216.0f, l.posBtnsY, l.posBtnW, l.posBtnH, "-");
+                drawDarkButton(l.rightX + 246.0f, l.posBtnsY, l.posBtnW, l.posBtnH, "+");
+
+                // Elevation buttons
+                drawDarkButton(l.elevUpX, l.elevUpY, l.elevUpW, l.elevUpH, "^ UP (+Y)", false, false, true);
+                drawDarkButton(l.elevDwnX, l.elevDwnY, l.elevDwnW, l.elevDwnH, "v DOWN (-Y)");
+                drawDarkButton(l.elevGndX, l.elevGndY, l.elevGndW, l.elevGndH, "Eye (Y=1.8)");
+
+                // Deselect & Delete buttons
+                drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect All");
+                drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete Camera", false, true);
             } else {
 
             // Header info on selection
@@ -5927,39 +6533,146 @@ public:
                 drawDarkButton(l.rightX + 155.0f, propY + 84.0f, 140.0f, 22.0f, "Assign Script");
             }
 
-            // UV Scale buttons
-            LabFont::drawText(l.rightX + 12.0f, l.uvBtnY - 18.0f, "Texture UV Tiling Scale:", 1.7f, textLight, LabFontType::System);
+            if (_selectionType == SelectionType::Prop && _selectedIndex >= 0 && _selectedIndex < (int)_map->props.size()) {
+                auto& p = _map->props[_selectedIndex];
 
-            float scales[4] = { 0.125f, 0.25f, 0.5f, 1.0f };
-            const char* scaleLabels[4] = { "0.125", "0.25", "0.5", "1.0" };
-            for (int i = 0; i < 4; ++i) {
-                float sx = l.rightX + 10.0f + i * 70.0f;
-                bool isCurScale = (std::abs(_activeUvScale.x - scales[i]) < 0.01f);
-                drawDarkButton(sx, l.uvBtnY, l.uvBtnW, l.uvBtnH, scaleLabels[i], isCurScale);
+                // 3D Model Picker
+                float mBoxY = propY + 112.0f;
+                LabFont::drawText(l.rightX + 12.0f, mBoxY - 18.0f, "Entity 3D Mesh Model:", 1.6f, textLight, LabFontType::System);
+                Renderer::drawRect(l.rightX + 10.0f, mBoxY, 280.0f, 22.0f, wellBg);
+                drawDarkBevel(l.rightX + 10.0f, mBoxY, 280.0f, 22.0f, true);
+                LabFont::drawText(l.rightX + 16.0f, mBoxY + 4.0f, p.modelPath.empty() ? "(default prop)" : p.modelPath, 1.45f, textLight, LabFontType::System);
+                drawDarkButton(l.rightX + 10.0f, mBoxY + 26.0f, 280.0f, 24.0f, "Browse 3D Models...");
+
+                // Entity Components (ECS)
+                float compY = mBoxY + 58.0f;
+                LabFont::drawText(l.rightX + 12.0f, compY, "Entity Components (ECS):", 1.6f, cyanGlow, LabFontType::System);
+
+                // Quick Add Component Row
+                float addBtnY = compY + 18.0f;
+                drawDarkButton(l.rightX + 10.0f, addBtnY, 65.0f, 22.0f, "+ Audio", p.hasAudio, false, p.hasAudio);
+                drawDarkButton(l.rightX + 80.0f, addBtnY, 65.0f, 22.0f, "+ Phys", p.hasPhysics, false, p.hasPhysics);
+                drawDarkButton(l.rightX + 150.0f, addBtnY, 65.0f, 22.0f, "+ Cloth", p.hasCloth, false, p.hasCloth);
+                drawDarkButton(l.rightX + 220.0f, addBtnY, 70.0f, 22.0f, "+ Water", p.hasWaterVolume, false, p.hasWaterVolume);
+
+                float addBtn2Y = addBtnY + 26.0f;
+                drawDarkButton(l.rightX + 10.0f, addBtn2Y, 88.0f, 22.0f, "+ ForceField", p.hasForceField, false, p.hasForceField);
+                drawDarkButton(l.rightX + 104.0f, addBtn2Y, 88.0f, 22.0f, "+ Decal", p.hasDecal, false, p.hasDecal);
+                drawDarkButton(l.rightX + 198.0f, addBtn2Y, 92.0f, 22.0f, "+ PostProcess", p.hasPostProcess, false, p.hasPostProcess);
+
+                // Active Component Mini-Panels
+                float cardY = addBtn2Y + 28.0f;
+                if (p.hasAudio) {
+                    char aBuf[64];
+                    std::snprintf(aBuf, sizeof(aBuf), "Audio: vol=%.1f, pit=%.1f, %s", p.audioVolume, p.audioPitch, p.audioLoop ? "Loop" : "Once");
+                    LabFont::drawText(l.rightX + 12.0f, cardY, aBuf, 1.4f, orangeGlow, LabFontType::System);
+                    float aBtnY = cardY + 16.0f;
+                    drawDarkButton(l.rightX + 10.0f, aBtnY, 48.0f, 20.0f, "Vol -");
+                    drawDarkButton(l.rightX + 62.0f, aBtnY, 48.0f, 20.0f, "Vol +");
+                    drawDarkButton(l.rightX + 114.0f, aBtnY, 52.0f, 20.0f, p.audioLoop ? "Loop: ON" : "Loop: OFF", p.audioLoop);
+                    drawDarkButton(l.rightX + 170.0f, aBtnY, 68.0f, 20.0f, "> 3D Aud", false, false, true);
+                    drawDarkButton(l.rightX + 242.0f, aBtnY, 48.0f, 20.0f, "x Del", false, true);
+                    cardY += 42.0f;
+                }
+                if (p.hasPhysics) {
+                    char phBuf[64];
+                    std::snprintf(phBuf, sizeof(phBuf), "RigidBody: %dkg, bounce=%.1f, %s", (int)p.physicsMass, p.physicsRestitution, p.physicsDynamic ? "Dynamic" : "Static");
+                    LabFont::drawText(l.rightX + 12.0f, cardY, phBuf, 1.4f, greenAccent, LabFontType::System);
+                    float phBtnY = cardY + 16.0f;
+                    drawDarkButton(l.rightX + 10.0f, phBtnY, 54.0f, 20.0f, "-5kg");
+                    drawDarkButton(l.rightX + 68.0f, phBtnY, 54.0f, 20.0f, "+5kg");
+                    drawDarkButton(l.rightX + 126.0f, phBtnY, 60.0f, 20.0f, p.physicsDynamic ? "Dynamic" : "Static", p.physicsDynamic);
+                    drawDarkButton(l.rightX + 190.0f, phBtnY, 46.0f, 20.0f, "Bnc");
+                    drawDarkButton(l.rightX + 242.0f, phBtnY, 48.0f, 20.0f, "x Del", false, true);
+                    cardY += 42.0f;
+                }
+                if (p.hasCloth) {
+                    char clBuf[64];
+                    std::snprintf(clBuf, sizeof(clBuf), "Cloth Sim: stiffness=%.1f (Verlet PBD)", p.clothStiffness);
+                    LabFont::drawText(l.rightX + 12.0f, cardY, clBuf, 1.4f, cyanGlow, LabFontType::System);
+                    float clBtnY = cardY + 16.0f;
+                    drawDarkButton(l.rightX + 10.0f, clBtnY, 58.0f, 20.0f, "Stiff -");
+                    drawDarkButton(l.rightX + 72.0f, clBtnY, 58.0f, 20.0f, "Stiff +");
+                    drawDarkButton(l.rightX + 242.0f, clBtnY, 48.0f, 20.0f, "x Del", false, true);
+                    cardY += 42.0f;
+                }
+                if (p.hasWaterVolume) {
+                    char wBuf[64];
+                    std::snprintf(wBuf, sizeof(wBuf), "Water: density=%.0f kg/m3 (Buoyancy)", p.waterDensity);
+                    LabFont::drawText(l.rightX + 12.0f, cardY, wBuf, 1.4f, cyanGlow, LabFontType::System);
+                    float wBtnY = cardY + 16.0f;
+                    drawDarkButton(l.rightX + 10.0f, wBtnY, 90.0f, 20.0f, p.waterDensity > 1010.0f ? "Sea (1030)" : "Fresh (1000)");
+                    drawDarkButton(l.rightX + 242.0f, wBtnY, 48.0f, 20.0f, "x Del", false, true);
+                    cardY += 42.0f;
+                }
+                if (p.hasForceField) {
+                    const char* fTypes[] = { "Radial", "Vortex", "Wind" };
+                    char fBuf[64];
+                    std::snprintf(fBuf, sizeof(fBuf), "ForceField: %s, %.0fN, r=%.0fm", fTypes[p.forceFieldType % 3], p.forceFieldStrength, p.forceFieldRadius);
+                    LabFont::drawText(l.rightX + 12.0f, cardY, fBuf, 1.4f, orangeGlow, LabFontType::System);
+                    float fBtnY = cardY + 16.0f;
+                    drawDarkButton(l.rightX + 10.0f, fBtnY, 56.0f, 20.0f, fTypes[p.forceFieldType % 3]);
+                    drawDarkButton(l.rightX + 70.0f, fBtnY, 50.0f, 20.0f, "Str +");
+                    drawDarkButton(l.rightX + 124.0f, fBtnY, 50.0f, 20.0f, "Rad +");
+                    drawDarkButton(l.rightX + 178.0f, fBtnY, 60.0f, 20.0f, "* Pulse", false, false, true);
+                    drawDarkButton(l.rightX + 242.0f, fBtnY, 48.0f, 20.0f, "x Del", false, true);
+                    cardY += 42.0f;
+                }
+                if (p.hasDecal) {
+                    char decBuf[64];
+                    std::snprintf(decBuf, sizeof(decBuf), "Decal: %s, opacity=%.1f", p.decalTexture.c_str(), p.decalOpacity);
+                    LabFont::drawText(l.rightX + 12.0f, cardY, decBuf, 1.4f, textLight, LabFontType::System);
+                    float decBtnY = cardY + 16.0f;
+                    drawDarkButton(l.rightX + 10.0f, decBtnY, 110.0f, 20.0f, p.decalTexture == "blood_splatter.png" ? "Blood" : "BulletHole");
+                    drawDarkButton(l.rightX + 124.0f, decBtnY, 60.0f, 20.0f, "Opac +");
+                    drawDarkButton(l.rightX + 242.0f, decBtnY, 48.0f, 20.0f, "x Del", false, true);
+                    cardY += 42.0f;
+                }
+                if (p.hasPostProcess) {
+                    char ppBuf[64];
+                    std::snprintf(ppBuf, sizeof(ppBuf), "PostProcess: bloom=%.1f, vig=%.1f", p.ppBloom, p.ppVignette);
+                    LabFont::drawText(l.rightX + 12.0f, cardY, ppBuf, 1.4f, cyanGlow, LabFontType::System);
+                    float ppBtnY = cardY + 16.0f;
+                    drawDarkButton(l.rightX + 10.0f, ppBtnY, 62.0f, 20.0f, "Bloom +");
+                    drawDarkButton(l.rightX + 76.0f, ppBtnY, 62.0f, 20.0f, "Vig +");
+                    drawDarkButton(l.rightX + 242.0f, ppBtnY, 48.0f, 20.0f, "x Del", false, true);
+                    cardY += 42.0f;
+                }
+            } else {
+                // UV Scale buttons
+                LabFont::drawText(l.rightX + 12.0f, l.uvBtnY - 18.0f, "Texture UV Tiling Scale:", 1.7f, textLight, LabFontType::System);
+
+                float scales[4] = { 0.125f, 0.25f, 0.5f, 1.0f };
+                const char* scaleLabels[4] = { "0.125", "0.25", "0.5", "1.0" };
+                for (int i = 0; i < 4; ++i) {
+                    float sx = l.rightX + 10.0f + i * 70.0f;
+                    bool isCurScale = (std::abs(_activeUvScale.x - scales[i]) < 0.01f);
+                    drawDarkButton(sx, l.uvBtnY, l.uvBtnW, l.uvBtnH, scaleLabels[i], isCurScale);
+                }
+
+                // Texture Preview & Picker
+                LabFont::drawText(l.rightX + 12.0f, l.texBoxY - 18.0f, "Active Texture:", 1.7f, textLight, LabFontType::System);
+                Renderer::drawRect(l.texBoxX, l.texBoxY, l.texBoxW, l.texBoxH, wellBg);
+                drawDarkBevel(l.texBoxX, l.texBoxY, l.texBoxW, l.texBoxH, true);
+                LabFont::drawText(l.texBoxX + 10.0f, l.texBoxY + 4.0f, _selectedTexture, 1.6f, textLight, LabFontType::System);
+
+                Renderer::drawRect(l.thumbX, l.thumbY, l.thumbS, l.thumbS, Vec3(0, 0, 0));
+                drawDarkBevel(l.thumbX, l.thumbY, l.thumbS, l.thumbS, true);
+                if (_textures.contains(_selectedTexture)) {
+                    Renderer::drawTextureRect(l.thumbX + 2.0f, l.thumbY + 2.0f, l.thumbS - 4.0f, l.thumbS - 4.0f, *_textures[_selectedTexture]);
+                }
+
+                drawDarkButton(l.texBrowseX, l.texBrowseY, l.texBrowseW, l.texBrowseH, "Browse Textures...");
+                drawDarkButton(l.texApplyX, l.texApplyY, l.texApplyW, l.texApplyH, "Apply to Brush", false, false, true);
+
+                // 3D Entity Prop Model Selector
+                LabFont::drawText(l.rightX + 12.0f, l.modelBoxY - 18.0f, "3D Entity Model (.stl):", 1.7f, textLight, LabFontType::System);
+                Renderer::drawRect(l.modelBoxX, l.modelBoxY, l.modelBoxW, l.modelBoxH, wellBg);
+                drawDarkBevel(l.modelBoxX, l.modelBoxY, l.modelBoxW, l.modelBoxH, true);
+                LabFont::drawText(l.modelBoxX + 10.0f, l.modelBoxY + 4.0f, _selectedModel, 1.6f, textLight, LabFontType::System);
+
+                drawDarkButton(l.modelBrowseX, l.modelBrowseY, l.modelBrowseW, l.modelBrowseH, "Browse 3D Models...");
             }
-
-            // Texture Preview & Picker
-            LabFont::drawText(l.rightX + 12.0f, l.texBoxY - 18.0f, "Active Texture:", 1.7f, textLight, LabFontType::System);
-            Renderer::drawRect(l.texBoxX, l.texBoxY, l.texBoxW, l.texBoxH, wellBg);
-            drawDarkBevel(l.texBoxX, l.texBoxY, l.texBoxW, l.texBoxH, true);
-            LabFont::drawText(l.texBoxX + 10.0f, l.texBoxY + 4.0f, _selectedTexture, 1.6f, textLight, LabFontType::System);
-
-            Renderer::drawRect(l.thumbX, l.thumbY, l.thumbS, l.thumbS, Vec3(0, 0, 0));
-            drawDarkBevel(l.thumbX, l.thumbY, l.thumbS, l.thumbS, true);
-            if (_textures.contains(_selectedTexture)) {
-                Renderer::drawTextureRect(l.thumbX + 2.0f, l.thumbY + 2.0f, l.thumbS - 4.0f, l.thumbS - 4.0f, *_textures[_selectedTexture]);
-            }
-
-            drawDarkButton(l.texBrowseX, l.texBrowseY, l.texBrowseW, l.texBrowseH, "Browse Textures...");
-            drawDarkButton(l.texApplyX, l.texApplyY, l.texApplyW, l.texApplyH, "Apply to Brush", false, false, true);
-
-            // 3D Entity Prop Model Selector
-            LabFont::drawText(l.rightX + 12.0f, l.modelBoxY - 18.0f, "3D Entity Model (.stl):", 1.7f, textLight, LabFontType::System);
-            Renderer::drawRect(l.modelBoxX, l.modelBoxY, l.modelBoxW, l.modelBoxH, wellBg);
-            drawDarkBevel(l.modelBoxX, l.modelBoxY, l.modelBoxW, l.modelBoxH, true);
-            LabFont::drawText(l.modelBoxX + 10.0f, l.modelBoxY + 4.0f, _selectedModel, 1.6f, textLight, LabFontType::System);
-
-            drawDarkButton(l.modelBrowseX, l.modelBrowseY, l.modelBrowseW, l.modelBrowseH, "Browse 3D Models...");
 
             // Position Translation [-] [+]
             LabFont::drawText(l.rightX + 12.0f, l.posBtnsY - 18.0f, "Move Position (X / Y / Z):", 1.7f, cyanGlow, LabFontType::System);
@@ -7223,12 +7936,16 @@ public:
                 "Magic Add: Door",
                 "Script (Lua)",
                 "Point Light",
-                "Sprite 2D",
-                "Box Collider",
+                "Audio Source",
                 "RigidBody Dynamic",
-                "Audio Source (Sound)",
-                "Timer Event Trigger",
-                "Dialogue Trigger Area"
+                "Box Collider",
+                "Verlet Cloth",
+                "Water Volume",
+                "Force Field",
+                "Arcade Vehicle",
+                "Decal Projected",
+                "Post-Process",
+                "Particle Emitter"
             };
 
             // Filter components
@@ -7244,7 +7961,8 @@ public:
                 }
             }
 
-            float ctxH = 60.0f + (float)filtered.size() * 24.0f;
+            size_t maxItems = std::min((size_t)12, filtered.size());
+            float ctxH = 60.0f + (float)maxItems * 24.0f;
             Renderer::drawRect(ctxX, ctxY, ctxW, ctxH, ctxBg);
             drawDarkBevel(ctxX, ctxY, ctxW, ctxH, false);
 
@@ -7261,7 +7979,7 @@ public:
             LabFont::drawText(ctxX + 12.0f, searchY + 4.0f, sText, 1.3f, _contextMenuSearch.empty() ? textDim : Vec3(1, 1, 1), LabFontType::System);
 
             // Filtered list
-            for (size_t i = 0; i < filtered.size(); ++i) {
+            for (size_t i = 0; i < maxItems; ++i) {
                 float iy = searchY + 26.0f + i * 24.0f;
                 bool isHov = (_mouseScreenX >= ctxX && _mouseScreenX <= ctxX + ctxW && _mouseScreenY >= iy && _mouseScreenY <= iy + 22.0f);
                 if (isHov) {
@@ -7724,6 +8442,9 @@ public:
     }
 
     void onShutdown() override {
+        _decalSystem.shutdown();
+        _particleSystem.shutdown();
+        AudioEngine::shutdown();
         Renderer::shutdown();
     }
 
@@ -7996,6 +8717,10 @@ private:
 
     // Categorized View Menu State
     int _viewSubmenuHover = -1; // -1 = none, 0 = 3D, 1 = 2D, 2 = Scripting, 3 = Display
+
+    // Native Engine Subsystems Integration
+    DecalSystem _decalSystem;
+    ParticleSystem _particleSystem;
 };
 
 int main() {

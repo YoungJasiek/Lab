@@ -167,6 +167,17 @@ namespace Lab {
         return l;
     }
 
+    // Vertical gradient helper (row strips) for the retro glossy-header look.
+    static void fillGradient(float x, float y, float w, float h, const Vec3& top, const Vec3& bot) {
+        int rows = std::max(1, (int)h);
+        float rh = h / (float)rows;
+        for (int i = 0; i < rows; ++i) {
+            float t = rows > 1 ? (float)i / (float)(rows - 1) : 0.0f;
+            Vec3 col(top.x + (bot.x - top.x) * t, top.y + (bot.y - top.y) * t, top.z + (bot.z - top.z) * t);
+            Renderer::drawRect(x, y + i * rh, w, rh + 0.5f, col);
+        }
+    }
+
     void LabTheme::drawBevel(float x, float y, float w, float h, bool sunken) {
         const auto& c = s_themeColors;
         Vec3 light = sunken ? c.sunkenLight : c.bevelLight;
@@ -184,7 +195,8 @@ namespace Lab {
         drawBevel(x, y, w, h, false);
 
         if (!title.empty()) {
-            Renderer::drawRect(x + 2.0f, y + 2.0f, w - 4.0f, 20.0f, c.panelHeaderBg);
+            fillGradient(x + 1.0f, y + 1.0f, w - 2.0f, 21.0f, c.panelHeaderBg, c.panelHeaderBgBottom);
+            Renderer::drawRect(x + 1.0f, y + 22.0f, w - 2.0f, 1.0f, c.panelHeaderBorder);
             LabFont::drawText(x + 8.0f, y + 5.0f, title, 1.5f, c.textHeader, LabFontType::System);
         }
     }
@@ -203,8 +215,18 @@ namespace Lab {
                      highlighted ? (hovered ? c.buttonHighlightHoverBg : c.buttonHighlightBg) :
                      hovered ? c.buttonHoverBg : c.buttonBg;
 
-        Renderer::drawRect(x, y, w, h, bgCol);
+        // Glossy 2008 gradient: lighter top, darker bottom (inverted when pressed/active)
+        Vec3 lighter(std::min(1.0f, bgCol.x * 1.18f), std::min(1.0f, bgCol.y * 1.18f), std::min(1.0f, bgCol.z * 1.18f));
+        Vec3 darker(bgCol.x * 0.82f, bgCol.y * 0.82f, bgCol.z * 0.82f);
+        if (active) fillGradient(x, y, w, h, darker, lighter);
+        else        fillGradient(x, y, w, h, lighter, darker);
         drawBevel(x, y, w, h, active);
+        if (hovered && !active) Renderer::drawRect(x, y + h - 1.0f, w, 1.0f, c.accent);
+        // trimmed corners for a soft 2px radius
+        Renderer::drawRect(x, y, 1.0f, 1.0f, c.panelBg);
+        Renderer::drawRect(x + w - 1.0f, y, 1.0f, 1.0f, c.panelBg);
+        Renderer::drawRect(x, y + h - 1.0f, 1.0f, 1.0f, c.panelBg);
+        Renderer::drawRect(x + w - 1.0f, y + h - 1.0f, 1.0f, 1.0f, c.panelBg);
 
         Vec3 txtCol = active ? c.textActive :
                       hovered ? c.textHover :

@@ -44,6 +44,42 @@ namespace Lab {
         Vec3 scale = { 1, 1, 1 };
         Vec3 color = { 1, 1, 1 };
         std::string texturePath = "";
+
+        // Component Attachments & Configurations
+        bool hasAudio = false;
+        std::string audioSound = "assets/audio/terminal_beep.wav";
+        float audioVolume = 1.0f;
+        float audioPitch = 1.0f;
+        bool audioLoop = false;
+
+        bool hasPhysics = false;
+        float physicsMass = 10.0f;
+        float physicsRestitution = 0.2f;
+        float physicsFriction = 0.5f;
+        bool physicsDynamic = true;
+
+        bool hasCloth = false;
+        float clothStiffness = 0.9f;
+
+        bool hasWaterVolume = false;
+        float waterDensity = 1000.0f;
+
+        bool hasForceField = false;
+        int forceFieldType = 0; // 0=Radial, 1=Vortex, 2=Wind
+        float forceFieldStrength = 50.0f;
+        float forceFieldRadius = 8.0f;
+
+        bool hasVehicle = false;
+        float vehicleEngineForce = 2500.0f;
+
+        bool hasDecal = false;
+        std::string decalTexture = "blood_splatter.png";
+        float decalOpacity = 1.0f;
+
+        bool hasPostProcess = false;
+        float ppBloom = 0.45f;
+        float ppVignette = 0.25f;
+        float ppSaturation = 1.0f;
     };
 
     struct MapDoor {
@@ -72,6 +108,17 @@ namespace Lab {
         Vec3 tpp_offset = { 0.6f, 1.8f, -3.5f }; // over-the-shoulder offset
         float collision_radius = 0.3f;
         bool active = true;
+
+        bool orthographic = false;
+        float orthoSize = 5.0f;
+        float nearClip = 0.3f;
+        float farClip = 1000.0f;
+        int depth = 0;
+        std::string clearFlags = "SolidColor";
+        Vec4 backgroundColor = { 0.0f, 0.0f, 0.0f, 1.0f };
+        Vec4 viewportRect = { 0.0f, 0.0f, 1.0f, 1.0f };
+        uint32_t cullingMask = 0xFFFFFFFF;
+        std::string targetTexture = "Screen";
     };
 
     struct MapSpawn {
@@ -80,9 +127,9 @@ namespace Lab {
     };
 
     enum class SpawnType {
-        FFA = 0,        // Deathmatch / FFA neutral spawn (info_player_deathmatch)
-        TeamAlpha = 1,  // TDM Team 1 / Blue / Combine (info_player_team1)
-        TeamBeta = 2    // TDM Team 2 / Red / Rebels (info_player_team2)
+        FFA = 0,        // Deathmatch / Free-for-all neutral spawn (info_player_deathmatch)
+        TeamAlpha = 1,  // Team 1 / Alpha (info_player_team1)
+        TeamBeta = 2    // Team 2 / Beta (info_player_team2)
     };
 
     struct MapSpawnPoint {
@@ -102,16 +149,15 @@ namespace Lab {
     };
 
     struct MapWeaponSpawner {
-        int weaponId = 2; // 0..8 (maps to WeaponID)
-        std::string prefabRef = "weapon_shotgun";
+        int weaponId = 0;
+        std::string prefabRef = "spawner_item";
         Vec3 position = { 0.0f, 0.0f, 0.0f };
         float yaw = 0.0f;
-        float respawnTime = 60.0f; // Default 60s (1 min)
+        float respawnTime = 60.0f;
 
         std::string getWeaponName() const {
-            const char* names[9] = { "Pipe", "Pistol", "Shotgun", "M4A4-S", "SG553", "Minigun", "Plasma Gun", "Railgun", "RPG" };
-            if (weaponId >= 0 && weaponId < 9) return names[weaponId];
-            return "Weapon";
+            if (!prefabRef.empty()) return prefabRef;
+            return "Item_" + std::to_string(weaponId);
         }
     };
 

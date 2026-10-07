@@ -1,3 +1,10 @@
+---
+docid: LD01
+name: Advanced Physics & Dynamics Subsystems
+related_docs: [LA01, LB01, LB02]
+tags: [physics, vehicles, fluids, ragdolls, sat-ccd]
+---
+
 # ⚙️ Advanced Physics & Dynamics Subsystems
 
 The **Lab Engine** incorporates a comprehensive suite of high-performance physics modules built from the ground up in modern C++20. While initial releases provided fundamental rigid body simulation and swept-AABB collision detection, the engine has expanded to include advanced dynamics: raycast suspension vehicle physics, fluid volumes with Archimedes buoyancy and dynamic waves, articulated ragdolls, constraints and joints, Verlet cloth and soft bodies, continuous collision detection (CCD) via Separating Axis Theorem (SAT), and environmental force fields.
@@ -40,8 +47,8 @@ Replaces pre-baked death animations with fully physical skeletal collapses:
 
 - **Bone Collision Capsules:** Automatically maps character bone hierarchies (pelvis, spine, head, limbs) to oriented capsules and collision boxes.
 - **Articulated Constraints:** Spherical and cone-twist joints connect bone bodies, enforcing physiological joint angle limits (e.g. elbows bend only along single hinge axes).
-- **Active Body Blending:** Smoothly blends physics impulses with kinematic keyframe animations, allowing bots to stumble upon getting shot before fully collapsing.
-- **Impulse Transfer:** High-caliber bullet hits, shotgun blasts, and nearby red barrel explosions transfer directional kinetic momentum directly to the impacted bone body.
+- **Active Body Blending:** Smoothly blends physics impulses with kinematic keyframe animations, allowing characters to react to physical impacts before fully collapsing.
+- **Impulse Transfer:** High-velocity projectile impacts and nearby volumetric explosions transfer directional kinetic momentum directly to the impacted bone body.
 
 ---
 
@@ -77,7 +84,7 @@ Simulates tactical flags, banners, cloth tarps, hair, and soft-body deformable c
 
 ## 🎯 6. Convex Hull 3D SAT & Continuous Collision Detection (`LabCCD.h`)
 
-Prevents high-speed tunneling (e.g. kinetic railgun slugs, rockets, fast-moving debris clipping through thin walls):
+Prevents high-speed tunneling (e.g. high-velocity projectiles, physical debris, and fast particles clipping through thin walls):
 
 - **Separating Axis Theorem (SAT):** Exact intersection test for arbitrary convex polyhedra testing face normals and edge cross-products.
 - **Continuous Collision Detection (CCD):** Casts swept volumes (swept spheres, swept AABBs) over the trajectory $\Delta \vec{x} = \vec{v} \cdot \Delta t$.

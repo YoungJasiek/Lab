@@ -80,6 +80,7 @@ namespace Lab {
         }
 
         static Vec3 lerp(const Vec3& a, const Vec3& b, float t) { return a + (b - a) * t; }
+        static Vec3 Lerp(const Vec3& a, const Vec3& b, float t) { return lerp(a, b, t); }
     };
 
     struct Mat4 {
@@ -243,6 +244,7 @@ namespace Lab {
         Quat(float x, float y, float z, float w) : x(x), y(y), z(z), w(w) {}
 
         static Quat identity() { return { 0.0f, 0.0f, 0.0f, 1.0f }; }
+        static Quat Identity() { return identity(); }
 
         static Quat fromAxisAngle(const Vec3& axis, float angleRad) {
             Vec3 normAxis = axis.normalized();
@@ -266,6 +268,11 @@ namespace Lab {
                 cp * cy * sr + sp * sy * cr,
                 cp * cy * cr - sp * sy * sr
             };
+        }
+
+        static Quat FromEuler(float pitchDeg, float yawDeg = 0.0f, float rollDeg = 0.0f) {
+            constexpr float degToRad = 3.14159265f / 180.0f;
+            return fromEuler(pitchDeg * degToRad, yawDeg * degToRad, rollDeg * degToRad);
         }
 
         static float dot(const Quat& a, const Quat& b) {
@@ -389,5 +396,29 @@ namespace Lab {
         res.m[15] = 1.0f;
         return res;
     }
+
+    struct Color {
+        float r{1.0f}, g{1.0f}, b{1.0f}, a{1.0f};
+        Color() = default;
+        Color(float r, float g, float b, float a = 1.0f) : r(r), g(g), b(b), a(a) {}
+
+        bool operator==(const Color& o) const {
+            return r == o.r && g == o.g && b == o.b && a == o.a;
+        }
+    };
+
+    struct Rect {
+        float x{0.0f}, y{0.0f}, width{1.0f}, height{1.0f};
+        Rect() = default;
+        Rect(float x, float y, float width, float height) : x(x), y(y), width(width), height(height) {}
+    };
+
+    struct Ray {
+        Vec3 origin{0.0f, 0.0f, 0.0f};
+        Vec3 direction{0.0f, 0.0f, -1.0f};
+        Ray() = default;
+        Ray(const Vec3& origin, const Vec3& direction) : origin(origin), direction(direction.normalized()) {}
+    };
 }
+
 

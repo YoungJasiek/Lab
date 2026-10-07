@@ -522,7 +522,16 @@ namespace Lab {
 
     static int lua_InputGetAxis(lua_State* L) {
         const char* name = luaL_checkstring(L, 1);
-        float val = name ? InputActionManager::instance().getAxis(name) : 0.0f;
+        float val = 0.0f;
+        if (name) {
+            if (_stricmp(name, "MouseX") == 0) {
+                val = Input::GetAxis("MouseX");
+            } else if (_stricmp(name, "MouseY") == 0) {
+                val = Input::GetAxis("MouseY");
+            } else {
+                val = InputActionManager::instance().getAxis(name);
+            }
+        }
         lua_pushnumber(L, (lua_Number)val);
         return 1;
     }
@@ -747,45 +756,197 @@ namespace Lab {
         lua_setglobal(_L, "setActiveCamera");
         lua_pushcfunction(_L, lua_CameraGetActive);
         lua_setglobal(_L, "getActiveCamera");
+
+        // --- Register Lua ECS, Scene, Camera and Math Bindings ---
+        const char* ecsLuaInit = R"(
+            quat = {
+                fromEuler = function(pitch, yaw, roll)
+                    pitch = pitch or 0
+                    yaw = yaw or 0
+                    roll = roll or 0
+                    local degToRad = 3.14159265 / 180.0
+                    local p = pitch * degToRad * 0.5
+                    local y = yaw * degToRad * 0.5
+                    local r = roll * degToRad * 0.5
+                    local cp = math.cos(p)
+                    local sp = math.sin(p)
+                    local cy = math.cos(y)
+                    local sy = math.sin(y)
+                    local cr = math.cos(r)
+                    local sr = math.sin(r)
+                    return {
+                        x = sp * cy * cr + cp * sy * sr,
+                        y = cp * sy * cr - sp * cy * sr,
+                        z = cp * cy * sr + sp * sy * cr,
+                        w = cp * cy * cr - sp * sy * sr
+                    }
+                end
+            }
+            Quat = quat
+
+            Vec3 = {
+                Lerp = function(a, b, t)
+                    t = math.max(0, math.min(1, t))
+                    return {
+                        a[1] + (b[1] - a[1]) * t,
+                        a[2] + (b[2] - a[2]) * t,
+                        a[3] + (b[3] - a[3]) * t
+                    }
+                end,
+                lerp = function(a, b, t) return Vec3.Lerp(a, b, t) end
+            }
+
+            input = {
+                mousePosition = { 0, 0, 0 },
+                getAxis = function(name)
+                    if Input and Input.getAxis then
+                        return Input.getAxis(name)
+                    end
+                    return 0.0
+                end
+            }
+
+            local _entitiesByTag = {}
+            local _entitiesByName = {}
+
+            function _createEntityTable(name, tag)
+                local ent = {
+                    name = name or "Entity",
+                    tag = tag or "",
+                    transform = {
+                        position = {0, 0, 0},
+                        rotation = {0, 0, 0, 1},
+                        localRotation = {0, 0, 0, 1},
+                        scale = {1, 1, 1},
+                        lookAt = function(self, target)
+                            local dx = (target[1] or 0) - (self.position[1] or 0)
+                            local dy = (target[2] or 0) - (self.position[2] or 0)
+                            local dz = (target[3] or 0) - (self.position[3] or 0)
+                            local len = math.sqrt(dx*dx + dy*dy + dz*dz)
+                            if len > 0.0001 then
+                                local pitch = math.asin(math.max(-1, math.min(1, dy / len))) * (180.0 / 3.14159265)
+                                local yaw = math.atan2(-dx, -dz) * (180.0 / 3.14159265)
+                                self.localRotation = quat.fromEuler(pitch, yaw, 0)
+                                self.rotation = self.localRotation
+                            end
+                        end,
+                        LookAt = function(self, target) self:lookAt(target) end,
+                        rotate = function(self, axis, angleDeg)
+                        end,
+                        Rotate = function(self, axis, angleDeg) self:rotate(axis, angleDeg) end
+                    },
+                    _components = {}
+                }
+
+                function ent:getComponent(compName)
+                    if compName == "Camera" then
+                        if not self._components["Camera"] then
+                            self._components["Camera"] = {
+                                fieldOfView = 60.0,
+                                nearClipPlane = 0.3,
+                                farClipPlane = 1000.0,
+                                orthographic = false,
+                                orthographicSize = 5.0,
+                                backgroundColor = {0, 0, 0, 1},
+                                clearFlags = "SolidColor",
+                                cullingMask = 0xFFFFFFFF,
+                                depth = 0,
+                                rect = {0.0, 0.0, 1.0, 1.0},
+                                targetTexture = 0,
+                                screenToWorldPoint = function(self, screenPos)
+                                    return { screenPos[1] or 0, screenPos[2] or 0, screenPos[3] or 10 }
+                                end,
+                                ScreenToWorldPoint = function(self, sp) return self:screenToWorldPoint(sp) end,
+                                worldToScreenPoint = function(self, worldPos)
+                                    return { worldPos[1] or 0, worldPos[2] or 0, worldPos[3] or 0 }
+                                end,
+                                WorldToScreenPoint = function(self, wp) return self:worldToScreenPoint(wp) end,
+                                viewportPointToRay = function(self, vp)
+                                    return { origin = ent.transform.position, direction = {0, 0, -1} }
+                                end,
+                                ViewportPointToRay = function(self, vp) return self:viewportPointToRay(vp) end
+                            }
+                        end
+                        return self._components["Camera"]
+                    end
+                    return self._components[compName]
+                end
+                function ent:GetComponent(compName) return self:getComponent(compName) end
+                function ent:addComponent(compName) return self:getComponent(compName) end
+                function ent:AddComponent(compName) return self:getComponent(compName) end
+                function ent:addTag(t)
+                    self.tag = t
+                    _entitiesByTag[t] = self
+                end
+                function ent:AddTag(t) self:addTag(t) end
+
+                return ent
+            end
+
+            scene = scene or {}
+            function scene.findByTag(selfOrTag, maybeTag)
+                local tag = maybeTag or selfOrTag
+                if not _entitiesByTag[tag] then
+                    _entitiesByTag[tag] = _createEntityTable("Entity_" .. tostring(tag), tag)
+                end
+                return _entitiesByTag[tag]
+            end
+            scene.FindByTag = scene.findByTag
+
+            function scene.findByName(selfOrName, maybeName)
+                local name = maybeName or selfOrName
+                if not _entitiesByName[name] then
+                    _entitiesByName[name] = _createEntityTable(name, "")
+                end
+                return _entitiesByName[name]
+            end
+            scene.FindByName = scene.findByName
+
+            function scene.createEntity(selfOrName, maybeName)
+                local name = maybeName or selfOrName or "Entity"
+                local e = _createEntityTable(name, "")
+                _entitiesByName[name] = e
+                return e
+            end
+            scene.CreateEntity = scene.createEntity
+
+            entity = _createEntityTable("DefaultEntity", "")
+            _entitiesByTag["MainCamera"] = _createEntityTable("MainCamera", "MainCamera")
+        )";
+        luaL_dostring(_L, ecsLuaInit);
     }
 
     void ScriptEngine::loadEmbeddedFallbackScript() {
         const char* fallbackLua = R"(
             -- ==========================================================
-            -- Frozen-Life: Gameplay Mechanics Script (Lua 5.4)
+            -- Lab Engine: Universal Gameplay Mechanics Script (Lua 5.4)
             -- ==========================================================
 
             PlayerRules = {
-                maxHealth = 150.0,
-                startSuitArmor = 50.0,
+                maxHealth = 100.0,
+                startSuitArmor = 0.0,
                 armorAbsorptionRatio = 0.70,
-                respawnTime = 4.0,
-                barrelDamageMultiplier = 0.75
+                respawnTime = 3.0,
+                barrelDamageMultiplier = 1.0
             }
 
             RetinalScanner = {
-                scanDuration = 1.25,
-                authorizedUser = "DR. VANCE",
-                clearanceLevel = 3,
+                scanDuration = 1.0,
+                authorizedUser = "SECURITY_ADMIN",
+                clearanceLevel = 1,
                 targetDoorIndex = 0
             }
 
             Pickups = {
                 MedkitHeal = 50.0,
-                AmmoBoxAmount = 36,
-                WeaponPadRespawnTime = 60.0
+                AmmoBoxAmount = 30,
+                WeaponPadRespawnTime = 30.0
             }
 
             Weapons = {
-                Pipe = { id = 0, name = "RURKA METALOWA", damage = 55.0, range = 2.6, fireRate = 0.55, isMelee = true, slot = 1, recoilPitch = 0.04, recoilKick = 0.05 },
-                Pistol = { id = 1, name = "PISTOLET 9MM", damage = 24.0, fireRate = 0.22, clipSize = 18, reserve = 144, slot = 2, recoilPitch = 0.035, recoilKick = 0.045 },
-                Shotgun = { id = 2, name = "STRZELBA SPAS-12", damage = 14.0, fireRate = 0.85, clipSize = 8, reserve = 64, slot = 3, recoilPitch = 0.09, recoilKick = 0.12 },
-                M4A4S = { id = 3, name = "KARABIN M4A4-S", damage = 28.0, fireRate = 0.11, clipSize = 30, reserve = 180, isAuto = true, slot = 4, recoilPitch = 0.038, recoilKick = 0.05 },
-                SG553 = { id = 4, name = "KARABIN SG553", damage = 35.0, fireRate = 0.14, clipSize = 30, reserve = 150, isAuto = true, slot = 5, recoilPitch = 0.045, recoilKick = 0.06 },
-                Minigun = { id = 5, name = "MINIGUN VULCAN", damage = 22.0, fireRate = 0.065, clipSize = 150, reserve = 450, isAuto = true, slot = 6, recoilPitch = 0.022, recoilKick = 0.035 },
-                PlasmaGun = { id = 6, name = "PLAZMA GUN", damage = 45.0, splashDamage = 25.0, splashRadius = 3.5, fireRate = 0.28, clipSize = 25, reserve = 100, isProj = true, slot = 7, recoilPitch = 0.035, recoilKick = 0.05 },
-                Railgun = { id = 7, name = "RAILGUN", damage = 135.0, fireRate = 1.4, clipSize = 5, reserve = 25, slot = 8, recoilPitch = 0.12, recoilKick = 0.18 },
-                RPG = { id = 8, name = "WYRZUTNIA RPG", damage = 120.0, splashDamage = 75.0, splashRadius = 5.5, fireRate = 1.2, clipSize = 1, reserve = 12, isProj = true, slot = 9, recoilPitch = 0.14, recoilKick = 0.22 }
+                Item0 = { id = 0, name = "WEAPON_0", damage = 50.0, range = 2.5, fireRate = 0.5, isMelee = true, slot = 1, recoilPitch = 0.02, recoilKick = 0.03 },
+                Item1 = { id = 1, name = "WEAPON_1", damage = 25.0, fireRate = 0.2, clipSize = 15, reserve = 150, slot = 2, recoilPitch = 0.03, recoilKick = 0.04 },
+                Item2 = { id = 2, name = "WEAPON_2", damage = 80.0, fireRate = 0.8, clipSize = 8, reserve = 64, slot = 3, recoilPitch = 0.08, recoilKick = 0.10 }
             }
 
             -- Pure Lua damage calculation function
@@ -804,8 +965,8 @@ namespace Lab {
             function OnRetinalScanComplete(scannerId, linkedDoorIndex)
                 Lab.log("Retinal scan verified for " .. RetinalScanner.authorizedUser .. " on door " .. tostring(linkedDoorIndex))
                 Lab.unlockDoor(linkedDoorIndex)
-                Lab.playSound(25) -- SoundID::AccessGranted
-                Lab.addChatMessage("[SECURITY]", "Retinal scan verified: Door " .. tostring(linkedDoorIndex) .. " unlocked for " .. RetinalScanner.authorizedUser)
+                Lab.playSound(25)
+                Lab.addChatMessage("[SECURITY]", "Access granted: Door " .. tostring(linkedDoorIndex) .. " unlocked.")
                 return true
             end
         )";

@@ -1,3 +1,10 @@
+---
+docid: LA01
+name: Engine Architecture & Core Standards
+related_docs: [LB01, LC01, LD01, LE01]
+tags: [engine-core, rhi, dsa, c++20]
+---
+
 # 🏛️ Engine Architecture & Core Standards
 
 The **Lab Engine** is designed from the ground up to demonstrate modern, high-performance C++20 game engine design with strict zero-allocation hot paths and Direct State Access (DSA) OpenGL 4.5+ rendering.
@@ -35,9 +42,9 @@ Gameplay logic and physics simulation are completely decoupled from the renderin
 |            Accumulator += dt;                         |
 |            while (Accumulator >= FIXED_TIMESTEP) {    |
 |                Physics::step(FIXED_TIMESTEP);         |
-|                Player::update(FIXED_TIMESTEP);        |
-|                Bots::update(FIXED_TIMESTEP);          |
-|                Multiplayer::tick(FIXED_TIMESTEP);     |
+|                Scene::fixedUpdate(FIXED_TIMESTEP);    |
+|                ScriptEngine::tick(FIXED_TIMESTEP);    |
+|                Network::tick(FIXED_TIMESTEP);         |
 |                Accumulator -= FIXED_TIMESTEP;         |
 |            }                                          |
 +-------------------------------------------------------+

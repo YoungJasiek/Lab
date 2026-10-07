@@ -276,8 +276,20 @@ namespace Lab {
                 }
             }
 
-            // Clamp between -1.0 and 1.0
-            axis.value = std::clamp(total, -1.0f, 1.0f);
+            bool hasMouseBinding = false;
+            for (const auto& b : axis.bindings) {
+                if (b.device == InputDevice::Mouse) {
+                    hasMouseBinding = true;
+                    break;
+                }
+            }
+
+            if (hasMouseBinding) {
+                axis.value = total;
+            } else {
+                // Clamp gamepad & keyboard axis between -1.0 and 1.0
+                axis.value = std::clamp(total, -1.0f, 1.0f);
+            }
         }
     }
 

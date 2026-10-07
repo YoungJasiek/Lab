@@ -194,13 +194,13 @@ public:
     }
 
     void loadScene() {
-        // Resolve scene through ProjectManager (checking Documents/LabGames/<Game>/assets, engine/assets, then legacy)
-        std::string finalPath = ProjectManager::get().resolveAssetPath(_scenePath).string();
+        std::string finalPath = _scenePath;
         if (!std::filesystem::exists(finalPath)) {
-            if (std::filesystem::exists("assets/maps/" + _scenePath)) {
+            finalPath = ProjectManager::get().resolveAssetPath(_scenePath).string();
+        }
+        if (!std::filesystem::exists(finalPath)) {
+            if (_scenePath.rfind("assets/maps/", 0) != 0 && std::filesystem::exists("assets/maps/" + _scenePath)) {
                 finalPath = "assets/maps/" + _scenePath;
-            } else if (std::filesystem::exists("assets/maps/cryo_complex.labmap")) {
-                finalPath = "assets/maps/cryo_complex.labmap";
             } else if (std::filesystem::exists("assets/maps/default_box.labmap")) {
                 finalPath = "assets/maps/default_box.labmap";
             }
@@ -840,7 +840,7 @@ private:
 // Launch configuration
 struct GameLaunchConfig {
     std::string title = "Lab Game";
-    std::string scene = "assets/maps/cryo_complex.labmap";
+    std::string scene = "assets/maps/default_box.labmap";
     std::string hud = "";
     std::string rules = "";
     std::string screenshot = "";

@@ -2486,7 +2486,7 @@ namespace Lab {
 
     bool CharacterStudio::saveConfig(const std::string& filepath) {
         std::stringstream out;
-        out << "# Frozen-Life Character & Weapon Studio Configuration\n";
+        out << "# Lab Engine Character & Weapon Studio Configuration\n";
         out << "[Studio]\nVersion=1.0\n\n";
 
         // Save all 9 weapon grips and skins

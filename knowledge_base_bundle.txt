@@ -1,0 +1,1273 @@
+--- START FILE: [MAP] ---
+
+version: 1.0.0
+last_updated: '2026-10-06T17:39:26.035708+00:00'
+stats:
+  total_documents: 9
+  total_categories: 8
+categories:
+- id: LG
+  name: Spatial Audio
+- id: LE
+  name: Build, Packaging & Distribution
+- id: LA
+  name: Lab Core & Architecture
+- id: LB
+  name: Lab Editor & Tooling
+  subcategories:
+  - id: subcat-hammer
+    name: LabHammer CSG
+    parent: LB
+    type: subcategory
+- id: LH
+  name: Multiplayer & Networking
+- id: LD
+  name: Physics & Simulation
+- id: LC
+  name: Universal 2D Engine Pipeline
+- id: LF
+  name: Lua Scripting & Dynamic Runtime
+documents:
+- docid: LA01
+  name: Engine Architecture & Core Standards
+  related_docs:
+  - LB01
+  - LC01
+  - LD01
+  - LE01
+  tags:
+  - engine-core
+  - rhi
+  - dsa
+  - c++20
+  path: core/LA01-engine-architecture.md
+  category: LA
+- docid: LB01
+  name: LabEditor Multi-Workspace Suite
+  related_docs:
+  - LA01
+  - LB02
+  - LC01
+  - LF01
+  tags:
+  - editor
+  - tools
+  - workspaces
+  - pie
+  path: editor/LB01-lab-editor-suite.md
+  category: LB
+- docid: LB02
+  name: LabHammer 3D Level Editor & CSG
+  related_docs:
+  - LB01
+  - LA01
+  - LD01
+  tags:
+  - editor
+  - hammer
+  - csg
+  - labmap
+  path: editor/level-hammer/LB02-hammer-level-editor.md
+  category: LB
+  subcategory: subcat-hammer
+- docid: LC01
+  name: Universal 2D Engine Pipeline & Systems
+  related_docs:
+  - LA01
+  - LB01
+  - LD01
+  tags:
+  - rendering-2d
+  - spritebatcher
+  - tilemaps
+  - hud
+  path: rendering-2d/LC01-2d-pipeline-and-systems.md
+  category: LC
+- docid: LD01
+  name: Advanced Physics & Dynamics Subsystems
+  related_docs:
+  - LA01
+  - LB01
+  - LB02
+  tags:
+  - physics
+  - vehicles
+  - fluids
+  - ragdolls
+  - sat-ccd
+  path: physics/LD01-physics-and-dynamics.md
+  category: LD
+- docid: LE01
+  name: Universal Build Pipeline & Shipping
+  related_docs:
+  - LA01
+  - LF01
+  tags:
+  - build
+  - export
+  - packaging
+  - labpak
+  - plugins
+  path: build/LE01-build-and-export-pipeline.md
+  category: LE
+- docid: LF01
+  name: Lua 5.4 Scripting & Dynamic Runtime
+  related_docs:
+  - LA01
+  - LB01
+  - LE01
+  tags:
+  - scripting
+  - lua
+  - vm
+  - runtime
+  - ide
+  - bytecode
+  path: scripting/LF01-lua-scripting-and-ide.md
+  category: LF
+- docid: LG01
+  name: Spatial Audio & Procedural Synthesizer
+  related_docs:
+  - LA01
+  - LB01
+  - LF01
+  tags:
+  - audio
+  - miniaudio
+  - spatial
+  - procedural-wav
+  - lip-sync
+  path: audio/LG01-spatial-audio-system.md
+  category: LG
+- docid: LH01
+  name: Authoritative Multiplayer Architecture
+  related_docs:
+  - LA01
+  - LE01
+  - LF01
+  tags:
+  - network
+  - multiplayer
+  - udp
+  - replication
+  - dedicated-server
+  path: network/LH01-authoritative-multiplayer.md
+  category: LH
+
+
+--- END FILE: [MAP] ---
+
+--- START FILE: [LA01] ---
+Category: LA
+Path: core/LA01-engine-architecture.md
+
+---
+docid: LA01
+name: Engine Architecture & Core Standards
+related_docs: [LB01, LC01, LD01, LE01]
+tags: [engine-core, rhi, dsa, c++20]
+---
+
+# 🏛️ Engine Architecture & Core Standards
+
+The **Lab Engine** is designed from the ground up to demonstrate modern, high-performance C++20 game engine design with strict zero-allocation hot paths and Direct State Access (DSA) OpenGL 4.5+ rendering.
+
+---
+
+## 1. Modern C++20 Standards
+
+The engine adheres to strict modern C++ idioms:
+
+- **Resource Acquisition Is Initialization (RAII):**
+  - No raw pointers own dynamic resources.
+  - Smart pointers (`std::unique_ptr`, `std::shared_ptr`) manage object lifecycles.
+  - OpenGL objects (VAO, VBO, FBO, Textures, Shaders) are encapsulated in RAII classes whose destructors automatically release GPU handles (`glDeleteTextures`, `glDeleteBuffers`, etc.).
+- **Value Semantics & Cache Locality:**
+  - Mathematics (`Vec2`, `Vec3`, `Vec4`, `Mat4`, `Quat`), collision primitives, vertex structures, and brush definitions are plain-old-data (POD) value types passed by `const &` or value.
+  - Data structures prioritize contiguous vectors (`std::vector`) to prevent pointer chasing and cache misses during frame loops.
+- **Header Structure & Namespaces:**
+  - All engine types reside within the `Lab` namespace.
+  - Strict forward declarations minimize header compilation dependencies.
+
+---
+
+## 2. Deterministic Game Loop & Accumulator Timing
+
+Gameplay logic and physics simulation are completely decoupled from the rendering framerate using a deterministic fixed-timestep accumulator model:
+
+```
++-------------------------------------------------------+
+|                 Variable Delta Time (dt)              |
++-------------------------------------------------------+
+                           |
+                           v
++-------------------------------------------------------+
+|            Accumulator += dt;                         |
+|            while (Accumulator >= FIXED_TIMESTEP) {    |
+|                Physics::step(FIXED_TIMESTEP);         |
+|                Scene::fixedUpdate(FIXED_TIMESTEP);    |
+|                ScriptEngine::tick(FIXED_TIMESTEP);    |
+|                Network::tick(FIXED_TIMESTEP);         |
+|                Accumulator -= FIXED_TIMESTEP;         |
+|            }                                          |
++-------------------------------------------------------+
+                           |
+                           v
++-------------------------------------------------------+
+|   Interpolate States & Render Frame (Uncapped FPS)    |
+|   Renderer::beginFrame();                             |
+|   Renderer::drawWorld();                              |
+|   Renderer::endFrame();                               |
++-------------------------------------------------------+
+```
+
+- **Fixed Timestep:** $\Delta t_{\text{fixed}} = 1/64\text{ s}$ ($64\text{ Hz}$).
+- **Rendering Framerate:** Completely uncapped ($144\text{ Hz}$, $240\text{ Hz}$, etc.) with smooth alpha state interpolation.
+- **Determinism:** Physics simulations, collision detection, and network state calculations run identically regardless of hardware rendering speed.
+
+---
+
+## 3. OpenGL 4.5+ Direct State Access (DSA)
+
+Traditional OpenGL relies on a global state machine (`glBindBuffer`, `glBindTexture`) which leads to driver overhead, binding pollution, and debugging nightmares. Lab exclusively utilizes **Direct State Access (DSA)** where hardware supports it:
+
+### Buffer Allocation & Data Transfer
+```cpp
+// Creation and immutable/mutable storage without binding
+glCreateBuffers(1, &_vbo);
+glNamedBufferData(_vbo, sizeof(Vertex) * count, data, GL_STATIC_DRAW);
+
+// Explicit vertex array format specification
+glCreateVertexArrays(1, &_vao);
+glVertexArrayVertexBuffer(_vao, 0, _vbo, 0, sizeof(Vertex));
+glEnableVertexArrayAttrib(_vao, 0);
+glVertexArrayAttribFormat(_vao, 0, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, position));
+glVertexArrayAttribBinding(_vao, 0, 0);
+```
+
+### Texture Allocation
+```cpp
+// Direct texture allocation without target binding
+glCreateTextures(GL_TEXTURE_2D, 1, &_textureId);
+glTextureStorage2D(_textureId, levels, GL_RGBA8, width, height);
+glTextureSubImage2D(_textureId, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+```
+
+### Framebuffer Objects (FBO)
+```cpp
+glCreateFramebuffers(1, &_fbo);
+glNamedFramebufferTexture(_fbo, GL_COLOR_ATTACHMENT0, _colorTex, 0);
+glNamedFramebufferTexture(_fbo, GL_DEPTH_ATTACHMENT, _depthTex, 0);
+```
+
+---
+
+## 4. Module & Subsystem Topology
+
+The engine is architected into clean, decoupled headers and dynamic libraries (`LAB_*_API`):
+
+```
+[ LabEngine Core Libraries ]
+  ├── Core & Math:
+  │   ├── LabMath.h / LabMath.cpp           -- SIMD-aligned vector, matrix, and quaternion algebra
+  │   ├── LabCore.h / LabCore.cpp           -- Engine lifecycle, windowing, Win32/GLFW input
+  │   ├── LabEvent.h                        -- High-throughput decoupled Type-ID Event Bus
+  │   ├── LabSceneNode.h                    -- Scene Graph hierarchy, transforms, and prefabs
+  │   ├── LabVFS.h                          -- Virtual File System with 128-bit GUID tracking
+  │   └── LabCommand.h                      -- Undo/Redo command history pattern stack
+  ├── Rendering & Shading:
+  │   ├── LabRenderer.h / LabRenderer.cpp   -- DSA OpenGL 4.5+ Core renderer, shaders, lighting
+  │   ├── LabRHI.h                          -- Abstract Render Hardware Interface & Topological Graph
+  │   ├── LabSpriteBatcher.h                -- High-throughput 2D dynamic quad batching
+  │   ├── LabDecals.h / LabParticles.h      -- Dynamic projective decals and GPU particle emitters
+  │   ├── LabPostProcess.h                  -- HDR, Bloom, ACES Tonemapping, Frost Vignette
+  │   └── LabFont.h                         -- Vector glyph rasterizer & multi-font typography
+  ├── 2D Systems & Assets:
+  │   ├── LabAsset2D.h / LabAsset2D.cpp     -- Spritesheet slicing, AnimationPlayer2D, Tilemap2D
+  │   ├── LabPhysics2D.h                    -- Orthographic kinematics & Box2D simulation
+  │   └── LabHUDEditor.h                    -- Multi-genre 1920x1080 virtual HUD artboard designer
+  ├── Physics & Dynamics:
+  │   ├── LabCollision.h                    -- Kay-Kajiya slab ray-AABB & sweep-sphere physics
+  │   ├── LabPhysics.h                      -- Rigid body moments of inertia, friction, debris
+  │   ├── LabCCD.h                          -- Convex Hull 3D SAT & Continuous Collision Detection
+  │   ├── LabVehicle.h                      -- Raycast suspension vehicle physics & Pacejka grip
+  │   ├── LabFluid.h                        -- Water volumes, Archimedes buoyancy & Gerstner waves
+  │   ├── LabRagdoll.h                      -- Articulated skeletal ragdolls & active body blend
+  │   ├── LabConstraint.h                   -- Distance, BallSocket, Hinge, Slider, Fixed joints
+  │   ├── LabCloth.h                        -- Verlet integration, structural/shear/bending springs
+  │   └── LabForceField.h                   -- Directional, Radial, Vortex, and Buoyancy fields
+  ├── Skeletal Animation & Viewmodels:
+  │   ├── LabSkeletal.h                     -- glTF 2.0 / GLB binary loader, 35-bone GPU skinning
+  │   ├── LabAnim.h / LabAnim.cpp           -- Procedural spring-damper recoil, walking bobbing
+  │   ├── LabArms.h / LabArms.cpp           -- Tactical FPP viewmodel arms & gauntlet LED display
+  │   ├── LabFace.h                         -- Facial morph targets & audio viseme phoneme tracking
+  │   └── LabStudio.h / LabStudio.cpp       -- Character Studio, grip poser, reload choreography
+  ├── AI & Gameplay:
+  │   ├── LabAI.h / LabAI.cpp               -- Combat bot sensory perception, FSM, weapon drops
+  │   ├── LabWeapon.h / LabWeapon.cpp       -- 9-weapon arsenal, raycast ballistics, projectiles
+  │   ├── LabMap.h / LabMap.cpp             -- Plain-text .labmap parser, spawn points, brushes
+  │   ├── LabCSG.h                          -- Sutherland-Hodgman convex polyhedron cutting tool
+  │   ├── LabPickups.h / LabCombat.h        -- Health/ammo nodes, damage calculation, lethality
+  │   └── LabInteractive.h                  -- Biometric retinal scanners & linked airlocks
+  ├── Scripting, Input & Sound:
+  │   ├── LabAudio.h / LabAudio.cpp         -- miniaudio spatial 3D sound & procedural synthesizer
+  │   ├── LabScript.h / LabScript.cpp       -- Lua 5.4 static scripting engine & balance tables
+  │   └── LabInput.h / LabInput.cpp         -- Unified input action/gamepad mapping with Lua hooks
+  └── Tooling, Profiling & Shipping:
+      ├── LabEditor.h                       -- Multi-workspace editor suite & Play-In-Editor (PIE)
+      ├── LabProject.h / LabProject.cpp     -- Decoupled Project Hub, virtual URIs (engine:// vs game://), standalone exporter
+      ├── LabProfiler.h                     -- Real-time CPU frame profiler & memory tracker
+      ├── LabVCS.h                          -- Git VCS integration & Git LFS Asset Locking
+      ├── LabPlugin.h / plugins/*.lua       -- Unity/Blender-style drop-in Lua plugins (1 file = 1 plugin) & Package Manager
+      └── LabExportPipeline.h / LabExport.h -- One-click multi-platform build & shipping runner
+```
+
+---
+
+## 5. Render Hardware Interface (RHI) & Topological Render Graph (`LabRHI.h`)
+
+To future-proof the engine beyond raw OpenGL calls:
+- **Abstract RHI:** Exposes decoupled interfaces (`IRHIBuffer`, `IRHITexture`, `IRHIShader`, `IRHIPipeline`, `IRHICommandList`).
+- **Topological Render Graph:** Frame passes (Shadow Pass, G-Buffer / Forward Pass, Decal Pass, Post-Processing, HUD) are registered as discrete graph nodes with input/output resource dependencies.
+- **Automatic Hazard Resolution:** The render graph topologically sorts passes and eliminates redundant GPU state transitions and framebuffer blits.
+
+---
+
+## 6. Real-Time Profiler & Memory Allocator Tracker (`LabProfiler.h`)
+
+Integrated performance instrumentation active in debug and editor modes:
+- **CPU Frame Time Scopes (`LAB_PROFILE_SCOPE`):** Nanosecond-precision scoped timers tracking update loops, physics ticks, render passes, and AI pathfinding.
+- **Custom Memory Allocator Tracking:** Intercepts engine allocations to monitor heap usage, peak memory footprints, and potential memory leaks across subsystems.
+- **In-Engine Profiler Dock:** Live visual breakdown displaying FPS, frame delta graphs, active draw calls, and vertex batch statistics directly within LabEditor.
+
+---
+
+## 7. Decoupled Event Bus & Scene Graph
+
+- **Type-ID Event Bus (`LabEvent.h`):** High-throughput, zero-allocation event dispatcher allowing systems (such as audio reacting to bullet impacts or HUD reacting to player health loss) to communicate without direct coupling.
+- **Hierarchical Scene Graph (`LabSceneNode.h`):** Matrix transforms propagate from parent to child nodes, enabling complex composite entities, vehicles with mounted turrets, and articulated scene props.
+
+
+--- END FILE: [LA01] ---
+
+--- START FILE: [LB01] ---
+Category: LB
+Path: editor/LB01-lab-editor-suite.md
+
+---
+docid: LB01
+name: LabEditor Multi-Workspace Suite
+related_docs: [LA01, LB02, LC01, LF01]
+tags: [editor, tools, workspaces, pie]
+---
+
+# 🛠️ LabEditor — Unified LabSDK Multi-Workspace Game Editor
+
+**LabEditor** (`editor_main.cpp` / `LabEditor.exe`) is the centralized, standalone game development environment and visual authoring suite of the **Lab Engine**. Originally evolving from the classic CAD-styled *LabHammer*, LabEditor has been comprehensively re-architected into a multi-genre, multi-workspace creation suite with complete parity for both **3D** and **2D** game development, character and animation posing, native HUD UI design, in-engine Lua 5.4 scripting IDE, in-game profiler, and universal one-click export.
+
+---
+
+## 🌟 Key Features at a Glance
+
+- **5 Dedicated Workspaces & 13 Specialized Sub-Modes:** Seamlessly switch between 3D level design, 2D tilemaps, character studio posing, HUD authoring, and scripting.
+- **Play-In-Editor (PIE) Real-Time Simulation:** Instant `Play`, `Pause`, `Step`, and `Stop` simulation controls with real-time physics and live Lua scripts without reloading the editor.
+- **Full-Viewport Scripting IDE:** Complete code editing environment with an interactive text buffer, syntax highlighting, auto-indent, bytecode compilation, execution, and Lua REPL console.
+- **Dual Viewport Architecture:** Full 3D camera navigation alongside pixel-perfect 2D orthographic viewports (Top, Front, Side, and 2D Game).
+- **Universal Entity Hierarchy:** Real-time searchable and filterable scene tree showing brushes, props, lights, spawns, 2D sprites, tilemaps, and triggers.
+- **Undo / Redo Command History Stack:** Full transactional command pattern (`Ctrl+Z` / `Ctrl+Y`) for geometric edits, entity manipulation, and property modifications.
+- **In-Engine Profiler Dock:** Real-time CPU frame-time breakdown, draw calls, GPU batch counts, memory allocations, and VRAM monitoring.
+- **One-Click Build & Export:** Integrated export modal targeting Windows x64, Linux x64, and WebAssembly, plus instant Test Game runner in isolated debug environments.
+
+---
+
+## 🗂️ Workspaces & Specialized Sub-Modes
+
+LabEditor organizes toolsets into top-level workspace categories accessible from the menu bar (`View -> Workspaces`) or via keyboard shortcuts:
+
+```
+[ LabEditor Workspaces ]
+├── 1. 3D Workspaces
+│   ├── 3D > Level & Geometry Editor     (CSG, Brushes, Props, Lights, 3D Flycam)
+│   ├── 3D > Animation 3D Timeline       (Prop & Model Keyframe Scrubber)
+│   └── 3D > Dedicated Model Viewer      (3D Turntable, Wireframe, Statistics)
+├── 2. LabStudio Workspaces
+│   ├── Studio > Equipment & Socket Poser (Rig Bone Sockets, Hand Grips)
+│   ├── Studio > Action & Reload Timeline (Multi-Phase Action Choreography)
+│   ├── Studio > Material & Texture Tuning(PBR Materials, Shader Tweaks)
+│   ├── Studio > Character & Mesh Variants(Outfits, Modular Attachments)
+│   └── Studio > Face & Dialogue          (Morph Targets & Lip-Sync Visemes)
+├── 3. 2D Workspaces
+│   ├── 2D > Level & Tilemap Editor      (SpriteSheets, Tile Palettes, Parallax)
+│   ├── 2D > Animation Timeline          (2D Spritesheet Frame Sequencer)
+│   └── 2D > Multi-Genre HUD Canvas      (Virtual 1920x1080 Artboard Designer)
+├── 4. Scripting Workspaces
+│   ├── Scripting > Code Editor IDE      (Full-Viewport Interactive Lua IDE)
+│   └── Scripting > Interactive Console  (Lua REPL & Real-Time Engine Debug)
+└── 5. Project Hub Workspace
+    ├── Hub > Project Launcher           (Discover, switch, & launch projects)
+    ├── Hub > New Game Wizard            (Create isolated games in Documents/LabGames)
+    └── Hub > Standalone Exporter        (One-click standalone demo / distribution)
+```
+
+### 1. 3D World & Level Editor (`World3D_Level`)
+- **Constructive Solid Geometry (CSG):** Author axis-aligned solid bounding boxes with real-time Sutherland-Hodgman convex polyhedron plane slicing.
+- **Entity Placement:** Spawn points, dynamic doors, point/spot lights, item pedestals, interactive triggers, and physical props.
+- **3D Flycam Navigation:** Hold `Right Mouse Button` + `WASD` for free-flight navigation; `Shift` to accelerate; `Space`/`Ctrl` for vertical ascent/descent.
+- **Wireframe & Lighting Modes:** Toggle between full dynamic lighting, flat unlit textured mode, and wireframe visualization.
+
+### 2. LabStudio Integration (`Studio_*`)
+- Directly author and inspect skeletal rigs, bone sockets, and animations within the editor without opening external tools.
+- **Socket Poser:** Translate and rotate equipment sockets relative to hand/rig bones with instant numerical feedback.
+- **Action Timeline:** Scrub keyframe curves for object attachment, equipment interactions, and camera impulse.
+- **Face Dialogue:** Test audio viseme energies and blend facial morph targets.
+
+### 3. 2D Level & Tilemap Editor (`Level2D_Tilemap`)
+- **Orthographic Grid:** Pixel-perfect grid with configurable cell sizes (e.g., $16\times 16$, $32\times 32$, $64\times 64$).
+- **Tilemap Layers:** Paint tiles across background, collision, and foreground layers.
+- **SpriteSheet Slicing:** Visual selection and sub-texture extraction from texture atlases.
+- **2D Physics:** Instant integration with Box2D / 2D swept kinematic collision bounds.
+
+### 4. Multi-Genre HUD Canvas Designer (`Level2D_HUD`)
+- **Virtual 1920x1080 Reference Canvas:** Design UI independent of monitor display resolution with responsive anchor rules (Top-Left, Center, Bottom-Right, Full Stretch).
+- **Genre Presets:** Instant template initialization for **FPS** (health/ammo/crosshair), **RPG** (mana/stamina bars, inventory hotbar), **Racing** (speedometer, tachometer, lap counter), and **Platformer** (lives, coin counter, stage timer).
+- **Widget Hierarchy:** Visual placement of `TextLabel`, `ProgressBar`, `Button`, `Icon`, `Panel`, `MinimapFrame`, and `DialogueBox`.
+- **Live Lua Binding:** Interactive property binding connecting widgets directly to `Lab::ScriptEngine::setHUDValue()` and `setHUDText()`.
+
+### 5. Full-Viewport Scripting IDE (`Scripting_Editor`)
+- **Full Viewport Utilization:** Replaces the 3D scene view with a complete, distraction-free code editor.
+- **Interactive Text Buffer:** Multi-line text buffer supporting cursor navigation, typing, backspace line merging, Enter key indentation with auto-indent preservation, and clipboard operations.
+- **Syntax Highlighting:** Tokenizer highlighting Lua keywords (`function`, `local`, `if`, `then`, `end`, `return`), numerical constants, string literals, and engine API identifiers (`HUD`, `Player`, `Map`, `Audio`).
+- **Disk Roundtrip & Hot Reload:** Direct save (`Ctrl+S`) and reload (`Ctrl+R`) to disk; scripts immediately update active engine logic.
+- **Bytecode Compilation & Protection:** One-click compilation of source `.lua` files into optimized and stripped Lua bytecode (`.luac`) for shipping binaries.
+
+---
+
+## 🕹️ Controls & Keyboard Shortcuts
+
+| Shortcut | Context | Action |
+| :--- | :--- | :--- |
+| `Ctrl + N` | Global | New Map / Scene |
+| `Ctrl + O` | Global | Open Map (`.labmap`) |
+| `Ctrl + S` | Global | Save Map / Save Script Buffer |
+| `Ctrl + Z` | Global | Undo Last Action |
+| `Ctrl + Y` | Global | Redo Undone Action |
+| `Ctrl + B` | Global | Open Build & Multi-Platform Export Modal |
+| `F5` | Global | Play / Test Game (Launch dedicated debug test executable) |
+| `F6` | Global | Pause / Resume Play-In-Editor (PIE) simulation |
+| `F7` | Global | Step Single Physics Tick in PIE |
+| `F8` | Global | Stop Simulation & Restore Editor State |
+| `RMB (Hold) + WASD` | 3D Viewport | Flycam First-Person Camera Navigation |
+| `Q` / `E` | 3D Viewport | Flycam Camera Descent / Ascent |
+| `1` – `6` | 3D Level Toolset | Select Tool (1: Select, 2: Brush, 3: Spawn, 4: Weapon, 5: Light, 6: Face) |
+| `Space` | 3D Level Toolset | Commit Active Brush Preview to Scene Geometry |
+| `Del` | Scene Tree | Delete Selected Entity or Brush |
+| `[` / `]` | Viewport | Decrease / Increase Grid Snapping Step |
+
+---
+
+## ⚡ Play-In-Editor (PIE) Simulation
+
+LabEditor features integrated runtime simulation modes:
+1. **Stopped (`EditorSimState::Stopped`):** Full CAD editing mode; cameras fly freely, gizmos are active, physics and game ticks are halted.
+2. **Playing (`EditorSimState::Playing`):** Physics accumulator ticks at fixed 64Hz, active entities and controllers run state logic, vehicle wheels calculate suspension forces, water volumes apply Archimedes buoyancy, and Lua scripts evaluate `OnUpdate(dt)`.
+3. **Paused (`EditorSimState::Paused`):** Freezes the game simulation, allowing developers to inspect bone matrices, rigid body velocities, and trigger volumes in mid-air.
+4. **Step:** Advances the simulation by exactly one fixed physics tick ($\Delta t = 1/64\text{ s}$), ideal for debugging projectile collisions and CCD tunneling.
+
+---
+
+## 📦 Universal Build & Export Pipeline
+
+Accessed via `Build -> Export Game...` or `Ctrl + B`, the Export Pipeline compiles and cooks all necessary assets:
+- **Target Platforms:** Windows x64 (`.exe`), Linux x64 (ELF binary), WebAssembly (`.wasm` + `.html`), macOS ARM64.
+- **Configurations:**
+  - `Debug`: Full symbols, asserts enabled, uncompressed assets.
+  - `Release`: Full compiler optimizations, packaged assets.
+  - `Shipping`: Stripped symbols, Lua bytecode protection (all `.lua` stripped of debug symbols and compiled to `.luac`), compressed `.labpak` virtual archives.
+- **Standalone Runner:** Ships with `LabPlayer.exe`, a lightweight client executable with zero editor dependencies that mounts `.labpak` packages and boots the target map instantly.
+
+--- END FILE: [LB01] ---
+
+--- START FILE: [LB02] ---
+Category: LB
+Subcategory: subcat-hammer
+Path: editor/level-hammer/LB02-hammer-level-editor.md
+
+---
+docid: LB02
+name: LabHammer 3D Level Editor & CSG
+related_docs: [LB01, LA01, LD01]
+tags: [editor, hammer, csg, labmap]
+---
+
+# 🏗️ LabHammer 3D Level Editor
+
+> [!NOTE]
+> **Evolution into LabEditor:** LabHammer has evolved into the unified **[LabEditor](../editor/LB01-lab-editor-suite.md)** (`LabEditor.exe`), which integrates the 3D Level Editor alongside 2D Tilemap editing, the LabStudio animation suite, Multi-Genre HUD Canvas designer, Play-In-Editor (PIE) simulation, and a full-viewport Lua Scripting IDE. This document covers the core 3D CAD level construction and `.labmap` format used within the 3D World workspace.
+
+**LabHammer** (`LabHammer.exe` / `LabEditor.exe` 3D Workspace) is a standalone 3D CAD-style level editor inspired by Valve's classic Hammer Editor. It allows level designers to construct architecture, carve complex geometry, place dynamic entities, and compile map files into plain-text `.labmap` documents.
+
+---
+
+## 1. Viewport Navigation & Controls
+
+LabHammer provides a responsive 3D editor viewport:
+- **`WASD` + Mouse:** Standard FPS flycam navigation in 3D perspective mode.
+- **`Shift`:** Accelerates camera movement speed.
+- **`Space`:** Elevates camera upward.
+- **`Ctrl`:** Lowers camera downward.
+- **`1` / `2` / `3`:** Switches between 3D Textured View, Wireframe Mode, and 2D Orthographic views (Top, Front, Side).
+- **`Grid Snapping` (`[` / `]`):** Adjusts coordinate grid snapping ($0.25\text{ m}$, $0.50\text{ m}$, $1.0\text{ m}$, $2.0\text{ m}$).
+
+---
+
+## 2. Constructive Solid Geometry (CSG) & Slicing (`LabCSG`)
+
+Level geometry is created using convex brush volumes:
+- **Block Tool:** Click and drag to create axis-aligned solid bounding boxes (walls, floors, ramps, pillars).
+- **Clipping / Slicing Tool:** Define an arbitrary cutting plane through a selected brush. The engine executes **Sutherland-Hodgman convex polyhedron slicing**:
+  - Vertices on the negative side of the plane are clipped.
+  - New intersection vertices are calculated along split edges.
+  - A closing polygonal face is generated along the cut plane with consistent face normals and texture projection.
+  - Enables authoring slanted roofs, chamfered archways, bunker slits, and hexagonal corridors.
+
+---
+
+## 3. Entity Authoring & Placement
+
+Beyond static geometry, designers place dynamic entities:
+- **Spawn Nodes (`spawn_point` / `spawn`):** Player and actor spawn locations with orientation yaw in degrees.
+  - **Spawn Yaw Convention:** Consistent with `LabCamera` spherical coordinate system where $\text{forward} = (\cos(\text{yaw}), 0, \sin(\text{yaw}))$.
+    - $\text{yaw} = 0^\circ$: Facing $+X$ (East)
+    - $\text{yaw} = 90^\circ$: Facing $+Z$ (South)
+    - $\text{yaw} = 180^\circ$: Facing $-Z$ (North)
+    - $\text{yaw} = 270^\circ$: Facing $-X$ (West)
+- **Item & Pickup Nodes (`pickup` / `item_spawner`):** Configurable resource and inventory pedestals with respawn timers.
+- **Omni & Spot Lights (`light`):** Point light sources with custom RGB color, intensity, and attenuation radius.
+- **Dynamic Doors & Portals (`door`):** Translating physical doors with opening axis, speed, sound, and linked trigger IDs.
+- **Interactive Terminals (`terminal` / `trigger`):** Interactive world triggers and state machines.
+- **Physics Props (`prop`):** Rigid body meshes subject to Newtonian physics and impulse response.
+- **2D World Sprites (`sprite_2d`):** 2D quad entities placed in 3D space with billboard and rotation support.
+
+---
+
+## 4. Plain-Text `.labmap` Specification
+
+Maps are serialized into human-readable plain-text files (`assets/maps/*.labmap`):
+
+```
+MAP_VERSION 1.2
+MAP_NAME "Modular Facility 01"
+SKYBOX "sky_default"
+AMBIENT_COLOR 0.25 0.28 0.35
+
+// Brushes (Solid Geometry)
+BRUSH
+  POS 0.0 2.5 -10.0
+  SIZE 20.0 5.0 0.5
+  TEXTURE "concrete_wall.bmp"
+  UV_SCALE 1.0 1.0
+END_BRUSH
+
+// Dynamic Door
+DOOR
+  NAME "Main_Airlock"
+  POS 4.0 1.5 -10.0
+  SIZE 2.4 3.0 0.4
+  MOVE_DIR 0.0 1.0 0.0
+  MOVE_DIST 2.8
+  SPEED 2.0
+  LOCK_ID "Security_Gate"
+END_DOOR
+
+// Interactive Trigger
+TRIGGER
+  POS 2.2 1.3 -9.6
+  ROT 0.0 180.0 0.0
+  TARGET "Main_Airlock"
+  REQUIRED_KEY "Keycard_Red"
+END_TRIGGER
+```
+Maps can be authored in LabEditor or directly modified in any text editor.
+
+--- END FILE: [LB02] ---
+
+--- START FILE: [LC01] ---
+Category: LC
+Path: rendering-2d/LC01-2d-pipeline-and-systems.md
+
+---
+docid: LC01
+name: Universal 2D Engine Pipeline & Systems
+related_docs: [LA01, LB01, LD01]
+tags: [rendering-2d, spritebatcher, tilemaps, hud]
+---
+
+# 🎨 Universal 2D Engine Pipeline & Systems
+
+The **Lab Engine** features first-class, high-performance parity for **2D game development**, providing a specialized 2D architecture designed alongside its 3D renderer. The 2D pipeline delivers pixel-perfect rendering, batched draw calls, data-driven spritesheet slicing, skeletal and frame-based 2D animations, multi-layer tilemaps, 2D physics, and a responsive multi-genre HUD canvas designer.
+
+---
+
+## 🏗️ 2D Architectural Overview
+
+```
+[ 2D Pipeline Stack ]
+├── LabSpriteBatcher     (High-throughput dynamic quad batching, 10,000+ sprites/draw-call)
+├── LabAsset2D           (SpriteSheet2D, AnimationPlayer2D, Tilemap2D serialization)
+├── LabPhysics2D         (Box2D & Swept 2D AABB Kinematic collision detection)
+├── LabHUDEditor         (Multi-Genre 1920x1080 virtual artboard designer)
+└── LabEditor (2D)       (Dedicated Tilemap, Animation, and HUD Canvas Workspaces)
+```
+
+---
+
+## ⚡ High-Throughput `SpriteBatcher` (`LabSpriteBatcher.h`)
+
+Traditional 2D render loops that issue individual draw calls per sprite create severe CPU-GPU driver bottlenecks. The Lab Engine utilizes `SpriteBatcher`:
+
+- **Dynamic Geometry Batching:** Batches up to 10,000 textured quads into a single indexed draw call (`glDrawElementsBaseVertex` or direct DSA mapped buffer streaming).
+- **Z-Sorting & Blending:** Configurable front-to-back or back-to-front depth sorting for alpha-blended transparency, sorting layers, and pixel-perfect layering.
+- **Sub-Texture UV Atlasing:** Seamlessly transforms normalized texture coordinates (`uvMin`, `uvMax`) on-the-fly, allowing entire levels and UI sheets to render from unified atlas textures.
+- **Color Tinting & Transform:** Per-quad RGBA tinting, origin-relative rotation, scaling, and flip flags (horizontal/vertical).
+
+```cpp
+Lab::SpriteBatcher batcher;
+batcher.begin(Lab::SpriteSortMode::BackToFront);
+
+// Draw background tile
+batcher.draw(atlasTexture, {100.0f, 150.0f}, {64.0f, 64.0f}, frame->uvMin, frame->uvMax, {1,1,1,1});
+
+// Draw player sprite with rotation
+batcher.drawRotated(atlasTexture, playerPos, playerSize, playerPivot, angleRadians, frame->uvMin, frame->uvMax);
+
+batcher.end(); // Flushes GPU buffers in a single draw call
+```
+
+---
+
+## 🖼️ Spritesheet Slicing & Animation (`LabAsset2D.h`)
+
+### 1. `SpriteSheet2D`
+- **Automatic Grid Slicing:** Quickly cuts atlases using row/column counts and cell sizes (`sliceGrid(cols, rows, cellW, cellH, spacing, margin)`).
+- **Manual Frame Definitions:** Add arbitrary custom rects (`addFrame("idle_0", pxX, pxY, pxW, pxH, pivot)`).
+- **JSON Serialization:** Saves and loads `.spritesheet` metadata with full frame rects, pivots, and durations.
+
+### 2. `AnimationPlayer2D`
+- **Sequenced Frames:** Defines frame animations via indexed lists of frames from a parent `SpriteSheet2D`.
+- **Playback Control:** Frame rate control (`fps`), looping (`loop`), `play()`, `stop()`, and normalized animation progress (`getProgress()`).
+- **State Queries:** `getCurrentFrame()`, `isFinished()`, and event callbacks for animation completion.
+
+```cpp
+Lab::SpriteSheet2D sheet("assets/textures/characters/hero_sheet.png", 512, 512);
+sheet.sliceGrid(8, 4, 64, 64);
+
+Lab::Animation2D runAnim;
+runAnim.name = "Run";
+runAnim.fps = 14.0f;
+runAnim.loop = true;
+runAnim.frameIndices = { 0, 1, 2, 3, 4, 5 };
+
+Lab::AnimationPlayer2D animPlayer;
+animPlayer.addAnimation(runAnim);
+animPlayer.play("Run");
+
+// In frame update:
+animPlayer.update(dt);
+const Lab::SpriteFrame* curFrame = animPlayer.getCurrentFrame(sheet);
+```
+
+---
+
+## 🗺️ Multi-Layer Tilemaps (`Tilemap2D`)
+
+- **Layered Composition:** Arbitrary layers (e.g. `Background`, `World`, `Obstacles`, `Foreground`, `Decorations`) with independent visibility, opacity, and Z-order.
+- **Fast Tile Access:** Direct $O(1)$ indexing `setTile(layerIdx, x, y, tileId)` and `getTile(layerIdx, x, y)`.
+- **Integrated Batch Rendering:** `Tilemap2D::render(batcher, texture, offset)` iterates visible tiles within camera frustum and feeds `SpriteBatcher` without CPU allocations.
+- **Format:** Native JSON serialization (`.tilemap`) compatible with standard level designers.
+
+---
+
+## 🎯 Multi-Genre HUD Canvas Designer (`LabHUDEditor.h`)
+
+The 2D HUD designer is fully integrated into LabEditor under `View -> Workspaces -> 2D > Native Multi-Genre HUD Canvas`:
+
+1. **Virtual 1920x1080 Artboard:** Ensures consistent layout across arbitrary monitor aspect ratios (16:9, 16:10, 21:9, 4:3).
+2. **Anchor Presets:**
+   - Top-Left, Top-Center, Top-Right
+   - Center-Left, Center, Center-Right
+   - Bottom-Left, Bottom-Center, Bottom-Right
+   - Full-Screen Stretch
+3. **Core Widget Types:**
+   - **`TextLabel`:** Dynamic text rendering with font styling, outline, and formatting tokens.
+   - **`ProgressBar`:** Health, stamina, mana, or vehicle fuel bars with fill-direction and border styling.
+   - **`Button`:** Interactive clickable UI with Normal, Hovered, and Pressed states.
+   - **`Icon`:** Sub-texture icon display (weapons, status effects, inventory slots).
+   - **`Panel`:** Semi-transparent containers with rounded borders.
+   - **`MinimapFrame`:** Circular or rectangular radar viewports.
+   - **`DialogueBox`:** RPG-style subtitle and conversational text display.
+4. **Genre Templates:**
+   - **FPS:** Crosshair, Health, Armor, Weapon Icon, Clip/Reserve Ammo counter.
+   - **RPG:** Hero Portrait, HP/MP/XP bars, Quick-Access Action Bar, Minimap frame.
+   - **Racing:** Circular Speedometer, Gear indicator, Tachometer, Lap Timer.
+   - **Platformer:** Extra Lives counter, Coin counter, Score readout, Stage Clock.
+
+---
+
+## ⚖️ 2D Physics & Collisions (`LabPhysics2D.h`)
+
+- **Orthographic Kinematics:** Swept AABB movement for 2D character controllers with continuous ground clamping, slopes, and one-way jump-through platforms.
+- **Box2D Rigid Bodies:** Optional dynamic rigid body simulation for 2D physics puzzles, swinging ropes, tumbling crates, and ragdolls in 2D space.
+
+--- END FILE: [LC01] ---
+
+--- START FILE: [LD01] ---
+Category: LD
+Path: physics/LD01-physics-and-dynamics.md
+
+---
+docid: LD01
+name: Advanced Physics & Dynamics Subsystems
+related_docs: [LA01, LB01, LB02]
+tags: [physics, vehicles, fluids, ragdolls, sat-ccd]
+---
+
+# ⚙️ Advanced Physics & Dynamics Subsystems
+
+The **Lab Engine** incorporates a comprehensive suite of high-performance physics modules built from the ground up in modern C++20. While initial releases provided fundamental rigid body simulation and swept-AABB collision detection, the engine has expanded to include advanced dynamics: raycast suspension vehicle physics, fluid volumes with Archimedes buoyancy and dynamic waves, articulated ragdolls, constraints and joints, Verlet cloth and soft bodies, continuous collision detection (CCD) via Separating Axis Theorem (SAT), and environmental force fields.
+
+---
+
+## 🏎️ 1. Raycast Suspension Vehicle Physics (`LabVehicle.h`)
+
+Rather than relying on unstable cylindrical rigid bodies for vehicle wheels, Lab uses the industry-standard **Raycast Suspension Model**:
+
+- **Raycast Wheel Probing:** Each wheel projects downward rays from chassis anchor points against scene geometry.
+- **Spring-Damper Dynamics:** Hooke's Law with damping:
+  $$F_{\text{suspension}} = k_s \cdot (L_0 - L) - k_d \cdot v_{\text{rel}}$$
+  where $k_s$ is stiffness, $k_d$ is damping, $L_0$ is rest length, and $L$ is current compressed length.
+- **Pacejka / Coulomb Lateral Grip:** Calculates longitudinal acceleration/braking forces and lateral friction to prevent unrealistic sliding while enabling controlled drifting.
+- **Ackermann Steering Geometry:** Calculates differential turning angles for inner and outer front wheels.
+- **Drive Configurations:** Configurable Front-Wheel Drive (FWD), Rear-Wheel Drive (RWD), or All-Wheel Drive (AWD) with differential torque distribution.
+
+---
+
+## 🌊 2. Fluid Volumes, Archimedes Buoyancy & Waves (`LabFluid.h`)
+
+The fluid simulation provides realistic aquatic interactions for water surfaces, toxic waste vats, and zero-gravity fluid tanks:
+
+- **Water Volume Boundaries:** Defined via axis-aligned bounding boxes (AABBs) or arbitrary polygonal boundaries with water plane height $h_{\text{water}}$.
+- **Dynamic Wave Functions:** Sum-of-sines / Gerstner wave displacement evaluating continuous height and surface normal:
+  $$y(x, z, t) = \sum_{i} A_i \cdot \sin(\vec{k}_i \cdot [x, z]^T - \omega_i t)$$
+- **Archimedes Buoyancy Force:** Calculates immersed volume ratio $\phi \in [0, 1]$ of submerged rigid bodies or vehicle chassis:
+  $$\vec{F}_{\text{buoyancy}} = \rho_{\text{fluid}} \cdot V_{\text{submerged}} \cdot (-\vec{g})$$
+- **Viscous Fluid Drag & Damping:** Applies linear and angular drag:
+  $$\vec{F}_{\text{drag}} = -\frac{1}{2} C_d \cdot A \cdot \rho \cdot \|\vec{v}\|\vec{v}$$
+  damping tumbling debris, buoyant barrels, and floating vehicles.
+- **Splashes & Ripples:** Emits particle spray and sound triggers upon high-velocity impact with the water surface.
+
+---
+
+## 💀 3. Ragdoll Physics & Active Body Animations (`LabRagdoll.h`)
+
+Replaces pre-baked death animations with fully physical skeletal collapses:
+
+- **Bone Collision Capsules:** Automatically maps character bone hierarchies (pelvis, spine, head, limbs) to oriented capsules and collision boxes.
+- **Articulated Constraints:** Spherical and cone-twist joints connect bone bodies, enforcing physiological joint angle limits (e.g. elbows bend only along single hinge axes).
+- **Active Body Blending:** Smoothly blends physics impulses with kinematic keyframe animations, allowing characters to react to physical impacts before fully collapsing.
+- **Impulse Transfer:** High-velocity projectile impacts and nearby volumetric explosions transfer directional kinetic momentum directly to the impacted bone body.
+
+---
+
+## 🔗 4. Constraints & Multi-Body Joints (`LabConstraint.h`)
+
+Provides generalized multi-body mechanical linkages:
+
+- **Joint Types:**
+  - **`DistanceConstraint`:** Keeps two anchor points at a fixed or maximum distance (ropes, cables).
+  - **`BallSocketConstraint`:** Allows 3-DOF rotation around a shared pivot while preventing relative translation.
+  - **`HingeConstraint`:** Restricts motion to a single rotational axis (doors, gates, levers).
+  - **`SliderConstraint`:** Restricts translation along a single axis (pistons, elevators, sliding hatches).
+  - **`FixedConstraint`:** Rigidly welds two bodies together with breakable force thresholds.
+- **Relaxation Iteration:** Uses Gauss-Seidel projected velocity / position impulse solvers for stable constraint chains without numerical explosion.
+
+---
+
+## 🧶 5. Verlet Soft Body & Cloth Simulation (`LabCloth.h`)
+
+Simulates tactical flags, banners, cloth tarps, hair, and soft-body deformable cushions:
+
+- **Verlet Particle Grid:** 2D grid of particles integrated via position Verlet:
+  $$\vec{x}_{n+1} = 2\vec{x}_n - \vec{x}_{n-1} + \vec{a} \cdot \Delta t^2$$
+- **Triple-Spring Connectivity:**
+  - **Structural Springs:** Maintain horizontal and vertical grid spacing.
+  - **Shear Springs:** Diagonal cross-connections preventing shearing distortion.
+  - **Bending / Flexion Springs:** Every-second-particle links resisting extreme folding.
+- **Wind & Force Fields:** Dynamic aerodynamical pressure calculation using surface normal $\vec{n}$:
+  $$\vec{F}_{\text{wind}} = (\vec{v}_{\text{wind}} \cdot \vec{n}) \cdot \vec{n}$$
+- **Scene Geometry Collision:** Cloth particles project out of solid brush geometry and sphere obstacles.
+
+---
+
+## 🎯 6. Convex Hull 3D SAT & Continuous Collision Detection (`LabCCD.h`)
+
+Prevents high-speed tunneling (e.g. high-velocity projectiles, physical debris, and fast particles clipping through thin walls):
+
+- **Separating Axis Theorem (SAT):** Exact intersection test for arbitrary convex polyhedra testing face normals and edge cross-products.
+- **Continuous Collision Detection (CCD):** Casts swept volumes (swept spheres, swept AABBs) over the trajectory $\Delta \vec{x} = \vec{v} \cdot \Delta t$.
+- **Time of Impact (TOI):** Solves exact fractional time $t \in [0, 1]$ of earliest contact, clamping body movement to the collision surface before penetration occurs.
+
+---
+
+## 🌀 7. Physics Force Fields & Environmental Triggers (`LabForceField.h`)
+
+Allows level designers to place dynamic volumetric physical forces in `.labmap`:
+
+- **Field Topologies:**
+  - **`DirectionalField`:** Constant directional push (wind tunnels, conveyor belts, gravity lifts).
+  - **`RadialField`:** Explosive push outwards or gravitational pull inwards with falloff (singularity wells, repulsors).
+  - **`VortexField`:** Swirling angular velocity around a central axis (tornadoes, whirlpools).
+  - **`BuoyancyField`:** Upward lift counteracting gravity within fluid volumes.
+- **Trigger Filters:** Layer masks determining affected body types (RigidBodies, Particles, Vehicles, Ragdolls, Players).
+
+--- END FILE: [LD01] ---
+
+--- START FILE: [LE01] ---
+Category: LE
+Path: build/LE01-build-and-export-pipeline.md
+
+---
+docid: LE01
+name: Universal Build Pipeline & Shipping
+related_docs: [LA01, LF01]
+tags: [build, export, packaging, labpak, plugins]
+---
+
+# 🚀 Universal Build Pipeline & Multi-Platform Shipping
+
+The **Lab Engine** features a streamlined, production-grade **Build and Export Pipeline** (`LabExportPipeline.h`, `LabExport.h`) alongside an extensible **Plugin & Package Ecosystem** (`LabPackage.h`, `LabPlugin.h`) and enterprise **VCS & Git LFS Asset Locking** (`LabVCS.h`). Developers can package their games for multiple operating systems with a single click from within LabEditor or via CMake scripts.
+
+---
+
+## 🏗️ Export Pipeline Architecture
+
+```
+[ Lab Project Assets & Scripts ]
+               │
+               ▼
+[ Asset Cooking & Lua Bytecode Stripping ]
+   ├── Textures, Audio, Maps packed into .labpak
+   └── .lua files compiled & stripped into .luac
+               │
+               ▼
+[ Target Platform Build Generator ]
+   ├── Windows x64    (MSVC / Clang -> LabPlayer.exe + .dlls)
+   ├── Linux x64      (GCC / Clang -> LabPlayer ELF)
+   ├── WebAssembly    (Emscripten -> LabPlayer.wasm + index.html)
+   └── macOS ARM64    (Apple Clang -> LabPlayer universal app)
+               │
+               ▼
+[ Self-Contained Shipping Distribution ]
+```
+
+---
+
+## 🎯 Target Platforms & Configurations
+
+### 1. Supported Platforms (`TargetPlatform`)
+- **`Windows_x64`:** Generates standalone Windows binaries with DirectX/OpenGL runtime libraries.
+- **`Linux_x64`:** Generates POSIX-compliant ELF executables with dynamic OpenGL/Mesa linking.
+- **`WebAssembly`:** Emscripten-based compilation producing `.wasm` binaries and interactive WebGL canvas wrappers for browser deployment.
+- **`macOS_ARM64`:** Apple Silicon compatible binaries.
+
+### 2. Build Configurations (`BuildConfiguration`)
+- **`Debug`:** Full debug symbols, assertion macros enabled, hot-reload hooks active, uncompressed asset directories for fast iteration.
+- **`Release`:** Optimized compilation (`-O3` / `/O2`), stripped debug assertions, packaged assets.
+- **`Shipping`:** Maximum optimization, stripped debug symbols, Lua bytecode protection enabled, monolithic `.labpak` asset packaging, and minimal binary footprint.
+
+---
+
+## 🔒 Production Script Protection (`.luac`)
+
+To protect commercial intellectual property and prevent unauthorized tampering with game mechanics or balance tables:
+
+- **Ahead-of-Time (AOT) Bytecode Compilation:** The export pipeline compiles high-level `.lua` scripts into standard Lua 5.4 binary chunks.
+- **Debug Symbol Stripping:** Function names, local variable identifiers, and line number metadata are completely stripped (`stripDebug = true`).
+- **Seamless Engine Execution:** The engine's `Lab::ScriptEngine::executeBytecode()` executes `.luac` chunks with zero runtime performance penalty and faster startup times compared to parsing source text.
+
+```cpp
+// Compile and strip all Lua scripts in the project
+Lab::ExportPipeline::compileAllScriptsInDirectory("assets/scripts", "build/export/assets/scripts", true);
+```
+
+---
+
+## 🏃 Standalone `LabPlayer` Runner
+
+Rather than deploying the heavy editor binary with shipping titles:
+- **`LabPlayer.exe`:** A lightweight, headless/windowed runtime executable that contains only core engine components (`LabCore`, `LabRender`, `LabPhysics`, `LabAudio`, `LabScript`, `LabNetwork`).
+- **Instant Package Mounting:** Reads the entry scene URI from the build manifest and mounts the `.labpak` archive directly into the Virtual File System (VFS).
+- **Sub-Second Startup:** Bypasses all editor docks, toolbars, CAD gizmos, and script buffers.
+
+---
+
+## 📦 Package & Plugin Ecosystem (`LabPackage.h`, `LabPlugin.h`)
+
+Lab supports a modular plugin architecture based on clean C-ABI dynamic interfaces:
+
+- **`ILabPlugin`:** Standard interface providing `onLoad()`, `onUnload()`, and `onUpdate(float dt)`.
+- **`PackageManager`:** Discovers and registers engine packages through declarative `PackageManifest` metadata:
+  ```cpp
+  Lab::PackageManifest manifest;
+  manifest.id = "com.lab.vehicles";
+  manifest.displayName = "Advanced Raycast Vehicle Physics";
+  manifest.version = "1.0.0";
+  manifest.dependencies = { "com.lab.physics-core" };
+  
+  Lab::PackageManager::instance().registerPackage(manifest, vehiclePlugin);
+  ```
+- **Virtual Packaging (`.labpak`):** High-speed virtual file archives with checksum verification and optional LZ4/Zstandard compression.
+
+---
+
+## 🔐 Version Control & Git LFS Asset Locking (`LabVCS.h`)
+
+Large binary game assets (3D meshes, 4K textures, audio soundbanks, binary maps) cannot be merged cleanly with standard Git text diffs. Lab provides integrated **Git LFS Asset Locking**:
+
+- **Real-Time Status Tracking:** Files in the project tree reflect live VCS statuses (`Unmodified`, `Modified`, `Added`, `Deleted`, `Untracked`, `LockedByOther`, `LockedByMe`).
+- **Asset Locking Workflow:**
+  ```cpp
+  // Lock a binary map before editing in LabEditor
+  Lab::VCSManager::instance().lockAsset("assets/maps/facility_alpha.labmap", "artist_jancz");
+  
+  // Verify lock before modifying
+  if (Lab::VCSManager::instance().isAssetLocked("assets/maps/facility_alpha.labmap")) {
+      // Prevent accidental overwrites
+  }
+  
+  // Unlock after committing
+  Lab::VCSManager::instance().unlockAsset("assets/maps/facility_alpha.labmap", "artist_jancz");
+  ```
+- **Team Safety:** Prevents costly merge conflicts and lost work across multi-developer teams.
+
+--- END FILE: [LE01] ---
+
+--- START FILE: [LF01] ---
+Category: LF
+Path: scripting/LF01-lua-scripting-and-ide.md
+
+---
+docid: LF01
+name: Lua 5.4 Scripting & Dynamic Runtime
+related_docs: [LA01, LB01, LE01]
+tags: [scripting, lua, vm, runtime, ide, bytecode]
+---
+
+# 📜 Lua 5.4 Scripting & Dynamic Runtime
+
+The **Lab Scripting Subsystem** (`LabScript`, `ScriptEngine`) embeds the official **Lua 5.4.6** engine to decouple high-level gameplay rules, user interface states, input handlers, and entity behaviors from the native C++20 engine core.
+
+---
+
+## 1. Architectural Decoupling
+
+Following modern game engine standards:
+- **Native C++20 Core:** Handles low-level heavy lifting (OpenGL 4.5+ DSA, mesh skinning, physics integration, memory management, network sockets, file VFS).
+- **Lua 5.4 Runtime:** Dictates game logic, state machines, entity callbacks, and balance tables.
+- **Zero External DLLs:** Lua 5.4.6 source code is compiled statically into `LabEngineLib` via `external/lua/onelua.c`.
+
+---
+
+## 2. Dynamic Entity Scripting Callbacks
+
+Entities can attach Lua event handlers triggered by the engine lifecycle:
+
+```lua
+-- Called once when entity is registered in the scene
+function OnInit(entityId)
+    print("Entity initialized: " .. tostring(entityId))
+end
+
+-- Called every simulation tick with delta time (dt)
+function OnUpdate(entityId, dt)
+    local x, y, z = Entity.getPosition(entityId)
+    -- Process gameplay logic or movement
+end
+
+-- Triggered on volume overlaps and physical contacts
+function OnTriggerEnter(entityId, otherEntityId)
+    print("Collision detected between " .. tostring(entityId) .. " and " .. tostring(otherEntityId))
+end
+```
+
+---
+
+## 3. Dynamic UI & HUD State Bridge
+
+Lua scripts can dynamically inspect and manipulate in-game UI and scene widgets:
+
+```lua
+-- Update HUD widgets in real time from Lua
+HUD.setText("TimerWidget", "02:45")
+HUD.setValue("PlayerScore", 1337.0)
+HUD.setVisible("TimerWidget", true)
+```
+
+Engine components and custom game code query HUD properties with `Lab::ScriptEngine::getHUDText()`, `getHUDValue()`, and `isHUDVisible()`.
+
+---
+
+## 4. Unified Input System Integration (`LabInput`)
+
+The engine's unified input action mapping (`LabInput.h`) exposes direct bindings to the Lua runtime:
+
+```lua
+-- Bind actions to keys or gamepad buttons
+Input.bindAction("Jump", "Space")
+Input.bindAction("Jump", "Gamepad_A")
+Input.bindAction("Interact", "E")
+Input.bindAction("Interact", "Gamepad_X")
+
+function OnActionTriggered(actionName)
+    if actionName == "Jump" then
+        print("Jump action triggered")
+    elseif actionName == "Interact" then
+        print("Interact action triggered")
+    end
+end
+```
+
+---
+
+## 5. Hot-Reloading in Development
+
+Designers can adjust script files on disk and trigger instant hot-reloading via `LabScript::reload()` or from the editor. The engine re-executes the environment and updates active gameplay parameters without recompiling the project or restarting the application.
+
+---
+
+## 6. In-Engine Scripting IDE (`LabEditor`)
+
+LabEditor includes a full-viewport, distraction-free **Scripting IDE** (`View -> Workspaces -> Scripting > Code Editor IDE`):
+- **Full Viewport Utilization:** Replaces the 3D scene view with a code editing surface.
+- **Interactive Text Buffer:** Supports multiline editing, cursor navigation, home/end, backspace line merging, Enter key indentation with auto-indent preservation, and clipboard operations.
+- **Live Syntax Highlighting:** Distinguishes Lua keywords (`function`, `local`, `if`, `then`, `end`), numerical constants, string literals, and engine API global bridges.
+- **Direct Save & Execution:** Save to disk (`Ctrl+S`) and test live in the active engine state.
+
+---
+
+## 7. Bytecode Compilation & Protection (`.luac`)
+
+For shipping titles, Lab provides an integrated ahead-of-time bytecode compiler:
+- **`compileLuaToBytecode(srcPath, dstPath, stripDebug)`:** Compiles `.lua` text files into standard Lua 5.4 binary chunks.
+- **Debug Stripping:** Removes all source paths, local symbol tables, and line numbers (`stripDebug = true`) to safeguard intellectual property.
+- **Fast Binary Execution:** `Lab::ScriptEngine::executeBytecode()` executes `.luac` chunks with zero runtime parsing overhead.
+
+--- END FILE: [LF01] ---
+
+--- START FILE: [LG01] ---
+Category: LG
+Path: audio/LG01-spatial-audio-system.md
+
+---
+docid: LG01
+name: Spatial Audio & Procedural Synthesizer
+related_docs: [LA01, LB01, LF01]
+tags: [audio, miniaudio, spatial, procedural-wav, lip-sync]
+---
+
+# 🔊 Spatial Audio & Procedural Synthesizer
+
+The **Lab Audio Subsystem** (`LabAudio`) provides immersive 3D spatial soundscapes, real-time listener positioning, and procedural audio synthesis without external DLL dependencies.
+
+---
+
+## 1. miniaudio Integration
+
+Audio playback is driven by **miniaudio v0.11.25** compiled directly into the static engine library:
+- **Low-Latency Backend:** Direct WASAPI output on Windows.
+- **Thread Safety:** Lock-free circular ring buffers decouple the audio rendering thread from the main game loop.
+- **Headless Compatibility:** Supports running in headless mode (`AudioEngine::init(false)`) for automated test runners and dedicated servers without audio devices.
+
+---
+
+## 2. 3D Spatial Audio & Attenuation
+
+Audio sources exist in 3D world space:
+```cpp
+AudioEngine::playSound3D(SoundID::FootstepConcrete, worldPosition, volume);
+```
+
+### Attenuation Model
+Sound intensity diminishes with distance using an **Inverse-Square Attenuation Model**:
+
+$$\text{AttenuatedVolume} = \text{Volume} \cdot \frac{d_{\text{min}}}{d_{\text{min}} + \max(0, d - d_{\text{min}})}$$
+
+- **Listener Positioning:** Updated every frame with player camera position, forward vector, and up vector (`AudioEngine::setListener(...)`).
+- **Stereo Panning:** Calculates dot products between the relative sound vector and listener right vector for natural directional binaural cues.
+- **High-Frequency Damping:** Sounds beyond $d_{\text{max}}$ roll off smoothly to silence.
+
+---
+
+## 3. Procedural 16-Bit PCM WAV Synthesizer
+
+To keep the repository lightweight and self-contained, Lab features a built-in algorithmic procedural synthesizer that generates 26 distinct 16-bit PCM WAV sound effects:
+
+| Sound ID | Sound Name | Procedural Synthesis Technique |
+| :--- | :--- | :--- |
+| `PipeSwing` | Melee Swoosh | Modulated bandpass white noise with fast volume swell and decay. |
+| `PipeHit` | Metallic Clang | Ring-modulated sine waves with exponential dampening. |
+| `PistolShot` | Tactical Pistol | Square wave transient burst followed by low-pass filtered noise rumble. |
+| `ShotgunShot` | 12-Gauge Blast | Layered high-energy noise transient with sub-bass frequency decay. |
+| `M4A4SShot` | Silenced Carbine | Tight compressed noise pulse with steep high-shelf filter. |
+| `SG553Shot` | Scoped Rifle | Heavy punch transient with resonant mid-range body. |
+| `MinigunShot` | Rotary Vulcan | High-frequency mechanical snap with rhythmic motor hum. |
+| `PlasmaShot` | Energy Pulse | Frequency-modulated sine chirping down from 2.4kHz to 300Hz. |
+| `RailgunShot` | Gauss Arc | Instantaneous electrical arc crackle followed by low-frequency magnetic hum. |
+| `RPGLaunch` | Rocket Whoosh | Low-frequency white noise through rising resonant bandpass filter. |
+| `RPGExplosion`| Heavy Blast | Sub-bass shockwave sine wave overlaid with decaying granular debris rumble. |
+| `FootstepConcrete` | Footstep | Short organic click with rapid floor reflection resonance. |
+| `FootstepMetal` | Metal Grate | Resonant metallic ringing transient. |
+| `FootstepIce` | Cryo Frost Crunch | Granular crystal crackle with crisp high-frequency presence. |
+| `Reload` | Magazine Click | Multi-transient click, slide friction, and metallic locking snap. |
+| `FlashlightToggle` | Switch Click | Tactile mechanical bistable switch click. |
+| `AccessGranted` | Terminal Success | Two rising ascending major-third electronic chimes. |
+| `AccessDenied` | Terminal Denied | Low-pitched double buzz warning tone. |
+
+---
+
+## 4. Real-Time Lip-Sync & Viseme RMS Analysis
+
+In `LabStudio`, speech tracks are evaluated dynamically:
+- Analyzes 16-bit PCM audio samples in real-time.
+- Calculates Root Mean Square (RMS) energy:
+  $$\text{RMS} = \sqrt{\frac{1}{N} \sum_{i=1}^{N} s_i^2}$$
+- Feeds an envelope follower with customizable attack/decay coefficients to drive the `Jaw_Open` and `Mouth_Narrow` morph targets for character dialogue lip-sync.
+
+--- END FILE: [LG01] ---
+
+--- START FILE: [LH01] ---
+Category: LH
+Path: network/LH01-authoritative-multiplayer.md
+
+---
+docid: LH01
+name: Authoritative Multiplayer Architecture
+related_docs: [LA01, LE01, LF01]
+tags: [network, multiplayer, udp, replication, dedicated-server]
+---
+
+# 🌐 Authoritative Multiplayer Architecture
+
+The **Lab Engine Multiplayer Subsystem** (`LabNetwork`, `LabServer.exe`) implements a high-performance authoritative client-server architecture over connectionless **UDP sockets**, engineered for low-latency networked gameplay, client prediction, and state replication.
+
+---
+
+## 1. Network Topology & Protocol
+
+The network architecture is strictly authoritative:
+
+```
+[ Client 1 ] ----( ClientInputPackets @ 64Hz )----> [ Dedicated Server ]
+[ Client 2 ] ----( ClientInputPackets @ 64Hz )----> [  LabServer.exe  ]
+                                                           |
+                                                  Tick Simulation (64Hz)
+                                                           |
+[ Client 1 ] <---( NetServerSnapshot @ 32-64Hz )<---------+
+[ Client 2 ] <---( NetServerSnapshot @ 32-64Hz )<---------+
+```
+
+### Packet Protocol
+- **`ConnectRequest` / `ConnectAccept`:** Handshake exchanging player nickname, assigned `clientId`, and map verification.
+- **`ClientInputPacket`:** Sent every client frame containing tick number, view angles (Yaw, Pitch), input movement flags (`W`, `A`, `S`, `D`, `Jump`, `Crouch`, `Fire`), and weapon selection.
+- **`NetServerSnapshot`:** Compact delta snapshot broadcast to all connected clients containing server tick, player entities (position, velocity, health, armor, alive flag, weapon), active tracers, and combat events.
+- **`ChatMessagePacket`:** Text messages broadcast to the in-game chat log.
+- **`DisconnectPacket`:** Clean disconnection notification.
+
+---
+
+## 2. Client-Side Prediction & Server Reconciliation
+
+To eliminate perceived input latency on the local client without sacrificing server authority:
+
+1. **Prediction:** When the player presses movement keys, the client immediately executes physics and moves locally, storing the unacknowledged inputs in a circular history buffer.
+2. **Snapshot Arrival:** When the server snapshot arrives, the client compares its historical predicted position at that server tick against the authoritative server position.
+3. **Reconciliation:** If the spatial discrepancy exceeds a small threshold ($> 0.05\text{ m}$):
+   - The client snaps its position to the server's authoritative state.
+   - Replays all pending unacknowledged inputs from that tick forward to the present.
+   - The player experiences zero local input lag while preventing speedhacks and wall-glitches.
+
+---
+
+---
+
+## 3. Dedicated Server (`LabServer.exe` & Linux `LabServer`)
+
+The dedicated server runs completely headless without requiring an OpenGL context, audio drivers, or windowing system:
+- **Platform Parity:** Runs identically on Linux (Ubuntu, Debian, Arch) and Windows.
+- **Port:** Configurable UDP port (default: `27015`).
+- **Tickrate:** Configurable tickrate ($64\text{ Hz}$ or $128\text{ Hz}$).
+- **Map Loading:** Parses `.labmap` geometry into solid collision boxes for authoritative wall collision and hitscan verification.
+- **Configuration File (`server.cfg`):** The server automatically reads `server.cfg` (or custom `-config <path>`).
+- **Command Line Overrides:** Command-line parameters override values in `server.cfg`.
+
+### `server.cfg` Reference Format:
+```ini
+# ===================================================================
+# LAB MULTIPLAYER SERVER CONFIGURATION (server.cfg)
+# Supports both Linux Headless and Windows Dedicated Servers
+# ===================================================================
+
+[Server]
+port = 27015
+server_name = Lab Dedicated Server [Linux/Windows]
+map = assets/maps/facility_alpha.labmap
+tickrate = 64
+max_clients = 16
+
+[Match]
+round_limit = 10
+time_limit = 600
+
+[Network]
+lan_mode = 1
+host_type = dedicated
+password = 
+```
+
+### Linux Dedicated Server Quickstart:
+```bash
+# Compile headless server on Linux
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target LabServer
+
+# Run dedicated server with server.cfg
+./build/LabServer
+
+# Or run with custom config / overrides
+./build/LabServer -config my_custom.cfg -port 27020 -map assets/maps/facility_alpha.labmap
+```
+
+---
+
+## 4. Hosting from `Lab.exe`: Dedicated vs. LAN / P2P
+
+When configuring multiplayer in the `Lab.exe` GUI:
+1. **DEDICATED (`LabServer.exe`):**
+   - Spawns an external dedicated `LabServer.exe` console process in the background.
+   - Writes the user match settings to `server.cfg`.
+   - `Lab.exe` connects to `127.0.0.1:<port>` as an authoritative client.
+   - Clean lifecycle management: terminating `Lab.exe` terminates the spawned dedicated server cleanly without orphaned processes.
+2. **LAN / P2P (LISTEN SERVER):**
+   - Runs an embedded UDP listen server directly inside `Lab.exe`.
+   - Broadcasts discovery queries across the local subnet (`255.255.255.255`).
+   - Nearby players on the same Wi-Fi/LAN can find and join the match with 1-click in the Server Browser.
+
+---
+
+## 5. LAN Server Browser & Discovery
+
+Clients discover local servers via UDP broadcast:
+- Client broadcasts a discovery query packet on the local subnet (`255.255.255.255`).
+- Active servers respond with server name, current map, active game mode, player count, and max slots.
+- The client UI lists available servers with real-time round-trip ping measurements.
+
+--- END FILE: [LH01] ---

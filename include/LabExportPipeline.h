@@ -29,7 +29,7 @@ namespace Lab {
         std::filesystem::path outputDirectory{"build/export"};
         bool embedAssets{true};
         bool compressAssets{true};
-        std::string entrySceneURI{"assets/maps/cryo_complex.labmap"};
+        std::string entrySceneURI{"assets/maps/default_box.labmap"};
     };
 
     struct ExportResult {

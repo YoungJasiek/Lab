@@ -287,7 +287,7 @@ namespace Lab {
     public:
         static std::string discoverPublicIP(uint16_t localPort = DEFAULT_SERVER_PORT);
         static std::string getLocalIP();
-        static bool openUPnPPort(uint16_t port, const std::string& description = "FrozenLife Server");
+        static bool openUPnPPort(uint16_t port, const std::string& description = "Lab Engine Server");
         static void closeUPnPPort(uint16_t port);
         static NATStatus queryFullStatus(uint16_t port = DEFAULT_SERVER_PORT);
         static bool punchHole(const std::string& remoteIP, uint16_t remotePort, uint16_t localPort = 0);

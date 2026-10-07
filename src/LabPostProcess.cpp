@@ -161,20 +161,16 @@ namespace Lab {
             // Gamma 2.2 correction
             mapped = pow(mapped, vec3(1.0 / 2.2));
 
-            // --- Cinematic Post-Apocalyptic Color Grading ---
-            // 1. High-contrast gritty shadows (crushed blacks for grim atmosphere)
-            mapped = pow(clamp(mapped, 0.0, 1.0), vec3(1.10));
+            // --- Engine Neutral Cinematic Color Grading ---
+            // 1. Balanced contrast curve
+            mapped = pow(clamp(mapped, 0.0, 1.0), vec3(1.02));
 
-            // 2. Bleak frozen desaturation (cold nuclear winter / abandoned ruins)
+            // 2. Natural saturation balance
             float luma = dot(mapped, vec3(0.299, 0.587, 0.114));
-            mapped = mix(vec3(luma), mapped, 0.82);
+            mapped = mix(vec3(luma), mapped, 1.0);
 
-            // 3. Cold shadow split-toning (subtle icy blue/teal tint in darker tones)
-            vec3 shadowTint = vec3(0.92, 0.96, 1.06);
-            mapped = mix(mapped * shadowTint, mapped, clamp(luma * 2.0, 0.0, 1.0));
-
-            // 4. Subtle tactical film grain
-            float grain = (hash(vTexCoords * vec2(1280.0, 720.0) + vec2(uTime * 13.0, uTime * 37.0)) - 0.5) * 0.022;
+            // 3. Subtle film grain
+            float grain = (hash(vTexCoords * vec2(1280.0, 720.0) + vec2(uTime * 13.0, uTime * 37.0)) - 0.5) * 0.015;
             mapped = clamp(mapped + vec3(grain), 0.0, 1.0);
 
             FragColor = vec4(mapped, 1.0);

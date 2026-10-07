@@ -15,56 +15,57 @@ namespace Lab {
     };
 
     struct ThemeColors {
-        // Window & Panels
-        Vec3 windowBg{ 0.12f, 0.14f, 0.18f };
-        Vec3 panelBg{ 0.18f, 0.19f, 0.22f };
-        Vec3 panelHeaderBg{ 0.14f, 0.22f, 0.32f };
-        Vec3 panelHeaderBorder{ 0.20f, 0.50f, 0.80f };
-        Vec3 viewportBg{ 0.08f, 0.09f, 0.11f };
+        // Window & Panels (neutral graphite, retro 2008 DCC look)
+        Vec3 windowBg{ 0.169f, 0.169f, 0.169f };          // #2B2B2B
+        Vec3 panelBg{ 0.227f, 0.227f, 0.227f };           // #3A3A3A
+        Vec3 panelHeaderBg{ 0.290f, 0.290f, 0.290f };     // gradient top #4A4A4A
+        Vec3 panelHeaderBgBottom{ 0.220f, 0.220f, 0.220f };// gradient bottom #383838
+        Vec3 panelHeaderBorder{ 0.961f, 0.510f, 0.122f }; // accent line
+        Vec3 viewportBg{ 0.118f, 0.118f, 0.118f };        // #1E1E1E
 
         // Accents & Highlights
-        Vec3 accent{ 1.0f, 0.55f, 0.10f };       // Valve Hammer Orange
-        Vec3 accentHover{ 1.0f, 0.68f, 0.20f };
-        Vec3 accentGlow{ 0.20f, 0.85f, 1.0f };    // Cyber Cyan
+        Vec3 accent{ 0.961f, 0.510f, 0.122f };            // #F5821F
+        Vec3 accentHover{ 1.0f, 0.627f, 0.251f };         // #FFA040
+        Vec3 accentGlow{ 0.20f, 0.85f, 1.0f };            // focus only
 
         // Buttons
-        Vec3 buttonBg{ 0.24f, 0.25f, 0.28f };
-        Vec3 buttonHoverBg{ 0.32f, 0.35f, 0.40f };
-        Vec3 buttonActiveBg{ 0.85f, 0.48f, 0.10f };
-        Vec3 buttonHighlightBg{ 0.24f, 0.42f, 0.26f };
-        Vec3 buttonHighlightHoverBg{ 0.32f, 0.55f, 0.35f };
-        Vec3 buttonGreenBg{ 0.16f, 0.50f, 0.25f };
-        Vec3 buttonGreenHoverBg{ 0.22f, 0.65f, 0.32f };
-        Vec3 buttonRedBg{ 0.55f, 0.16f, 0.16f };
-        Vec3 buttonRedHoverBg{ 0.75f, 0.22f, 0.22f };
+        Vec3 buttonBg{ 0.290f, 0.290f, 0.290f };
+        Vec3 buttonHoverBg{ 0.365f, 0.365f, 0.365f };
+        Vec3 buttonActiveBg{ 0.80f, 0.42f, 0.09f };
+        Vec3 buttonHighlightBg{ 0.28f, 0.38f, 0.28f };
+        Vec3 buttonHighlightHoverBg{ 0.34f, 0.47f, 0.34f };
+        Vec3 buttonGreenBg{ 0.22f, 0.40f, 0.24f };
+        Vec3 buttonGreenHoverBg{ 0.28f, 0.50f, 0.30f };
+        Vec3 buttonRedBg{ 0.45f, 0.20f, 0.20f };
+        Vec3 buttonRedHoverBg{ 0.60f, 0.26f, 0.26f };
 
-        // Bevel borders
-        Vec3 bevelLight{ 0.38f, 0.40f, 0.45f };
-        Vec3 bevelDark{ 0.08f, 0.09f, 0.11f };
-        Vec3 sunkenLight{ 0.08f, 0.09f, 0.11f };
-        Vec3 sunkenDark{ 0.38f, 0.40f, 0.45f };
+        // Bevel borders (subtle 1px)
+        Vec3 bevelLight{ 0.42f, 0.42f, 0.42f };
+        Vec3 bevelDark{ 0.10f, 0.10f, 0.10f };
+        Vec3 sunkenLight{ 0.10f, 0.10f, 0.10f };
+        Vec3 sunkenDark{ 0.42f, 0.42f, 0.42f };
 
         // Text
-        Vec3 textRegular{ 0.90f, 0.92f, 0.95f };
-        Vec3 textMuted{ 0.60f, 0.62f, 0.66f };
-        Vec3 textHover{ 1.0f, 0.95f, 0.70f };
+        Vec3 textRegular{ 0.847f, 0.847f, 0.847f };       // #D8D8D8
+        Vec3 textMuted{ 0.549f, 0.549f, 0.549f };         // #8C8C8C
+        Vec3 textHover{ 1.0f, 0.82f, 0.60f };
         Vec3 textActive{ 1.0f, 1.0f, 1.0f };
-        Vec3 textHeader{ 1.0f, 1.0f, 1.0f };
-        Vec3 textAccent{ 0.98f, 0.78f, 0.08f };
+        Vec3 textHeader{ 0.95f, 0.95f, 0.95f };
+        Vec3 textAccent{ 1.0f, 0.65f, 0.25f };
 
         // Sliders & Progress
-        Vec3 sliderTrackBg{ 0.14f, 0.15f, 0.17f };
-        Vec3 sliderFillBg{ 0.22f, 0.52f, 0.72f };
-        Vec3 sliderThumbBg{ 0.80f, 0.82f, 0.85f };
-        Vec3 sliderText{ 0.95f, 0.80f, 0.25f };
+        Vec3 sliderTrackBg{ 0.15f, 0.15f, 0.15f };
+        Vec3 sliderFillBg{ 0.80f, 0.42f, 0.09f };
+        Vec3 sliderThumbBg{ 0.78f, 0.78f, 0.78f };
+        Vec3 sliderText{ 1.0f, 0.70f, 0.35f };
 
         // Input fields & Tabs
-        Vec3 inputBg{ 0.10f, 0.11f, 0.13f };
-        Vec3 inputBorder{ 0.30f, 0.32f, 0.36f };
+        Vec3 inputBg{ 0.133f, 0.133f, 0.133f };
+        Vec3 inputBorder{ 0.36f, 0.36f, 0.36f };
         Vec3 inputBorderFocused{ 0.20f, 0.70f, 1.0f };
         Vec3 inputCursor{ 0.20f, 0.85f, 1.0f };
-        Vec3 tabActiveBg{ 0.28f, 0.30f, 0.35f };
-        Vec3 tabInactiveBg{ 0.16f, 0.17f, 0.20f };
+        Vec3 tabActiveBg{ 0.31f, 0.31f, 0.31f };
+        Vec3 tabInactiveBg{ 0.19f, 0.19f, 0.19f };
     };
 
     struct ThemeLayout {

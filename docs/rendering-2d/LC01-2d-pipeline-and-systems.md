@@ -1,3 +1,10 @@
+---
+docid: LC01
+name: Universal 2D Engine Pipeline & Systems
+related_docs: [LA01, LB01, LD01]
+tags: [rendering-2d, spritebatcher, tilemaps, hud]
+---
+
 # 🎨 Universal 2D Engine Pipeline & Systems
 
 The **Lab Engine** features first-class, high-performance parity for **2D game development**, providing a specialized 2D architecture designed alongside its 3D renderer. The 2D pipeline delivers pixel-perfect rendering, batched draw calls, data-driven spritesheet slicing, skeletal and frame-based 2D animations, multi-layer tilemaps, 2D physics, and a responsive multi-genre HUD canvas designer.

@@ -1,9 +1,12 @@
 #pragma once
 
 #include "LabMap.h"
+#include "LabEntity.h"
+#include "LabCamera.h"
 #include <string>
 #include <vector>
 #include <memory>
+#include <algorithm>
 
 namespace Lab {
 
@@ -29,10 +32,85 @@ namespace Lab {
 
     class LabScene : public LabMap {
     public:
+        using Scene = LabScene;
         SceneEnvironment environment;
+        std::vector<std::shared_ptr<Entity>> entities;
 
         LabScene() = default;
         virtual ~LabScene() = default;
+
+        std::shared_ptr<Entity> CreateEntity(const std::string& name = "Entity", const std::string& tag = "") {
+            auto ent = std::make_shared<Entity>(name, tag);
+            entities.push_back(ent);
+            return ent;
+        }
+
+        Entity* FindByTag(const std::string& tag) const {
+            for (const auto& ent : entities) {
+                if (ent && ent->tag == tag) return ent.get();
+            }
+            return nullptr;
+        }
+
+        std::vector<Entity*> FindAllByTag(const std::string& tag) const {
+            std::vector<Entity*> res;
+            for (const auto& ent : entities) {
+                if (ent && ent->tag == tag) res.push_back(ent.get());
+            }
+            return res;
+        }
+
+        Entity* FindByName(const std::string& name) const {
+            for (const auto& ent : entities) {
+                if (ent && ent->name == name) return ent.get();
+            }
+            return nullptr;
+        }
+
+        Camera* GetMainCamera() const {
+            for (const auto& ent : entities) {
+                if (ent && ent->tag == "MainCamera") {
+                    Camera* cam = ent->GetComponent<Camera>();
+                    if (cam && cam->enabled) return cam;
+                }
+            }
+            Camera* best = nullptr;
+            for (const auto& ent : entities) {
+                if (!ent) continue;
+                Camera* cam = ent->GetComponent<Camera>();
+                if (cam && cam->enabled) {
+                    if (!best || cam->depth < best->depth) {
+                        best = cam;
+                    }
+                }
+            }
+            return best;
+        }
+
+        std::vector<Camera*> GetCamerasSortedByDepth() const {
+            std::vector<Camera*> cams;
+            for (const auto& ent : entities) {
+                if (!ent) continue;
+                Camera* cam = ent->GetComponent<Camera>();
+                if (cam && cam->enabled) cams.push_back(cam);
+            }
+            std::sort(cams.begin(), cams.end(), [](const Camera* a, const Camera* b) {
+                return a->depth < b->depth;
+            });
+            return cams;
+        }
+
+        void Update(float dt) {
+            for (auto& ent : entities) {
+                if (ent) ent->Update(dt);
+            }
+        }
+
+        void LateUpdate(float dt) {
+            for (auto& ent : entities) {
+                if (ent) ent->LateUpdate(dt);
+            }
+        }
 
         /// @brief Applies scene environment (sun, ambient, fog, skybox) to renderer
         void applyEnvironment() const;
@@ -65,5 +143,7 @@ namespace Lab {
         /// @brief Maps prefab reference names back to legacy weapon IDs
         static int prefabToWeaponId(const std::string& prefabRef);
     };
+
+    using Scene = LabScene;
 
 } // namespace Lab

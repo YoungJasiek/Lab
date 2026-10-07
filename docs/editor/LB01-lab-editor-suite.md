@@ -1,3 +1,10 @@
+---
+docid: LB01
+name: LabEditor Multi-Workspace Suite
+related_docs: [LA01, LB02, LC01, LF01]
+tags: [editor, tools, workspaces, pie]
+---
+
 # 🛠️ LabEditor — Unified LabSDK Multi-Workspace Game Editor
 
 **LabEditor** (`editor_main.cpp` / `LabEditor.exe`) is the centralized, standalone game development environment and visual authoring suite of the **Lab Engine**. Originally evolving from the classic CAD-styled *LabHammer*, LabEditor has been comprehensively re-architected into a multi-genre, multi-workspace creation suite with complete parity for both **3D** and **2D** game development, character and animation posing, native HUD UI design, in-engine Lua 5.4 scripting IDE, in-game profiler, and universal one-click export.
@@ -28,11 +35,11 @@ LabEditor organizes toolsets into top-level workspace categories accessible from
 │   ├── 3D > Animation 3D Timeline       (Prop & Model Keyframe Scrubber)
 │   └── 3D > Dedicated Model Viewer      (3D Turntable, Wireframe, Statistics)
 ├── 2. LabStudio Workspaces
-│   ├── Studio > Weapon Grip Poser       (Rig Bone Sockets, Hand Grips)
-│   ├── Studio > Reload Timeline         (Multi-Phase Reload Choreography)
-│   ├── Studio > Weapon Skins            (PBR Materials, Shader Tweaks)
-│   ├── Studio > Character Appearance    (Cryo-Suit Outfits, Armor, Helmets)
-│   └── Studio > Face Dialogue           (Morph Targets & Lip-Sync Visemes)
+│   ├── Studio > Equipment & Socket Poser (Rig Bone Sockets, Hand Grips)
+│   ├── Studio > Action & Reload Timeline (Multi-Phase Action Choreography)
+│   ├── Studio > Material & Texture Tuning(PBR Materials, Shader Tweaks)
+│   ├── Studio > Character & Mesh Variants(Outfits, Modular Attachments)
+│   └── Studio > Face & Dialogue          (Morph Targets & Lip-Sync Visemes)
 ├── 3. 2D Workspaces
 │   ├── 2D > Level & Tilemap Editor      (SpriteSheets, Tile Palettes, Parallax)
 │   ├── 2D > Animation Timeline          (2D Spritesheet Frame Sequencer)
@@ -43,19 +50,19 @@ LabEditor organizes toolsets into top-level workspace categories accessible from
 └── 5. Project Hub Workspace
     ├── Hub > Project Launcher           (Discover, switch, & launch projects)
     ├── Hub > New Game Wizard            (Create isolated games in Documents/LabGames)
-    └── Hub > Standalone Exporter        (One-click standalone demo/ distribution)
+    └── Hub > Standalone Exporter        (One-click standalone demo / distribution)
 ```
 
 ### 1. 3D World & Level Editor (`World3D_Level`)
 - **Constructive Solid Geometry (CSG):** Author axis-aligned solid bounding boxes with real-time Sutherland-Hodgman convex polyhedron plane slicing.
-- **Entity Placement:** Spawn points, dynamic translating blast doors, point/spot lights, weapon pedestals, biometric retinal scanners, and physical props.
+- **Entity Placement:** Spawn points, dynamic doors, point/spot lights, item pedestals, interactive triggers, and physical props.
 - **3D Flycam Navigation:** Hold `Right Mouse Button` + `WASD` for free-flight navigation; `Shift` to accelerate; `Space`/`Ctrl` for vertical ascent/descent.
 - **Wireframe & Lighting Modes:** Toggle between full dynamic lighting, flat unlit textured mode, and wireframe visualization.
 
 ### 2. LabStudio Integration (`Studio_*`)
-- Directly author and inspect character rigs, weapon alignment, and animations within the editor without opening external tools.
-- **Grip Poser:** Translate and rotate weapon sockets relative to hand bones with instant numerical feedback.
-- **Reload Timeline:** Scrub keyframe curves for magazine ejection, reload insertion, bolt racking, and camera shake.
+- Directly author and inspect skeletal rigs, bone sockets, and animations within the editor without opening external tools.
+- **Socket Poser:** Translate and rotate equipment sockets relative to hand/rig bones with instant numerical feedback.
+- **Action Timeline:** Scrub keyframe curves for object attachment, equipment interactions, and camera impulse.
 - **Face Dialogue:** Test audio viseme energies and blend facial morph targets.
 
 ### 3. 2D Level & Tilemap Editor (`Level2D_Tilemap`)
@@ -106,7 +113,7 @@ LabEditor organizes toolsets into top-level workspace categories accessible from
 
 LabEditor features integrated runtime simulation modes:
 1. **Stopped (`EditorSimState::Stopped`):** Full CAD editing mode; cameras fly freely, gizmos are active, physics and game ticks are halted.
-2. **Playing (`EditorSimState::Playing`):** Physics accumulator ticks at fixed 64Hz, active bots run sensory state machines, vehicle wheels calculate suspension forces, water volumes apply Archimedes buoyancy, and Lua scripts evaluate `OnUpdate(dt)`.
+2. **Playing (`EditorSimState::Playing`):** Physics accumulator ticks at fixed 64Hz, active entities and controllers run state logic, vehicle wheels calculate suspension forces, water volumes apply Archimedes buoyancy, and Lua scripts evaluate `OnUpdate(dt)`.
 3. **Paused (`EditorSimState::Paused`):** Freezes the game simulation, allowing developers to inspect bone matrices, rigid body velocities, and trigger volumes in mid-air.
 4. **Step:** Advances the simulation by exactly one fixed physics tick ($\Delta t = 1/64\text{ s}$), ideal for debugging projectile collisions and CCD tunneling.
 

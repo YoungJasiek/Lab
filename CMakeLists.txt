@@ -122,7 +122,12 @@ add_library(LabCore SHARED
     include/plugins/LuaDropinPlugin.h
     include/LabApplication.h
     include/LabMath.h
+    include/LabComponent.h
+    include/LabTransform.h
+    include/LabEntity.h
     include/LabCamera.h
+    include/LabCameraScripts.h
+    include/LabComponents.h
     include/LabFont.h
     include/LabDialogs.h
     include/LabExport.h

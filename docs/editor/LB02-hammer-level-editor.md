@@ -1,7 +1,14 @@
+---
+docid: LB02
+name: LabHammer 3D Level Editor & CSG
+related_docs: [LB01, LA01, LD01]
+tags: [editor, hammer, csg, labmap]
+---
+
 # 🏗️ LabHammer 3D Level Editor
 
 > [!NOTE]
-> **Evolution into LabEditor:** LabHammer has evolved into the unified **[LabEditor](LAB_EDITOR.md)** (`LabEditor.exe`), which integrates the 3D Level Editor alongside 2D Tilemap editing, the LabStudio animation suite, Multi-Genre HUD Canvas designer, Play-In-Editor (PIE) simulation, and a full-viewport Lua Scripting IDE. This document covers the core 3D CAD level construction and `.labmap` format used within the 3D World workspace.
+> **Evolution into LabEditor:** LabHammer has evolved into the unified **[LabEditor](../editor/LB01-lab-editor-suite.md)** (`LabEditor.exe`), which integrates the 3D Level Editor alongside 2D Tilemap editing, the LabStudio animation suite, Multi-Genre HUD Canvas designer, Play-In-Editor (PIE) simulation, and a full-viewport Lua Scripting IDE. This document covers the core 3D CAD level construction and `.labmap` format used within the 3D World workspace.
 
 **LabHammer** (`LabHammer.exe` / `LabEditor.exe` 3D Workspace) is a standalone 3D CAD-style level editor inspired by Valve's classic Hammer Editor. It allows level designers to construct architecture, carve complex geometry, place dynamic entities, and compile map files into plain-text `.labmap` documents.
 
@@ -33,18 +40,18 @@ Level geometry is created using convex brush volumes:
 
 ## 3. Entity Authoring & Placement
 
-Beyond static geometry, designers place dynamic game entities:
-- **Player Spawn Nodes (`spawn_point` / `spawn`):** Team-assigned or deathmatch spawn locations with orientation yaw in degrees.
+Beyond static geometry, designers place dynamic entities:
+- **Spawn Nodes (`spawn_point` / `spawn`):** Player and actor spawn locations with orientation yaw in degrees.
   - **Spawn Yaw Convention:** Consistent with `LabCamera` spherical coordinate system where $\text{forward} = (\cos(\text{yaw}), 0, \sin(\text{yaw}))$.
     - $\text{yaw} = 0^\circ$: Facing $+X$ (East)
     - $\text{yaw} = 90^\circ$: Facing $+Z$ (South)
-    - $\text{yaw} = 180^\circ$: Facing $-Z$ (North / into standard arena corridor)
+    - $\text{yaw} = 180^\circ$: Facing $-Z$ (North)
     - $\text{yaw} = 270^\circ$: Facing $-X$ (West)
-- **Weapon Spawners (`weapon_spawner`):** Rotational item pedestals spawning specific weapon pickups with configurable respawn delay timers.
+- **Item & Pickup Nodes (`pickup` / `item_spawner`):** Configurable resource and inventory pedestals with respawn timers.
 - **Omni & Spot Lights (`light`):** Point light sources with custom RGB color, intensity, and attenuation radius.
-- **Dynamic Airlocks & Blast Doors (`door`):** Translating physical doors with opening axis, speed, sound, and linked biometric retinal scanner IDs.
-- **Biometric Retinal Scanners (`retinal_scanner`):** Interactive security terminals requiring authentication to unlock doors.
-- **Destructible Props (`prop`):** Wooden crates and explosive red barrels subject to Newtonian physics.
+- **Dynamic Doors & Portals (`door`):** Translating physical doors with opening axis, speed, sound, and linked trigger IDs.
+- **Interactive Terminals (`terminal` / `trigger`):** Interactive world triggers and state machines.
+- **Physics Props (`prop`):** Rigid body meshes subject to Newtonian physics and impulse response.
 - **2D World Sprites (`sprite_2d`):** 2D quad entities placed in 3D space with billboard and rotation support.
 
 ---
@@ -55,8 +62,8 @@ Maps are serialized into human-readable plain-text files (`assets/maps/*.labmap`
 
 ```
 MAP_VERSION 1.2
-MAP_NAME "Cryo Research Facility"
-SKYBOX "sky_cryo"
+MAP_NAME "Modular Facility 01"
+SKYBOX "sky_default"
 AMBIENT_COLOR 0.25 0.28 0.35
 
 // Brushes (Solid Geometry)
@@ -69,21 +76,21 @@ END_BRUSH
 
 // Dynamic Door
 DOOR
-  NAME "Airlock_Sector_B"
+  NAME "Main_Airlock"
   POS 4.0 1.5 -10.0
   SIZE 2.4 3.0 0.4
   MOVE_DIR 0.0 1.0 0.0
   MOVE_DIST 2.8
   SPEED 2.0
-  LOCK_ID "SectorB_Auth"
+  LOCK_ID "Security_Gate"
 END_DOOR
 
-// Interactive Biometric Scanner
-SCANNER
+// Interactive Trigger
+TRIGGER
   POS 2.2 1.3 -9.6
   ROT 0.0 180.0 0.0
-  TARGET_DOOR "Airlock_Sector_B"
-  REQUIRED_AUTH "Dr. Vance"
-END_SCANNER
+  TARGET "Main_Airlock"
+  REQUIRED_KEY "Keycard_Red"
+END_TRIGGER
 ```
-Maps can be edited in LabHammer or directly modified in any text editor.
+Maps can be authored in LabEditor or directly modified in any text editor.

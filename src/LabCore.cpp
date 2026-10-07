@@ -1,4 +1,5 @@
 #include "LabCore.h"
+#include "LabInput.h"
 #include "LabApplication.h"
 #include "LabPackage.h"
 #include <glad/gl.h>
@@ -69,6 +70,17 @@ namespace Lab {
     Vec2 Input::mousePos = { 0, 0 };
     Vec2 Input::mouseDelta = { 0, 0 };
     float Input::scrollDelta = 0.0f;
+    Vec3 Input::mousePosition = { 0.0f, 0.0f, 0.0f };
+
+    float Input::GetAxis(const std::string& axisName) {
+        if (axisName == "MouseX" || axisName == "mouseX") {
+            return mouseDelta.x;
+        }
+        if (axisName == "MouseY" || axisName == "mouseY") {
+            return mouseDelta.y;
+        }
+        return InputActionManager::instance().getAxis(axisName);
+    }
 
     bool Input::isKeyPressed(int key) {
         if (key >= 'a' && key <= 'z') key = key - 'a' + 'A';
@@ -268,7 +280,13 @@ namespace Lab {
         _firstMouse = true;
         if (captured) {
             glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            if (glfwRawMouseMotionSupported()) {
+                glfwSetInputMode(_window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+            }
         } else {
+            if (glfwRawMouseMotionSupported()) {
+                glfwSetInputMode(_window, GLFW_RAW_MOUSE_MOTION, GLFW_FALSE);
+            }
             glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
             if (_standardCursor) {
                 glfwSetCursor(_window, _standardCursor);
@@ -327,6 +345,9 @@ namespace Lab {
 
             Input::mousePos.x = (float)xpos;
             Input::mousePos.y = (float)ypos;
+            Input::mousePosition.x = (float)xpos;
+            Input::mousePosition.y = (float)ypos;
+            Input::mousePosition.z = 0.0f;
         }
     }
 
