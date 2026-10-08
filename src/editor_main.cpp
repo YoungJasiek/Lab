@@ -1218,6 +1218,9 @@ public:
             moveSelection(0.0f, dy, 0.0f);
         }
 
+        // Blender-style drag-field update (Position / Size / Rotation)
+        updateDragFields(mx);
+
         // Handle Left-Click
         if (Input::isMouseButtonJustPressed(0) || (Input::isMouseButtonPressed(0) && !_lmbPressed)) {
             LabLog::info("[LabHammer] LMB Click at (" + std::to_string((int)mx) + ", " + std::to_string((int)my) + ")");
@@ -1467,6 +1470,68 @@ public:
             _timelineFrame = static_cast<int>(_animScrubberPos * 60.0f);
         }
 
+        // Direct Numeric Field Keyboard Editing (Blender-style)
+        if (_fieldEditRow >= 0) {
+            _fieldEditCursorBlink += time.delta * 3.0f;
+            static bool s_fBack = false, s_fEnter = false, s_fEsc = false;
+            static bool s_lastFKeys[512] = { false };
+
+            if (Input::isKeyPressed(259)) { // Backspace
+                if (!s_fBack && !_fieldEditBuffer.empty()) {
+                    _fieldEditBuffer.pop_back();
+                }
+                s_fBack = true;
+            } else {
+                s_fBack = false;
+            }
+
+            if (Input::isKeyPressed(256)) { // Esc -> Cancel
+                if (!s_fEsc) cancelFieldEdit();
+                s_fEsc = true;
+            } else {
+                s_fEsc = false;
+            }
+
+            if (Input::isKeyPressed(257) || Input::isKeyPressed(335)) { // Enter or Keypad Enter -> Commit
+                if (!s_fEnter) commitFieldEdit();
+                s_fEnter = true;
+            } else {
+                s_fEnter = false;
+            }
+
+            // Digits 0..9 (keys 48..57)
+            for (int k = 48; k <= 57; ++k) {
+                if (Input::keys[k] && !s_lastFKeys[k]) {
+                    _fieldEditBuffer += (char)k;
+                }
+                s_lastFKeys[k] = Input::keys[k];
+            }
+            // Keypad 0..9 (keys 320..329)
+            for (int k = 320; k <= 329; ++k) {
+                if (Input::keys[k] && !s_lastFKeys[k]) {
+                    _fieldEditBuffer += (char)('0' + (k - 320));
+                }
+                s_lastFKeys[k] = Input::keys[k];
+            }
+            // Period / Decimal point (46 or 330)
+            if ((Input::keys[46] && !s_lastFKeys[46]) || (Input::keys[330] && !s_lastFKeys[330])) {
+                if (_fieldEditBuffer.find('.') == std::string::npos) _fieldEditBuffer += '.';
+            }
+            s_lastFKeys[46] = Input::keys[46];
+            s_lastFKeys[330] = Input::keys[330];
+
+            // Minus / Negative sign (45 or 333)
+            if ((Input::keys[45] && !s_lastFKeys[45]) || (Input::keys[333] && !s_lastFKeys[333])) {
+                if (_fieldEditBuffer.empty() || _fieldEditBuffer[0] != '-') _fieldEditBuffer.insert(_fieldEditBuffer.begin(), '-');
+                else _fieldEditBuffer.erase(_fieldEditBuffer.begin());
+            }
+            s_lastFKeys[45] = Input::keys[45];
+            s_lastFKeys[333] = Input::keys[333];
+
+            // In field edit mode, bypass all general editor hotkeys so typing doesn't trigger tool changes
+            return;
+        }
+
         // Keyboard Shortcuts
         bool ctrlDown = Input::isKeyPressed(341) || Input::isKeyPressed(345); // Left/Right Ctrl
         bool shiftDown = Input::isKeyPressed(340) || Input::isKeyPressed(344);
@@ -1714,9 +1779,12 @@ public:
             _snapIncPressed = false;
         }
 
-        // Gizmo Mode Hotkeys: W (Move), E (Rotate), R (Scale), T (Universal)
+        // Gizmo Mode Hotkeys (Blender style): G (Move), R (Rotate), S (Scale); legacy W/E/T kept
         if (is3DMapEditing && !_contextMenuOpen && !ctrlDown && _activeTool == 0) {
             static bool s_wPressed = false, s_eModePressed = false, s_rModePressed = false, s_tPressed = false;
+            static bool s_gPressed = false, s_sPressed = false;
+            const bool flyCam = Input::isMouseButtonPressed(1);
+
             if (Input::isKeyPressed('W') || Input::isKeyPressed('w')) {
                 if (!s_wPressed) { _gizmoMode = GizmoMode::Move; logMessage("Gizmo Mode: Move (W)"); s_wPressed = true; }
             } else s_wPressed = false;
@@ -1726,8 +1794,16 @@ public:
             } else s_eModePressed = false;
 
             if (Input::isKeyPressed('R') || Input::isKeyPressed('r')) {
-                if (!s_rModePressed) { _gizmoMode = GizmoMode::Scale; logMessage("Gizmo Mode: Scale (R)"); s_rModePressed = true; }
+                if (!s_rModePressed) { _gizmoMode = GizmoMode::Rotate; logMessage("Gizmo Mode: Rotate (R)"); s_rModePressed = true; }
             } else s_rModePressed = false;
+
+            if (!flyCam && (Input::isKeyPressed('G') || Input::isKeyPressed('g'))) {
+                if (!s_gPressed) { _gizmoMode = GizmoMode::Move; logMessage("Gizmo Mode: Move (G)"); s_gPressed = true; }
+            } else s_gPressed = false;
+
+            if (!flyCam && (Input::isKeyPressed('S') || Input::isKeyPressed('s'))) {
+                if (!s_sPressed) { _gizmoMode = GizmoMode::Scale; logMessage("Gizmo Mode: Scale (S)"); s_sPressed = true; }
+            } else s_sPressed = false;
 
             if (Input::isKeyPressed('T') || Input::isKeyPressed('t')) {
                 if (!s_tPressed) { _gizmoMode = GizmoMode::Universal; logMessage("Gizmo Mode: Universal (T)"); s_tPressed = true; }
@@ -2093,13 +2169,20 @@ public:
         }
     }
 
+    float getGizmoScale(const Vec3& pivot) const {
+        if (_orthoViewMode) return 1.5f;
+        float dist = (_camera.getPosition() - pivot).length();
+        return std::clamp(dist * 0.08f, 0.4f, 40.0f);
+    }
+
     GizmoAxis testGizmoHit(const Vec3& rayOrigin, const Vec3& rayDir, const Vec3& pivot) const {
         float closestT = 1e9f;
         GizmoAxis bestAxis = GizmoAxis::None;
 
-        float len = 1.8f;
-        float thick = 0.22f;
-        float cap = 0.35f;
+        float gScale = getGizmoScale(pivot);
+        float len = 1.8f * gScale;
+        float thick = 0.22f * gScale;
+        float cap = 0.35f * gScale;
 
         bool testMove = (_gizmoMode == GizmoMode::Move || _gizmoMode == GizmoMode::Universal);
         bool testRotate = (_gizmoMode == GizmoMode::Rotate || _gizmoMode == GizmoMode::Universal);
@@ -2109,25 +2192,25 @@ public:
         if (testMove) {
             float t = 0.0f;
             // Plane XY
-            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(0.2f, 0.2f, -0.1f), pivot + Vec3(0.8f, 0.8f, 0.1f), t) && t < closestT) {
+            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(0.2f * gScale, 0.2f * gScale, -0.1f * gScale), pivot + Vec3(0.8f * gScale, 0.8f * gScale, 0.1f * gScale), t) && t < closestT) {
                 closestT = t; bestAxis = GizmoAxis::PlaneXY;
             }
             // Plane XZ
-            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(0.2f, -0.1f, 0.2f), pivot + Vec3(0.8f, 0.1f, 0.8f), t) && t < closestT) {
+            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(0.2f * gScale, -0.1f * gScale, 0.2f * gScale), pivot + Vec3(0.8f * gScale, 0.1f * gScale, 0.8f * gScale), t) && t < closestT) {
                 closestT = t; bestAxis = GizmoAxis::PlaneXZ;
             }
             // Plane YZ
-            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(-0.1f, 0.2f, 0.2f), pivot + Vec3(0.1f, 0.8f, 0.8f), t) && t < closestT) {
+            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(-0.1f * gScale, 0.2f * gScale, 0.2f * gScale), pivot + Vec3(0.1f * gScale, 0.8f * gScale, 0.8f * gScale), t) && t < closestT) {
                 closestT = t; bestAxis = GizmoAxis::PlaneYZ;
             }
             // Axes
-            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(0.1f, -thick, -thick), pivot + Vec3(len + cap, thick, thick), t) && t < closestT) {
+            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(0.1f * gScale, -thick, -thick), pivot + Vec3(len + cap, thick, thick), t) && t < closestT) {
                 closestT = t; bestAxis = GizmoAxis::X;
             }
-            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(-thick, 0.1f, -thick), pivot + Vec3(thick, len + cap, thick), t) && t < closestT) {
+            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(-thick, 0.1f * gScale, -thick), pivot + Vec3(thick, len + cap, thick), t) && t < closestT) {
                 closestT = t; bestAxis = GizmoAxis::Y;
             }
-            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(-thick, -thick, 0.1f), pivot + Vec3(thick, thick, len + cap), t) && t < closestT) {
+            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(-thick, -thick, 0.1f * gScale), pivot + Vec3(thick, thick, len + cap), t) && t < closestT) {
                 closestT = t; bestAxis = GizmoAxis::Z;
             }
         }
@@ -2136,27 +2219,27 @@ public:
         if (testScale) {
             float t = 0.0f;
             // Uniform center
-            if (rayIntersectAABB(rayOrigin, rayDir, pivot - Vec3(0.2f, 0.2f, 0.2f), pivot + Vec3(0.2f, 0.2f, 0.2f), t) && t < closestT) {
+            if (rayIntersectAABB(rayOrigin, rayDir, pivot - Vec3(0.25f * gScale, 0.25f * gScale, 0.25f * gScale), pivot + Vec3(0.25f * gScale, 0.25f * gScale, 0.25f * gScale), t) && t < closestT) {
                 closestT = t; bestAxis = GizmoAxis::ScaleUniform;
             }
             // Scale X
-            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(len - 0.2f, -cap, -cap), pivot + Vec3(len + cap, cap, cap), t) && t < closestT) {
+            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(len - 0.2f * gScale, -cap, -cap), pivot + Vec3(len + cap, cap, cap), t) && t < closestT) {
                 closestT = t; bestAxis = GizmoAxis::ScaleX;
             }
             // Scale Y
-            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(-cap, len - 0.2f, -cap), pivot + Vec3(cap, len + cap, cap), t) && t < closestT) {
+            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(-cap, len - 0.2f * gScale, -cap), pivot + Vec3(cap, len + cap, cap), t) && t < closestT) {
                 closestT = t; bestAxis = GizmoAxis::ScaleY;
             }
             // Scale Z
-            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(-cap, -cap, len - 0.2f), pivot + Vec3(cap, cap, len + cap), t) && t < closestT) {
+            if (rayIntersectAABB(rayOrigin, rayDir, pivot + Vec3(-cap, -cap, len - 0.2f * gScale), pivot + Vec3(cap, cap, len + cap), t) && t < closestT) {
                 closestT = t; bestAxis = GizmoAxis::ScaleZ;
             }
         }
 
         // Rotate Rings
         if (testRotate) {
-            float ringR = 1.8f;
-            float ringThick = 0.35f;
+            float ringR = 1.8f * gScale;
+            float ringThick = 0.35f * gScale;
             if (std::abs(rayDir.x) > 1e-5f) {
                 float t = (pivot.x - rayOrigin.x) / rayDir.x;
                 if (t > 0.01f && t < closestT) {
@@ -2852,6 +2935,16 @@ public:
         getFramebufferSize(fbW, fbH);
         float w = (fbW > 0) ? (float)fbW : (float)getWidth();
         float h = (fbH > 0) ? (float)fbH : (float)getHeight();
+
+        // Commit numeric field edit if clicked outside
+        if (_fieldEditRow >= 0) {
+            SidebarLayout sl = getSidebarLayout(w, h);
+            float fx, fy, fw, fh;
+            dragFieldRect(sl, _fieldEditRow, _fieldEditAxis, fx, fy, fw, fh);
+            if (mx < fx || mx > fx + fw || my < fy || my > fy + fh) {
+                commitFieldEdit();
+            }
+        }
 
         // 0. Hierarchy Context Menu Handling
         if (_contextMenuOpen) {
@@ -3552,19 +3645,49 @@ public:
                 }
             }
 
+            // Transform Gizmo Mode Toolbar Buttons (Blender style)
+            // [ G Move ]
+            if (mx >= 350.0f && mx <= 418.0f) {
+                _gizmoMode = GizmoMode::Move;
+                _activeTool = 0;
+                logMessage("Gizmo Mode: Move (G)");
+                return;
+            }
+            // [ R Rotate ]
+            if (mx >= 422.0f && mx <= 494.0f) {
+                _gizmoMode = GizmoMode::Rotate;
+                _activeTool = 0;
+                logMessage("Gizmo Mode: Rotate (R)");
+                return;
+            }
+            // [ S Scale ]
+            if (mx >= 498.0f && mx <= 566.0f) {
+                _gizmoMode = GizmoMode::Scale;
+                _activeTool = 0;
+                logMessage("Gizmo Mode: Scale (S)");
+                return;
+            }
+            // [ T Omni ]
+            if (mx >= 570.0f && mx <= 638.0f) {
+                _gizmoMode = GizmoMode::Universal;
+                _activeTool = 0;
+                logMessage("Gizmo Mode: Universal (T)");
+                return;
+            }
+
             // Top Toolbar Controls: Simulation, View Mode, Quick Actions
             // 1. [ > TEST GAME (F5) ]
-            if (mx >= 350.0f && mx <= 495.0f) {
+            if (mx >= 654.0f && mx <= 799.0f) {
                 buildGameAction(true);
                 return;
             }
             // 2. [ BUILD / EXPORT... ]
-            if (mx >= 503.0f && mx <= 633.0f) {
+            if (mx >= 807.0f && mx <= 937.0f) {
                 _buildModalOpen = true;
                 return;
             }
             // 3. [ 3D PERSPECTIVE ] / [ 2D ORTHO ]
-            if (mx >= 641.0f && mx <= 741.0f) {
+            if (mx >= 945.0f && mx <= 1045.0f) {
                 _orthoViewMode = !_orthoViewMode;
                 if (_orthoViewMode) {
                     _camera.setOrthographic(25.0f, -500.0f, 500.0f);
@@ -3580,19 +3703,19 @@ public:
                 return;
             }
             // 4. [+ LIGHT]
-            if (mx >= 749.0f && mx <= 829.0f) {
+            if (mx >= 1053.0f && mx <= 1133.0f) {
                 _activeTool = 7;
                 logMessage("Tool 7: Omni Point Light Tool (Click scene or E to place)");
                 return;
             }
             // 5. [DARK: ON/OFF]
-            if (mx >= 837.0f && mx <= 927.0f) {
+            if (mx >= 1141.0f && mx <= 1231.0f) {
                 _darknessMode = !_darknessMode;
                 logMessage(_darknessMode ? "Darkness Mode: ACTIVE (Pitch Black Ambient/Sun)" : "Darkness Mode: DISABLED (Standard Sunlight)");
                 return;
             }
             // 6. [DARK PRESET]
-            if (mx >= 935.0f && mx <= 1030.0f) {
+            if (mx >= 1239.0f && mx <= 1334.0f) {
                 if (_map) {
                     _map->metadata.ambientColor = Vec3(0.015f, 0.018f, 0.025f);
                     _map->metadata.sunColor = Vec3(0.0f, 0.0f, 0.0f);
@@ -3602,31 +3725,31 @@ public:
                 return;
             }
             // 7. [* SPARKS] Live particle test button
-            if (mx >= 1040.0f && mx <= 1116.0f) {
+            if (mx >= 1342.0f && mx <= 1418.0f) {
                 _particleSystem.spawnImpact(_cursorPos, Vec3(0, 1, 0), SurfaceType::Metal);
                 logMessage("Spawned metal impact sparks at 3D Cursor (" + std::to_string((int)_cursorPos.x) + ", " + std::to_string((int)_cursorPos.y) + ", " + std::to_string((int)_cursorPos.z) + ")");
                 return;
             }
             // 8. [* SMOKE] Live explosion particle test button
-            if (mx >= 1122.0f && mx <= 1198.0f) {
+            if (mx >= 1424.0f && mx <= 1500.0f) {
                 _particleSystem.spawnExplosion(_cursorPos, 3.5f);
                 logMessage("Spawned explosion smoke burst at 3D Cursor");
                 return;
             }
             // 9. [* SCORCH] Live decal projection test button
-            if (mx >= 1204.0f && mx <= 1280.0f) {
+            if (mx >= 1506.0f && mx <= 1582.0f) {
                 _decalSystem.spawnExplosionScorch(_cursorPos, 2.0f, _map ? _map->brushes : std::vector<MapBrush>{});
                 logMessage("Spawned explosion scorch decal at 3D Cursor");
                 return;
             }
             // 10. [> 3D AUDIO] Live audio engine test button
-            if (mx >= 1286.0f && mx <= 1368.0f) {
+            if (mx >= 1588.0f && mx <= 1670.0f) {
                 AudioEngine::playSound3D(SoundID::PistolShot, _cursorPos, 1.0f, 1.0f);
                 logMessage("Auditioned 3D sound effect at 3D Cursor position");
                 return;
             }
             // 11. [VCS SNAP] Live version control commit
-            if (mx >= 1374.0f && mx <= 1452.0f) {
+            if (mx >= 1676.0f && mx <= 1754.0f) {
                 VCSManager::instance().addCommit("snap-" + std::to_string(std::time(nullptr)), "Lead Architect", "Editor Live Snapshot");
                 logMessage("VCS Manager: Created live level snapshot commit");
                 return;
@@ -4381,17 +4504,21 @@ public:
                     }
                 }
 
-                // Position translation buttons [-] [+] (Move X / Y / Z on grid)
-                if (my >= l.posBtnsY && my <= l.posBtnsY + l.posBtnH) {
-                    // X - / +
-                    if (mx >= l.rightX + 30.0f && mx <= l.rightX + 56.0f) { moveSelection(-_gridSnap, 0, 0); return; }
-                    if (mx >= l.rightX + 60.0f && mx <= l.rightX + 86.0f) { moveSelection(_gridSnap, 0, 0); return; }
-                    // Y - / +
-                    if (mx >= l.rightX + 123.0f && mx <= l.rightX + 149.0f) { moveSelection(0, -_gridSnap, 0); return; }
-                    if (mx >= l.rightX + 153.0f && mx <= l.rightX + 179.0f) { moveSelection(0, _gridSnap, 0); return; }
-                    // Z - / +
-                    if (mx >= l.rightX + 216.0f && mx <= l.rightX + 242.0f) { moveSelection(0, 0, -_gridSnap); return; }
-                    if (mx >= l.rightX + 246.0f && mx <= l.rightX + 272.0f) { moveSelection(0, 0, _gridSnap); return; }
+                // Blender-style drag fields (row 0 = Position, 1 = Size, 2 = Rotation)
+                {
+                    const bool lightOrCam = (_selectionType == SelectionType::Light || _selectionType == SelectionType::Camera);
+                    for (int row = 0; row < 3; ++row) {
+                        if (row > 0 && lightOrCam) break;
+                        for (int axis = 0; axis < 3; ++axis) {
+                            float fx, fy, fw, fh;
+                            dragFieldRect(l, row, axis, fx, fy, fw, fh);
+                            if (mx >= fx && mx <= fx + fw && my >= fy && my <= fy + fh) {
+                                _dragRow = row; _dragAxis = axis;
+                                _dragLastX = mx; _dragPressX = mx; _dragCenterX = fx + fw * 0.5f; _dragAccum = 0.0f; _dragMoved = false;
+                                return;
+                            }
+                        }
+                    }
                 }
 
                 // Dedicated Quick Elevation Buttons [ ^ UP (+Y) ] [ v DOWN (-Y) ] [ Floor (Y=0) ]
@@ -4408,32 +4535,6 @@ public:
                         alignSelectionToGround();
                         return;
                     }
-                }
-
-                // Dimension adjusters [-] [+]
-                if (my >= l.dimBtnsY && my <= l.dimBtnsY + l.dimBtnH) {
-                    // X - / +
-                    if (mx >= l.rightX + 30.0f && mx <= l.rightX + 56.0f) { resizeSelection(-_gridSnap, 0, 0); _brushSize.x = std::max(0.5f, _brushSize.x - _gridSnap); return; }
-                    if (mx >= l.rightX + 60.0f && mx <= l.rightX + 86.0f) { resizeSelection(_gridSnap, 0, 0); _brushSize.x += _gridSnap; return; }
-                    // Y - / +
-                    if (mx >= l.rightX + 123.0f && mx <= l.rightX + 149.0f) { resizeSelection(0, -_gridSnap, 0); _brushSize.y = std::max(0.5f, _brushSize.y - _gridSnap); return; }
-                    if (mx >= l.rightX + 153.0f && mx <= l.rightX + 179.0f) { resizeSelection(0, _gridSnap, 0); _brushSize.y += _gridSnap; return; }
-                    // Z - / +
-                    if (mx >= l.rightX + 216.0f && mx <= l.rightX + 242.0f) { resizeSelection(0, 0, -_gridSnap); _brushSize.z = std::max(0.5f, _brushSize.z - _gridSnap); return; }
-                    if (mx >= l.rightX + 246.0f && mx <= l.rightX + 272.0f) { resizeSelection(0, 0, _gridSnap); _brushSize.z += _gridSnap; return; }
-                }
-
-                // Rotation adjusters (Pitch -/+15, Yaw -/+45, Roll -/+15)
-                if (my >= l.rotBtnsY && my <= l.rotBtnsY + l.rotBtnH) {
-                    // Pitch -15 / +15
-                    if (mx >= l.rightX + 28.0f && mx <= l.rightX + 54.0f) { rotateSelection(-15.0f, 0, 0); return; }
-                    if (mx >= l.rightX + 56.0f && mx <= l.rightX + 82.0f) { rotateSelection(15.0f, 0, 0); return; }
-                    // Yaw -45 / +45
-                    if (mx >= l.rightX + 124.0f && mx <= l.rightX + 168.0f) { rotateSelection(0, -45.0f, 0); return; }
-                    if (mx >= l.rightX + 172.0f && mx <= l.rightX + 216.0f) { rotateSelection(0, 45.0f, 0); return; }
-                    // Roll -15 / +15
-                    if (mx >= l.rightX + 242.0f && mx <= l.rightX + 268.0f) { rotateSelection(0, 0, -15.0f); return; }
-                    if (mx >= l.rightX + 270.0f && mx <= l.rightX + 296.0f) { rotateSelection(0, 0, 15.0f); return; }
                 }
 
                 // Deselect All button
@@ -5318,9 +5419,10 @@ public:
     }
 
     void drawGizmo(const Vec3& pos) {
-        float len = 1.8f;
-        float thick = 0.08f;
-        float cap = 0.22f;
+        float gScale = getGizmoScale(pos);
+        float len = 1.8f * gScale;
+        float thick = 0.08f * gScale;
+        float cap = 0.22f * gScale;
         Vec3 yellowHov{ 1.0f, 0.95f, 0.2f };
 
         bool isMove = (_gizmoMode == GizmoMode::Move || _gizmoMode == GizmoMode::Universal);
@@ -5349,22 +5451,22 @@ public:
 
             // Planes (XY, XZ, YZ)
             bool hovXY = (_hoveredGizmoAxis == GizmoAxis::PlaneXY || _activeGizmoAxis == GizmoAxis::PlaneXY);
-            Renderer::drawCube(pos + Vec3(0.45f, 0.45f, 0), Vec3(0.5f, 0.5f, 0.02f), hovXY ? yellowHov : Vec3(0.9f, 0.9f, 0.3f), false);
+            Renderer::drawCube(pos + Vec3(0.45f * gScale, 0.45f * gScale, 0), Vec3(0.5f * gScale, 0.5f * gScale, 0.02f * gScale), hovXY ? yellowHov : Vec3(0.9f, 0.9f, 0.3f), false);
 
             bool hovXZ = (_hoveredGizmoAxis == GizmoAxis::PlaneXZ || _activeGizmoAxis == GizmoAxis::PlaneXZ);
-            Renderer::drawCube(pos + Vec3(0.45f, 0, 0.45f), Vec3(0.5f, 0.02f, 0.5f), hovXZ ? yellowHov : Vec3(0.9f, 0.3f, 0.9f), false);
+            Renderer::drawCube(pos + Vec3(0.45f * gScale, 0, 0.45f * gScale), Vec3(0.5f * gScale, 0.02f * gScale, 0.5f * gScale), hovXZ ? yellowHov : Vec3(0.9f, 0.3f, 0.9f), false);
 
             bool hovYZ = (_hoveredGizmoAxis == GizmoAxis::PlaneYZ || _activeGizmoAxis == GizmoAxis::PlaneYZ);
-            Renderer::drawCube(pos + Vec3(0, 0.45f, 0.45f), Vec3(0.02f, 0.5f, 0.5f), hovYZ ? yellowHov : Vec3(0.3f, 0.9f, 0.9f), false);
+            Renderer::drawCube(pos + Vec3(0, 0.45f * gScale, 0.45f * gScale), Vec3(0.02f * gScale, 0.5f * gScale, 0.5f * gScale), hovYZ ? yellowHov : Vec3(0.3f, 0.9f, 0.9f), false);
         }
 
         // Scale Handles
         if (isScale) {
-            float sLen = 1.6f;
-            float sBox = 0.22f;
+            float sLen = 1.6f * gScale;
+            float sBox = 0.22f * gScale;
             // Center uniform scale box
             bool hovUni = (_hoveredGizmoAxis == GizmoAxis::ScaleUniform || _activeGizmoAxis == GizmoAxis::ScaleUniform);
-            Renderer::drawCube(pos, Vec3(0.28f, 0.28f, 0.28f), hovUni ? yellowHov : Vec3(0.95f, 0.95f, 0.95f), false);
+            Renderer::drawCube(pos, Vec3(0.28f * gScale, 0.28f * gScale, 0.28f * gScale), hovUni ? yellowHov : Vec3(0.95f, 0.95f, 0.95f), false);
 
             // Scale X
             bool hovSX = (_hoveredGizmoAxis == GizmoAxis::ScaleX || _activeGizmoAxis == GizmoAxis::ScaleX);
@@ -5381,7 +5483,7 @@ public:
 
         // Rotate Rings
         if (isRotate) {
-            float ringR = 1.8f;
+            float ringR = 1.8f * gScale;
             int segments = 24;
             float step = 6.2831853f / (float)segments;
             float segLen = (6.2831853f * ringR) / (float)segments;
@@ -5804,6 +5906,164 @@ public:
         LabTheme::drawPanel(x, y, w, h, title);
     }
 
+    // ---- Blender-style drag fields (row 0 = Position, 1 = Size, 2 = Rotation) ----
+    static void dragFieldRect(const SidebarLayout& l, int row, int axis, float& x, float& y, float& w, float& h) {
+        y = (row == 0) ? l.posBtnsY : (row == 1) ? l.dimBtnsY : l.rotBtnsY;
+        h = 24.0f;
+        w = 90.0f;
+        x = l.rightX + 10.0f + axis * 95.0f;
+    }
+
+    void applyFieldStep(int row, int axis, int dir) {
+        float d[3] = { 0.0f, 0.0f, 0.0f };
+        if (row == 0) {
+            d[axis] = (float)dir * _gridSnap;
+            moveSelection(d[0], d[1], d[2]);
+        } else if (row == 1) {
+            d[axis] = (float)dir * _gridSnap;
+            resizeSelection(d[0], d[1], d[2]);
+            float* bs[3] = { &_brushSize.x, &_brushSize.y, &_brushSize.z };
+            *bs[axis] = std::max(0.5f, *bs[axis] + d[axis]);
+        } else {
+            d[axis] = (float)dir * std::max(1.0f, _angleSnap);
+            rotateSelection(d[0], d[1], d[2]);
+        }
+    }
+
+    void setFieldValue(int row, int axis, float targetVal) {
+        if (row == 0) {
+            Vec3 curPos = getSelectedPosition();
+            float curVal = (axis == 0) ? curPos.x : (axis == 1) ? curPos.y : curPos.z;
+            float delta = targetVal - curVal;
+            float d[3] = { 0.0f, 0.0f, 0.0f };
+            d[axis] = delta;
+            moveSelection(d[0], d[1], d[2]);
+            logMessage("Set Position " + std::string(axis == 0 ? "X" : axis == 1 ? "Y" : "Z") + " to " + std::to_string(targetVal));
+        } else if (row == 1) {
+            Vec3 curSize = getSelectedScale();
+            float curVal = (axis == 0) ? curSize.x : (axis == 1) ? curSize.y : curSize.z;
+            float delta = targetVal - curVal;
+            float d[3] = { 0.0f, 0.0f, 0.0f };
+            d[axis] = delta;
+            resizeSelection(d[0], d[1], d[2]);
+            float* bs[3] = { &_brushSize.x, &_brushSize.y, &_brushSize.z };
+            *bs[axis] = std::max(0.1f, targetVal);
+            logMessage("Set Size " + std::string(axis == 0 ? "Width" : axis == 1 ? "Height" : "Depth") + " to " + std::to_string(targetVal));
+        } else {
+            Vec3 curRot = getSelectedRotation();
+            float curVal = (axis == 0) ? curRot.x : (axis == 1) ? curRot.y : curRot.z;
+            float delta = targetVal - curVal;
+            float d[3] = { 0.0f, 0.0f, 0.0f };
+            d[axis] = delta;
+            rotateSelection(d[0], d[1], d[2]);
+            logMessage("Set Rotation " + std::string(axis == 0 ? "Pitch" : axis == 1 ? "Yaw" : "Roll") + " to " + std::to_string(targetVal) + " deg");
+        }
+    }
+
+    void commitFieldEdit() {
+        if (_fieldEditRow >= 0 && !_fieldEditBuffer.empty()) {
+            try {
+                float val = std::stof(_fieldEditBuffer);
+                setFieldValue(_fieldEditRow, _fieldEditAxis, val);
+            } catch (...) {}
+        }
+        _fieldEditRow = -1;
+        _fieldEditAxis = -1;
+        _fieldEditBuffer = "";
+    }
+
+    void cancelFieldEdit() {
+        _fieldEditRow = -1;
+        _fieldEditAxis = -1;
+        _fieldEditBuffer = "";
+    }
+
+    void updateDragFields(float mx) {
+        if (_dragRow < 0) return;
+        if (Input::isMouseButtonPressed(0)) {
+            _dragAccum += mx - _dragLastX;
+            _dragLastX = mx;
+            if (std::abs(mx - _dragPressX) > 3.0f) _dragMoved = true;
+            if (_dragMoved) {
+                constexpr float kPxPerStep = 8.0f;
+                while (_dragAccum >= kPxPerStep)  { applyFieldStep(_dragRow, _dragAxis, +1); _dragAccum -= kPxPerStep; }
+                while (_dragAccum <= -kPxPerStep) { applyFieldStep(_dragRow, _dragAxis, -1); _dragAccum += kPxPerStep; }
+            }
+        } else {
+            if (!_dragMoved) {
+                int fbW = 0, fbH = 0;
+                getFramebufferSize(fbW, fbH);
+                float w = (fbW > 0) ? (float)fbW : (float)getWidth();
+                float h = (fbH > 0) ? (float)fbH : (float)getHeight();
+                SidebarLayout l = getSidebarLayout(w, h);
+                float fx, fy, fw, fh;
+                dragFieldRect(l, _dragRow, _dragAxis, fx, fy, fw, fh);
+                if (_dragPressX <= fx + 20.0f) {
+                    applyFieldStep(_dragRow, _dragAxis, -1);
+                } else if (_dragPressX >= fx + fw - 20.0f) {
+                    applyFieldStep(_dragRow, _dragAxis, +1);
+                } else {
+                    // Click on field body -> enter direct keyboard input!
+                    _fieldEditRow = _dragRow;
+                    _fieldEditAxis = _dragAxis;
+                    const Vec3 v = (_dragRow == 0) ? getSelectedPosition() : (_dragRow == 1) ? getSelectedScale() : getSelectedRotation();
+                    const float val = (_dragAxis == 0) ? v.x : (_dragAxis == 1) ? v.y : v.z;
+                    char buf[32];
+                    if (_dragRow == 2) snprintf(buf, sizeof(buf), "%.0f", val);
+                    else snprintf(buf, sizeof(buf), "%.2f", val);
+                    _fieldEditBuffer = buf;
+                    _fieldEditCursorBlink = 0.0f;
+                }
+            }
+            _dragRow = -1; _dragAxis = -1; _dragMoved = false;
+        }
+    }
+
+    void drawDragRow(const SidebarLayout& l, int row) {
+        static const char* kNames[3][3] = { { "X", "Y", "Z" }, { "W", "H", "D" }, { "Pitch", "Yaw", "Roll" } };
+        const Vec3 kAxisCol[3] = { Vec3(0.95f, 0.35f, 0.35f), Vec3(0.45f, 0.85f, 0.40f), Vec3(0.40f, 0.60f, 1.0f) };
+        const auto& c = LabTheme::colors();
+        const Vec3 v = (row == 0) ? getSelectedPosition() : (row == 1) ? getSelectedScale() : getSelectedRotation();
+        const float comp[3] = { v.x, v.y, v.z };
+        for (int axis = 0; axis < 3; ++axis) {
+            float fx, fy, fw, fh;
+            dragFieldRect(l, row, axis, fx, fy, fw, fh);
+            const bool hov = (_mouseScreenX >= fx && _mouseScreenX <= fx + fw && _mouseScreenY >= fy && _mouseScreenY <= fy + fh);
+            const bool act = (_dragRow == row && _dragAxis == axis);
+            const bool isEditing = (_fieldEditRow == row && _fieldEditAxis == axis);
+
+            if (isEditing) {
+                Renderer::drawRect(fx, fy, fw, fh, c.inputBg);
+                Renderer::drawRect(fx, fy, fw, 1.0f, c.accent);
+                Renderer::drawRect(fx, fy, 1.0f, fh, c.accent);
+                Renderer::drawRect(fx, fy + fh - 1.0f, fw, 1.0f, c.accent);
+                Renderer::drawRect(fx + fw - 1.0f, fy, 1.0f, fh, c.accent);
+                Renderer::drawRect(fx + 2.0f, fy + 2.0f, 3.0f, fh - 4.0f, kAxisCol[axis]);
+
+                const float th = LabFont::getTextHeight(1.4f, LabFontType::System);
+                const float ty = fy + (fh - th) * 0.5f;
+                LabFont::drawText(fx + 8.0f, ty, kNames[row][axis], 1.4f, c.accent, LabFontType::System);
+
+                std::string disp = _fieldEditBuffer;
+                if (std::fmod(_fieldEditCursorBlink, 1.0f) < 0.5f) disp += "|";
+                LabFont::drawText(fx + 24.0f, ty, disp, 1.4f, c.textActive, LabFontType::System);
+                continue;
+            }
+
+            LabTheme::drawButton(fx, fy, fw, fh, "", act, false, _mouseScreenX, _mouseScreenY, false);
+            Renderer::drawRect(fx + 2.0f, fy + 2.0f, 3.0f, fh - 4.0f, kAxisCol[axis]);
+
+            char buf[32];
+            snprintf(buf, sizeof(buf), (row == 2) ? "%.0f deg" : "%.2f", comp[axis]);
+            const float th = LabFont::getTextHeight(1.4f, LabFontType::System);
+            const float ty = fy + (fh - th) * 0.5f;
+            const float tw = LabFont::getTextWidth(buf, 1.4f, LabFontType::System);
+            LabFont::drawText(fx + 10.0f, ty, hov ? "<" : kNames[row][axis], 1.4f, hov ? c.accent : c.textMuted, LabFontType::System);
+            LabFont::drawText(fx + fw - 8.0f - tw, ty, buf, 1.4f, act ? c.textActive : c.textRegular, LabFontType::System);
+            if (hov && !act) LabFont::drawText(fx + fw - 8.0f - tw - 12.0f, ty, ">", 1.4f, c.accent, LabFontType::System);
+        }
+    }
+
     bool drawDarkButton(float x, float y, float w, float h, const std::string& label, bool active = false, bool isRed = false, bool isGreen = false) {
         return LabTheme::drawButton(x, y, w, h, label, active, false, _mouseScreenX, _mouseScreenY, false, isRed, isGreen);
     }
@@ -5899,8 +6159,31 @@ public:
         }
 
         // ==================== ENGINE CONTROLS & TEST BUTTONS ====================
+        // Transform Gizmo Mode Buttons (G Move, R Rotate, S Scale, T Omni)
+        const struct { const char* label; GizmoMode mode; float x; float w; } kGizmoBtns[] = {
+            { "G Move",   GizmoMode::Move,      350.0f, 68.0f },
+            { "R Rotate", GizmoMode::Rotate,    422.0f, 72.0f },
+            { "S Scale",  GizmoMode::Scale,     498.0f, 68.0f },
+            { "T Omni",   GizmoMode::Universal, 570.0f, 68.0f }
+        };
+        for (const auto& gb : kGizmoBtns) {
+            bool isAct = (_gizmoMode == gb.mode && _activeTool == 0);
+            bool isHov = (_mouseScreenX >= gb.x && _mouseScreenX <= gb.x + gb.w && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+            Vec3 bgCol = isAct ? orangeGlow : (isHov ? Vec3(0.36f, 0.38f, 0.42f) : Vec3(0.24f, 0.25f, 0.28f));
+            Vec3 txtCol = isAct ? Vec3(1, 1, 1) : (isHov ? Vec3(1.0f, 0.9f, 0.7f) : Vec3(0.85f, 0.88f, 0.92f));
+            Renderer::drawRect(gb.x, tbY + 4.0f, gb.w, 26.0f, bgCol);
+            drawDarkBevel(gb.x, tbY + 4.0f, gb.w, 26.0f, isAct);
+            if (isAct) Renderer::drawRect(gb.x, tbY + 28.0f, gb.w, 2.0f, Vec3(1.0f, 0.9f, 0.4f));
+            float tw = LabFont::getTextWidth(gb.label, 1.25f, LabFontType::System);
+            LabFont::drawText(gb.x + (gb.w - tw) * 0.5f, tbY + 9.0f, gb.label, 1.25f, txtCol, LabFontType::System);
+        }
+
+        // Elegant separator line
+        Renderer::drawRect(644.0f, tbY + 4.0f, 1.0f, 26.0f, Vec3(0.12f, 0.12f, 0.14f));
+        Renderer::drawRect(645.0f, tbY + 4.0f, 1.0f, 26.0f, Vec3(0.36f, 0.38f, 0.42f));
+
         // 1. [ > TEST GAME (F5) ] - High-visibility emerald green button!
-        float bRunX = 350.0f;
+        float bRunX = 654.0f;
         float bRunW = 145.0f;
         bool isBRunHov = (_mouseScreenX >= bRunX && _mouseScreenX <= bRunX + bRunW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
         Vec3 bRunCol = isBRunHov ? Vec3(0.25f, 0.88f, 0.45f) : Vec3(0.18f, 0.72f, 0.38f);
@@ -5956,7 +6239,7 @@ public:
         LabFont::drawText(presetX + 8.0f, tbY + 9.0f, "DARK PRESET", 1.25f, Vec3(0.6f, 0.85f, 1.0f), LabFontType::System);
 
         // 7. [* SPARKS] Live particle test button
-        float testSpkX = 1040.0f;
+        float testSpkX = presetX + presetW + 8.0f;
         float testSpkW = 76.0f;
         bool isSpkHov = (_mouseScreenX >= testSpkX && _mouseScreenX <= testSpkX + testSpkW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
         Vec3 spkBg = isSpkHov ? Vec3(0.9f, 0.6f, 0.1f) : Vec3(0.35f, 0.28f, 0.15f);
@@ -5965,7 +6248,7 @@ public:
         LabFont::drawText(testSpkX + 6.0f, tbY + 9.0f, "* SPARKS", 1.25f, Vec3(1.0f, 0.9f, 0.4f), LabFontType::System);
 
         // 8. [* SMOKE] Live explosion particle test button
-        float testSmkX = 1122.0f;
+        float testSmkX = testSpkX + testSpkW + 6.0f;
         float testSmkW = 76.0f;
         bool isSmkHov = (_mouseScreenX >= testSmkX && _mouseScreenX <= testSmkX + testSmkW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
         Vec3 smkBg = isSmkHov ? Vec3(0.85f, 0.4f, 0.2f) : Vec3(0.35f, 0.20f, 0.15f);
@@ -5974,7 +6257,7 @@ public:
         LabFont::drawText(testSmkX + 7.0f, tbY + 9.0f, "* SMOKE", 1.25f, Vec3(1.0f, 0.6f, 0.3f), LabFontType::System);
 
         // 9. [* SCORCH] Live decal projection test button
-        float testDecX = 1204.0f;
+        float testDecX = testSmkX + testSmkW + 6.0f;
         float testDecW = 76.0f;
         bool isDecHov = (_mouseScreenX >= testDecX && _mouseScreenX <= testDecX + testDecW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
         Vec3 decBg = isDecHov ? Vec3(0.4f, 0.5f, 0.7f) : Vec3(0.20f, 0.22f, 0.30f);
@@ -5983,7 +6266,7 @@ public:
         LabFont::drawText(testDecX + 6.0f, tbY + 9.0f, "* SCORCH", 1.25f, Vec3(0.8f, 0.9f, 1.0f), LabFontType::System);
 
         // 10. [> 3D AUDIO] Live audio engine test button
-        float testAudX = 1286.0f;
+        float testAudX = testDecX + testDecW + 6.0f;
         float testAudW = 82.0f;
         bool isAudHov = (_mouseScreenX >= testAudX && _mouseScreenX <= testAudX + testAudW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
         Vec3 audBg = isAudHov ? Vec3(0.25f, 0.7f, 0.5f) : Vec3(0.18f, 0.30f, 0.24f);
@@ -5992,7 +6275,7 @@ public:
         LabFont::drawText(testAudX + 6.0f, tbY + 9.0f, "> 3D AUDIO", 1.25f, Vec3(0.5f, 1.0f, 0.8f), LabFontType::System);
 
         // 11. [VCS SNAP] Live version control commit button
-        float testVcsX = 1374.0f;
+        float testVcsX = testAudX + testAudW + 6.0f;
         float testVcsW = 78.0f;
         bool isVcsHov = (_mouseScreenX >= testVcsX && _mouseScreenX <= testVcsX + testVcsW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
         Vec3 vcsBg = isVcsHov ? Vec3(0.4f, 0.6f, 0.9f) : Vec3(0.20f, 0.26f, 0.36f);
@@ -6323,17 +6606,7 @@ public:
 
                 // Move position [-] [+]
                 LabFont::drawText(l.rightX + 12.0f, l.posBtnsY - 18.0f, "Move Light Position (X / Y / Z):", 1.7f, cyanGlow, LabFontType::System);
-                LabFont::drawText(l.rightX + 12.0f, l.posBtnsY + 4.0f, "X:", 1.6f, textLight, LabFontType::System);
-                drawDarkButton(l.rightX + 30.0f, l.posBtnsY, l.posBtnW, l.posBtnH, "-");
-                drawDarkButton(l.rightX + 60.0f, l.posBtnsY, l.posBtnW, l.posBtnH, "+");
-
-                LabFont::drawText(l.rightX + 105.0f, l.posBtnsY + 4.0f, "Y:", 1.6f, greenAccent, LabFontType::System);
-                drawDarkButton(l.rightX + 123.0f, l.posBtnsY, l.posBtnW, l.posBtnH, "-");
-                drawDarkButton(l.rightX + 153.0f, l.posBtnsY, l.posBtnW, l.posBtnH, "+");
-
-                LabFont::drawText(l.rightX + 198.0f, l.posBtnsY + 4.0f, "Z:", 1.6f, textLight, LabFontType::System);
-                drawDarkButton(l.rightX + 216.0f, l.posBtnsY, l.posBtnW, l.posBtnH, "-");
-                drawDarkButton(l.rightX + 246.0f, l.posBtnsY, l.posBtnW, l.posBtnH, "+");
+                drawDragRow(l, 0);
 
                 // Elevation buttons
                 drawDarkButton(l.elevUpX, l.elevUpY, l.elevUpW, l.elevUpH, "^ UP (+Y)", false, false, true);
@@ -6443,15 +6716,7 @@ public:
 
                 // Position Translation [-] [+]
                 LabFont::drawText(l.rightX + 12.0f, l.posBtnsY - 18.0f, "Move Camera (X / Y / Z):", 1.7f, cyanGlow, LabFontType::System);
-                LabFont::drawText(l.rightX + 12.0f, l.posBtnsY + 4.0f, "X:", 1.6f, textLight, LabFontType::System);
-                drawDarkButton(l.rightX + 30.0f, l.posBtnsY, l.posBtnW, l.posBtnH, "-");
-                drawDarkButton(l.rightX + 60.0f, l.posBtnsY, l.posBtnW, l.posBtnH, "+");
-                LabFont::drawText(l.rightX + 105.0f, l.posBtnsY + 4.0f, "Y:", 1.6f, greenAccent, LabFontType::System);
-                drawDarkButton(l.rightX + 123.0f, l.posBtnsY, l.posBtnW, l.posBtnH, "-");
-                drawDarkButton(l.rightX + 153.0f, l.posBtnsY, l.posBtnW, l.posBtnH, "+");
-                LabFont::drawText(l.rightX + 198.0f, l.posBtnsY + 4.0f, "Z:", 1.6f, textLight, LabFontType::System);
-                drawDarkButton(l.rightX + 216.0f, l.posBtnsY, l.posBtnW, l.posBtnH, "-");
-                drawDarkButton(l.rightX + 246.0f, l.posBtnsY, l.posBtnW, l.posBtnH, "+");
+                drawDragRow(l, 0);
 
                 // Elevation buttons
                 drawDarkButton(l.elevUpX, l.elevUpY, l.elevUpW, l.elevUpH, "^ UP (+Y)", false, false, true);
@@ -6678,19 +6943,7 @@ public:
             LabFont::drawText(l.rightX + 12.0f, l.posBtnsY - 18.0f, "Move Position (X / Y / Z):", 1.7f, cyanGlow, LabFontType::System);
 
             // X Position
-            LabFont::drawText(l.rightX + 12.0f, l.posBtnsY + 4.0f, "X:", 1.6f, textLight, LabFontType::System);
-            drawDarkButton(l.rightX + 30.0f, l.posBtnsY, l.posBtnW, l.posBtnH, "-");
-            drawDarkButton(l.rightX + 60.0f, l.posBtnsY, l.posBtnW, l.posBtnH, "+");
-
-            // Y Position (Vertical Elevation)
-            LabFont::drawText(l.rightX + 105.0f, l.posBtnsY + 4.0f, "Y:", 1.6f, greenAccent, LabFontType::System);
-            drawDarkButton(l.rightX + 123.0f, l.posBtnsY, l.posBtnW, l.posBtnH, "-");
-            drawDarkButton(l.rightX + 153.0f, l.posBtnsY, l.posBtnW, l.posBtnH, "+");
-
-            // Z Position
-            LabFont::drawText(l.rightX + 198.0f, l.posBtnsY + 4.0f, "Z:", 1.6f, textLight, LabFontType::System);
-            drawDarkButton(l.rightX + 216.0f, l.posBtnsY, l.posBtnW, l.posBtnH, "-");
-            drawDarkButton(l.rightX + 246.0f, l.posBtnsY, l.posBtnW, l.posBtnH, "+");
+            drawDragRow(l, 0);
 
             // Quick Elevation Action Buttons
             drawDarkButton(l.elevUpX, l.elevUpY, l.elevUpW, l.elevUpH, "^ UP (+Y)", false, false, true);
@@ -6701,33 +6954,11 @@ public:
             LabFont::drawText(l.rightX + 12.0f, l.dimBtnsY - 18.0f, "Adjust Size (X / Y / Z):", 1.7f, textLight, LabFontType::System);
 
             // X
-            LabFont::drawText(l.rightX + 12.0f, l.dimBtnsY + 4.0f, "X:", 1.6f, textLight, LabFontType::System);
-            drawDarkButton(l.rightX + 30.0f, l.dimBtnsY, l.dimBtnW, l.dimBtnH, "-");
-            drawDarkButton(l.rightX + 60.0f, l.dimBtnsY, l.dimBtnW, l.dimBtnH, "+");
-
-            // Y
-            LabFont::drawText(l.rightX + 105.0f, l.dimBtnsY + 4.0f, "Y:", 1.6f, textLight, LabFontType::System);
-            drawDarkButton(l.rightX + 123.0f, l.dimBtnsY, l.dimBtnW, l.dimBtnH, "-");
-            drawDarkButton(l.rightX + 153.0f, l.dimBtnsY, l.dimBtnW, l.dimBtnH, "+");
-
-            // Z
-            LabFont::drawText(l.rightX + 198.0f, l.dimBtnsY + 4.0f, "Z:", 1.6f, textLight, LabFontType::System);
-            drawDarkButton(l.rightX + 216.0f, l.dimBtnsY, l.dimBtnW, l.dimBtnH, "-");
-            drawDarkButton(l.rightX + 246.0f, l.dimBtnsY, l.dimBtnW, l.dimBtnH, "+");
+            drawDragRow(l, 1);
 
             // Rotation Adjusters (Pitch / Yaw / Roll)
             LabFont::drawText(l.rightX + 12.0f, l.rotBtnsY - 18.0f, "Rotate Selection (P / Y / R):", 1.7f, orangeGlow, LabFontType::System);
-            LabFont::drawText(l.rightX + 12.0f, l.rotBtnsY + 4.0f, "P:", 1.5f, textLight, LabFontType::System);
-            drawDarkButton(l.rightX + 28.0f, l.rotBtnsY, 26.0f, l.rotBtnH, "-");
-            drawDarkButton(l.rightX + 56.0f, l.rotBtnsY, 26.0f, l.rotBtnH, "+");
-
-            LabFont::drawText(l.rightX + 90.0f, l.rotBtnsY + 4.0f, "Yaw:", 1.5f, cyanGlow, LabFontType::System);
-            drawDarkButton(l.rightX + 124.0f, l.rotBtnsY, 44.0f, l.rotBtnH, "-45°");
-            drawDarkButton(l.rightX + 172.0f, l.rotBtnsY, 44.0f, l.rotBtnH, "+45°");
-
-            LabFont::drawText(l.rightX + 224.0f, l.rotBtnsY + 4.0f, "R:", 1.5f, textLight, LabFontType::System);
-            drawDarkButton(l.rightX + 242.0f, l.rotBtnsY, 26.0f, l.rotBtnH, "-");
-            drawDarkButton(l.rightX + 270.0f, l.rotBtnsY, 26.0f, l.rotBtnH, "+");
+            drawDragRow(l, 2);
 
             // Deselect button
             drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect All");
@@ -7704,7 +7935,7 @@ public:
         Renderer::drawRect(0, sbY, w, 22.0f, panelDarker);
         drawDarkBevel(0, sbY, w, 22.0f, false);
 
-        std::string sbText = "RMB Fly | LMB Pick/Apply | Wheel / R / C: Elevate Y | E Place | X Clip | ENTER Commit | F Focus | " + _cullingStats;
+        std::string sbText = "G: Move | R: Rotate | S: Scale | T: Omni | RMB: Fly | LMB: Gizmo/Select | Del: Delete | F: Focus | " + _cullingStats;
         if (!_gizmoStatusText.empty()) {
             sbText = _gizmoStatusText + " | " + _cullingStats;
         }
@@ -8624,6 +8855,14 @@ private:
 
     // Transform Gizmo State
     GizmoMode _gizmoMode = GizmoMode::Move;
+    // Blender-style drag fields in the properties sidebar
+    int   _dragRow = -1, _dragAxis = -1;
+    float _dragLastX = 0.0f, _dragPressX = 0.0f, _dragCenterX = 0.0f, _dragAccum = 0.0f;
+    bool  _dragMoved = false;
+    // Blender-style direct keyboard text entry in numeric fields
+    int         _fieldEditRow = -1, _fieldEditAxis = -1;
+    std::string _fieldEditBuffer = "";
+    float       _fieldEditCursorBlink = 0.0f;
     GizmoAxis _hoveredGizmoAxis = GizmoAxis::None;
     GizmoAxis _activeGizmoAxis = GizmoAxis::None;
     bool _isDraggingGizmo = false;

@@ -248,39 +248,49 @@ namespace Lab {
                               float mouseX, float mouseY, bool lmbPressed,
                               bool lmbClicked, int* activeSliderId, int sliderId) {
         const auto& c = s_themeColors;
-        float labelW = std::min(120.0f, w * 0.35f);
+        float labelW = std::min(110.0f, w * 0.32f);
         float trackX = x + labelW;
-        float trackW = w - labelW - 55.0f;
-        float trackY = y + 4.0f;
-        float trackH = std::max(6.0f, h - 8.0f);
+        float trackW = w - labelW - 60.0f;
+        float trackY = y + 2.0f;
+        float trackH = std::max(16.0f, h - 4.0f);
 
         // Label
-        LabFont::drawText(x, y + 4.0f, label, 1.4f, c.textRegular, LabFontType::System);
+        float th = LabFont::getTextHeight(1.4f, LabFontType::System);
+        LabFont::drawText(x, y + (h - th) * 0.5f, label, 1.4f, c.textRegular, LabFontType::System);
 
-        // Sunken Track
+        // Hover & bounds
+        bool inBounds = (mouseX >= trackX && mouseX <= trackX + trackW && mouseY >= y && mouseY <= y + h);
+        bool isActive = (activeSliderId && *activeSliderId == sliderId);
+
+        // Sunken Track Background
         Renderer::drawRect(trackX, trackY, trackW, trackH, c.sliderTrackBg);
         drawBevel(trackX, trackY, trackW, trackH, true);
+        if (inBounds || isActive) {
+            Renderer::drawRect(trackX, trackY, trackW, 1.0f, c.accent);
+            Renderer::drawRect(trackX, trackY + trackH - 1.0f, trackW, 1.0f, c.accent);
+        }
 
-        // Filled bar portion
+        // Filled bar portion (subtle gradient fill)
         float range = (maxVal > minVal) ? (maxVal - minVal) : 1.0f;
         float norm = std::clamp((value - minVal) / range, 0.0f, 1.0f);
-        Renderer::drawRect(trackX + 1.0f, trackY + 1.0f, (trackW - 2.0f) * norm, trackH - 2.0f, c.sliderFillBg);
+        float fillW = (trackW - 2.0f) * norm;
+        if (fillW > 0.5f) {
+            Vec3 fillTop = c.sliderFillBg;
+            Vec3 fillBot = Vec3(fillTop.x * 0.75f, fillTop.y * 0.75f, fillTop.z * 0.75f);
+            fillGradient(trackX + 1.0f, trackY + 1.0f, fillW, trackH - 2.0f, fillTop, fillBot);
+        }
 
-        // Thumb handle
-        float thumbW = 8.0f;
-        float thumbX = trackX + (trackW - thumbW) * norm;
-        Renderer::drawRect(thumbX, trackY - 2.0f, thumbW, trackH + 4.0f, c.sliderThumbBg);
-        drawBevel(thumbX, trackY - 2.0f, thumbW, trackH + 4.0f, false);
+        // Thumb indicator (crisp 3px bar with glow)
+        float thumbX = trackX + 1.0f + (trackW - 4.0f) * norm;
+        Renderer::drawRect(thumbX, trackY, 2.0f, trackH, (inBounds || isActive) ? Vec3(1.0f, 1.0f, 1.0f) : c.sliderThumbBg);
 
         // Value readout
         char buf[32];
         snprintf(buf, sizeof(buf), format.c_str(), value);
-        LabFont::drawText(trackX + trackW + 8.0f, y + 4.0f, buf, 1.4f, c.sliderText, LabFontType::System);
+        LabFont::drawText(trackX + trackW + 8.0f, y + (h - th) * 0.5f, buf, 1.4f, (inBounds || isActive) ? c.accent : c.sliderText, LabFontType::System);
 
         // Mouse Drag interaction
         bool changed = false;
-        bool inBounds = (mouseX >= trackX && mouseX <= trackX + trackW && mouseY >= y && mouseY <= y + h);
-
         if (activeSliderId) {
             if (lmbClicked && inBounds) {
                 *activeSliderId = sliderId;
