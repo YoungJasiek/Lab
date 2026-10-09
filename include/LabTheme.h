@@ -144,6 +144,10 @@ namespace Lab {
         static EngineLanguage getLanguage();
         static std::string tr(const std::string& key);
 
+        // Theme JSON Persistence (Configurable non-hardcoded colors)
+        static bool loadThemeFromJson(const std::string& path);
+        static bool saveThemeToJson(const std::string& path);
+
         // Standard UI Widgets
         static void drawBevel(float x, float y, float w, float h, bool sunken = false);
         static void drawPanel(float x, float y, float w, float h, const std::string& title = "");

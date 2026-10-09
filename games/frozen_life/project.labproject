@@ -1,10 +1,16 @@
 {
-  "name": "Frozen-Life",
-  "displayName": "Frozen-Life (3D Showcase)",
+  "name": "Frozen-Life (3D Showcase)",
+  "dimension": "3D",
   "version": "1.0.0",
   "engine": "Lab Engine Studio 2026.10",
   "author": "Lab Engine Core Team",
+  "description": "Flagship 3D Showcase Game for Lab Engine with Cryo Outpost, volumetric lighting, physics, T-800 character animation and weapon mechanics.",
+  "display": {
+    "width": 1920,
+    "height": 1080,
+    "fullscreen": true,
+    "vsync": true
+  },
   "entryScene": "assets/maps/cryo_complex.labmap",
-  "defaultHud": "assets/hud/frozen_life_hud.labhud",
-  "description": "Flagship 3D Showcase Game for Lab Engine with Cryo Outpost, volumetric lighting, physics, T-800 character animation and weapon mechanics."
+  "defaultHud": "assets/hud/frozen_life_hud.labhud"
 }

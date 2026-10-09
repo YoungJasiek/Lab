@@ -47,6 +47,139 @@ namespace Lab {
         return key;
     }
 
+    static Vec3 parseColorVal(const std::string& content, const std::string& key, const Vec3& defaultVal) {
+        size_t pos = content.find("\"" + key + "\"");
+        if (pos == std::string::npos) return defaultVal;
+        size_t colon = content.find(':', pos);
+        if (colon == std::string::npos) return defaultVal;
+        size_t valStart = content.find_first_not_of(" \t\r\n", colon + 1);
+        if (valStart == std::string::npos) return defaultVal;
+        if (content[valStart] == '[') {
+            float r = 0.0f, g = 0.0f, b = 0.0f;
+            if (sscanf(content.c_str() + valStart, "[ %f , %f , %f", &r, &g, &b) == 3) {
+                return Vec3(r, g, b);
+            }
+        } else if (content[valStart] == '"') {
+            size_t endQuote = content.find('"', valStart + 1);
+            if (endQuote != std::string::npos) {
+                std::string hexStr = content.substr(valStart + 1, endQuote - valStart - 1);
+                if (!hexStr.empty() && hexStr[0] == '#') hexStr = hexStr.substr(1);
+                if (hexStr.size() >= 6) {
+                    unsigned int r = 0, g = 0, b = 0;
+                    if (sscanf(hexStr.c_str(), "%02x%02x%02x", &r, &g, &b) == 3) {
+                        return Vec3(r / 255.0f, g / 255.0f, b / 255.0f);
+                    }
+                }
+            }
+        }
+        return defaultVal;
+    }
+
+    bool LabTheme::loadThemeFromJson(const std::string& path) {
+        std::ifstream file(path);
+        if (!file.is_open()) return false;
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        std::string json = buffer.str();
+        if (json.empty()) return false;
+
+        auto& c = s_themeColors;
+        c.windowBg = parseColorVal(json, "windowBg", c.windowBg);
+        c.panelBg = parseColorVal(json, "panelBg", c.panelBg);
+        c.panelHeaderBg = parseColorVal(json, "panelHeaderBg", c.panelHeaderBg);
+        c.panelHeaderBgBottom = parseColorVal(json, "panelHeaderBgBottom", c.panelHeaderBgBottom);
+        c.panelHeaderBorder = parseColorVal(json, "panelHeaderBorder", c.panelHeaderBorder);
+        c.viewportBg = parseColorVal(json, "viewportBg", c.viewportBg);
+        c.bevelLight = parseColorVal(json, "bevelLight", c.bevelLight);
+        c.bevelDark = parseColorVal(json, "bevelDark", c.bevelDark);
+        c.accent = parseColorVal(json, "accent", c.accent);
+        c.accentHover = parseColorVal(json, "accentHover", c.accentHover);
+        c.accentGlow = parseColorVal(json, "accentGlow", c.accentGlow);
+
+        c.buttonBg = parseColorVal(json, "buttonBg", c.buttonBg);
+        c.buttonHoverBg = parseColorVal(json, "buttonHoverBg", c.buttonHoverBg);
+        c.buttonActiveBg = parseColorVal(json, "buttonActiveBg", c.buttonActiveBg);
+        c.buttonRedBg = parseColorVal(json, "buttonRedBg", c.buttonRedBg);
+        c.buttonRedHoverBg = parseColorVal(json, "buttonRedHoverBg", c.buttonRedHoverBg);
+        c.buttonGreenBg = parseColorVal(json, "buttonGreenBg", c.buttonGreenBg);
+        c.buttonGreenHoverBg = parseColorVal(json, "buttonGreenHoverBg", c.buttonGreenHoverBg);
+        c.buttonHighlightBg = parseColorVal(json, "buttonHighlightBg", c.buttonHighlightBg);
+        c.buttonHighlightHoverBg = parseColorVal(json, "buttonHighlightHoverBg", c.buttonHighlightHoverBg);
+
+        c.textRegular = parseColorVal(json, "textRegular", c.textRegular);
+        c.textMuted = parseColorVal(json, "textMuted", c.textMuted);
+        c.textHover = parseColorVal(json, "textHover", c.textHover);
+        c.textActive = parseColorVal(json, "textActive", c.textActive);
+        c.textHeader = parseColorVal(json, "textHeader", c.textHeader);
+        c.textAccent = parseColorVal(json, "textAccent", c.textAccent);
+
+        c.sliderTrackBg = parseColorVal(json, "sliderTrackBg", c.sliderTrackBg);
+        c.sliderFillBg = parseColorVal(json, "sliderFillBg", c.sliderFillBg);
+        c.sliderThumbBg = parseColorVal(json, "sliderThumbBg", c.sliderThumbBg);
+        c.sliderText = parseColorVal(json, "sliderText", c.sliderText);
+
+        c.inputBg = parseColorVal(json, "inputBg", c.inputBg);
+        c.inputBorder = parseColorVal(json, "inputBorder", c.inputBorder);
+        c.inputBorderFocused = parseColorVal(json, "inputBorderFocused", c.inputBorderFocused);
+        c.inputCursor = parseColorVal(json, "inputCursor", c.inputCursor);
+        c.tabActiveBg = parseColorVal(json, "tabActiveBg", c.tabActiveBg);
+        c.tabInactiveBg = parseColorVal(json, "tabInactiveBg", c.tabInactiveBg);
+        return true;
+    }
+
+    bool LabTheme::saveThemeToJson(const std::string& path) {
+        std::ofstream file(path);
+        if (!file.is_open()) return false;
+        const auto& c = s_themeColors;
+        auto fmtVec = [](const Vec3& v) {
+            char b[64];
+            snprintf(b, sizeof(b), "[%.3f, %.3f, %.3f]", v.x, v.y, v.z);
+            return std::string(b);
+        };
+        file << "{\n"
+             << "  \"theme\": \"Custom Theme\",\n"
+             << "  \"colors\": {\n"
+             << "    \"windowBg\": " << fmtVec(c.windowBg) << ",\n"
+             << "    \"panelBg\": " << fmtVec(c.panelBg) << ",\n"
+             << "    \"panelHeaderBg\": " << fmtVec(c.panelHeaderBg) << ",\n"
+             << "    \"panelHeaderBgBottom\": " << fmtVec(c.panelHeaderBgBottom) << ",\n"
+             << "    \"panelHeaderBorder\": " << fmtVec(c.panelHeaderBorder) << ",\n"
+             << "    \"viewportBg\": " << fmtVec(c.viewportBg) << ",\n"
+             << "    \"bevelLight\": " << fmtVec(c.bevelLight) << ",\n"
+             << "    \"bevelDark\": " << fmtVec(c.bevelDark) << ",\n"
+             << "    \"accent\": " << fmtVec(c.accent) << ",\n"
+             << "    \"accentHover\": " << fmtVec(c.accentHover) << ",\n"
+             << "    \"accentGlow\": " << fmtVec(c.accentGlow) << ",\n"
+             << "    \"buttonBg\": " << fmtVec(c.buttonBg) << ",\n"
+             << "    \"buttonHoverBg\": " << fmtVec(c.buttonHoverBg) << ",\n"
+             << "    \"buttonActiveBg\": " << fmtVec(c.buttonActiveBg) << ",\n"
+             << "    \"buttonRedBg\": " << fmtVec(c.buttonRedBg) << ",\n"
+             << "    \"buttonRedHoverBg\": " << fmtVec(c.buttonRedHoverBg) << ",\n"
+             << "    \"buttonGreenBg\": " << fmtVec(c.buttonGreenBg) << ",\n"
+             << "    \"buttonGreenHoverBg\": " << fmtVec(c.buttonGreenHoverBg) << ",\n"
+             << "    \"buttonHighlightBg\": " << fmtVec(c.buttonHighlightBg) << ",\n"
+             << "    \"buttonHighlightHoverBg\": " << fmtVec(c.buttonHighlightHoverBg) << ",\n"
+             << "    \"textRegular\": " << fmtVec(c.textRegular) << ",\n"
+             << "    \"textMuted\": " << fmtVec(c.textMuted) << ",\n"
+             << "    \"textHover\": " << fmtVec(c.textHover) << ",\n"
+             << "    \"textActive\": " << fmtVec(c.textActive) << ",\n"
+             << "    \"textHeader\": " << fmtVec(c.textHeader) << ",\n"
+             << "    \"textAccent\": " << fmtVec(c.textAccent) << ",\n"
+             << "    \"sliderTrackBg\": " << fmtVec(c.sliderTrackBg) << ",\n"
+             << "    \"sliderFillBg\": " << fmtVec(c.sliderFillBg) << ",\n"
+             << "    \"sliderThumbBg\": " << fmtVec(c.sliderThumbBg) << ",\n"
+             << "    \"sliderText\": " << fmtVec(c.sliderText) << ",\n"
+             << "    \"inputBg\": " << fmtVec(c.inputBg) << ",\n"
+             << "    \"inputBorder\": " << fmtVec(c.inputBorder) << ",\n"
+             << "    \"inputBorderFocused\": " << fmtVec(c.inputBorderFocused) << ",\n"
+             << "    \"inputCursor\": " << fmtVec(c.inputCursor) << ",\n"
+             << "    \"tabActiveBg\": " << fmtVec(c.tabActiveBg) << ",\n"
+             << "    \"tabInactiveBg\": " << fmtVec(c.tabInactiveBg) << "\n"
+             << "  }\n"
+             << "}\n";
+        return true;
+    }
+
     SidebarLayout getSidebarLayout(float w, float h) {
         const auto& layout = LabTheme::layout();
         SidebarLayout l;

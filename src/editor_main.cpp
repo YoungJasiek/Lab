@@ -147,6 +147,11 @@ public:
         LabLog::info("Launching Lab Engine Studio (LabSDK)...");
         Renderer::init();
 
+        // Load non-hardcoded editor theme from JSON
+        if (!LabTheme::loadThemeFromJson("assets/theme/theme.json")) {
+            LabTheme::saveThemeToJson("assets/theme/theme.json");
+        }
+
         // Scan textures and models
         discoverTextures();
         discoverModels();
@@ -3680,12 +3685,52 @@ public:
             }
         }
 
-        // 6. Top Toolbar Buttons (y: 24..58, deduplicated utility buttons)
+        if (_quickFxMenuOpen) {
+            float mX = 784.0f;
+            float mY = 58.0f;
+            float mW = 190.0f;
+            float mH = 7 * 26.0f + 8.0f;
+            if (mx >= mX && mx <= mX + mW && my >= mY && my <= mY + mH) {
+                int itemIdx = (int)((my - (mY + 4.0f)) / 26.0f);
+                if (itemIdx == 0) {
+                    _darknessMode = !_darknessMode;
+                    logMessage(_darknessMode ? "Darkness Mode: ACTIVE (Pitch Black Ambient/Sun)" : "Darkness Mode: DISABLED (Standard Sunlight)");
+                } else if (itemIdx == 1) {
+                    if (_map) {
+                        _map->metadata.ambientColor = Vec3(0.015f, 0.018f, 0.025f);
+                        _map->metadata.sunColor = Vec3(0.0f, 0.0f, 0.0f);
+                        _darknessMode = true;
+                        logMessage("Applied Darkness Preset to Map Metadata (Ambient: 0.015, Sun: 0)");
+                    }
+                } else if (itemIdx == 2) {
+                    _particleSystem.spawnImpact(_cursorPos, Vec3(0, 1, 0), SurfaceType::Metal);
+                    logMessage("Spawned metal impact sparks at 3D Cursor (" + std::to_string((int)_cursorPos.x) + ", " + std::to_string((int)_cursorPos.y) + ", " + std::to_string((int)_cursorPos.z) + ")");
+                } else if (itemIdx == 3) {
+                    _particleSystem.spawnExplosion(_cursorPos, 3.5f);
+                    logMessage("Spawned explosion smoke burst at 3D Cursor");
+                } else if (itemIdx == 4) {
+                    _decalSystem.spawnExplosionScorch(_cursorPos, 2.0f, _map ? _map->brushes : std::vector<MapBrush>{});
+                    logMessage("Spawned explosion scorch decal at 3D Cursor");
+                } else if (itemIdx == 5) {
+                    AudioEngine::playSound3D(SoundID::PistolShot, _cursorPos, 1.0f, 1.0f);
+                    logMessage("Auditioned 3D sound effect at 3D Cursor position");
+                } else if (itemIdx == 6) {
+                    VCSManager::instance().addCommit("snap-" + std::to_string(std::time(nullptr)), "Lead Architect", "Editor Live Snapshot");
+                    logMessage("VCS Manager: Created live level snapshot commit");
+                }
+                _quickFxMenuOpen = false;
+                return;
+            } else {
+                _quickFxMenuOpen = false;
+            }
+        }
+
+        // 6. Top Toolbar Buttons (y: 24..58, deduplicated responsive utility buttons)
         if (my >= 24.0f && my <= 58.0f) {
             const int tbIcons[12] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16 };
             for (int i = 0; i < 12; ++i) {
-                float bx = 8.0f + i * 28.0f;
-                if (mx >= bx && mx <= bx + 26.0f) {
+                float bx = 8.0f + i * 26.0f;
+                if (mx >= bx && mx <= bx + 24.0f) {
                     switch (tbIcons[i]) {
                         case 0: newMap(); break;
                         case 1: openMapDialog(); break;
@@ -3712,49 +3757,38 @@ public:
                 }
             }
 
-            // Transform Gizmo Mode Toolbar Buttons (Blender style)
-            // [ G Move ]
-            if (mx >= 350.0f && mx <= 418.0f) {
+            // Transform Gizmo Mode Toolbar Buttons
+            if (mx >= 328.0f && mx <= 376.0f) {
                 _gizmoMode = GizmoMode::Move;
                 _activeTool = 0;
                 logMessage("Gizmo Mode: Move (G)");
                 return;
             }
-            // [ R Rotate ]
-            if (mx >= 422.0f && mx <= 494.0f) {
+            if (mx >= 380.0f && mx <= 432.0f) {
                 _gizmoMode = GizmoMode::Rotate;
                 _activeTool = 0;
                 logMessage("Gizmo Mode: Rotate (R)");
                 return;
             }
-            // [ S Scale ]
-            if (mx >= 498.0f && mx <= 566.0f) {
+            if (mx >= 436.0f && mx <= 484.0f) {
                 _gizmoMode = GizmoMode::Scale;
                 _activeTool = 0;
                 logMessage("Gizmo Mode: Scale (S)");
                 return;
             }
-            // [ T Omni ]
-            if (mx >= 570.0f && mx <= 638.0f) {
-                _gizmoMode = GizmoMode::Universal;
-                _activeTool = 0;
-                logMessage("Gizmo Mode: Universal (T)");
-                return;
-            }
 
-            // Top Toolbar Controls: Simulation, View Mode, Quick Actions
-            // 1. [ > TEST GAME (F5) ]
-            if (mx >= 654.0f && mx <= 799.0f) {
+            // 1. [ > TEST (F5) ]
+            if (mx >= 496.0f && mx <= 584.0f) {
                 buildGameAction(true);
                 return;
             }
-            // 2. [ BUILD / EXPORT... ]
-            if (mx >= 807.0f && mx <= 937.0f) {
+            // 2. [ BUILD... ]
+            if (mx >= 588.0f && mx <= 648.0f) {
                 _buildModalOpen = true;
                 return;
             }
-            // 3. [ 3D PERSPECTIVE ] / [ 2D ORTHO ]
-            if (mx >= 945.0f && mx <= 1045.0f) {
+            // 3. [ 2D / 3D ]
+            if (mx >= 652.0f && mx <= 716.0f) {
                 _orthoViewMode = !_orthoViewMode;
                 if (_orthoViewMode) {
                     _camera.setOrthographic(25.0f, -500.0f, 500.0f);
@@ -3770,55 +3804,14 @@ public:
                 return;
             }
             // 4. [+ LIGHT]
-            if (mx >= 1053.0f && mx <= 1133.0f) {
+            if (mx >= 720.0f && mx <= 780.0f) {
                 _activeTool = 7;
                 logMessage("Tool 7: Omni Point Light Tool (Click scene or E to place)");
                 return;
             }
-            // 5. [DARK: ON/OFF]
-            if (mx >= 1141.0f && mx <= 1231.0f) {
-                _darknessMode = !_darknessMode;
-                logMessage(_darknessMode ? "Darkness Mode: ACTIVE (Pitch Black Ambient/Sun)" : "Darkness Mode: DISABLED (Standard Sunlight)");
-                return;
-            }
-            // 6. [DARK PRESET]
-            if (mx >= 1239.0f && mx <= 1334.0f) {
-                if (_map) {
-                    _map->metadata.ambientColor = Vec3(0.015f, 0.018f, 0.025f);
-                    _map->metadata.sunColor = Vec3(0.0f, 0.0f, 0.0f);
-                    _darknessMode = true;
-                    logMessage("Applied Darkness Preset to Map Metadata (Ambient: 0.015, Sun: 0)");
-                }
-                return;
-            }
-            // 7. [* SPARKS] Live particle test button
-            if (mx >= 1342.0f && mx <= 1418.0f) {
-                _particleSystem.spawnImpact(_cursorPos, Vec3(0, 1, 0), SurfaceType::Metal);
-                logMessage("Spawned metal impact sparks at 3D Cursor (" + std::to_string((int)_cursorPos.x) + ", " + std::to_string((int)_cursorPos.y) + ", " + std::to_string((int)_cursorPos.z) + ")");
-                return;
-            }
-            // 8. [* SMOKE] Live explosion particle test button
-            if (mx >= 1424.0f && mx <= 1500.0f) {
-                _particleSystem.spawnExplosion(_cursorPos, 3.5f);
-                logMessage("Spawned explosion smoke burst at 3D Cursor");
-                return;
-            }
-            // 9. [* SCORCH] Live decal projection test button
-            if (mx >= 1506.0f && mx <= 1582.0f) {
-                _decalSystem.spawnExplosionScorch(_cursorPos, 2.0f, _map ? _map->brushes : std::vector<MapBrush>{});
-                logMessage("Spawned explosion scorch decal at 3D Cursor");
-                return;
-            }
-            // 10. [> 3D AUDIO] Live audio engine test button
-            if (mx >= 1588.0f && mx <= 1670.0f) {
-                AudioEngine::playSound3D(SoundID::PistolShot, _cursorPos, 1.0f, 1.0f);
-                logMessage("Auditioned 3D sound effect at 3D Cursor position");
-                return;
-            }
-            // 11. [VCS SNAP] Live version control commit
-            if (mx >= 1676.0f && mx <= 1754.0f) {
-                VCSManager::instance().addCommit("snap-" + std::to_string(std::time(nullptr)), "Lead Architect", "Editor Live Snapshot");
-                logMessage("VCS Manager: Created live level snapshot commit");
+            // 5. [ QUICK FX v ]
+            if (mx >= 784.0f && mx <= 872.0f) {
+                _quickFxMenuOpen = !_quickFxMenuOpen;
                 return;
             }
         }
@@ -6352,140 +6345,121 @@ public:
 
         const int tbIcons[12] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16 };
         for (int i = 0; i < 12; ++i) {
-            float bx = 8.0f + i * 28.0f;
-            bool isHov = (_mouseScreenX >= bx && _mouseScreenX <= bx + 26.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+            float bx = 8.0f + i * 26.0f;
+            bool isHov = (_mouseScreenX >= bx && _mouseScreenX <= bx + 24.0f && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 28.0f);
             Vec3 bgCol = (isHov ? Vec3(0.32f, 0.35f, 0.40f) : Vec3(0.22f, 0.23f, 0.26f));
             Vec3 iconCol = (isHov ? Vec3(1.0f, 0.95f, 0.80f) : Vec3(0.85f, 0.88f, 0.92f));
 
-            Renderer::drawRect(bx, tbY + 4.0f, 26.0f, 26.0f, bgCol);
-            drawDarkBevel(bx, tbY + 4.0f, 26.0f, 26.0f, false);
-            drawToolbarIcon(tbIcons[i], bx + 1.0f, tbY + 5.0f, iconCol, bgCol);
+            Renderer::drawRect(bx, tbY + 4.0f, 24.0f, 24.0f, bgCol);
+            drawDarkBevel(bx, tbY + 4.0f, 24.0f, 24.0f, false);
+            drawToolbarIcon(tbIcons[i], bx, tbY + 4.0f, iconCol, bgCol);
         }
 
-        // ==================== ENGINE CONTROLS & TEST BUTTONS ====================
-        // Transform Gizmo Mode Buttons (G Move, R Rotate, S Scale, T Omni)
+        // Separator
+        Renderer::drawRect(324.0f, tbY + 4.0f, 1.0f, 24.0f, Vec3(0.32f, 0.35f, 0.40f));
+
+        // Transform Gizmo Mode Buttons (Move, Rotate, Scale)
         const struct { const char* label; GizmoMode mode; float x; float w; } kGizmoBtns[] = {
-            { "G Move",   GizmoMode::Move,      350.0f, 68.0f },
-            { "R Rotate", GizmoMode::Rotate,    422.0f, 72.0f },
-            { "S Scale",  GizmoMode::Scale,     498.0f, 68.0f },
-            { "T Omni",   GizmoMode::Universal, 570.0f, 68.0f }
+            { "Move",   GizmoMode::Move,   328.0f, 48.0f },
+            { "Rotate", GizmoMode::Rotate, 380.0f, 52.0f },
+            { "Scale",  GizmoMode::Scale,  436.0f, 48.0f }
         };
         for (const auto& gb : kGizmoBtns) {
             bool isAct = (_gizmoMode == gb.mode && _activeTool == 0);
-            bool isHov = (_mouseScreenX >= gb.x && _mouseScreenX <= gb.x + gb.w && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+            bool isHov = (_mouseScreenX >= gb.x && _mouseScreenX <= gb.x + gb.w && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 28.0f);
             Vec3 bgCol = isAct ? orangeGlow : (isHov ? Vec3(0.36f, 0.38f, 0.42f) : Vec3(0.24f, 0.25f, 0.28f));
             Vec3 txtCol = isAct ? Vec3(1, 1, 1) : (isHov ? Vec3(1.0f, 0.9f, 0.7f) : Vec3(0.85f, 0.88f, 0.92f));
-            Renderer::drawRect(gb.x, tbY + 4.0f, gb.w, 26.0f, bgCol);
-            drawDarkBevel(gb.x, tbY + 4.0f, gb.w, 26.0f, isAct);
-            if (isAct) Renderer::drawRect(gb.x, tbY + 28.0f, gb.w, 2.0f, Vec3(1.0f, 0.9f, 0.4f));
+            Renderer::drawRect(gb.x, tbY + 4.0f, gb.w, 24.0f, bgCol);
+            drawDarkBevel(gb.x, tbY + 4.0f, gb.w, 24.0f, isAct);
+            if (isAct) Renderer::drawRect(gb.x, tbY + 26.0f, gb.w, 2.0f, Vec3(1.0f, 0.9f, 0.4f));
             float tw = LabFont::getTextWidth(gb.label, 1.25f, LabFontType::System);
-            LabFont::drawText(gb.x + (gb.w - tw) * 0.5f, tbY + 9.0f, gb.label, 1.25f, txtCol, LabFontType::System);
+            LabFont::drawText(gb.x + (gb.w - tw) * 0.5f, tbY + 8.0f, gb.label, 1.25f, txtCol, LabFontType::System);
         }
 
-        // Elegant separator line
-        Renderer::drawRect(644.0f, tbY + 4.0f, 1.0f, 26.0f, Vec3(0.12f, 0.12f, 0.14f));
-        Renderer::drawRect(645.0f, tbY + 4.0f, 1.0f, 26.0f, Vec3(0.36f, 0.38f, 0.42f));
+        // Separator
+        Renderer::drawRect(490.0f, tbY + 4.0f, 1.0f, 24.0f, Vec3(0.32f, 0.35f, 0.40f));
 
-        // 1. [ > TEST GAME (F5) ] - High-visibility emerald green button!
-        float bRunX = 654.0f;
-        float bRunW = 145.0f;
-        bool isBRunHov = (_mouseScreenX >= bRunX && _mouseScreenX <= bRunX + bRunW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        // 1. [ > PLAY (F5) ]
+        float bRunX = 496.0f;
+        float bRunW = 88.0f;
+        bool isBRunHov = (_mouseScreenX >= bRunX && _mouseScreenX <= bRunX + bRunW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 28.0f);
         Vec3 bRunCol = isBRunHov ? Vec3(0.25f, 0.88f, 0.45f) : Vec3(0.18f, 0.72f, 0.38f);
-        Renderer::drawRect(bRunX, tbY + 4.0f, bRunW, 26.0f, bRunCol);
-        drawDarkBevel(bRunX, tbY + 4.0f, bRunW, 26.0f, false);
-        LabFont::drawText(bRunX + 10.0f, tbY + 9.0f, "> TEST GAME (F5)", 1.25f, Vec3(1, 1, 1), LabFontType::System);
+        Renderer::drawRect(bRunX, tbY + 4.0f, bRunW, 24.0f, bRunCol);
+        drawDarkBevel(bRunX, tbY + 4.0f, bRunW, 24.0f, false);
+        LabFont::drawText(bRunX + 8.0f, tbY + 8.0f, "> PLAY (F5)", 1.2f, Vec3(1, 1, 1), LabFontType::System);
 
-        // 2. [ BUILD / EXPORT... ] - High-visibility cyan button!
-        float bExpX = bRunX + bRunW + 8.0f;
-        float bExpW = 130.0f;
-        bool isBExpHov = (_mouseScreenX >= bExpX && _mouseScreenX <= bExpX + bExpW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        // 2. [ BUILD ]
+        float bExpX = 588.0f;
+        float bExpW = 60.0f;
+        bool isBExpHov = (_mouseScreenX >= bExpX && _mouseScreenX <= bExpX + bExpW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 28.0f);
         Vec3 bExpCol = isBExpHov ? Vec3(0.25f, 0.58f, 0.92f) : Vec3(0.18f, 0.46f, 0.76f);
-        Renderer::drawRect(bExpX, tbY + 4.0f, bExpW, 26.0f, bExpCol);
-        drawDarkBevel(bExpX, tbY + 4.0f, bExpW, 26.0f, false);
-        LabFont::drawText(bExpX + 10.0f, tbY + 9.0f, "BUILD / EXPORT", 1.25f, Vec3(1, 1, 1), LabFontType::System);
+        Renderer::drawRect(bExpX, tbY + 4.0f, bExpW, 24.0f, bExpCol);
+        drawDarkBevel(bExpX, tbY + 4.0f, bExpW, 24.0f, false);
+        LabFont::drawText(bExpX + 8.0f, tbY + 8.0f, "BUILD", 1.2f, Vec3(1, 1, 1), LabFontType::System);
 
-        // 3. [ 3D PERSPECTIVE ] / [ 2D ORTHO ]
-        float viewModeX = bExpX + bExpW + 8.0f;
-        float viewModeW = 100.0f;
+        // 3. [ 2D / 3D ]
+        float viewModeX = 652.0f;
+        float viewModeW = 64.0f;
         bool isOrtho = _orthoViewMode;
-        bool isViewHov = (_mouseScreenX >= viewModeX && _mouseScreenX <= viewModeX + viewModeW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        bool isViewHov = (_mouseScreenX >= viewModeX && _mouseScreenX <= viewModeX + viewModeW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 28.0f);
         Vec3 viewCol = isOrtho ? Vec3(0.20f, 0.55f, 0.85f) : (isViewHov ? Vec3(0.28f, 0.32f, 0.38f) : Vec3(0.20f, 0.22f, 0.25f));
-        Renderer::drawRect(viewModeX, tbY + 4.0f, viewModeW, 26.0f, viewCol);
-        drawDarkBevel(viewModeX, tbY + 4.0f, viewModeW, 26.0f, isOrtho);
-        LabFont::drawText(viewModeX + 8.0f, tbY + 9.0f, isOrtho ? "2D ORTHO" : "3D PERSPECT", 1.25f, isOrtho ? Vec3(1, 1, 1) : cyanGlow, LabFontType::System);
+        Renderer::drawRect(viewModeX, tbY + 4.0f, viewModeW, 24.0f, viewCol);
+        drawDarkBevel(viewModeX, tbY + 4.0f, viewModeW, 24.0f, isOrtho);
+        LabFont::drawText(viewModeX + 8.0f, tbY + 8.0f, isOrtho ? "2D ORTHO" : "3D PERSP", 1.2f, isOrtho ? Vec3(1, 1, 1) : cyanGlow, LabFontType::System);
 
-        // 4. [+ LIGHT] button
-        float lightX = viewModeX + viewModeW + 8.0f;
-        float lightW = 80.0f;
+        // 4. [+ LIGHT]
+        float lightX = 720.0f;
+        float lightW = 60.0f;
         bool isLightTool = (_activeTool == 7);
-        bool isLightHov = (_mouseScreenX >= lightX && _mouseScreenX <= lightX + lightW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
+        bool isLightHov = (_mouseScreenX >= lightX && _mouseScreenX <= lightX + lightW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 28.0f);
         Vec3 lightBtnBg = isLightTool ? Vec3(0.95f, 0.75f, 0.15f) : (isLightHov ? Vec3(0.32f, 0.35f, 0.40f) : Vec3(0.22f, 0.23f, 0.26f));
-        Renderer::drawRect(lightX, tbY + 4.0f, lightW, 26.0f, lightBtnBg);
-        drawDarkBevel(lightX, tbY + 4.0f, lightW, 26.0f, isLightTool);
-        LabFont::drawText(lightX + 10.0f, tbY + 9.0f, "+ LIGHT", 1.25f, isLightTool ? Vec3(0.05f, 0.05f, 0.05f) : Vec3(1.0f, 0.85f, 0.2f), LabFontType::System);
+        Renderer::drawRect(lightX, tbY + 4.0f, lightW, 24.0f, lightBtnBg);
+        drawDarkBevel(lightX, tbY + 4.0f, lightW, 24.0f, isLightTool);
+        LabFont::drawText(lightX + 6.0f, tbY + 8.0f, "+ LIGHT", 1.2f, isLightTool ? Vec3(0.05f, 0.05f, 0.05f) : Vec3(1.0f, 0.85f, 0.2f), LabFontType::System);
 
-        // 5. [DARK: ON/OFF] button
-        float darkX = lightX + lightW + 8.0f;
-        float darkW = 90.0f;
-        bool isDarkHov = (_mouseScreenX >= darkX && _mouseScreenX <= darkX + darkW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
-        Vec3 darkBtnBg = _darknessMode ? Vec3(0.55f, 0.15f, 0.80f) : (isDarkHov ? Vec3(0.32f, 0.35f, 0.40f) : Vec3(0.22f, 0.23f, 0.26f));
-        Renderer::drawRect(darkX, tbY + 4.0f, darkW, 26.0f, darkBtnBg);
-        drawDarkBevel(darkX, tbY + 4.0f, darkW, 26.0f, _darknessMode);
-        LabFont::drawText(darkX + 8.0f, tbY + 9.0f, _darknessMode ? "DARK: ON" : "DARK: OFF", 1.25f, _darknessMode ? Vec3(1.0f, 0.95f, 0.6f) : Vec3(0.85f, 0.88f, 0.92f), LabFontType::System);
+        // 5. [ QUICK FX v ]
+        float qfxX = 784.0f;
+        float qfxW = 88.0f;
+        bool isQfxHov = (_mouseScreenX >= qfxX && _mouseScreenX <= qfxX + qfxW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 28.0f);
+        Vec3 qfxBg = _quickFxMenuOpen ? Vec3(0.55f, 0.25f, 0.80f) : (isQfxHov ? Vec3(0.35f, 0.30f, 0.45f) : Vec3(0.25f, 0.22f, 0.30f));
+        Renderer::drawRect(qfxX, tbY + 4.0f, qfxW, 24.0f, qfxBg);
+        drawDarkBevel(qfxX, tbY + 4.0f, qfxW, 24.0f, _quickFxMenuOpen);
+        LabFont::drawText(qfxX + 6.0f, tbY + 8.0f, "QUICK FX v", 1.2f, Vec3(0.9f, 0.85f, 1.0f), LabFontType::System);
 
-        // 6. [DARK PRESET] button
-        float presetX = darkX + darkW + 8.0f;
-        float presetW = 95.0f;
-        bool isPresetHov = (_mouseScreenX >= presetX && _mouseScreenX <= presetX + presetW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
-        Vec3 presetBtnBg = isPresetHov ? Vec3(0.32f, 0.35f, 0.40f) : Vec3(0.22f, 0.23f, 0.26f);
-        Renderer::drawRect(presetX, tbY + 4.0f, presetW, 26.0f, presetBtnBg);
-        drawDarkBevel(presetX, tbY + 4.0f, presetW, 26.0f, false);
-        LabFont::drawText(presetX + 8.0f, tbY + 9.0f, "DARK PRESET", 1.25f, Vec3(0.6f, 0.85f, 1.0f), LabFontType::System);
+        // Floating Quick FX Dropdown Menu
+        if (_quickFxMenuOpen) {
+            float mX = 784.0f;
+            float mY = 58.0f;
+            float mW = 190.0f;
+            float mH = 7 * 26.0f + 8.0f;
+            Renderer::drawRect(mX, mY, mW, mH, Vec3(0.14f, 0.15f, 0.18f));
+            drawDarkBevel(mX, mY, mW, mH, false);
 
-        // 7. [* SPARKS] Live particle test button
-        float testSpkX = presetX + presetW + 8.0f;
-        float testSpkW = 76.0f;
-        bool isSpkHov = (_mouseScreenX >= testSpkX && _mouseScreenX <= testSpkX + testSpkW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
-        Vec3 spkBg = isSpkHov ? Vec3(0.9f, 0.6f, 0.1f) : Vec3(0.35f, 0.28f, 0.15f);
-        Renderer::drawRect(testSpkX, tbY + 4.0f, testSpkW, 26.0f, spkBg);
-        drawDarkBevel(testSpkX, tbY + 4.0f, testSpkW, 26.0f, false);
-        LabFont::drawText(testSpkX + 6.0f, tbY + 9.0f, "* SPARKS", 1.25f, Vec3(1.0f, 0.9f, 0.4f), LabFontType::System);
-
-        // 8. [* SMOKE] Live explosion particle test button
-        float testSmkX = testSpkX + testSpkW + 6.0f;
-        float testSmkW = 76.0f;
-        bool isSmkHov = (_mouseScreenX >= testSmkX && _mouseScreenX <= testSmkX + testSmkW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
-        Vec3 smkBg = isSmkHov ? Vec3(0.85f, 0.4f, 0.2f) : Vec3(0.35f, 0.20f, 0.15f);
-        Renderer::drawRect(testSmkX, tbY + 4.0f, testSmkW, 26.0f, smkBg);
-        drawDarkBevel(testSmkX, tbY + 4.0f, testSmkW, 26.0f, false);
-        LabFont::drawText(testSmkX + 7.0f, tbY + 9.0f, "* SMOKE", 1.25f, Vec3(1.0f, 0.6f, 0.3f), LabFontType::System);
-
-        // 9. [* SCORCH] Live decal projection test button
-        float testDecX = testSmkX + testSmkW + 6.0f;
-        float testDecW = 76.0f;
-        bool isDecHov = (_mouseScreenX >= testDecX && _mouseScreenX <= testDecX + testDecW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
-        Vec3 decBg = isDecHov ? Vec3(0.4f, 0.5f, 0.7f) : Vec3(0.20f, 0.22f, 0.30f);
-        Renderer::drawRect(testDecX, tbY + 4.0f, testDecW, 26.0f, decBg);
-        drawDarkBevel(testDecX, tbY + 4.0f, testDecW, 26.0f, false);
-        LabFont::drawText(testDecX + 6.0f, tbY + 9.0f, "* SCORCH", 1.25f, Vec3(0.8f, 0.9f, 1.0f), LabFontType::System);
-
-        // 10. [> 3D AUDIO] Live audio engine test button
-        float testAudX = testDecX + testDecW + 6.0f;
-        float testAudW = 82.0f;
-        bool isAudHov = (_mouseScreenX >= testAudX && _mouseScreenX <= testAudX + testAudW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
-        Vec3 audBg = isAudHov ? Vec3(0.25f, 0.7f, 0.5f) : Vec3(0.18f, 0.30f, 0.24f);
-        Renderer::drawRect(testAudX, tbY + 4.0f, testAudW, 26.0f, audBg);
-        drawDarkBevel(testAudX, tbY + 4.0f, testAudW, 26.0f, false);
-        LabFont::drawText(testAudX + 6.0f, tbY + 9.0f, "> 3D AUDIO", 1.25f, Vec3(0.5f, 1.0f, 0.8f), LabFontType::System);
-
-        // 11. [VCS SNAP] Live version control commit button
-        float testVcsX = testAudX + testAudW + 6.0f;
-        float testVcsW = 78.0f;
-        bool isVcsHov = (_mouseScreenX >= testVcsX && _mouseScreenX <= testVcsX + testVcsW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 30.0f);
-        Vec3 vcsBg = isVcsHov ? Vec3(0.4f, 0.6f, 0.9f) : Vec3(0.20f, 0.26f, 0.36f);
-        Renderer::drawRect(testVcsX, tbY + 4.0f, testVcsW, 26.0f, vcsBg);
-        drawDarkBevel(testVcsX, tbY + 4.0f, testVcsW, 26.0f, false);
-        LabFont::drawText(testVcsX + 6.0f, tbY + 9.0f, "VCS SNAP", 1.25f, Vec3(0.7f, 0.85f, 1.0f), LabFontType::System);
+            const char* kFxItems[7] = {
+                _darknessMode ? "Darkness Mode: [ON]" : "Darkness Mode: [OFF]",
+                "Apply Darkness Preset",
+                "* Sparks Particle FX",
+                "* Smoke Explosion FX",
+                "* Scorch Decal FX",
+                "> 3D Audio SFX Test",
+                "VCS Snapshot Commit"
+            };
+            for (int k = 0; k < 7; ++k) {
+                float iy = mY + 4.0f + k * 26.0f;
+                bool isItemHov = (_mouseScreenX >= mX + 2.0f && _mouseScreenX <= mX + mW - 2.0f && _mouseScreenY >= iy && _mouseScreenY <= iy + 24.0f);
+                if (isItemHov) {
+                    Renderer::drawRect(mX + 2.0f, iy, mW - 4.0f, 24.0f, Vec3(0.28f, 0.32f, 0.42f));
+                }
+                Vec3 itemCol = (k == 0 && _darknessMode) ? Vec3(0.9f, 0.6f, 1.0f) :
+                               (k == 1) ? Vec3(0.6f, 0.85f, 1.0f) :
+                               (k == 2) ? Vec3(1.0f, 0.85f, 0.3f) :
+                               (k == 3) ? Vec3(1.0f, 0.6f, 0.3f) :
+                               (k == 4) ? Vec3(0.8f, 0.9f, 1.0f) :
+                               (k == 5) ? Vec3(0.5f, 1.0f, 0.8f) :
+                               Vec3(0.7f, 0.85f, 1.0f);
+                LabFont::drawText(mX + 10.0f, iy + 5.0f, kFxItems[k], 1.2f, itemCol, LabFontType::System);
+            }
+        }
 
         // ==================== 3. LEFT TOOLS PALETTE (Tools 0..7) ====================
         float leftW = 42.0f;
@@ -9288,6 +9262,7 @@ private:
 
     // Categorized View Menu State
     int _viewSubmenuHover = -1; // -1 = none, 0 = 3D, 1 = 2D, 2 = Scripting, 3 = Display
+    bool _quickFxMenuOpen = false;
 
     // Native Engine Subsystems Integration
     DecalSystem _decalSystem;
