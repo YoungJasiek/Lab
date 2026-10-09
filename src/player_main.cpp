@@ -60,9 +60,10 @@ class LabPlayerApp : public Engine {
 public:
     LabPlayerApp(const std::string& title, int width, int height, const std::string& scenePath,
                  const std::string& hudPath = "", const std::string& rulesPath = "",
-                 const std::string& screenshotPath = "")
+                 const std::string& screenshotPath = "", const std::string& dimension = "3D")
         : Engine(title, width, height),
           _gameTitle(title),
+          _dimension(dimension),
           _scenePath(scenePath),
           _hudPath(hudPath),
           _rulesPath(rulesPath),
@@ -100,10 +101,19 @@ public:
         // Load custom HUD Project (.labhud) if configured
         initCustomHUD();
 
-        // Capture cursor for first-person gameplay
-        setCursorCaptured(true);
+        // Camera setup based on dimension (2D pixel/canvas vs 3D perspective)
+        if (_dimension == "2D") {
+            int w = 1280, h = 720;
+            getFramebufferSize(w, h);
+            float aspect = (h > 0) ? ((float)w / (float)h) : (16.0f / 9.0f);
+            InitializeCamera2D(_camera, 10.0f, aspect);
+            setCursorCaptured(false);
+        } else {
+            // Capture cursor for first-person gameplay
+            setCursorCaptured(true);
+        }
         _isPaused = false;
-        LabLog::info("Lab Player ready. Running scene: " + _scenePath);
+        LabLog::info("Lab Player ready (" + _dimension + "). Running scene: " + _scenePath);
     }
 
     void discoverTextures() {
@@ -339,85 +349,105 @@ public:
             return;
         }
 
-        // Mouse look
-        Vec2 mouseDelta = Input::getMouseDelta();
-        if (isCursorCaptured()) {
-            _camera.update(mouseDelta);
-        }
-
-        // Movement input
-        Vec3 forward = _camera.getForward();
-        forward.y = 0.0f;
-        float fLen = std::sqrt(forward.x * forward.x + forward.z * forward.z);
-        if (fLen > 0.0001f) forward = forward * (1.0f / fLen);
-
-        Vec3 right = _camera.getRight();
-        right.y = 0.0f;
-        float rLen = std::sqrt(right.x * right.x + right.z * right.z);
-        if (rLen > 0.0001f) right = right * (1.0f / rLen);
-
-        Vec3 moveDir(0, 0, 0);
-        if (Input::isKeyPressed('W') || Input::isKeyPressed('w') || Input::isKeyPressed(GLFW_KEY_UP)) moveDir = moveDir + forward;
-        if (Input::isKeyPressed('S') || Input::isKeyPressed('s') || Input::isKeyPressed(GLFW_KEY_DOWN)) moveDir = moveDir - forward;
-        if (Input::isKeyPressed('D') || Input::isKeyPressed('d') || Input::isKeyPressed(GLFW_KEY_RIGHT)) moveDir = moveDir + right;
-        if (Input::isKeyPressed('A') || Input::isKeyPressed('a') || Input::isKeyPressed(GLFW_KEY_LEFT)) moveDir = moveDir - right;
-
-        float mLen = std::sqrt(moveDir.x * moveDir.x + moveDir.z * moveDir.z);
-        if (mLen > 0.0001f) moveDir = moveDir * (1.0f / mLen);
-
-        float speed = Input::isKeyPressed(GLFW_KEY_LEFT_SHIFT) ? 12.0f : 6.0f;
-
-        // Gravity & Vertical Physics
-        if (!_isGrounded) {
-            _playerVel.y -= 25.0f * dt;
+        if (_dimension == "2D") {
+            // Native 2D pan with WASD or arrow keys
+            float speed2D = 10.0f;
+            Vec3 camP = _camera.getPosition();
+            if (Input::isKeyPressed('W') || Input::isKeyPressed('w') || Input::isKeyPressed(GLFW_KEY_UP)) camP.y += speed2D * dt;
+            if (Input::isKeyPressed('S') || Input::isKeyPressed('s') || Input::isKeyPressed(GLFW_KEY_DOWN)) camP.y -= speed2D * dt;
+            if (Input::isKeyPressed('D') || Input::isKeyPressed('d') || Input::isKeyPressed(GLFW_KEY_RIGHT)) camP.x += speed2D * dt;
+            if (Input::isKeyPressed('A') || Input::isKeyPressed('a') || Input::isKeyPressed(GLFW_KEY_LEFT)) camP.x -= speed2D * dt;
+            _camera.setPosition(camP);
+            _camera.setPitch(0.0f);
+            _camera.setYaw(-90.0f);
         } else {
-            if (Input::isKeyPressed(GLFW_KEY_SPACE)) {
-                _playerVel.y = 8.5f;
-                _isGrounded = false;
-            } else {
-                _playerVel.y = 0.0f;
+            // 3D Mouse look
+            Vec2 mouseDelta = Input::getMouseDelta();
+            if (isCursorCaptured()) {
+                _camera.update(mouseDelta);
             }
-        }
 
-        // Horizontal velocity
-        _playerVel.x = moveDir.x * speed;
-        _playerVel.z = moveDir.z * speed;
+            // Movement input
+            Vec3 forward = _camera.getForward();
+            forward.y = 0.0f;
+            float fLen = std::sqrt(forward.x * forward.x + forward.z * forward.z);
+            if (fLen > 0.0001f) forward = forward * (1.0f / fLen);
 
-        // Apply movement with brush collision resolution
-        Vec3 newPos = _playerPos + _playerVel * dt;
-        resolveCollisions(newPos);
-        _playerPos = newPos;
-
-        // Camera position binding: Scene Camera (TPP / static) or FPS fallback
-        if (_activeCamera && _activeCamera->follow_target == "player") {
-            // TPP over-the-shoulder camera
-            Vec3 fwd = _camera.getForward();
             Vec3 right = _camera.getRight();
-            Vec3 up(0, 1, 0);
-            Vec3 eyePos = _playerPos + Vec3(0, 1.4f, 0);
-            Vec3 targetCamPos = eyePos + right * _activeCamera->tpp_offset.x
-                                       + up * _activeCamera->tpp_offset.y
-                                       + fwd * _activeCamera->tpp_offset.z;
-            if (_map) {
-                for (const auto& b : _map->brushes) {
-                    Vec3 bMin = b.position - b.size * 0.5f;
-                    Vec3 bMax = b.position + b.size * 0.5f;
-                    if (targetCamPos.x >= bMin.x - _activeCamera->collision_radius && targetCamPos.x <= bMax.x + _activeCamera->collision_radius &&
-                        targetCamPos.y >= bMin.y - _activeCamera->collision_radius && targetCamPos.y <= bMax.y + _activeCamera->collision_radius &&
-                        targetCamPos.z >= bMin.z - _activeCamera->collision_radius && targetCamPos.z <= bMax.z + _activeCamera->collision_radius) {
-                        targetCamPos = eyePos + (targetCamPos - eyePos) * 0.5f;
-                    }
+            right.y = 0.0f;
+            float rLen = std::sqrt(right.x * right.x + right.z * right.z);
+            if (rLen > 0.0001f) right = right * (1.0f / rLen);
+
+            Vec3 moveDir(0, 0, 0);
+            if (Input::isKeyPressed('W') || Input::isKeyPressed('w') || Input::isKeyPressed(GLFW_KEY_UP)) moveDir = moveDir + forward;
+            if (Input::isKeyPressed('S') || Input::isKeyPressed('s') || Input::isKeyPressed(GLFW_KEY_DOWN)) moveDir = moveDir - forward;
+            if (Input::isKeyPressed('D') || Input::isKeyPressed('d') || Input::isKeyPressed(GLFW_KEY_RIGHT)) moveDir = moveDir + right;
+            if (Input::isKeyPressed('A') || Input::isKeyPressed('a') || Input::isKeyPressed(GLFW_KEY_LEFT)) moveDir = moveDir - right;
+
+            float mLen = std::sqrt(moveDir.x * moveDir.x + moveDir.z * moveDir.z);
+            if (mLen > 0.0001f) moveDir = moveDir * (1.0f / mLen);
+
+            float speed = Input::isKeyPressed(GLFW_KEY_LEFT_SHIFT) ? 12.0f : 6.0f;
+
+            // Gravity & Vertical Physics
+            if (!_isGrounded) {
+                _playerVel.y -= 25.0f * dt;
+            } else {
+                if (Input::isKeyPressed(GLFW_KEY_SPACE)) {
+                    _playerVel.y = 8.5f;
+                    _isGrounded = false;
+                } else {
+                    _playerVel.y = 0.0f;
                 }
             }
-            _camera.setPosition(targetCamPos);
-        } else if (_activeCamera && _activeCamera->follow_target.empty()) {
-            // Static / anchor camera
-            _camera.setPosition(_activeCamera->position);
-            _camera.setPitch(_activeCamera->rotation.x);
-            _camera.setYaw(_activeCamera->rotation.y);
-        } else {
-            // Fallback: standard FPS camera bound to player eyes
-            _camera.setPosition(_playerPos + Vec3(0, 0.2f, 0));
+
+            // Horizontal velocity
+            _playerVel.x = moveDir.x * speed;
+            _playerVel.z = moveDir.z * speed;
+
+            // Apply movement with brush collision resolution
+            Vec3 newPos = _playerPos + _playerVel * dt;
+            resolveCollisions(newPos);
+            _playerPos = newPos;
+
+            // Camera position binding: Scene Camera (TPP / static) or FPS fallback
+            if (_activeCamera && _activeCamera->follow_target == "player") {
+                // TPP over-the-shoulder camera
+                Vec3 fwd = _camera.getForward();
+                Vec3 rightVec = _camera.getRight();
+                Vec3 up(0, 1, 0);
+                Vec3 eyePos = _playerPos + Vec3(0, 1.4f, 0);
+                Vec3 targetCamPos = eyePos + rightVec * _activeCamera->tpp_offset.x
+                                           + up * _activeCamera->tpp_offset.y
+                                           + fwd * _activeCamera->tpp_offset.z;
+                if (_map) {
+                    for (const auto& b : _map->brushes) {
+                        Vec3 bMin = b.position - b.size * 0.5f;
+                        Vec3 bMax = b.position + b.size * 0.5f;
+                        if (targetCamPos.x >= bMin.x - _activeCamera->collision_radius && targetCamPos.x <= bMax.x + _activeCamera->collision_radius &&
+                            targetCamPos.y >= bMin.y - _activeCamera->collision_radius && targetCamPos.y <= bMax.y + _activeCamera->collision_radius &&
+                            targetCamPos.z >= bMin.z - _activeCamera->collision_radius && targetCamPos.z <= bMax.z + _activeCamera->collision_radius) {
+                            targetCamPos = eyePos + (targetCamPos - eyePos) * 0.5f;
+                        }
+                    }
+                }
+                _camera.setPosition(targetCamPos);
+            } else if (_activeCamera && _activeCamera->follow_target.empty()) {
+                // Static / anchor / scene camera
+                _camera.setPosition(_activeCamera->position);
+                _camera.setPitch(_activeCamera->rotation.x);
+                _camera.setYaw(_activeCamera->rotation.y);
+            } else if (_map && _map->spawnPoints.empty()) {
+                // Clean scene without player spawn: keep scene camera
+                if (_activeCamera) {
+                    _camera.setPosition(_activeCamera->position);
+                    _camera.setPitch(_activeCamera->rotation.x);
+                    _camera.setYaw(_activeCamera->rotation.y);
+                }
+            } else {
+                // Standard FPS camera bound to player eyes
+                _camera.setPosition(_playerPos + Vec3(0, 0.2f, 0));
+            }
         }
 
         // Mission timer countdown
@@ -805,6 +835,7 @@ public:
 
 private:
     std::string _gameTitle;
+    std::string _dimension;
     std::string _scenePath;
     std::string _hudPath;
     std::string _rulesPath;
@@ -847,6 +878,7 @@ struct GameLaunchConfig {
     int width = 1280;
     int height = 720;
     bool fullscreen = false;
+    std::string dimension = "3D";
 };
 
 static void parseConfigStream(std::istream& stream, GameLaunchConfig& cfg) {
@@ -863,6 +895,7 @@ static void parseConfigStream(std::istream& stream, GameLaunchConfig& cfg) {
             else if (k == "scene") cfg.scene = v;
             else if (k == "hud") cfg.hud = v;
             else if (k == "rules") cfg.rules = v;
+            else if (k == "dimension") cfg.dimension = v;
             else if (k == "width") cfg.width = std::atoi(v.c_str());
             else if (k == "height") cfg.height = std::atoi(v.c_str());
             else if (k == "fullscreen") cfg.fullscreen = (v == "1" || v == "true");
@@ -880,6 +913,35 @@ static GameLaunchConfig loadGameConfig(const std::string& specificConfig = "") {
             file.close();
             return cfg;
         }
+    }
+
+    // 0. Try project.labproject (JSON)
+    std::ifstream projFile("project.labproject");
+    if (projFile.is_open()) {
+        std::string line;
+        while (std::getline(projFile, line)) {
+            size_t posDim = line.find("\"dimension\":");
+            if (posDim != std::string::npos) {
+                size_t q1 = line.find('\"', posDim + 12);
+                size_t q2 = line.find('\"', q1 + 1);
+                if (q1 != std::string::npos && q2 != std::string::npos) {
+                    cfg.dimension = line.substr(q1 + 1, q2 - q1 - 1);
+                }
+            }
+            size_t posW = line.find("\"defaultWidth\":");
+            if (posW != std::string::npos) {
+                cfg.width = std::atoi(line.c_str() + posW + 15);
+            }
+            size_t posH = line.find("\"defaultHeight\":");
+            if (posH != std::string::npos) {
+                cfg.height = std::atoi(line.c_str() + posH + 16);
+            }
+            size_t posFS = line.find("\"defaultFullscreen\":");
+            if (posFS != std::string::npos) {
+                cfg.fullscreen = (line.find("true", posFS) != std::string::npos);
+            }
+        }
+        projFile.close();
     }
 
     // 1. Try game.config in current working directory
@@ -943,6 +1005,10 @@ int main(int argc, char* argv[]) {
             config.width = std::atoi(argv[++i]);
         } else if (arg == "--height" && i + 1 < argc) {
             config.height = std::atoi(argv[++i]);
+        } else if (arg == "--dimension" && i + 1 < argc) {
+            config.dimension = argv[++i];
+        } else if (arg == "--fullscreen") {
+            config.fullscreen = true;
         } else if (arg == "--hud" && i + 1 < argc) {
             config.hud = argv[++i];
         } else if (arg == "--rules" && i + 1 < argc) {
@@ -1001,9 +1067,12 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    LabLog::info("Game: '" + config.title + "' | Scene: '" + config.scene + "' | HUD: '" + config.hud + "' | Rules: '" + config.rules + "'");
+    LabLog::info("Game: '" + config.title + "' | Dimension: '" + config.dimension + "' | Scene: '" + config.scene + "' | HUD: '" + config.hud + "' | Rules: '" + config.rules + "'");
 
-    LabPlayerApp app(config.title, config.width, config.height, config.scene, config.hud, config.rules, config.screenshot);
+    LabPlayerApp app(config.title, config.width, config.height, config.scene, config.hud, config.rules, config.screenshot, config.dimension);
+    if (config.fullscreen) {
+        app.setFullscreen(true);
+    }
     app.run();
 
     return 0;

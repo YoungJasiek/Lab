@@ -8910,9 +8910,14 @@ int main() {
         Lab::Renderer::beginUI(1280, 720);
         Lab::LabTheme::drawPanel(10.0f, 10.0f, 300.0f, 200.0f, "THEME TEST PANEL");
         Lab::LabTheme::drawBevel(20.0f, 40.0f, 100.0f, 30.0f, true);
-        bool btnHover = Lab::LabTheme::drawButton(20.0f, 80.0f, 120.0f, 26.0f, "Test Button", false, false, 30.0f, 90.0f, false);
-        if (!btnHover) {
-            std::cerr << "Assertion failed: drawButton hover state failed!\n";
+        bool btnHoverOnly = Lab::LabTheme::drawButton(20.0f, 80.0f, 120.0f, 26.0f, "Test Button", false, false, 30.0f, 90.0f, false);
+        if (btnHoverOnly) {
+            std::cerr << "Assertion failed: drawButton should not trigger click on hover alone!\n";
+            return 1;
+        }
+        bool btnClicked = Lab::LabTheme::drawButton(20.0f, 80.0f, 120.0f, 26.0f, "Test Button", false, false, 30.0f, 90.0f, true);
+        if (!btnClicked) {
+            std::cerr << "Assertion failed: drawButton click state failed!\n";
             return 1;
         }
         float sliderVal = 5.0f;

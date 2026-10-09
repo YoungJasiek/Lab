@@ -7,6 +7,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Enable automatic symbol export for Windows dynamic link libraries (.dll)
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Strict compiler flags with standard MSVC DLL warning suppressions
 if(MSVC)
@@ -138,6 +139,8 @@ target_compile_definitions(LabCore PRIVATE LAB_CORE_BUILD)
 target_link_libraries(LabCore PUBLIC glfw glad OpenGL::GL lua)
 if(WIN32)
     target_link_libraries(LabCore PUBLIC gdi32 comdlg32)
+elseif(UNIX AND NOT APPLE)
+    target_link_libraries(LabCore PUBLIC ${CMAKE_DL_LIBS} pthread m)
 endif()
 
 # 2. LabRender.dll - OpenGL 4.5+ DSA Renderer, Lighting, CSG, Decals, Post-process, Skeletal, 2D SpriteBatcher, RHI & Render Graph
@@ -180,6 +183,9 @@ add_library(LabAudio SHARED
 target_include_directories(LabAudio PUBLIC ${LAB_INCLUDES})
 target_compile_options(LabAudio PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabAudio PUBLIC LabCore)
+if(UNIX AND NOT APPLE)
+    target_link_libraries(LabAudio PUBLIC ${CMAKE_DL_LIBS} pthread m)
+endif()
 
 # 4. LabPhysics.dll - AABB Collision Detection, MoveAndSlide, Dynamic Rigid Bodies, Raycasting, PhysicsWorld2D, CCD, Ragdoll, Vehicle, Fluid, Constraints
 add_library(LabPhysics SHARED
@@ -254,6 +260,8 @@ target_compile_options(LabNetwork PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabNetwork PUBLIC LabCore LabRender LabWorld LabPhysics)
 if(WIN32)
     target_link_libraries(LabNetwork PUBLIC ws2_32 wininet)
+elseif(UNIX AND NOT APPLE)
+    target_link_libraries(LabNetwork PUBLIC ${CMAKE_DL_LIBS} pthread m)
 endif()
 
 # 8. LabAI.dll - CombatBot Sensory AI, State Machine, Combat Behaviors

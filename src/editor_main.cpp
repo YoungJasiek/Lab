@@ -12,6 +12,7 @@
 #include "LabStudio.h"
 #include "LabHUDEditor.h"
 #include "LabPackage.h"
+#include "LabPlugin.h"
 #include "plugins/ProceduralLevelPlugin.h"
 #include "plugins/SpeedrunTelemetryPlugin.h"
 #include "plugins/RetroPostProcessPlugin.h"
@@ -115,6 +116,8 @@ enum class EditorWorkspace {
     Plugins_Manager = 13,      // Full-viewport Package & Plugin Manager (Single-File Addon Standard)
     // Engine Main Menu & Project Hub
     Project_Hub = 14,          // Full-viewport Project Browser & Main Menu (Continue / Create / Play Demo)
+    // Project Settings Workspace
+    Project_Settings = 15,     // Full-viewport Project Settings & Output Display Config (2D/3D, Res, Fullscreen)
     // Aliases for backwards compatibility
     World3D = 0,
     Level2D = 8,
@@ -122,7 +125,8 @@ enum class EditorWorkspace {
     Animation = 1,
     Scripting = 11,
     Plugins = 13,
-    ProjectHub = 14
+    ProjectHub = 14,
+    ProjectSettings = 15
 };
 
 enum class BottomDockTab {
@@ -338,6 +342,10 @@ public:
             _hubBannerTimer -= fixedDelta;
             if (_hubBannerTimer <= 0.0f) _hubStatusBanner = "";
         }
+        if (_settingsBannerTimer > 0.0f) {
+            _settingsBannerTimer -= fixedDelta;
+            if (_settingsBannerTimer <= 0.0f) _settingsStatusBanner = "";
+        }
 
         // Live Addon Subsystem Updates
         if (PackageManager::instance().isPackageEnabled("com.lab.retro-fx")) {
@@ -413,28 +421,77 @@ public:
         _map->metadata.author = "Mapper";
         _map->spawn.position = Vec3(0, 1.8f, 0);
 
-        // Standard ground brush
-        MapBrush floor;
-        floor.name = "Floor";
-        floor.position = Vec3(0, -0.5f, 0);
-        floor.size = Vec3(32.0f, 1.0f, 32.0f);
-        floor.color = Vec3(1.0f, 1.0f, 1.0f);
-        floor.texturePath = "floor_tiles.bmp";
-        floor.uvScale = Vec2(0.25f, 0.25f);
-        floor.uvMode = 1;
-        _map->brushes.push_back(floor);
+        std::string activeDim = "3D";
+        auto activeProj = ProjectManager::get().getProjectInfo(ProjectManager::get().getActiveProjectName());
+        if (!activeProj.dimension.empty()) {
+            activeDim = activeProj.dimension;
+        }
 
-        // Standard dynamic block named "Klocek1" (can be scripted via World.getEntity('Klocek1'))
-        MapBrush block;
-        block.name = "Klocek1";
-        block.script = "assets/scripts/gameplay.lua";
-        block.position = Vec3(0, 1.0f, -4.0f);
-        block.size = Vec3(2.0f, 2.0f, 2.0f);
-        block.color = Vec3(0.95f, 0.55f, 0.15f);
-        block.texturePath = "concrete_wall.bmp";
-        block.uvScale = Vec2(0.25f, 0.25f);
-        block.uvMode = 1;
-        _map->brushes.push_back(block);
+        if (activeDim == "2D") {
+            // Native 2D starter scene
+            MapCamera cam2D;
+            cam2D.name = "Camera2D";
+            cam2D.position = Vec3(0.0f, 0.0f, 10.0f);
+            cam2D.rotation = Vec3(0.0f, -90.0f, 0.0f);
+            cam2D.fov = 10.0f;
+            cam2D.orthographic = true;
+            cam2D.orthoSize = 10.0f;
+            cam2D.active = true;
+            _map->cameras.push_back(cam2D);
+
+            MapSprite2D spr;
+            spr.name = "StarterSprite_01";
+            spr.position = Vec3(0.0f, 0.0f, 0.0f);
+            spr.size = Vec2(2.0f, 2.0f);
+            spr.color = Vec4(0.2f, 0.6f, 0.9f, 1.0f);
+            spr.texturePath = "crate.bmp";
+            _map->sprites.push_back(spr);
+
+            MapLight lgt;
+            lgt.name = "Light2D";
+            lgt.position = Vec3(0.0f, 0.0f, 5.0f);
+            lgt.color = Vec3(1.0f, 1.0f, 1.0f);
+            lgt.intensity = 1.5f;
+            lgt.radius = 20.0f;
+            _map->lights.push_back(lgt);
+        } else {
+            // Clean 3D starter scene: Exactly 1 Camera, 1 Cube, 1 Light (Zero player, zero weapons, zero ammo)
+            MapCamera cam3D;
+            cam3D.name = "MainCamera";
+            cam3D.position = Vec3(0.0f, 2.0f, 5.0f);
+            cam3D.rotation = Vec3(0.0f, -90.0f, 0.0f);
+            cam3D.fov = 70.0f;
+            cam3D.active = true;
+            _map->cameras.push_back(cam3D);
+
+            MapBrush floor;
+            floor.name = "Floor";
+            floor.position = Vec3(0, -0.5f, 0);
+            floor.size = Vec3(32.0f, 1.0f, 32.0f);
+            floor.color = Vec3(0.8f, 0.8f, 0.8f);
+            floor.texturePath = "floor_tiles.bmp";
+            floor.uvScale = Vec2(0.25f, 0.25f);
+            floor.uvMode = 1;
+            _map->brushes.push_back(floor);
+
+            MapBrush block;
+            block.name = "Cube1";
+            block.position = Vec3(0, 1.0f, 0.0f);
+            block.size = Vec3(2.0f, 2.0f, 2.0f);
+            block.color = Vec3(0.95f, 0.55f, 0.15f);
+            block.texturePath = "concrete_wall.bmp";
+            block.uvScale = Vec2(0.25f, 0.25f);
+            block.uvMode = 1;
+            _map->brushes.push_back(block);
+
+            MapLight sun;
+            sun.name = "SunLight";
+            sun.position = Vec3(0.0f, 8.0f, 0.0f);
+            sun.color = Vec3(1.0f, 0.95f, 0.85f);
+            sun.intensity = 2.5f;
+            sun.radius = 35.0f;
+            _map->lights.push_back(sun);
+        }
 
         if (_map) {
             _scriptEngine.setActiveMap(_map.get());
@@ -443,7 +500,7 @@ public:
         _currentMapPath = "";
         _selectionType = SelectionType::None;
         _selectedIndex = -1;
-        logMessage("Created New Map with dynamic entity 'Klocek1'.");
+        logMessage("Created New " + activeDim + " Map (1 Camera, 1 Block, 1 Light).");
     }
 
     void openMapDialog() {
@@ -495,6 +552,7 @@ public:
     std::string getWorkspaceName(EditorWorkspace ws) const {
         switch (ws) {
             case EditorWorkspace::Project_Hub: return "Hub > Engine Main Menu & Project Browser";
+            case EditorWorkspace::Project_Settings: return "Project > Project Display & Engine Settings";
             case EditorWorkspace::World3D_Level: return "3D > Level & Geometry Editor";
             case EditorWorkspace::World3D_Animation: return "3D > Animation 3D Timeline";
             case EditorWorkspace::World3D_ModelViewer: return "3D > 3D Model Viewer & Inspector";
@@ -516,6 +574,7 @@ public:
     std::string getWorkspaceBreadcrumb(EditorWorkspace ws) const {
         switch (ws) {
             case EditorWorkspace::Project_Hub: return "Hub > Main Menu";
+            case EditorWorkspace::Project_Settings: return "Project > Settings";
             case EditorWorkspace::World3D_Level: return "3D > Level";
             case EditorWorkspace::World3D_Animation: return "3D > Anim 3D";
             case EditorWorkspace::World3D_ModelViewer: return "3D > Model Viewer";
@@ -538,14 +597,22 @@ public:
         _workspace = ws;
         if (ws == EditorWorkspace::Project_Hub) {
             refreshProjectHub();
+        } else if (ws == EditorWorkspace::Project_Settings) {
+            auto info = ProjectManager::get().getProjectInfo(ProjectManager::get().getActiveProjectName());
+            _settingsProjectTitle = info.displayName;
+            _settingsDimension = info.dimension.empty() ? "3D" : info.dimension;
+            _settingsWidth = info.display.width > 0 ? info.display.width : 1280;
+            _settingsHeight = info.display.height > 0 ? info.display.height : 720;
+            _settingsFullscreen = info.display.fullscreen;
+            _settingsVSync = info.display.vsync;
+            _settingsEntryScene = info.defaultScene;
+            _settingsStatusBanner = "";
         } else if (ws == EditorWorkspace::World3D_Level || ws == EditorWorkspace::World3D_Animation || ws == EditorWorkspace::World3D_ModelViewer) {
             _orthoViewMode = false;
-            _camera.setPerspective(70.0f, 16.0f / 9.0f, 0.01f, 3000.0f);
+            InitializeCamera3D(_camera, 70.0f, 16.0f / 9.0f);
         } else if (ws == EditorWorkspace::Level2D_Tilemap || ws == EditorWorkspace::Level2D_Animation || ws == EditorWorkspace::Level2D_HUD) {
             _orthoViewMode = true;
-            _camera.setOrthographic(25.0f, -500.0f, 500.0f);
-            _camera.setPitch(-89.9f);
-            _camera.setYaw(-90.0f);
+            InitializeCamera2D(_camera, 25.0f, 16.0f / 9.0f);
         }
 
         // Configure Studio tabs if in Studio workspace
@@ -4589,12 +4656,15 @@ public:
             float tab3W = 120.0f;
             float tab4X = tab3X + tab3W + 6.0f;
             float tab4W = 135.0f;
+            float tabSetX = tab4X + tab4W + 6.0f;
+            float tabSetW = 125.0f;
 
             if (mx >= tab0X && mx <= tab0X + tab0W) {
                 setWorkspace(EditorWorkspace::Project_Hub);
                 return;
             } else if (mx >= tab1X && mx <= tab1X + tab1W) {
-                setWorkspace(EditorWorkspace::World3D_Level);
+                bool isProj2D = (ProjectManager::get().getProjectInfo(ProjectManager::get().getActiveProjectName()).dimension == "2D");
+                setWorkspace(isProj2D ? EditorWorkspace::Level2D_Tilemap : EditorWorkspace::World3D_Level);
                 return;
             } else if (mx >= tab2X && mx <= tab2X + tab2W) {
                 setWorkspace(EditorWorkspace::Scripting_Editor);
@@ -4604,6 +4674,9 @@ public:
                 return;
             } else if (mx >= tab4X && mx <= tab4X + tab4W) {
                 setWorkspace(EditorWorkspace::Plugins_Manager);
+                return;
+            } else if (mx >= tabSetX && mx <= tabSetX + tabSetW) {
+                setWorkspace(EditorWorkspace::Project_Settings);
                 return;
             }
         }
@@ -5252,14 +5325,24 @@ public:
                 }
             }
 
-            // 2. Left Panel Bottom Buttons: [+ NEW PROJECT] and [RESCAN DISK]
-            float botBtnY = mainY + mainH - 44.0f;
-            if (my >= botBtnY && my <= botBtnY + 36.0f) {
-                // [+ NEW PROJECT]
-                if (mx >= listX + 10.0f && mx <= listX + 220.0f) {
+            // 2. Left Panel Bottom Buttons: [ 3D World ] [ 2D Canvas ] [+ CREATE GAME] and [RESCAN DISK]
+            float botBtnY = mainY + mainH - 62.0f;
+            if (my >= botBtnY && my <= botBtnY + 24.0f) {
+                if (mx >= listX + 130.0f && mx <= listX + 245.0f) {
+                    _hubNewProjectDimension = "3D";
+                    return;
+                } else if (mx >= listX + 252.0f && mx <= listX + 377.0f) {
+                    _hubNewProjectDimension = "2D";
+                    return;
+                }
+            }
+            float row2Y = botBtnY + 26.0f;
+            if (my >= row2Y && my <= row2Y + 34.0f) {
+                // [+ CREATE GAME]
+                if (mx >= listX + 10.0f && mx <= listX + 225.0f) {
                     static int s_projCount = 1;
-                    std::string newName = "MyGame_Project_" + std::to_string(s_projCount++);
-                    if (ProjectManager::get().createProject(newName)) {
+                    std::string newName = "MyGame_" + _hubNewProjectDimension + "_" + std::to_string(s_projCount++);
+                    if (ProjectManager::get().createProject(newName, _hubNewProjectDimension, 1280, 720, false)) {
                         refreshProjectHub();
                         for (size_t i = 0; i < _hubProjects.size(); ++i) {
                             if (_hubProjects[i].id == newName) {
@@ -5267,13 +5350,13 @@ public:
                                 break;
                             }
                         }
-                        _hubStatusBanner = "Created isolated game project in Documents/LabGames/" + newName;
+                        _hubStatusBanner = "Created isolated " + _hubNewProjectDimension + " project in Documents/LabGames/" + newName;
                         _hubBannerTimer = 4.0f;
                     }
                     return;
                 }
                 // [RESCAN DISK]
-                else if (mx >= listX + 230.0f && mx <= listX + 375.0f) {
+                else if (mx >= listX + 235.0f && mx <= listX + 380.0f) {
                     refreshProjectHub();
                     _hubStatusBanner = "Rescanned disk. Found " + std::to_string(_hubProjects.size()) + " project(s).";
                     _hubBannerTimer = 3.0f;
@@ -5311,8 +5394,13 @@ public:
                     }
                     discoverTextures();
                     discoverModels();
-                    setWorkspace(EditorWorkspace::World3D_Level);
-                    logMessage("Switched active project to: " + proj.displayName + " (World3D Level Workspace)");
+                    if (proj.dimension == "2D") {
+                        setWorkspace(EditorWorkspace::Level2D_Tilemap);
+                        logMessage("Switched active project to 2D: " + proj.displayName + " (Level2D Tilemap Workspace)");
+                    } else {
+                        setWorkspace(EditorWorkspace::World3D_Level);
+                        logMessage("Switched active project to 3D: " + proj.displayName + " (World3D Level Workspace)");
+                    }
                     return;
                 }
 
@@ -5331,27 +5419,143 @@ public:
                 // Secondary row of buttons
                 float dy2 = dy + 54.0f;
                 // [ OPEN PROJECT FOLDER ]
-                if (mx >= detX + 20.0f && mx <= detX + 220.0f && my >= dy2 && my <= dy2 + 34.0f) {
+                if (mx >= detX + 20.0f && mx <= detX + 200.0f && my >= dy2 && my <= dy2 + 34.0f) {
 #if defined(_WIN32)
                     std::string cmd = "explorer \"" + std::filesystem::absolute(proj.rootPath).string() + "\"";
                     std::system(cmd.c_str());
 #elif defined(__APPLE__)
                     std::string cmd = "open \"" + std::filesystem::absolute(proj.rootPath).string() + "\"";
                     std::system(cmd.c_str());
+#elif defined(__linux__) || defined(__unix__)
+                    std::string cmd = "xdg-open \"" + std::filesystem::absolute(proj.rootPath).string() + "\" &";
+                    std::system(cmd.c_str());
 #endif
                     return;
                 }
 
                 // [ EXPORT / PACKAGE GAME ]
-                if (mx >= detX + 230.0f && mx <= detX + 430.0f && my >= dy2 && my <= dy2 + 34.0f) {
+                if (mx >= detX + 210.0f && mx <= detX + 390.0f && my >= dy2 && my <= dy2 + 34.0f) {
                     _exportSettings.gameTitle = proj.id;
                     _exportSettings.entrySceneURI = proj.defaultScene.empty() ? "assets/maps/main.labmap" : proj.defaultScene;
                     _buildModalOpen = true;
                     return;
                 }
+
+                // [ PROJECT SETTINGS ]
+                if (mx >= detX + 400.0f && mx <= detX + 570.0f && my >= dy2 && my <= dy2 + 34.0f) {
+                    ProjectManager::get().setActiveProject(proj.id);
+                    setWorkspace(EditorWorkspace::Project_Settings);
+                    return;
+                }
             }
 
             return; // Consume click so it never falls through to 3D actions
+        }
+
+        // 8.77. Project Settings Workspace Interactions
+        if (_workspace == EditorWorkspace::Project_Settings) {
+            float vpX = leftW;
+            float vpW = l.rightX - vpX;
+            float contentY = 58.0f + 26.0f;
+            float pX = vpX + 24.0f;
+            float pW = vpW - 48.0f;
+            float headY = contentY + 4.0f;
+            float headH = 50.0f;
+            float curY = headY + headH + 16.0f;
+            if (!_settingsStatusBanner.empty()) {
+                curY += 42.0f;
+            }
+
+            // Section 1: Dimension
+            if (my >= curY + 48.0f && my <= curY + 74.0f) {
+                if (mx >= pX + 16.0f && mx <= pX + 236.0f) {
+                    _settingsDimension = "3D";
+                    return;
+                } else if (mx >= pX + 246.0f && mx <= pX + 506.0f) {
+                    _settingsDimension = "2D";
+                    return;
+                }
+            }
+            curY += 92.0f;
+
+            // Section 2: Resolution Presets
+            if (my >= curY + 48.0f && my <= curY + 74.0f) {
+                if (mx >= pX + 16.0f && mx <= pX + 146.0f) {
+                    _settingsWidth = 1280; _settingsHeight = 720; return;
+                } else if (mx >= pX + 154.0f && mx <= pX + 294.0f) {
+                    _settingsWidth = 1920; _settingsHeight = 1080; return;
+                } else if (mx >= pX + 302.0f && mx <= pX + 432.0f) {
+                    _settingsWidth = 800; _settingsHeight = 600; return;
+                } else if (mx >= pX + 440.0f && mx <= pX + 580.0f) {
+                    _settingsWidth = 2560; _settingsHeight = 1440; return;
+                }
+            }
+            // Fine tuning: Width & Height
+            if (my >= curY + 80.0f && my <= curY + 104.0f) {
+                if (mx >= pX + 170.0f && mx <= pX + 198.0f) {
+                    _settingsWidth = std::max(640, _settingsWidth - 80); return;
+                } else if (mx >= pX + 204.0f && mx <= pX + 232.0f) {
+                    _settingsWidth = std::min(3840, _settingsWidth + 80); return;
+                } else if (mx >= pX + 410.0f && mx <= pX + 438.0f) {
+                    _settingsHeight = std::max(480, _settingsHeight - 60); return;
+                } else if (mx >= pX + 444.0f && mx <= pX + 472.0f) {
+                    _settingsHeight = std::min(2160, _settingsHeight + 60); return;
+                }
+            }
+            // Fullscreen & VSync toggles
+            if (my >= curY + 110.0f && my <= curY + 134.0f) {
+                if (mx >= pX + 16.0f && mx <= pX + 196.0f) {
+                    _settingsFullscreen = !_settingsFullscreen; return;
+                } else if (mx >= pX + 204.0f && mx <= pX + 364.0f) {
+                    _settingsVSync = !_settingsVSync; return;
+                }
+            }
+            curY += 152.0f;
+
+            // Section 3: Pick Scene
+            if (my >= curY + 44.0f && my <= curY + 70.0f && mx >= pX + pW - 220.0f && mx <= pX + pW - 20.0f) {
+                std::string scenePick = LabDialogs::openFileDialog(getWindow(), "Lab Map (*.labmap;*.labscene)\0*.labmap;*.labscene\0All Files (*.*)\0*.*\0", "assets\\maps");
+                if (!scenePick.empty()) {
+                    _settingsEntryScene = scenePick;
+                }
+                return;
+            }
+            curY += 88.0f;
+
+            // Section 4: Action buttons
+            if (my >= curY && my <= curY + 40.0f) {
+                // [ SAVE PROJECT SETTINGS ]
+                if (mx >= pX && mx <= pX + 240.0f) {
+                    ProjectInfo info = ProjectManager::get().getProjectInfo(ProjectManager::get().getActiveProjectName());
+                    info.dimension = _settingsDimension;
+                    info.display.width = _settingsWidth;
+                    info.display.height = _settingsHeight;
+                    info.display.fullscreen = _settingsFullscreen;
+                    info.display.vsync = _settingsVSync;
+                    if (!_settingsEntryScene.empty()) info.defaultScene = _settingsEntryScene;
+                    if (ProjectManager::get().saveProjectSettings(ProjectManager::get().getActiveProjectName(), info)) {
+                        _settingsStatusBanner = "Project settings saved to project.labproject & game.config!";
+                        _settingsBannerTimer = 4.0f;
+                        refreshProjectHub();
+                        logMessage("Saved project settings (" + _settingsDimension + ", " + std::to_string(_settingsWidth) + "x" + std::to_string(_settingsHeight) + ").");
+                    }
+                    return;
+                }
+                // [ APPLY RESOLUTION NOW ]
+                else if (mx >= pX + 255.0f && mx <= pX + 515.0f) {
+                    setWindowSize(_settingsWidth, _settingsHeight);
+                    setFullscreen(_settingsFullscreen);
+                    _settingsStatusBanner = "Display resolution applied: " + std::to_string(_settingsWidth) + "x" + std::to_string(_settingsHeight) + (_settingsFullscreen ? " (Fullscreen)" : " (Windowed)");
+                    _settingsBannerTimer = 4.0f;
+                    return;
+                }
+                // [ Back to Scene ]
+                else if (mx >= pX + 530.0f && mx <= pX + 710.0f) {
+                    setWorkspace(_settingsDimension == "2D" ? EditorWorkspace::Level2D_Tilemap : EditorWorkspace::World3D_Level);
+                    return;
+                }
+            }
+            return;
         }
 
         // 8.8. 3D Animation Workspace Timeline Interactions
@@ -6995,13 +7199,16 @@ public:
         if (isHub) Renderer::drawRect(tab0X, vpY + tabH - 2.0f, tab0W, 2.0f, orangeGlow);
         LabFont::drawText(tab0X + 12.0f, vpY + 6.0f, "Project Hub", 1.35f, isHub ? Vec3(1, 1, 1) : textDim, LabFontType::System);
 
-        // Tab 1: [ 3D Level Scene ]
+        // Tab 1: [ 3D Level Scene ] or [ 2D Scene ]
+        bool isProj2D = (ProjectManager::get().getProjectInfo(ProjectManager::get().getActiveProjectName()).dimension == "2D");
+        bool isSceneTabActive = is3D || (_workspace == EditorWorkspace::Level2D_Tilemap);
+        std::string sceneTabTitle = isProj2D ? "2D Scene" : "3D Scene";
         float tab1X = tab0X + tab0W + 6.0f;
         float tab1W = 110.0f;
-        Renderer::drawRect(tab1X, vpY + 2.0f, tab1W, tabH - 4.0f, is3D ? Vec3(0.18f, 0.22f, 0.28f) : Vec3(0.12f, 0.13f, 0.16f));
-        drawDarkBevel(tab1X, vpY + 2.0f, tab1W, tabH - 4.0f, is3D);
-        if (is3D) Renderer::drawRect(tab1X, vpY + tabH - 2.0f, tab1W, 2.0f, orangeGlow);
-        LabFont::drawText(tab1X + 16.0f, vpY + 6.0f, "3D Scene", 1.35f, is3D ? Vec3(1, 1, 1) : textDim, LabFontType::System);
+        Renderer::drawRect(tab1X, vpY + 2.0f, tab1W, tabH - 4.0f, isSceneTabActive ? Vec3(0.18f, 0.22f, 0.28f) : Vec3(0.12f, 0.13f, 0.16f));
+        drawDarkBevel(tab1X, vpY + 2.0f, tab1W, tabH - 4.0f, isSceneTabActive);
+        if (isSceneTabActive) Renderer::drawRect(tab1X, vpY + tabH - 2.0f, tab1W, 2.0f, orangeGlow);
+        LabFont::drawText(tab1X + 16.0f, vpY + 6.0f, sceneTabTitle, 1.35f, isSceneTabActive ? Vec3(1, 1, 1) : textDim, LabFontType::System);
 
         // Tab 2: [ Lua Script Studio ]
         float tab2X = tab1X + tab1W + 6.0f;
@@ -7028,15 +7235,24 @@ public:
         if (isPlug) Renderer::drawRect(tab4X, vpY + tabH - 2.0f, tab4W, 2.0f, cyanGlow);
         LabFont::drawText(tab4X + 10.0f, vpY + 6.0f, "Plugins & Add-ons", 1.35f, isPlug ? Vec3(1, 1, 1) : textDim, LabFontType::System);
 
-        // Tab 5 (Contextual: 3D Model Viewer / Studio / 2D Anim if active)
+        // Tab 5: [ Project Settings ]
+        bool isSettings = (_workspace == EditorWorkspace::Project_Settings);
+        float tabSetX = tab4X + tab4W + 6.0f;
+        float tabSetW = 125.0f;
+        Renderer::drawRect(tabSetX, vpY + 2.0f, tabSetW, tabH - 4.0f, isSettings ? Vec3(0.18f, 0.22f, 0.28f) : Vec3(0.12f, 0.13f, 0.16f));
+        drawDarkBevel(tabSetX, vpY + 2.0f, tabSetW, tabH - 4.0f, isSettings);
+        if (isSettings) Renderer::drawRect(tabSetX, vpY + tabH - 2.0f, tabSetW, 2.0f, cyanGlow);
+        LabFont::drawText(tabSetX + 10.0f, vpY + 6.0f, "Project Settings", 1.35f, isSettings ? Vec3(1, 1, 1) : textDim, LabFontType::System);
+
+        // Tab 6 (Contextual: 3D Model Viewer / Studio / 2D Anim if active)
         if (isMv || isStud || isAnim2D) {
-            float tab5X = tab4X + tab4W + 6.0f;
-            float tab5W = 155.0f;
-            std::string tab5Title = isMv ? "3D Model Viewer" : (isAnim2D ? "2D Animation" : "Character Studio");
-            Renderer::drawRect(tab5X, vpY + 2.0f, tab5W, tabH - 4.0f, Vec3(0.18f, 0.22f, 0.28f));
-            drawDarkBevel(tab5X, vpY + 2.0f, tab5W, tabH - 4.0f, true);
-            Renderer::drawRect(tab5X, vpY + tabH - 2.0f, tab5W, 2.0f, orangeGlow);
-            LabFont::drawText(tab5X + 10.0f, vpY + 6.0f, tab5Title, 1.35f, Vec3(1, 1, 1), LabFontType::System);
+            float tab6X = tabSetX + tabSetW + 6.0f;
+            float tab6W = 155.0f;
+            std::string tab6Title = isMv ? "3D Model Viewer" : (isAnim2D ? "2D Animation" : "Character Studio");
+            Renderer::drawRect(tab6X, vpY + 2.0f, tab6W, tabH - 4.0f, Vec3(0.18f, 0.22f, 0.28f));
+            drawDarkBevel(tab6X, vpY + 2.0f, tab6W, tabH - 4.0f, true);
+            Renderer::drawRect(tab6X, vpY + tabH - 2.0f, tab6W, 2.0f, orangeGlow);
+            LabFont::drawText(tab6X + 10.0f, vpY + 6.0f, tab6Title, 1.35f, Vec3(1, 1, 1), LabFontType::System);
         }
 
         float contentY = vpY + tabH;
@@ -7659,10 +7875,19 @@ public:
                     LabFont::drawText(detX + 30.0f, cyBox + 110.0f, "Iterative Gauss-Seidel constraint solver for multi-body mechanical linkages.", 1.32f, textDim, LabFontType::System);
                     LabFont::drawText(detX + 30.0f, cyBox + 144.0f, "* Essential for ragdoll limbs, suspension linkages, and swinging doors.", 1.25f, cyanGlow, LabFontType::System);
                 } else {
-                    LabFont::drawText(detX + 30.0f, cyBox + 40.0f, "Custom Drop-in Addon Lifecycle Hook Status: ACTIVE", 1.4f, cyanGlow, LabFontType::System);
-                    LabFont::drawText(detX + 30.0f, cyBox + 75.0f, "Functions parsed: onLoad(), onUpdate(dt), onUnload()", 1.35f, textLight, LabFontType::System);
-                    LabFont::drawText(detX + 30.0f, cyBox + 110.0f, "File: " + PackageManager::instance().getPackageFile(selPkg->id), 1.25f, orangeGlow, LabFontType::System);
-                    LabFont::drawText(detX + 30.0f, cyBox + 144.0f, "* Modifying this .lua file hot-reloads dynamically without recompiling the engine.", 1.25f, textDim, LabFontType::System);
+                    auto dynPlugin = PluginManager::get().getPlugin(_pluginSelectedId);
+                    if (dynPlugin) {
+                        dynPlugin->onRenderGUI();
+                        LabFont::drawText(detX + 30.0f, cyBox + 36.0f, "Dynamic C++ Plugin (.dll / .so): " + std::string(dynPlugin->getName()), 1.4f, cyanGlow, LabFontType::System);
+                        LabFont::drawText(detX + 30.0f, cyBox + 70.0f, "Version: " + std::string(dynPlugin->getVersion()) + " | Dynamic C++ Plugin API v" + std::to_string(LAB_PLUGIN_API_VERSION), 1.3f, textLight, LabFontType::System);
+                        LabFont::drawText(detX + 30.0f, cyBox + 105.0f, "Status: Loaded dynamically via LoadLibrary / dlopen", 1.25f, greenAccent, LabFontType::System);
+                        LabFont::drawText(detX + 30.0f, cyBox + 140.0f, "* Native C++ module decoupled from core engine binaries.", 1.2f, textDim, LabFontType::System);
+                    } else {
+                        LabFont::drawText(detX + 30.0f, cyBox + 40.0f, "Custom Drop-in Addon Lifecycle Hook Status: ACTIVE", 1.4f, cyanGlow, LabFontType::System);
+                        LabFont::drawText(detX + 30.0f, cyBox + 75.0f, "Functions parsed: onLoad(), onUpdate(dt), onUnload()", 1.35f, textLight, LabFontType::System);
+                        LabFont::drawText(detX + 30.0f, cyBox + 110.0f, "File: " + PackageManager::instance().getPackageFile(selPkg->id), 1.25f, orangeGlow, LabFontType::System);
+                        LabFont::drawText(detX + 30.0f, cyBox + 144.0f, "* Modifying this .lua file hot-reloads dynamically without recompiling the engine.", 1.25f, textDim, LabFontType::System);
+                    }
                 }
                 dy += boxH + 16.0f;
 
@@ -7772,9 +7997,16 @@ public:
             }
 
             // Bottom left buttons: [+ CREATE NEW PROJECT] and [RESCAN DISK]
-            float botBtnY = mainY + mainH - 44.0f;
-            drawDarkButton(listX + 10.0f, botBtnY, 210.0f, 34.0f, "+ Create New Game", false, false, true);
-            drawDarkButton(listX + 230.0f, botBtnY, 145.0f, 34.0f, "Rescan Disk", false, false, true);
+            float botBtnY = mainY + mainH - 62.0f;
+            bool isNew3D = (_hubNewProjectDimension == "3D");
+            bool isNew2D = (_hubNewProjectDimension == "2D");
+            LabFont::drawText(listX + 12.0f, botBtnY + 4.0f, "New Project Mode:", 1.18f, textDim, LabFontType::System);
+            drawDarkButton(listX + 130.0f, botBtnY, 115.0f, 22.0f, "3D World", isNew3D);
+            drawDarkButton(listX + 252.0f, botBtnY, 125.0f, 22.0f, "2D Canvas", isNew2D);
+
+            float row2Y = botBtnY + 26.0f;
+            drawDarkButton(listX + 10.0f, row2Y, 215.0f, 32.0f, (_hubNewProjectDimension == "2D" ? "+ Create 2D Game" : "+ Create 3D Game"), false, false, true);
+            drawDarkButton(listX + 235.0f, row2Y, 145.0f, 32.0f, "Rescan Disk", false, false, true);
 
             // --- RIGHT PANEL: Selected Project Inspector & Action Center ---
             Renderer::drawRect(detX, mainY, detW, mainH, Vec3(0.09f, 0.10f, 0.13f));
@@ -7789,7 +8021,7 @@ public:
                 LabFont::drawText(detX + 20.0f, dy, titleStr, 1.85f, Vec3(1, 1, 1), LabFontType::System);
                 dy += 28.0f;
 
-                std::string metaLine = "Author: " + proj.author + " | Category: " + (proj.isBuiltinShowcase ? "Flagship Engine Showcase" : "User Game Project") + " | Status: " + (proj.hasStandaloneDemo ? "Playable Standalone Demo Available" : "In Development");
+                std::string metaLine = "Dimension: [" + (proj.dimension.empty() ? "3D" : proj.dimension) + "] | Author: " + proj.author + " | Resolution: " + std::to_string(proj.display.width > 0 ? proj.display.width : 1280) + "x" + std::to_string(proj.display.height > 0 ? proj.display.height : 720) + " | " + (proj.isBuiltinShowcase ? "Flagship Engine Showcase" : "User Game Project");
                 LabFont::drawText(detX + 20.0f, dy, metaLine, 1.25f, textDim, LabFontType::System);
                 dy += 24.0f;
 
@@ -7806,8 +8038,9 @@ public:
                 dy += 54.0f;
 
                 // Secondary row of buttons
-                drawDarkButton(detX + 20.0f, dy, 200.0f, 34.0f, "Open Project Folder", false, false, true);
-                drawDarkButton(detX + 230.0f, dy, 200.0f, 34.0f, "Export / Package...", false, false, true);
+                drawDarkButton(detX + 20.0f, dy, 180.0f, 34.0f, "Open Project Folder", false, false, true);
+                drawDarkButton(detX + 210.0f, dy, 180.0f, 34.0f, "Export / Package...", false, false, true);
+                drawDarkButton(detX + 400.0f, dy, 170.0f, 34.0f, "Project Settings", false, false, true);
                 dy += 44.0f;
 
                 // Status Banner if any
@@ -7846,6 +8079,93 @@ public:
                 LabFont::drawText(detX + 30.0f, dy + 90.0f, pDemo, 1.3f, proj.hasStandaloneDemo ? greenAccent : textDim, LabFontType::System);
                 LabFont::drawText(detX + 30.0f, dy + 114.0f, pArch, 1.3f, textLight, LabFontType::System);
             }
+        } else if (_workspace == EditorWorkspace::Project_Settings) {
+            // ==================== PROJECT SETTINGS & CONFIGURATION ====================
+            Renderer::drawRect(vpX, contentY, vpW, contentH, Vec3(0.06f, 0.07f, 0.09f));
+            drawDarkBevel(vpX, contentY, vpW, contentH, false);
+
+            // 1. Top Header Banner
+            float headY = contentY + 4.0f;
+            float headH = 50.0f;
+            Renderer::drawRect(vpX + 4.0f, headY, vpW - 8.0f, headH, Vec3(0.10f, 0.12f, 0.16f));
+            drawDarkBevel(vpX + 4.0f, headY, vpW - 8.0f, headH, false);
+
+            LabFont::drawText(vpX + 18.0f, headY + 10.0f, "PROJECT SETTINGS & ENGINE DISPLAY CONFIGURATION", 1.6f, cyanGlow, LabFontType::System);
+            LabFont::drawText(vpX + 18.0f, headY + 28.0f, "Active Project: [" + ProjectManager::get().getActiveProjectName() + "] | Isolated Architecture | Saved to project.labproject & game.config", 1.25f, textDim, LabFontType::System);
+
+            float pX = vpX + 24.0f;
+            float pW = vpW - 48.0f;
+            float curY = headY + headH + 16.0f;
+
+            // Status Banner if any
+            if (!_settingsStatusBanner.empty()) {
+                Renderer::drawRect(pX, curY, pW, 32.0f, Vec3(0.12f, 0.32f, 0.20f));
+                drawDarkBevel(pX, curY, pW, 32.0f, false);
+                LabFont::drawText(pX + 14.0f, curY + 8.0f, _settingsStatusBanner, 1.4f, Vec3(0.6f, 1.0f, 0.7f), LabFontType::System);
+                curY += 42.0f;
+            }
+
+            // Section 1: Dimension & Game Mode
+            Renderer::drawRect(pX, curY, pW, 80.0f, Vec3(0.09f, 0.10f, 0.13f));
+            drawDarkBevel(pX, curY, pW, 80.0f, false);
+            LabFont::drawText(pX + 16.0f, curY + 10.0f, "PROJECT DIMENSION & RENDERING PIPELINE", 1.4f, orangeGlow, LabFontType::System);
+            LabFont::drawText(pX + 16.0f, curY + 30.0f, "Select primary coordinate space and camera projection:", 1.2f, textDim, LabFontType::System);
+
+            bool isDim3D = (_settingsDimension == "3D");
+            bool isDim2D = (_settingsDimension == "2D");
+            drawDarkButton(pX + 16.0f, curY + 48.0f, 220.0f, 26.0f, "3D World (Perspective)", isDim3D);
+            drawDarkButton(pX + 246.0f, curY + 48.0f, 260.0f, 26.0f, "2D Canvas (Orthographic Pixel)", isDim2D);
+            curY += 92.0f;
+
+            // Section 2: Display & Window Resolution
+            Renderer::drawRect(pX, curY, pW, 140.0f, Vec3(0.09f, 0.10f, 0.13f));
+            drawDarkBevel(pX, curY, pW, 140.0f, false);
+            LabFont::drawText(pX + 16.0f, curY + 10.0f, "WINDOW & DISPLAY OUTPUT CONFIGURATION", 1.4f, cyanGlow, LabFontType::System);
+
+            // Resolution presets
+            LabFont::drawText(pX + 16.0f, curY + 30.0f, "Resolution Presets:", 1.2f, textDim, LabFontType::System);
+            bool is720p = (_settingsWidth == 1280 && _settingsHeight == 720);
+            bool is1080p = (_settingsWidth == 1920 && _settingsHeight == 1080);
+            bool isRetro = (_settingsWidth == 800 && _settingsHeight == 600);
+            bool is1440p = (_settingsWidth == 2560 && _settingsHeight == 1440);
+
+            drawDarkButton(pX + 16.0f, curY + 48.0f, 130.0f, 26.0f, "1280 x 720 (HD)", is720p);
+            drawDarkButton(pX + 154.0f, curY + 48.0f, 140.0f, 26.0f, "1920 x 1080 (FHD)", is1080p);
+            drawDarkButton(pX + 302.0f, curY + 48.0f, 130.0f, 26.0f, "800 x 600 (Retro)", isRetro);
+            drawDarkButton(pX + 440.0f, curY + 48.0f, 140.0f, 26.0f, "2560 x 1440 (2K)", is1440p);
+
+            // Fine tuning: Width & Height
+            LabFont::drawText(pX + 16.0f, curY + 84.0f, "Width: " + std::to_string(_settingsWidth) + " px", 1.3f, textLight, LabFontType::System);
+            drawDarkButton(pX + 170.0f, curY + 80.0f, 28.0f, 24.0f, "-");
+            drawDarkButton(pX + 204.0f, curY + 80.0f, 28.0f, 24.0f, "+");
+
+            LabFont::drawText(pX + 260.0f, curY + 84.0f, "Height: " + std::to_string(_settingsHeight) + " px", 1.3f, textLight, LabFontType::System);
+            drawDarkButton(pX + 410.0f, curY + 80.0f, 28.0f, 24.0f, "-");
+            drawDarkButton(pX + 444.0f, curY + 80.0f, 28.0f, 24.0f, "+");
+
+            // Fullscreen & VSync toggles
+            drawDarkButton(pX + 16.0f, curY + 110.0f, 180.0f, 24.0f, _settingsFullscreen ? "Fullscreen: ON" : "Fullscreen: OFF", _settingsFullscreen);
+            drawDarkButton(pX + 204.0f, curY + 110.0f, 160.0f, 24.0f, _settingsVSync ? "VSync: ON" : "VSync: OFF", _settingsVSync);
+            curY += 152.0f;
+
+            // Section 3: Entry Scene / Default Map
+            Renderer::drawRect(pX, curY, pW, 75.0f, Vec3(0.09f, 0.10f, 0.13f));
+            drawDarkBevel(pX, curY, pW, 75.0f, false);
+            LabFont::drawText(pX + 16.0f, curY + 10.0f, "ENTRY SCENE / DEFAULT MAP", 1.4f, orangeGlow, LabFontType::System);
+            LabFont::drawText(pX + 16.0f, curY + 30.0f, "Initial map loaded on project startup:", 1.2f, textDim, LabFontType::System);
+            std::string dispScene = _settingsEntryScene.empty() ? "(default starter scene)" : _settingsEntryScene;
+            LabFont::drawText(pX + 16.0f, curY + 50.0f, dispScene, 1.35f, cyanGlow, LabFontType::System);
+            drawDarkButton(pX + pW - 220.0f, curY + 44.0f, 200.0f, 26.0f, "Pick Scene Map...", false, false, true);
+            curY += 88.0f;
+
+            // Section 4: Action Buttons (Save & Apply)
+            drawDarkButton(pX, curY, 240.0f, 40.0f, "[ SAVE PROJECT SETTINGS ]", false, false, true);
+            Renderer::drawRect(pX, curY + 38.0f, 240.0f, 2.0f, greenAccent);
+
+            drawDarkButton(pX + 255.0f, curY, 260.0f, 40.0f, "APPLY RESOLUTION NOW", false, false, true);
+            Renderer::drawRect(pX + 255.0f, curY + 38.0f, 260.0f, 2.0f, cyanGlow);
+
+            drawDarkButton(pX + 530.0f, curY, 180.0f, 40.0f, "Back to Scene", false, false, true);
         }
 
     // ==================== 5. BOTTOM DOCK (Console / Profiler) ====================
@@ -8839,6 +9159,18 @@ private:
     std::string _hubStatusBanner = "";
     float _hubBannerTimer = 0.0f;
     bool _f1Pressed = false;
+    std::string _hubNewProjectDimension = "3D";
+
+    // Project Settings Workspace State
+    std::string _settingsProjectTitle = "";
+    std::string _settingsDimension = "3D";
+    int _settingsWidth = 1280;
+    int _settingsHeight = 720;
+    bool _settingsFullscreen = false;
+    bool _settingsVSync = true;
+    std::string _settingsEntryScene = "";
+    std::string _settingsStatusBanner = "";
+    float _settingsBannerTimer = 0.0f;
 
     // Sidebar State
     SidebarTab _sidebarTab = SidebarTab::Properties;

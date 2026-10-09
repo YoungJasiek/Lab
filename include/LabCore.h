@@ -74,17 +74,26 @@ namespace Lab {
         int getHeight() const;
 
         void getWindowSize(int& width, int& height) const;
+        void setWindowSize(int width, int height);
         void getFramebufferSize(int& width, int& height) const;
         void getCursorPos(double& xpos, double& ypos) const;
 
         void setCursorCaptured(bool captured);
         bool isCursorCaptured() const;
 
+        void setFullscreen(bool enable);
+        bool isFullscreen() const;
+
     private:
         static Engine* _instance;
         GLFWwindow* _window;
         GLFWcursor* _standardCursor;
         bool _cursorCaptured;
+        bool _fullscreen;
+        int _windowedX;
+        int _windowedY;
+        int _windowedWidth;
+        int _windowedHeight;
 
         static void _keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
         static void _mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);

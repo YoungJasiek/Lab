@@ -411,4 +411,30 @@ namespace Lab {
         mutable FrustumPlane _planes[6];
     };
 
+    /// @brief Initializes a 2D camera with orthographic projection, pixel-perfect scale, and default 2D orientation
+    inline void InitializeCamera2D(Camera& cam, float orthoSize = 10.0f, float aspect = 16.0f / 9.0f) {
+        cam.orthographic = true;
+        cam.orthographicSize = orthoSize;
+        cam.setAspect(aspect);
+        cam.nearClipPlane = -100.0f;
+        cam.farClipPlane = 100.0f;
+        cam.setPosition(Vec3(0.0f, 0.0f, 0.0f));
+        cam.setPitch(0.0f);
+        cam.setYaw(-90.0f);
+        cam.syncProperties();
+    }
+
+    /// @brief Initializes a 3D camera with perspective projection, field of view and clipping planes
+    inline void InitializeCamera3D(Camera& cam, float fov = 60.0f, float aspect = 16.0f / 9.0f, float nearClip = 0.1f, float farClip = 1000.0f) {
+        cam.orthographic = false;
+        cam.fieldOfView = fov;
+        cam.nearClipPlane = nearClip;
+        cam.farClipPlane = farClip;
+        cam.setAspect(aspect);
+        cam.setPosition(Vec3(0.0f, 2.0f, 5.0f));
+        cam.setPitch(0.0f);
+        cam.setYaw(-90.0f);
+        cam.syncProperties();
+    }
+
 } // namespace Lab

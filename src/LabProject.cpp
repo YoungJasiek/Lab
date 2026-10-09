@@ -9,6 +9,8 @@
 #if defined(_WIN32)
 #include <windows.h>
 #include <shlobj.h>
+#else
+#include <unistd.h>
 #endif
 
 namespace Lab {
@@ -20,6 +22,13 @@ namespace Lab {
         char exePath[MAX_PATH] = { 0 };
         GetModuleFileNameA(NULL, exePath, MAX_PATH);
         if (exePath[0] != '\0') {
+            checks.push_back(std::filesystem::path(exePath).parent_path());
+        }
+#elif defined(__linux__) || defined(__unix__)
+        char exePath[1024] = { 0 };
+        ssize_t len = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
+        if (len != -1) {
+            exePath[len] = '\0';
             checks.push_back(std::filesystem::path(exePath).parent_path());
         }
 #endif
@@ -121,7 +130,7 @@ namespace Lab {
         return true;
     }
 
-    bool ProjectManager::createProject(const std::string& projectName, const std::string& templateName) {
+    bool ProjectManager::createProject(const std::string& projectName, const std::string& dimension, int width, int height, bool fullscreen) {
         if (projectName.empty()) return false;
 
         std::filesystem::path projDir = m_userProjectsRoot / projectName;
@@ -135,50 +144,135 @@ namespace Lab {
         std::filesystem::create_directories(assetsDir / "audio", ec);
         std::filesystem::create_directories(assetsDir / "hud", ec);
 
+        bool is2D = (dimension == "2D");
+        std::string entryScene = is2D ? "assets/maps/main.labmap2d" : "assets/maps/main.labmap";
+
         // Populate metadata project.labproject
         std::filesystem::path projectMeta = projDir / "project.labproject";
-        if (!std::filesystem::exists(projectMeta)) {
-            std::ofstream pm(projectMeta);
+        std::ofstream pm(projectMeta);
+        if (pm.is_open()) {
             pm << "{\n"
                << "  \"name\": \"" << projectName << "\",\n"
+               << "  \"dimension\": \"" << (is2D ? "2D" : "3D") << "\",\n"
                << "  \"version\": \"1.0.0\",\n"
                << "  \"engine\": \"Lab Engine Studio 2026.10\",\n"
                << "  \"author\": \"Developer\",\n"
-               << "  \"entryScene\": \"assets/maps/main.labmap\"\n"
+               << "  \"description\": \"" << (is2D ? "2D Game Project" : "3D Game Project") << "\",\n"
+               << "  \"display\": {\n"
+               << "    \"width\": " << width << ",\n"
+               << "    \"height\": " << height << ",\n"
+               << "    \"fullscreen\": " << (fullscreen ? "true" : "false") << ",\n"
+               << "    \"vsync\": true\n"
+               << "  },\n"
+               << "  \"entryScene\": \"" << entryScene << "\"\n"
                << "}\n";
             pm.close();
         }
 
         // Populate game.config
         std::filesystem::path configPath = projDir / "game.config";
-        if (!std::filesystem::exists(configPath)) {
-            std::ofstream cfg(configPath);
+        std::ofstream cfg(configPath);
+        if (cfg.is_open()) {
             cfg << "title=" << projectName << "\n"
-                << "scene=assets/maps/main.labmap\n"
-                << "width=1280\n"
-                << "height=720\n"
-                << "fullscreen=0\n";
+                << "dimension=" << (is2D ? "2D" : "3D") << "\n"
+                << "scene=" << entryScene << "\n"
+                << "width=" << width << "\n"
+                << "height=" << height << "\n"
+                << "fullscreen=" << (fullscreen ? "1" : "0") << "\n"
+                << "vsync=1\n";
             cfg.close();
         }
 
-        // Copy template if requested
-        if (templateName == "labrunner" || projectName == "LabRunner_Escape") {
-            syncGameToDocuments(projectName);
+        if (is2D) {
+            // Clean Native 2D starter scene (Camera 2D + 1 Sprite Quad on 2D plane; ZERO 3D hack)
+            std::filesystem::path defaultMap2D = assetsDir / "maps" / "main.labmap2d";
+            if (!std::filesystem::exists(defaultMap2D)) {
+                std::ofstream dm(defaultMap2D);
+                dm << "MAP2D_VERSION 1\n"
+                   << "MAP2D_NAME " << projectName << " 2D Starter Scene\n"
+                   << "CAMERA2D 0.0 0.0 10.0\n"
+                   << "SPRITE_QUAD 0.0 0.0 2.0 2.0 dev_gray.bmp 1.0 1.0 1.0\n";
+                dm.close();
+            }
         } else {
-            // Generate basic default map if none exists
+            // Clean 3D starter scene (1 Camera, 1 Cube, 1 Light; ZERO player/weapons/AI)
             std::filesystem::path defaultMap = assetsDir / "maps" / "main.labmap";
             if (!std::filesystem::exists(defaultMap)) {
                 std::ofstream dm(defaultMap);
                 dm << "MAP_VERSION 1\n"
-                   << "MAP_NAME " << projectName << " Starter Map\n"
-                   << "SPAWN 0.0 1.8 0.0 0.0\n"
-                   << "LIGHT 0.0 6.0 0.0 1.0 1.0 1.0 20.0\n"
-                   << "BRUSH cube 0.0 -0.25 0.0 16.0 0.5 16.0 dev_gray.bmp 0.25 0.25\n";
+                   << "MAP_NAME " << projectName << " Starter Scene\n"
+                   << "CAMERA 0.0 2.0 5.0 0.0 -90.0 60.0\n"
+                   << "LIGHT 0.0 5.0 3.0 1.0 1.0 1.0 25.0\n"
+                   << "BRUSH cube 0.0 0.0 0.0 2.0 2.0 2.0 dev_gray.bmp 0.5 0.5\n";
                 dm.close();
             }
         }
 
         return true;
+    }
+
+    bool ProjectManager::saveProjectSettings(const std::string& projectName, const ProjectInfo& info) {
+        if (projectName.empty()) return false;
+        std::filesystem::path projDir = m_userProjectsRoot / projectName;
+        if (!std::filesystem::exists(projDir)) {
+            projDir = m_engineRoot / "games" / projectName;
+            if (!std::filesystem::exists(projDir)) return false;
+        }
+
+        bool is2D = (info.dimension == "2D");
+
+        // Save project.labproject
+        std::ofstream pm(projDir / "project.labproject");
+        if (pm.is_open()) {
+            pm << "{\n"
+               << "  \"name\": \"" << info.displayName << "\",\n"
+               << "  \"dimension\": \"" << (is2D ? "2D" : "3D") << "\",\n"
+               << "  \"version\": \"" << info.version << "\",\n"
+               << "  \"engine\": \"Lab Engine Studio 2026.10\",\n"
+               << "  \"author\": \"" << info.author << "\",\n"
+               << "  \"description\": \"" << info.description << "\",\n"
+               << "  \"display\": {\n"
+               << "    \"width\": " << info.display.width << ",\n"
+               << "    \"height\": " << info.display.height << ",\n"
+               << "    \"fullscreen\": " << (info.display.fullscreen ? "true" : "false") << ",\n"
+               << "    \"vsync\": " << (info.display.vsync ? "true" : "false") << "\n"
+               << "  },\n"
+               << "  \"entryScene\": \"" << info.defaultScene << "\",\n"
+               << "  \"defaultHud\": \"" << info.defaultHud << "\"\n"
+               << "}\n";
+            pm.close();
+        }
+
+        // Save game.config
+        std::ofstream cfg(projDir / "game.config");
+        if (cfg.is_open()) {
+            cfg << "title=" << info.displayName << "\n"
+                << "dimension=" << (is2D ? "2D" : "3D") << "\n"
+                << "scene=" << info.defaultScene << "\n"
+                << "width=" << info.display.width << "\n"
+                << "height=" << info.display.height << "\n"
+                << "fullscreen=" << (info.display.fullscreen ? "1" : "0") << "\n"
+                << "vsync=" << (info.display.vsync ? "1" : "0") << "\n";
+            if (!info.defaultHud.empty()) cfg << "hud=" << info.defaultHud << "\n";
+            cfg.close();
+        }
+
+        return true;
+    }
+
+    ProjectInfo ProjectManager::getProjectInfo(const std::string& projectName) const {
+        auto all = getAllDiscoveredProjects();
+        for (const auto& p : all) {
+            if (p.id == projectName) return p;
+        }
+        ProjectInfo def;
+        def.id = projectName;
+        def.displayName = projectName;
+        def.dimension = "3D";
+        def.rootPath = m_userProjectsRoot / projectName;
+        def.assetsPath = def.rootPath / "assets";
+        def.defaultScene = "assets/maps/main.labmap";
+        return def;
     }
 
     void ProjectManager::syncGameToDocuments(const std::string& projectName) {
@@ -273,6 +367,30 @@ namespace Lab {
         return content.substr(p + 1, endP - p - 1);
     }
 
+    static int extractJsonInt(const std::string& content, const std::string& key, int defaultVal) {
+        std::string pattern = "\"" + key + "\"";
+        size_t p = content.find(pattern);
+        if (p == std::string::npos) return defaultVal;
+        p = content.find(':', p);
+        if (p == std::string::npos) return defaultVal;
+        p = content.find_first_of("0123456789-", p);
+        if (p == std::string::npos) return defaultVal;
+        return std::atoi(content.c_str() + p);
+    }
+
+    static bool extractJsonBool(const std::string& content, const std::string& key, bool defaultVal) {
+        std::string pattern = "\"" + key + "\"";
+        size_t p = content.find(pattern);
+        if (p == std::string::npos) return defaultVal;
+        p = content.find(':', p);
+        if (p == std::string::npos) return defaultVal;
+        size_t t = content.find("true", p);
+        size_t f = content.find("false", p);
+        if (t != std::string::npos && (f == std::string::npos || t < f)) return true;
+        if (f != std::string::npos && (t == std::string::npos || f < t)) return false;
+        return defaultVal;
+    }
+
     static std::string extractConfigValue(const std::string& content, const std::string& key) {
         std::string pattern = key + "=";
         size_t p = content.find(pattern);
@@ -298,6 +416,11 @@ namespace Lab {
             info.assetsPath = dir / "assets";
             info.isBuiltinShowcase = isBuiltin;
             info.version = "1.0.0";
+            info.dimension = "3D";
+            info.display.width = 1280;
+            info.display.height = 720;
+            info.display.fullscreen = false;
+            info.display.vsync = true;
             info.author = isBuiltin ? "Lab Engine Core Team" : "User";
             info.description = isBuiltin ? "Built-in Showcase Game" : "User Game Project in Documents";
             info.lastModified = "Recent";
@@ -310,6 +433,8 @@ namespace Lab {
                 std::string disp = extractJsonValue(content, "displayName");
                 if (disp.empty()) disp = extractJsonValue(content, "name");
                 if (!disp.empty()) info.displayName = disp;
+                std::string dim = extractJsonValue(content, "dimension");
+                if (!dim.empty()) info.dimension = dim;
                 std::string scn = extractJsonValue(content, "entryScene");
                 if (!scn.empty()) info.defaultScene = scn;
                 std::string dhud = extractJsonValue(content, "defaultHud");
@@ -320,6 +445,11 @@ namespace Lab {
                 if (!auth.empty()) info.author = auth;
                 std::string ver = extractJsonValue(content, "version");
                 if (!ver.empty()) info.version = ver;
+
+                info.display.width = extractJsonInt(content, "width", info.display.width);
+                info.display.height = extractJsonInt(content, "height", info.display.height);
+                info.display.fullscreen = extractJsonBool(content, "fullscreen", info.display.fullscreen);
+                info.display.vsync = extractJsonBool(content, "vsync", info.display.vsync);
             }
 
             // Check game.config
@@ -331,6 +461,8 @@ namespace Lab {
                     std::string t = extractConfigValue(content, "title");
                     if (!t.empty()) info.displayName = t;
                 }
+                std::string dim = extractConfigValue(content, "dimension");
+                if (!dim.empty()) info.dimension = dim;
                 if (info.defaultScene.empty()) {
                     std::string scn = extractConfigValue(content, "scene");
                     if (!scn.empty()) info.defaultScene = scn;
@@ -339,6 +471,14 @@ namespace Lab {
                     std::string hud = extractConfigValue(content, "hud");
                     if (!hud.empty()) info.defaultHud = hud;
                 }
+                std::string wStr = extractConfigValue(content, "width");
+                if (!wStr.empty()) info.display.width = std::atoi(wStr.c_str());
+                std::string hStr = extractConfigValue(content, "height");
+                if (!hStr.empty()) info.display.height = std::atoi(hStr.c_str());
+                std::string fsStr = extractConfigValue(content, "fullscreen");
+                if (!fsStr.empty()) info.display.fullscreen = (fsStr == "1" || fsStr == "true");
+                std::string vsStr = extractConfigValue(content, "vsync");
+                if (!vsStr.empty()) info.display.vsync = (vsStr == "1" || vsStr == "true");
             }
 
             // Default fallbacks for known built-in games

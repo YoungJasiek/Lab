@@ -9,7 +9,7 @@
 #include <fstream>
 #include <iostream>
 
-#ifdef _WIN32
+#if defined(_WIN32)
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
@@ -17,16 +17,23 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
-#pragma comment(lib, "gdi32.lib")
 #endif
+
+#ifndef STBTT_STATIC
+#define STBTT_STATIC
+#endif
+#ifndef STB_TRUETYPE_IMPLEMENTATION
+#define STB_TRUETYPE_IMPLEMENTATION
+#endif
+#include "stb_truetype.h"
 
 namespace Lab {
 
     enum class LabFontType {
         GeoSans,    // Geo Sans Light (fonts/geo_sans_light/GeosansLight.ttf)
-        System,     // Windows native UI font (Segoe UI / Arial)
+        System,     // System UI font (Segoe UI / Arial / DejaVuSans)
         DotMatrix,  // Classic 5x7 dot-matrix font
-        Monospace   // Monospaced code font (Consolas / Courier New)
+        Monospace   // Monospaced code font (Consolas / Courier New / DejaVuSansMono)
     };
 
     struct GlyphMetric {
@@ -177,28 +184,111 @@ namespace Lab {
 
         // Resolves file paths across dev, debug, and release root environments
         static std::string resolveFontPath(const std::string& path) {
+            if (path.empty()) return "";
             std::vector<std::string> candidates = {
                 path,
                 "fonts/geo_sans_light/" + path,
                 "../fonts/geo_sans_light/" + path,
                 "../../fonts/geo_sans_light/" + path,
+                "engine/assets/fonts/geo_sans_light/" + path,
+                "../engine/assets/fonts/geo_sans_light/" + path,
+                "fonts/novecento_sans/" + path,
+                "../fonts/novecento_sans/" + path,
                 "fonts/" + path,
                 "../fonts/" + path,
                 "assets/fonts/" + path,
-                "C:/Users/jancz/Desktop/Lab/fonts/geo_sans_light/" + path,
-                "C:/Users/jancz/Desktop/Lab/fonts/" + path
+#if defined(_WIN32)
+                "C:/Windows/Fonts/" + path,
+                "C:/Windows/Fonts/segoeui.ttf",
+                "C:/Windows/Fonts/arial.ttf",
+                "C:/Windows/Fonts/consola.ttf",
+#elif defined(__linux__) || defined(__unix__)
+                "/usr/share/fonts/truetype/" + path,
+                "/usr/share/fonts/truetype/dejavu/" + path,
+                "/usr/share/fonts/truetype/liberation/" + path,
+                "/usr/share/fonts/TTF/" + path,
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+#endif
             };
 
             for (const auto& candidate : candidates) {
-                if (std::filesystem::exists(candidate)) {
+                if (!candidate.empty() && std::filesystem::exists(candidate)) {
                     return candidate;
                 }
             }
             return path;
         }
 
-#ifdef _WIN32
-        static FontAtlas buildAtlas(const std::string& faceName, const std::string& ttfFile = "") {
+        // Cross-platform TrueType rasterizer powered by stb_truetype.h
+        static FontAtlas buildAtlasSTB(const std::string& ttfFile, float fontHeight = 26.0f) {
+            FontAtlas atlas;
+            atlas.fontHeight = fontHeight;
+            atlas.valid = false;
+
+            if (ttfFile.empty()) return atlas;
+            std::string resolved = resolveFontPath(ttfFile);
+            if (!std::filesystem::exists(resolved)) return atlas;
+
+            std::ifstream file(resolved, std::ios::binary | std::ios::ate);
+            if (!file.is_open()) return atlas;
+
+            std::streamsize size = file.tellg();
+            file.seekg(0, std::ios::beg);
+            if (size <= 0) return atlas;
+
+            std::vector<unsigned char> fontBuffer((size_t)size);
+            if (!file.read(reinterpret_cast<char*>(fontBuffer.data()), size)) return atlas;
+            file.close();
+
+            const int ATLAS_SIZE = 512;
+            std::vector<unsigned char> monoBitmap(ATLAS_SIZE * ATLAS_SIZE, 0);
+            stbtt_bakedchar cdata[96];
+
+            int res = stbtt_BakeFontBitmap(
+                fontBuffer.data(), 0,
+                atlas.fontHeight,
+                monoBitmap.data(), ATLAS_SIZE, ATLAS_SIZE,
+                32, 96,
+                cdata
+            );
+            (void)res;
+
+            std::vector<unsigned char> rgba(ATLAS_SIZE * ATLAS_SIZE * 4, 0);
+            int nonZero = 0;
+            for (int i = 0; i < ATLAS_SIZE * ATLAS_SIZE; ++i) {
+                unsigned char a = monoBitmap[i];
+                if (a > 0) nonZero++;
+                rgba[i * 4 + 0] = 255;
+                rgba[i * 4 + 1] = 255;
+                rgba[i * 4 + 2] = 255;
+                rgba[i * 4 + 3] = a;
+            }
+
+            if (nonZero < 50) return atlas;
+
+            for (int i = 0; i < 96; ++i) {
+                GlyphMetric& gm = atlas.glyphs[i];
+                gm.x = cdata[i].xoff;
+                gm.y = cdata[i].yoff;
+                gm.w = (float)(cdata[i].x1 - cdata[i].x0);
+                gm.h = (float)(cdata[i].y1 - cdata[i].y0);
+                gm.xadvance = cdata[i].xadvance;
+                gm.u0 = (float)cdata[i].x0 / (float)ATLAS_SIZE;
+                gm.v0 = (float)cdata[i].y0 / (float)ATLAS_SIZE;
+                gm.u1 = (float)cdata[i].x1 / (float)ATLAS_SIZE;
+                gm.v1 = (float)cdata[i].y1 / (float)ATLAS_SIZE;
+            }
+
+            atlas.texture = std::make_unique<Texture>(rgba.data(), ATLAS_SIZE, ATLAS_SIZE, 4);
+            atlas.valid = true;
+            return atlas;
+        }
+
+#if defined(_WIN32)
+        // Windows GDI fallback if TTF files are not present on disk
+        static FontAtlas buildAtlasGDI(const std::string& faceName, const std::string& ttfFile = "") {
             FontAtlas atlas;
             atlas.fontHeight = 26.0f;
 
@@ -230,7 +320,7 @@ namespace Lab {
             BITMAPINFO bmi{};
             bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
             bmi.bmiHeader.biWidth = ATLAS_SIZE;
-            bmi.bmiHeader.biHeight = -ATLAS_SIZE; // Top-down DIB
+            bmi.bmiHeader.biHeight = -ATLAS_SIZE;
             bmi.bmiHeader.biPlanes = 1;
             bmi.bmiHeader.biBitCount = 32;
             bmi.bmiHeader.biCompression = BI_RGB;
@@ -277,8 +367,8 @@ namespace Lab {
                 TextOutA(hdc, curX, curY, &ch, 1);
 
                 GlyphMetric& gm = atlas.glyphs[c - 32];
-                gm.x = (float)curX;
-                gm.y = (float)curY;
+                gm.x = 0.0f;
+                gm.y = -atlas.fontHeight * 0.78f;
                 gm.w = (float)charW;
                 gm.h = (float)charH;
                 gm.xadvance = (float)charW;
@@ -290,7 +380,6 @@ namespace Lab {
                 curX += charW + 6;
             }
 
-            // CRITICAL: Flush all GDI drawing commands to the memory buffer
             GdiFlush();
 
             SelectObject(hdc, oldBmp);
@@ -335,27 +424,43 @@ namespace Lab {
             static bool initialized = false;
 
             if (!initialized) {
-#ifdef _WIN32
-                systemAtlas = buildAtlas("Segoe UI", "");
-                if (!systemAtlas.valid) {
-                    systemAtlas = buildAtlas("Arial", "");
+                // 1. Primary: TrueType files via cross-platform stb_truetype
+                geoSansAtlas = buildAtlasSTB("GeosansLight.ttf", 26.0f);
+                if (!geoSansAtlas.valid) {
+                    geoSansAtlas = buildAtlasSTB("Novecentosanswide-Normal.otf", 26.0f);
                 }
-                geoSansAtlas = buildAtlas("GeosansLight", "GeosansLight.ttf");
-                if (!geoSansAtlas.valid && systemAtlas.valid) {
-                    geoSansAtlas = buildAtlas("Segoe UI", "");
-                }
-                monospaceAtlas = buildAtlas("Consolas", "");
-                if (!monospaceAtlas.valid) {
-                    monospaceAtlas = buildAtlas("Courier New", "");
+
+#if defined(_WIN32)
+                systemAtlas = buildAtlasSTB("segoeui.ttf", 26.0f);
+                if (!systemAtlas.valid) systemAtlas = buildAtlasSTB("arial.ttf", 26.0f);
+                if (!systemAtlas.valid) systemAtlas = buildAtlasGDI("Segoe UI", "");
+                if (!systemAtlas.valid) systemAtlas = buildAtlasGDI("Arial", "");
+
+                monospaceAtlas = buildAtlasSTB("consola.ttf", 26.0f);
+                if (!monospaceAtlas.valid) monospaceAtlas = buildAtlasSTB("cour.ttf", 26.0f);
+                if (!monospaceAtlas.valid) monospaceAtlas = buildAtlasGDI("Consolas", "");
+                if (!monospaceAtlas.valid) monospaceAtlas = buildAtlasGDI("Courier New", "");
+#else
+                systemAtlas = buildAtlasSTB("DejaVuSans.ttf", 26.0f);
+                if (!systemAtlas.valid) systemAtlas = buildAtlasSTB("LiberationSans-Regular.ttf", 26.0f);
+                if (!systemAtlas.valid) systemAtlas = buildAtlasSTB("GeosansLight.ttf", 26.0f);
+
+                monospaceAtlas = buildAtlasSTB("DejaVuSansMono.ttf", 26.0f);
+                if (!monospaceAtlas.valid) monospaceAtlas = buildAtlasSTB("LiberationMono-Regular.ttf", 26.0f);
+                if (!monospaceAtlas.valid) monospaceAtlas = buildAtlasSTB("GeosansLight.ttf", 26.0f);
+#endif
+
+                if (!systemAtlas.valid && geoSansAtlas.valid) {
+                    systemAtlas = buildAtlasSTB("GeosansLight.ttf", 26.0f);
                 }
                 if (!monospaceAtlas.valid && systemAtlas.valid) {
-                    monospaceAtlas = buildAtlas("Courier New", "");
+                    monospaceAtlas = buildAtlasSTB("GeosansLight.ttf", 26.0f);
                 }
-#endif
+
                 initialized = true;
             }
 
-            if (type == LabFontType::GeoSans) return geoSansAtlas;
+            if (type == LabFontType::GeoSans) return geoSansAtlas.valid ? geoSansAtlas : systemAtlas;
             if (type == LabFontType::Monospace) return monospaceAtlas.valid ? monospaceAtlas : systemAtlas;
             return systemAtlas;
         }
@@ -372,8 +477,6 @@ namespace Lab {
             return 6.0f * scale;
         }
 
-        // Draws formatted string with selected font type and crisp anti-aliasing
-        // Defaults to System font (Windows font in engine/editor), GeoSans used in game
         static void drawText(float x, float y, const std::string& text, float scale = 1.0f, const Vec3& color = { 1, 1, 1 }, LabFontType fontType = LabFontType::System) {
             if (fontType != LabFontType::DotMatrix) {
                 FontAtlas& atlas = getAtlas(fontType);
@@ -402,21 +505,22 @@ namespace Lab {
                         }
                         const GlyphMetric& gm = atlas.glyphs[idx];
                         if (c != ' ') {
+                            float drawX = cursorX + gm.x * visualScale;
+                            float drawY = cursorY + (gm.y + atlas.fontHeight * 0.78f) * visualScale;
                             Renderer::drawTextureRect(
-                                cursorX, cursorY,
+                                drawX, drawY,
                                 gm.w * visualScale, gm.h * visualScale,
                                 *atlas.texture,
                                 gm.u0, gm.v0, gm.u1, gm.v1,
                                 color
                             );
                         }
-                        cursorX += (fontType == LabFontType::Monospace) ? monoAdvance : ((gm.xadvance + 1.0f) * visualScale);
+                        cursorX += (fontType == LabFontType::Monospace) ? monoAdvance : ((gm.xadvance > 0.0f ? gm.xadvance : gm.w + 1.0f) * visualScale);
                     }
                     return;
                 }
             }
 
-            // Fallback to dot-matrix if non-Windows or atlas loading failed
             drawDotMatrixText(x, y, text, scale, color);
         }
 
@@ -451,7 +555,7 @@ namespace Lab {
                         }
                         int idx = (int)c - 32;
                         if (idx >= 0 && idx < 95) {
-                            curW += (atlas.glyphs[idx].xadvance + 1.0f) * visualScale;
+                            curW += (atlas.glyphs[idx].xadvance > 0.0f ? atlas.glyphs[idx].xadvance : atlas.glyphs[idx].w + 1.0f) * visualScale;
                         } else {
                             curW += 6.0f * visualScale;
                         }
@@ -476,4 +580,3 @@ namespace Lab {
     };
 
 }
-

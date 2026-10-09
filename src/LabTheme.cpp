@@ -240,7 +240,7 @@ namespace Lab {
         float textY = y + std::max(2.0f, (h - th) * 0.5f);
         LabFont::drawText(textX, textY, label, 1.4f, txtCol, LabFontType::System);
 
-        return lmbClicked ? clicked : hovered;
+        return clicked;
     }
 
     bool LabTheme::drawSlider(float x, float y, float w, float h, const std::string& label,

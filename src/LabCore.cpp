@@ -111,6 +111,7 @@ namespace Lab {
 
     Engine::Engine(const std::string& title, int width, int height)
         : _window(nullptr), _standardCursor(nullptr), _cursorCaptured(false),
+          _fullscreen(false), _windowedX(100), _windowedY(100), _windowedWidth(width), _windowedHeight(height),
           _title(title), _width(width), _height(height), _running(false),
           _lastFrameTime(0.0), _physicsAccumulator(0.0f), _firstMouse(true), _lastMousePos({0,0}) {
         if (_instance) {
@@ -138,11 +139,30 @@ namespace Lab {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-        _window = glfwCreateWindow(_width, _height, _title.c_str(), nullptr, nullptr);
+        GLFWmonitor* monitor = nullptr;
+        int winW = _width;
+        int winH = _height;
+        if (_fullscreen) {
+            monitor = glfwGetPrimaryMonitor();
+            if (monitor) {
+                const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+                if (mode) {
+                    winW = mode->width;
+                    winH = mode->height;
+                }
+            }
+        }
+
+        _window = glfwCreateWindow(winW, winH, _title.c_str(), monitor, nullptr);
         if (!_window) {
             std::cerr << "Failed to create GLFW window" << std::endl;
             glfwTerminate();
             return;
+        }
+
+        if (!_fullscreen) {
+            glfwGetWindowPos(_window, &_windowedX, &_windowedY);
+            glfwGetWindowSize(_window, &_windowedWidth, &_windowedHeight);
         }
 
         glfwMakeContextCurrent(_window);
@@ -294,15 +314,51 @@ namespace Lab {
         }
     }
 
+    void Engine::setFullscreen(bool enable) {
+        if (_fullscreen == enable) return;
+        _fullscreen = enable;
+        if (!_window) return;
+
+        if (_fullscreen) {
+            glfwGetWindowPos(_window, &_windowedX, &_windowedY);
+            glfwGetWindowSize(_window, &_windowedWidth, &_windowedHeight);
+            GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+            if (monitor) {
+                const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+                if (mode) {
+                    glfwSetWindowMonitor(_window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+                    _width = mode->width;
+                    _height = mode->height;
+                    glViewport(0, 0, _width, _height);
+                }
+            }
+        } else {
+            glfwSetWindowMonitor(_window, nullptr, _windowedX, _windowedY, _windowedWidth, _windowedHeight, 0);
+            _width = _windowedWidth;
+            _height = _windowedHeight;
+            glViewport(0, 0, _width, _height);
+        }
+        LabLog::info("[Engine] Fullscreen set to: " + std::string(_fullscreen ? "ON" : "OFF") + " (" + std::to_string(_width) + "x" + std::to_string(_height) + ")");
+    }
+
+    bool Engine::isFullscreen() const {
+        return _fullscreen;
+    }
+
     void Engine::stop() {
         _running = false;
         if (_window) glfwSetWindowShouldClose(_window, true);
     }
 
     void Engine::_keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-        (void)window; (void)scancode; (void)mods;
+        (void)window; (void)scancode;
         if (key >= 0 && key < 512) {
             if (action == GLFW_PRESS) {
+                if (key == GLFW_KEY_F11 || (key == GLFW_KEY_ENTER && (mods & GLFW_MOD_ALT))) {
+                    if (_instance) {
+                        _instance->setFullscreen(!_instance->isFullscreen());
+                    }
+                }
                 Input::keys[key] = true;
                 Input::keysJustPressed[key] = true;
             } else if (action == GLFW_REPEAT) {
@@ -387,6 +443,16 @@ namespace Lab {
         } else {
             width = _width;
             height = _height;
+        }
+    }
+
+    void Engine::setWindowSize(int width, int height) {
+        if (width <= 0 || height <= 0) return;
+        _width = width;
+        _height = height;
+        if (_window) {
+            glfwSetWindowSize(_window, width, height);
+            glViewport(0, 0, width, height);
         }
     }
 

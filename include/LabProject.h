@@ -9,9 +9,18 @@
 
 namespace Lab {
 
+    struct ProjectDisplaySettings {
+        int width{1280};
+        int height{720};
+        bool fullscreen{false};
+        bool vsync{true};
+    };
+
     struct ProjectInfo {
         std::string id;
         std::string displayName;
+        std::string dimension{"3D"}; // "2D" or "3D"
+        ProjectDisplaySettings display;
         std::filesystem::path rootPath;
         std::filesystem::path assetsPath;
         std::string defaultScene;
@@ -57,8 +66,14 @@ namespace Lab {
         /// @brief Switch active game project
         bool setActiveProject(const std::string& projectName);
 
-        /// @brief Create a brand new decoupled game project in Documents/LabGames/<projectName>
-        bool createProject(const std::string& projectName, const std::string& templateName = "default");
+        /// @brief Create a brand new decoupled game project with 2D/3D dimension, display config, and clean starter scene
+        bool createProject(const std::string& projectName, const std::string& dimension = "3D", int width = 1280, int height = 720, bool fullscreen = false);
+
+        /// @brief Save updated project settings to project.labproject and game.config
+        bool saveProjectSettings(const std::string& projectName, const ProjectInfo& info);
+
+        /// @brief Retrieve parsed project info for a given project ID
+        ProjectInfo getProjectInfo(const std::string& projectName) const;
 
         /// @brief Ensure project exists in Documents; creates folder structure and template if missing
         bool ensureProjectExists(const std::string& projectName);
