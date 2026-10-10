@@ -163,6 +163,18 @@ namespace Lab {
             }
         }
 
+        // Replicate logos and branding assets
+        std::vector<std::filesystem::path> logoRoots = {
+            pm.getEngineRoot() / "logos", "logos", "../logos", "../../logos"
+        };
+        for (const auto& lRoot : logoRoots) {
+            if (std::filesystem::exists(lRoot)) {
+                copyDirectoryRecursive(lRoot, outDir / "logos", result.copiedFiles, result.totalBytes);
+                copyDirectoryRecursive(lRoot, outDir / "assets" / "textures" / "logos", result.copiedFiles, result.totalBytes);
+                break;
+            }
+        }
+
         // Replicate modular plugins directory
         std::vector<std::filesystem::path> pluginRoots = {
             pm.getEngineRoot() / "plugins",
@@ -292,7 +304,7 @@ namespace Lab {
 
             // Shell launcher script
             std::filesystem::path shPath = outDir / ("run_" + settings.gameTitle + ".sh");
-            std::ofstream shFile(shPath);
+            std::ofstream shFile(shPath, std::ios::binary);
             shFile << "#!/usr/bin/env bash\n"
                    << "DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" >/dev/null 2>&1 && pwd)\"\n"
                    << "export LD_LIBRARY_PATH=\"$DIR/lib:$LD_LIBRARY_PATH\"\n"
@@ -301,14 +313,14 @@ namespace Lab {
             shFile.close();
 
             // Linux standalone CMake build script for native Linux build
-            std::ofstream cmakeFile(outDir / "CMakeLists.txt");
+            std::ofstream cmakeFile(outDir / "CMakeLists.txt", std::ios::binary);
             cmakeFile << "cmake_minimum_required(VERSION 3.20)\n"
                       << "project(" << settings.gameTitle << " CXX)\n"
                       << "set(CMAKE_CXX_STANDARD 20)\n"
                       << "add_executable(" << settings.gameTitle << " " << settings.gameTitle << ".x86_64)\n";
             cmakeFile.close();
 
-            std::ofstream buildSh(outDir / "build_linux.sh");
+            std::ofstream buildSh(outDir / "build_linux.sh", std::ios::binary);
             buildSh << "#!/usr/bin/env bash\n"
                     << "mkdir -p build && cd build\n"
                     << "cmake .. && cmake --build .\n";
@@ -397,7 +409,7 @@ namespace Lab {
             srv.close();
 
             std::filesystem::path srvSh = outDir / "start_web_server.sh";
-            std::ofstream srvShFile(srvSh);
+            std::ofstream srvShFile(srvSh, std::ios::binary);
             srvShFile << "#!/usr/bin/env bash\n"
                       << "echo \"Starting Web Server on http://localhost:8080...\"\n"
                       << "python3 -m http.server 8080\n";
@@ -641,6 +653,18 @@ namespace Lab {
             }
         }
 
+        // Replicate logos and branding assets
+        std::vector<std::filesystem::path> logoRoots = {
+            root / "logos", "logos", pm.getEngineRoot() / "logos", "../logos"
+        };
+        for (const auto& lRoot : logoRoots) {
+            if (std::filesystem::exists(lRoot)) {
+                copyDirectoryRecursive(lRoot, testDir / "logos", result.copiedFiles, result.totalBytes);
+                copyDirectoryRecursive(lRoot, testDir / "assets" / "textures" / "logos", result.copiedFiles, result.totalBytes);
+                break;
+            }
+        }
+
         // 6. Guarantee current scene map is copied into testDir/assets/maps and sanitized to relative path
         std::filesystem::path sp(scenePath.empty() ? "export_game.labmap" : scenePath);
         std::string mapFileName = sp.filename().string();
@@ -770,7 +794,7 @@ namespace Lab {
             << "start \"\" \"%~dp0\\" << exeName << "\" --config game.config\r\n";
         bat.close();
 
-        std::ofstream sh(testDir / "run_test_game.sh");
+        std::ofstream sh(testDir / "run_test_game.sh", std::ios::binary);
         sh << "#!/usr/bin/env bash\n"
            << "DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" >/dev/null 2>&1 && pwd)\"\n"
            << "chmod +x \"$DIR/" << baseExeName << "\" 2>/dev/null || true\n"

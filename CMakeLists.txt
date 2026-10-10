@@ -359,7 +359,10 @@ add_custom_target(LabAssets ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_SOURCE_DIR}/plugins"
         "${CMAKE_CURRENT_BINARY_DIR}/$<IF:$<BOOL:$<CONFIG>>,$<CONFIG>/,>plugins"
-    COMMENT "Synchronizing engine assets, fonts and plugins to output directory"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/logos"
+        "${CMAKE_CURRENT_BINARY_DIR}/$<IF:$<BOOL:$<CONFIG>>,$<CONFIG>/,>logos"
+    COMMENT "Synchronizing engine assets, fonts, plugins and logos to output directory"
 )
 set(ASSET_TARGETS LabEditor LabPlayer FrozenLife LabServer TestVerify)
 foreach(tgt ${ASSET_TARGETS})

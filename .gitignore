@@ -5,10 +5,14 @@ test_*.png
 *.af
 *.kra
 logos/
+!logos/*.png
 skills/
 scripts/
 !assets/scripts/
 !assets/scripts/**
+!assets/textures/*.png
+!assets/textures/logos/
+!assets/textures/logos/**
 auraTools/
 .agents/
 .vscode/

@@ -942,23 +942,24 @@ public:
         Renderer::drawRect(0.0f, 0.0f, w, h, bgDark);
 
         float centerX = w * 0.5f;
-        float centerY = h * 0.5f - 40.0f;
+        float centerY = h * 0.44f;
 
         // "p o w e r e d   b y" subtitle in authentic Source Engine styling
-        Vec3 subCol = Vec3(0.55f, 0.62f, 0.72f) * alpha;
+        Vec3 subCol = Vec3(0.60f, 0.65f, 0.72f) * alpha;
         std::string poweredBy = "p o w e r e d   b y";
-        float subW = LabFont::getTextWidth(poweredBy, 1.4f, LabFontType::GeoSans);
-        LabFont::drawText(centerX - subW * 0.5f, centerY - 80.0f, poweredBy, 1.4f, subCol, LabFontType::GeoSans);
+        float subW = LabFont::getTextWidth(poweredBy, 1.45f, LabFontType::GeoSans);
+        LabFont::drawText(centerX - subW * 0.5f, centerY - 95.0f, poweredBy, 1.45f, subCol, LabFontType::GeoSans);
 
-        // Official LaB logo or stylish stylized emblem
+        // Official LaB logo (Try LabLogoText.png, LabLogoText_White.png, LabLogo.png)
         Texture* logoTex = getTexture("LabLogoText.png");
+        if (!logoTex) logoTex = getTexture("LabLogoText_White.png");
         if (!logoTex) logoTex = getTexture("LabLogo.png");
 
         if (logoTex) {
-            float logoW = 320.0f;
-            float logoH = 100.0f;
+            float logoW = 340.0f;
+            float logoH = 175.0f;
             Vec3 tint = Vec3(1.0f, 1.0f, 1.0f) * alpha;
-            Renderer::drawTextureRect(centerX - logoW * 0.5f, centerY - 45.0f, logoW, logoH, *logoTex, tint);
+            Renderer::drawTextureRect(centerX - logoW * 0.5f, centerY - 65.0f, logoW, logoH, *logoTex, tint);
         } else {
             // High-fidelity stylized vector emblem fallback
             float emblemW = 280.0f;
@@ -972,32 +973,44 @@ public:
             LabFont::drawText(centerX - tw * 0.5f, eY + 20.0f, logoTitle, 2.2f, Vec3(0.95f, 0.98f, 1.0f) * alpha, LabFontType::GeoSans);
         }
 
-        // Technology partner credit badges underneath: OpenGL, CMake, miniaudio, Lua 5.4
-        float badgesY = centerY + 85.0f;
-        struct TechBadge {
+        // Technology partner logos underneath: OpenGL, CMake, miniaudio, Lua 5.4
+        float badgesY = centerY + 130.0f;
+        struct TechPartner {
+            std::string texName;
             std::string name;
-            Vec3 barCol;
-            Vec3 textCol;
+            float logoW;
+            float logoH;
+            Vec3 accentCol;
         };
-        std::vector<TechBadge> badges = {
-            { "OpenGL 4.5 Core", Vec3(0.22f, 0.52f, 0.85f), Vec3(0.75f, 0.88f, 1.0f) },
-            { "CMake Build System", Vec3(0.85f, 0.28f, 0.25f), Vec3(1.0f, 0.82f, 0.82f) },
-            { "miniaudio 3D", Vec3(0.92f, 0.72f, 0.18f), Vec3(1.0f, 0.95f, 0.75f) },
-            { "Lua 5.4 Script", Vec3(0.25f, 0.78f, 0.45f), Vec3(0.80f, 1.0f, 0.85f) }
+        std::vector<TechPartner> partners = {
+            { "opengl_logo.png", "OpenGL", 108.0f, 45.0f, Vec3(0.33f, 0.55f, 0.72f) },
+            { "cmake_logo.png", "CMake", 44.0f, 44.0f, Vec3(0.85f, 0.32f, 0.28f) },
+            { "miniaudio_logo.png", "miniaudio", 120.0f, 18.0f, Vec3(0.95f, 0.78f, 0.25f) },
+            { "lua_logo.png", "Lua 5.4", 42.0f, 42.0f, Vec3(0.25f, 0.65f, 0.95f) }
         };
 
-        float bW = 145.0f;
-        float bH = 32.0f;
-        float gap = 16.0f;
-        float totalBadgesW = badges.size() * bW + (badges.size() - 1) * gap;
+        float cardW = 160.0f;
+        float cardH = 72.0f;
+        float gap = 20.0f;
+        float totalBadgesW = partners.size() * cardW + (partners.size() - 1) * gap;
         float startBX = centerX - totalBadgesW * 0.5f;
 
-        for (size_t i = 0; i < badges.size(); ++i) {
-            float bx = startBX + i * (bW + gap);
-            Renderer::drawRect(bx, badgesY, bW, bH, Vec3(0.07f, 0.09f, 0.13f) * alpha);
-            Renderer::drawRect(bx, badgesY + bH - 2.5f, bW, 2.5f, badges[i].barCol * alpha);
-            float nameW = LabFont::getTextWidth(badges[i].name, 1.25f, LabFontType::System);
-            LabFont::drawText(bx + (bW - nameW) * 0.5f, badgesY + 8.0f, badges[i].name, 1.25f, badges[i].textCol * alpha, LabFontType::System);
+        for (size_t i = 0; i < partners.size(); ++i) {
+            float bx = startBX + i * (cardW + gap);
+            Renderer::drawRect(bx, badgesY, cardW, cardH, Vec3(0.06f, 0.08f, 0.11f) * alpha);
+            Renderer::drawRect(bx, badgesY + cardH - 2.0f, cardW, 2.0f, partners[i].accentCol * alpha);
+
+            Texture* pTex = getTexture(partners[i].texName);
+            if (pTex) {
+                float imgX = bx + (cardW - partners[i].logoW) * 0.5f;
+                float imgY = badgesY + 6.0f + (cardH - 22.0f - partners[i].logoH) * 0.5f;
+                Renderer::drawTextureRect(imgX, imgY, partners[i].logoW, partners[i].logoH, *pTex, Vec3(1.0f, 1.0f, 1.0f) * alpha);
+                float nameW = LabFont::getTextWidth(partners[i].name, 1.15f, LabFontType::System);
+                LabFont::drawText(bx + (cardW - nameW) * 0.5f, badgesY + cardH - 18.0f, partners[i].name, 1.15f, Vec3(0.65f, 0.70f, 0.78f) * alpha, LabFontType::System);
+            } else {
+                float nameW = LabFont::getTextWidth(partners[i].name, 1.35f, LabFontType::System);
+                LabFont::drawText(bx + (cardW - nameW) * 0.5f, badgesY + (cardH - 16.0f) * 0.5f, partners[i].name, 1.35f, partners[i].accentCol * alpha, LabFontType::System);
+            }
         }
 
         // Skip prompt hint (subtle at bottom)
@@ -1012,9 +1025,36 @@ public:
         if (path.empty()) return nullptr;
         std::string fname = std::filesystem::path(path).filename().string();
         if (_textures.contains(fname)) return _textures[fname].get();
-        if (std::filesystem::exists("assets/textures/" + fname)) {
-            _textures[fname] = std::make_unique<Texture>("assets/textures/" + fname);
-            return _textures[fname].get();
+
+        auto& pm = ProjectManager::get();
+        std::vector<std::filesystem::path> searchCandidates = {
+            path,
+            fname,
+            std::filesystem::path("assets/textures") / fname,
+            std::filesystem::path("assets/textures/logos") / fname,
+            std::filesystem::path("logos") / fname,
+            std::filesystem::path("../assets/textures") / fname,
+            std::filesystem::path("../assets/textures/logos") / fname,
+            std::filesystem::path("../logos") / fname,
+            std::filesystem::path("../../assets/textures") / fname,
+            std::filesystem::path("../../logos") / fname,
+            pm.getActiveProjectAssetsPath() / "textures" / fname,
+            pm.getActiveProjectAssetsPath() / "textures/logos" / fname,
+            pm.getEngineAssetsPath() / "textures" / fname,
+            pm.getEngineAssetsPath() / "textures/logos" / fname,
+            pm.getEngineRoot() / "logos" / fname,
+            pm.getEngineRoot() / "assets/textures" / fname,
+            pm.getEngineRoot() / "assets/textures/logos" / fname
+        };
+
+        for (const auto& cand : searchCandidates) {
+            std::error_code ec;
+            if (std::filesystem::exists(cand, ec) && !std::filesystem::is_directory(cand, ec)) {
+                try {
+                    _textures[fname] = std::make_unique<Texture>(cand.string());
+                    return _textures[fname].get();
+                } catch (...) {}
+            }
         }
         return nullptr;
     }

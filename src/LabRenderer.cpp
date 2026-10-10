@@ -427,6 +427,12 @@ namespace Lab {
             "../../assets/" + fname,
             "assets/textures/" + path,
             "assets/models/" + path,
+            "logos/" + fname,
+            "assets/textures/logos/" + fname,
+            "../logos/" + fname,
+            "../assets/textures/logos/" + fname,
+            "../../logos/" + fname,
+            "../../assets/textures/logos/" + fname,
             "assets/" + path,
             "../" + path,
             "../assets/textures/" + path,
@@ -544,6 +550,27 @@ namespace Lab {
                 _height = h;
                 _channels = ch;
                 isStbi = true;
+            } else if (stbiData) {
+                // If loaded with indexed/palette or 1/2 channels, expand to 4-channel RGBA
+                stbi_image_free(stbiData);
+                stbiData = stbi_load(resolved.c_str(), &w, &h, &ch, 4);
+                if (stbiData && w > 0 && h > 0) {
+                    data = stbiData;
+                    _width = w;
+                    _height = h;
+                    _channels = 4;
+                    isStbi = true;
+                }
+            } else {
+                // Try forcing 4 channels RGBA directly
+                stbiData = stbi_load(resolved.c_str(), &w, &h, &ch, 4);
+                if (stbiData && w > 0 && h > 0) {
+                    data = stbiData;
+                    _width = w;
+                    _height = h;
+                    _channels = 4;
+                    isStbi = true;
+                }
             }
         }
 
