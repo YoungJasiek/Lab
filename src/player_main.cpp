@@ -99,7 +99,8 @@ public:
                  const std::string& hudPath = "", const std::string& rulesPath = "",
                  const std::string& screenshotPath = "", const std::string& dimension = "3D",
                  bool retroFX = false, bool retroScanlines = true, bool retroVignette = true,
-                 bool retroAberration = true, int retroPixelScale = 2, int retroColorTheme = 0)
+                 bool retroAberration = true, int retroPixelScale = 2, int retroColorTheme = 0,
+                 bool showSplash = true)
         : Engine(title, width, height),
           _gameTitle(title),
           _dimension(dimension),
@@ -113,6 +114,10 @@ public:
           _retroAberration(retroAberration),
           _retroPixelScale(retroPixelScale),
           _retroColorTheme(retroColorTheme),
+          _showSplash(showSplash),
+          _splashActive(showSplash),
+          _splashTimer(0.0f),
+          _splashDuration(2.5f),
           _camera(75.0f, (float)width / (float)height, 0.01f, 2000.0f),
           _playerPos(0.0f, 1.8f, 0.0f),
           _playerVel(0.0f, 0.0f, 0.0f),
@@ -152,11 +157,11 @@ public:
         }
 
         // Camera setup based on dimension (2D pixel/canvas vs 3D perspective)
-        if (_dimension == "2D") {
+        if (_dimension == "2D" || _splashActive) {
             int w = 1280, h = 720;
             getFramebufferSize(w, h);
             float aspect = (h > 0) ? ((float)w / (float)h) : (16.0f / 9.0f);
-            InitializeCamera2D(_camera, 10.0f, aspect);
+            if (_dimension == "2D") InitializeCamera2D(_camera, 10.0f, aspect);
             setCursorCaptured(false);
         } else {
             // Capture cursor for first-person gameplay
@@ -375,6 +380,21 @@ public:
     void onUpdate(const Time& time) override {
         float dt = time.delta;
         if (dt <= 0.0f || dt > 0.1f) dt = 0.016f;
+
+        // Splash Screen Handling (~2.5s duration with fade-in / fade-out; skippable on key or mouse click)
+        if (_splashActive) {
+            _splashTimer += dt;
+            bool skip = Input::isKeyJustPressed(GLFW_KEY_SPACE) || Input::isKeyJustPressed(GLFW_KEY_ENTER) ||
+                        Input::isKeyJustPressed(GLFW_KEY_KP_ENTER) || Input::isKeyJustPressed(GLFW_KEY_ESCAPE) ||
+                        Input::isMouseButtonJustPressed(GLFW_MOUSE_BUTTON_LEFT) || Input::isMouseButtonJustPressed(GLFW_MOUSE_BUTTON_RIGHT);
+            if (skip || _splashTimer >= _splashDuration) {
+                _splashActive = false;
+                if (_dimension != "2D") {
+                    setCursorCaptured(true);
+                }
+            }
+            return;
+        }
 
         // Toggle pause / cursor lock with ESC
         if (Input::isKeyJustPressed(GLFW_KEY_ESCAPE)) {
@@ -619,6 +639,11 @@ public:
     }
 
     void onRender() override {
+        if (_splashActive) {
+            renderSplashScreen();
+            return;
+        }
+
         // Map atmospheric lighting configuration
         if (_map) {
             glClearColor(0.06f, 0.08f, 0.12f, 1.0f);
@@ -890,6 +915,99 @@ public:
         return ScriptEngine::getHUDText(binding);
     }
 
+    void renderSplashScreen() {
+        int fbW = 0, fbH = 0;
+        getFramebufferSize(fbW, fbH);
+        float w = (fbW > 0) ? (float)fbW : (float)getWidth();
+        float h = (fbH > 0) ? (float)fbH : (float)getHeight();
+        if (w <= 0.0f) w = 1280.0f;
+        if (h <= 0.0f) h = 720.0f;
+
+        glClearColor(0.025f, 0.035f, 0.048f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        Renderer::beginUI((int)w, (int)h);
+
+        // Calculate smooth fade envelope (0.0s..0.4s fade-in, 2.1s..2.5s fade-out)
+        float alpha = 1.0f;
+        if (_splashTimer < 0.4f) {
+            alpha = _splashTimer / 0.4f;
+        } else if (_splashTimer > 2.1f) {
+            alpha = std::clamp((_splashDuration - _splashTimer) / 0.4f, 0.0f, 1.0f);
+        }
+        alpha = std::clamp(alpha, 0.0f, 1.0f);
+
+        // Dark cinematic background with subtle gradient vignette
+        Vec3 bgDark = Vec3(0.025f, 0.035f, 0.048f) * alpha;
+        Renderer::drawRect(0.0f, 0.0f, w, h, bgDark);
+
+        float centerX = w * 0.5f;
+        float centerY = h * 0.5f - 40.0f;
+
+        // "p o w e r e d   b y" subtitle in authentic Source Engine styling
+        Vec3 subCol = Vec3(0.55f, 0.62f, 0.72f) * alpha;
+        std::string poweredBy = "p o w e r e d   b y";
+        float subW = LabFont::getTextWidth(poweredBy, 1.4f, LabFontType::GeoSans);
+        LabFont::drawText(centerX - subW * 0.5f, centerY - 80.0f, poweredBy, 1.4f, subCol, LabFontType::GeoSans);
+
+        // Official LaB logo or stylish stylized emblem
+        Texture* logoTex = getTexture("LabLogoText.png");
+        if (!logoTex) logoTex = getTexture("LabLogo.png");
+
+        if (logoTex) {
+            float logoW = 320.0f;
+            float logoH = 100.0f;
+            Vec3 tint = Vec3(1.0f, 1.0f, 1.0f) * alpha;
+            Renderer::drawTextureRect(centerX - logoW * 0.5f, centerY - 45.0f, logoW, logoH, *logoTex, tint);
+        } else {
+            // High-fidelity stylized vector emblem fallback
+            float emblemW = 280.0f;
+            float emblemH = 68.0f;
+            float eX = centerX - emblemW * 0.5f;
+            float eY = centerY - 34.0f;
+            Renderer::drawRect(eX, eY, emblemW, emblemH, Vec3(0.08f, 0.11f, 0.16f) * alpha);
+            Renderer::drawRect(eX, eY + emblemH - 3.0f, emblemW, 3.0f, Vec3(0.18f, 0.78f, 0.95f) * alpha);
+            std::string logoTitle = "L a B   E N G I N E";
+            float tw = LabFont::getTextWidth(logoTitle, 2.2f, LabFontType::GeoSans);
+            LabFont::drawText(centerX - tw * 0.5f, eY + 20.0f, logoTitle, 2.2f, Vec3(0.95f, 0.98f, 1.0f) * alpha, LabFontType::GeoSans);
+        }
+
+        // Technology partner credit badges underneath: OpenGL, CMake, miniaudio, Lua 5.4
+        float badgesY = centerY + 85.0f;
+        struct TechBadge {
+            std::string name;
+            Vec3 barCol;
+            Vec3 textCol;
+        };
+        std::vector<TechBadge> badges = {
+            { "OpenGL 4.5 Core", Vec3(0.22f, 0.52f, 0.85f), Vec3(0.75f, 0.88f, 1.0f) },
+            { "CMake Build System", Vec3(0.85f, 0.28f, 0.25f), Vec3(1.0f, 0.82f, 0.82f) },
+            { "miniaudio 3D", Vec3(0.92f, 0.72f, 0.18f), Vec3(1.0f, 0.95f, 0.75f) },
+            { "Lua 5.4 Script", Vec3(0.25f, 0.78f, 0.45f), Vec3(0.80f, 1.0f, 0.85f) }
+        };
+
+        float bW = 145.0f;
+        float bH = 32.0f;
+        float gap = 16.0f;
+        float totalBadgesW = badges.size() * bW + (badges.size() - 1) * gap;
+        float startBX = centerX - totalBadgesW * 0.5f;
+
+        for (size_t i = 0; i < badges.size(); ++i) {
+            float bx = startBX + i * (bW + gap);
+            Renderer::drawRect(bx, badgesY, bW, bH, Vec3(0.07f, 0.09f, 0.13f) * alpha);
+            Renderer::drawRect(bx, badgesY + bH - 2.5f, bW, 2.5f, badges[i].barCol * alpha);
+            float nameW = LabFont::getTextWidth(badges[i].name, 1.25f, LabFontType::System);
+            LabFont::drawText(bx + (bW - nameW) * 0.5f, badgesY + 8.0f, badges[i].name, 1.25f, badges[i].textCol * alpha, LabFontType::System);
+        }
+
+        // Skip prompt hint (subtle at bottom)
+        std::string skipHint = "Press [ SPACE ], [ ENTER ] or [ ESC ] to skip";
+        float hintW = LabFont::getTextWidth(skipHint, 1.15f, LabFontType::System);
+        LabFont::drawText(centerX - hintW * 0.5f, h - 38.0f, skipHint, 1.15f, Vec3(0.35f, 0.40f, 0.48f) * alpha, LabFontType::System);
+
+        Renderer::endUI();
+    }
+
     Texture* getTexture(const std::string& path) {
         if (path.empty()) return nullptr;
         std::string fname = std::filesystem::path(path).filename().string();
@@ -931,6 +1049,12 @@ private:
     int _retroPixelScale = 2;
     int _retroColorTheme = 0;
     float _retroScanlinePhase = 0.0f;
+
+    // Startup Splash Screen
+    bool _showSplash = true;
+    bool _splashActive = true;
+    float _splashTimer = 0.0f;
+    float _splashDuration = 2.5f;
 
     Camera _camera;
     MapCamera* _activeCamera = nullptr;
@@ -976,6 +1100,7 @@ struct GameLaunchConfig {
     bool retroAberration = true;
     int retroPixelScale = 2;
     int retroColorTheme = 0;
+    bool showSplash = true;
 };
 
 static void parseConfigStream(std::istream& stream, GameLaunchConfig& cfg) {
@@ -1125,6 +1250,8 @@ int main(int argc, char* argv[]) {
             config.screenshot = argv[++i];
         } else if (arg == "--retro") {
             config.retroFX = true;
+        } else if (arg == "--nosplash" || arg == "-nosplash") {
+            config.showSplash = false;
         }
     }
 
@@ -1186,7 +1313,8 @@ int main(int argc, char* argv[]) {
 
     LabPlayerApp app(config.title, config.width, config.height, config.scene, config.hud, config.rules,
                      config.screenshot, config.dimension, config.retroFX, config.retroScanlines,
-                     config.retroVignette, config.retroAberration, config.retroPixelScale, config.retroColorTheme);
+                     config.retroVignette, config.retroAberration, config.retroPixelScale, config.retroColorTheme,
+                     config.showSplash);
     if (config.fullscreen) {
         app.setFullscreen(true);
     }

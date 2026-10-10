@@ -224,8 +224,8 @@ namespace Lab {
             if (_yaw < 0.0f) _yaw += 360.0f;
 
             _pitch -= dy * sensitivity;
-            if (_pitch > 89.0f) _pitch = 89.0f;
-            if (_pitch < -89.0f) _pitch = -89.0f;
+            if (_pitch > 88.0f) _pitch = 88.0f;
+            if (_pitch < -88.0f) _pitch = -88.0f;
 
             updateVectors();
         }
@@ -239,14 +239,15 @@ namespace Lab {
             if (_yaw < 0.0f) _yaw += 360.0f;
 
             _pitch -= dy * sensitivity;
-            if (_pitch > 89.0f) _pitch = 89.0f;
-            if (_pitch < -89.0f) _pitch = -89.0f;
-
-            updateVectors();
+            if (_pitch > 88.0f) _pitch = 88.0f;
+            if (_pitch < -88.0f) _pitch = -88.0f;
 
             // Przemieszczenie kamery na sferze wokol punktu obrotu
             float dist = std::max(0.5f, (_position - pivot).length());
-            _position = pivot - _front * dist;
+            float radYaw = _yaw * (3.14159265f / 180.0f);
+            float radPitch = _pitch * (3.14159265f / 180.0f);
+            _position = pivot + Vec3(std::cos(radPitch) * std::sin(radYaw), std::sin(radPitch), std::cos(radPitch) * std::cos(radYaw)) * dist;
+            lookAt(pivot);
         }
 
         void move(const Vec3& direction, float speed) {
@@ -271,7 +272,7 @@ namespace Lab {
         }
 
         void setPitch(float pitch) {
-            _pitch = std::clamp(pitch, -89.0f, 89.0f);
+            _pitch = std::clamp(pitch, -88.0f, 88.0f);
             updateVectors();
         }
 
@@ -400,15 +401,21 @@ namespace Lab {
         }
 
         void updateVectors() {
-            float yawRad = _yaw * (3.141592f / 180.0f);
-            float pitchRad = _pitch * (3.141592f / 180.0f);
+            float yawRad = _yaw * (3.14159265f / 180.0f);
+            float pitchRad = _pitch * (3.14159265f / 180.0f);
 
             _front.x = std::cos(yawRad) * std::cos(pitchRad);
             _front.y = std::sin(pitchRad);
             _front.z = std::sin(yawRad) * std::cos(pitchRad);
             _front = _front.normalized();
 
-            _right = Vec3::cross(_front, Vec3(0, 1, 0)).normalized();
+            if (std::abs(_front.y) > 0.995f) {
+                // Stable orthonormalization fallback near poles to eliminate cross product degeneration or flipping
+                Vec3 fallbackRight(-std::sin(yawRad), 0.0f, std::cos(yawRad));
+                _right = fallbackRight.normalized();
+            } else {
+                _right = Vec3::cross(_front, Vec3(0, 1, 0)).normalized();
+            }
             _up = Vec3::cross(_right, _front).normalized();
 
             if (entity && entity->transform) {

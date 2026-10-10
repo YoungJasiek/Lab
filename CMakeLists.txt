@@ -328,40 +328,25 @@ add_executable(LabEditor src/editor_main.cpp)
 target_compile_options(LabEditor PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabEditor PRIVATE LabEngineLib)
 
-# Standalone Editor Legacy Target Alias
-add_executable(LabHammer src/editor_main.cpp)
-target_compile_options(LabHammer PRIVATE ${COMPILER_FLAGS})
-target_link_libraries(LabHammer PRIVATE LabEngineLib)
+# 2. Standalone Universal Game Player / Runner (LabPlayer.exe - Used for Exported Games)
+add_executable(LabPlayer src/player_main.cpp)
+target_compile_options(LabPlayer PRIVATE ${COMPILER_FLAGS})
+target_link_libraries(LabPlayer PRIVATE LabEngineLib)
 
-# 2. Frozen-Life Flagship FPS Demo Game Executable (FrozenLife.exe)
+# 3. Frozen-Life Flagship FPS Demo Game Executable (FrozenLife.exe)
 add_executable(FrozenLife src/main.cpp)
 target_compile_options(FrozenLife PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(FrozenLife PRIVATE LabEngineLib)
 
-# 3. Standalone Headless Dedicated Server Executable
+# 4. Standalone Headless Dedicated Server Executable
 add_executable(LabServer src/server_main.cpp)
 target_compile_options(LabServer PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabServer PRIVATE LabEngineLib)
 
-# 4. Standalone Character & Weapon Studio Executable
-add_executable(LabStudio src/studio_main.cpp)
-target_compile_options(LabStudio PRIVATE ${COMPILER_FLAGS})
-target_link_libraries(LabStudio PRIVATE LabEngineLib)
-
-# 5. Standalone 2D/HUD/GUI Editor Executable
-add_executable(LabHUDEditor src/hud_editor_main.cpp)
-target_compile_options(LabHUDEditor PRIVATE ${COMPILER_FLAGS})
-target_link_libraries(LabHUDEditor PRIVATE LabEngineLib)
-
-# 6. Full Engine Automated Verification Suite
+# 5. Full Engine Automated Verification Suite
 add_executable(TestVerify src/test_verify.cpp)
 target_compile_options(TestVerify PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(TestVerify PRIVATE LabEngineLib)
-
-# 7. Standalone Universal Game Player / Runner (LabPlayer.exe - Used for Exported Games)
-add_executable(LabPlayer src/player_main.cpp)
-target_compile_options(LabPlayer PRIVATE ${COMPILER_FLAGS})
-target_link_libraries(LabPlayer PRIVATE LabEngineLib)
 
 # Unified asset replication to output directory (avoids parallel race conditions across executables)
 add_custom_target(LabAssets ALL
@@ -376,7 +361,7 @@ add_custom_target(LabAssets ALL
         "${CMAKE_CURRENT_BINARY_DIR}/$<IF:$<BOOL:$<CONFIG>>,$<CONFIG>/,>plugins"
     COMMENT "Synchronizing engine assets, fonts and plugins to output directory"
 )
-set(ASSET_TARGETS LabEditor LabHammer FrozenLife LabStudio LabHUDEditor TestVerify LabPlayer)
+set(ASSET_TARGETS LabEditor LabPlayer FrozenLife LabServer TestVerify)
 foreach(tgt ${ASSET_TARGETS})
     add_dependencies(${tgt} LabAssets)
 endforeach()

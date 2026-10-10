@@ -1397,11 +1397,21 @@ public:
         if (_workspace == EditorWorkspace::World3D_ModelViewer) {
             bool inMvViewport = (mx >= vpX && mx <= vpX + vpW && my >= vpY && my <= vpY + vpH);
             if (inMvViewport && Input::isMouseButtonPressed(0)) {
-                _modelViewerYaw += (mx - _modelViewerLastMouseX) * 0.4f;
-                _modelViewerPitch = std::clamp(_modelViewerPitch - (my - _modelViewerLastMouseY) * 0.4f, -80.0f, 80.0f);
-            } else if (_modelViewerAutoRotate) {
-                _modelViewerYaw += 25.0f * time.delta;
-                if (_modelViewerYaw >= 360.0f) _modelViewerYaw -= 360.0f;
+                if (!_modelViewerDragging) {
+                    _modelViewerDragging = true;
+                    _modelViewerLastMouseX = mx;
+                    _modelViewerLastMouseY = my;
+                }
+                float dx = mx - _modelViewerLastMouseX;
+                float dy = my - _modelViewerLastMouseY;
+                _modelViewerYaw += dx * 0.4f;
+                _modelViewerPitch = std::clamp(_modelViewerPitch - dy * 0.4f, -75.0f, 75.0f);
+            } else {
+                _modelViewerDragging = false;
+                if (_modelViewerAutoRotate) {
+                    _modelViewerYaw += 25.0f * time.delta;
+                    if (_modelViewerYaw >= 360.0f) _modelViewerYaw -= 360.0f;
+                }
             }
             if (inMvViewport && std::abs(Input::scrollDelta) > 0.01f) {
                 _modelViewerDistance = std::clamp(_modelViewerDistance - Input::scrollDelta * 0.3f, 0.5f, 25.0f);
@@ -5563,12 +5573,43 @@ public:
                     }
                     return;
                 }
-                // [ APPLY RESOLUTION NOW ]
+                // [ SAVE & APPLY TO GAME CONFIG ]
                 else if (mx >= pX + 255.0f && mx <= pX + 515.0f) {
-                    setWindowSize(_settingsWidth, _settingsHeight);
-                    setFullscreen(_settingsFullscreen);
-                    _settingsStatusBanner = "Display resolution applied: " + std::to_string(_settingsWidth) + "x" + std::to_string(_settingsHeight) + (_settingsFullscreen ? " (Fullscreen)" : " (Windowed)");
+                    ProjectInfo info = ProjectManager::get().getProjectInfo(ProjectManager::get().getActiveProjectName());
+                    info.dimension = _settingsDimension;
+                    info.display.width = _settingsWidth;
+                    info.display.height = _settingsHeight;
+                    info.display.fullscreen = _settingsFullscreen;
+                    info.display.vsync = _settingsVSync;
+                    if (!_settingsEntryScene.empty()) info.defaultScene = _settingsEntryScene;
+                    ProjectManager::get().saveProjectSettings(ProjectManager::get().getActiveProjectName(), info);
+
+                    // Update in-editor export settings
+                    _exportSettings.width = _settingsWidth;
+                    _exportSettings.height = _settingsHeight;
+                    _exportSettings.fullscreen = _settingsFullscreen;
+                    _exportSettings.dimension = _settingsDimension;
+                    if (!_settingsEntryScene.empty()) _exportSettings.entrySceneURI = _settingsEntryScene;
+
+                    // Write game.config to test_build/debug/game.config as well
+                    std::error_code ec;
+                    std::filesystem::create_directories("test_build/debug", ec);
+                    std::ofstream dbgCfg("test_build/debug/game.config");
+                    if (dbgCfg.is_open()) {
+                        dbgCfg << "title=" << info.displayName << "\n"
+                               << "dimension=" << _settingsDimension << "\n"
+                               << "scene=" << info.defaultScene << "\n"
+                               << "width=" << _settingsWidth << "\n"
+                               << "height=" << _settingsHeight << "\n"
+                               << "fullscreen=" << (_settingsFullscreen ? "1" : "0") << "\n"
+                               << "vsync=" << (_settingsVSync ? "1" : "0") << "\n";
+                        if (!info.defaultHud.empty()) dbgCfg << "hud=" << info.defaultHud << "\n";
+                        dbgCfg.close();
+                    }
+
+                    _settingsStatusBanner = "Game config updated: " + std::to_string(_settingsWidth) + "x" + std::to_string(_settingsHeight) + (_settingsFullscreen ? " (Fullscreen)" : " (Windowed)");
                     _settingsBannerTimer = 4.0f;
+                    logMessage("Applied to Game Config: " + std::to_string(_settingsWidth) + "x" + std::to_string(_settingsHeight) + ", Fullscreen=" + (_settingsFullscreen ? "true" : "false"));
                     return;
                 }
                 // [ Back to Scene ]
@@ -8165,7 +8206,7 @@ public:
             drawDarkButton(pX, curY, 240.0f, 40.0f, "[ SAVE PROJECT SETTINGS ]", false, false, true);
             Renderer::drawRect(pX, curY + 38.0f, 240.0f, 2.0f, greenAccent);
 
-            drawDarkButton(pX + 255.0f, curY, 260.0f, 40.0f, "APPLY RESOLUTION NOW", false, false, true);
+            drawDarkButton(pX + 255.0f, curY, 260.0f, 40.0f, "[ SAVE & APPLY TO GAME CONFIG ]", false, false, true);
             Renderer::drawRect(pX + 255.0f, curY + 38.0f, 260.0f, 2.0f, cyanGlow);
 
             drawDarkButton(pX + 530.0f, curY, 180.0f, 40.0f, "Back to Scene", false, false, true);

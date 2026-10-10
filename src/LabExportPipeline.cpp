@@ -485,11 +485,29 @@ namespace Lab {
         // 1. Physically compile Debug target via CMake if CMakeLists is present
         std::filesystem::path buildDir = root / "build";
         if (std::filesystem::exists(root / "CMakeLists.txt")) {
+#if !defined(_WIN32)
+            std::filesystem::path buildLinuxDir = std::filesystem::exists(root / "build-linux") ? (root / "build-linux") : buildDir;
+            std::string buildCmd = "cmake --build \"" + buildLinuxDir.string() + "\" --target LabPlayer";
+            std::system(buildCmd.c_str());
+#else
             std::string buildCmd = "cmake --build \"" + buildDir.string() + "\" --config Debug --target LabPlayer";
             std::system(buildCmd.c_str());
+#endif
         }
 
         // 2. Find LabPlayer runner from candidate directories across Windows and Linux
+#if !defined(_WIN32)
+        std::vector<std::filesystem::path> debugRunnerCandidates = {
+            root / "build-linux" / "LabPlayer",
+            root / "build" / "LabPlayer",
+            std::filesystem::current_path() / "build-linux" / "LabPlayer",
+            std::filesystem::current_path() / "build" / "LabPlayer",
+            root / "LabPlayer",
+            std::filesystem::current_path() / "LabPlayer"
+        };
+        std::string baseExeName = (gameTitle.empty() ? "LabGame" : gameTitle) + "_Test";
+        std::string exeName = baseExeName;
+#else
         std::vector<std::filesystem::path> debugRunnerCandidates = {
             buildDir / "Debug" / "LabPlayer.exe",
             buildDir / "Release" / "LabPlayer.exe",
@@ -498,14 +516,11 @@ namespace Lab {
             root / "LabPlayer.exe",
             std::filesystem::current_path() / "build" / "Debug" / "LabPlayer.exe",
             std::filesystem::current_path() / "build" / "Release" / "LabPlayer.exe",
-            std::filesystem::current_path() / "LabPlayer.exe",
-            root / "build-linux" / "LabPlayer",
-            root / "build" / "LabPlayer",
-            root / "LabPlayer",
-            std::filesystem::current_path() / "build-linux" / "LabPlayer",
-            std::filesystem::current_path() / "build" / "LabPlayer",
-            std::filesystem::current_path() / "LabPlayer"
+            std::filesystem::current_path() / "LabPlayer.exe"
         };
+        std::string baseExeName = (gameTitle.empty() ? "LabGame" : gameTitle) + "_Test";
+        std::string exeName = baseExeName + ".exe";
+#endif
 
         std::filesystem::path srcExe;
         for (const auto& c : debugRunnerCandidates) {
@@ -516,8 +531,6 @@ namespace Lab {
         }
 
         // 3. Copy to custom test folder (NOT cmake's debug folder)
-        std::string baseExeName = (gameTitle.empty() ? "LabGame" : gameTitle) + "_Test";
-        std::string exeName = baseExeName + ".exe";
         std::filesystem::path targetExe = testDir / exeName;
 
 #if defined(_WIN32)
@@ -531,23 +544,28 @@ namespace Lab {
             result.copiedFiles++;
             result.totalBytes += std::filesystem::file_size(targetExe);
 #if !defined(_WIN32)
-            // On Linux, also create extensionless binary and ensure executable permission
-            std::filesystem::path linuxBin = testDir / baseExeName;
-            std::filesystem::copy_file(srcExe, linuxBin, std::filesystem::copy_options::overwrite_existing, ec);
-            std::filesystem::permissions(linuxBin, std::filesystem::perms::owner_all | std::filesystem::perms::group_read | std::filesystem::perms::group_exec, std::filesystem::perm_options::add, ec);
             std::filesystem::permissions(targetExe, std::filesystem::perms::owner_all | std::filesystem::perms::group_read | std::filesystem::perms::group_exec, std::filesystem::perm_options::add, ec);
+            // Also maintain .exe name if needed for legacy scripts
+            std::filesystem::path winExeName = testDir / (baseExeName + ".exe");
+            std::filesystem::copy_file(srcExe, winExeName, std::filesystem::copy_options::overwrite_existing, ec);
+            std::filesystem::permissions(winExeName, std::filesystem::perms::owner_all | std::filesystem::perms::group_read | std::filesystem::perms::group_exec, std::filesystem::perm_options::add, ec);
 #endif
         } else {
             // Placeholder stub if compiler hasn't emitted binary yet
             std::ofstream stub(targetExe, std::ios::binary);
+#if !defined(_WIN32)
+            stub << "#!/usr/bin/env bash\necho 'Lab Standalone'\n";
+#else
             stub << "MZ_LAB_STANDALONE_BINARY_PLACEHOLDER\n";
+#endif
             stub.close();
             result.copiedFiles++;
             result.totalBytes += 64;
 #if !defined(_WIN32)
-            std::ofstream stubLin(testDir / baseExeName, std::ios::binary);
-            stubLin << "#!/usr/bin/env bash\necho 'Lab Standalone'\n";
-            stubLin.close();
+            std::filesystem::permissions(targetExe, std::filesystem::perms::owner_all | std::filesystem::perms::group_read | std::filesystem::perms::group_exec, std::filesystem::perm_options::add, ec);
+            std::ofstream stubWin(testDir / (baseExeName + ".exe"), std::ios::binary);
+            stubWin << "MZ_LAB_STANDALONE_BINARY_PLACEHOLDER\n";
+            stubWin.close();
 #endif
         }
 
