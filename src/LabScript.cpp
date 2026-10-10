@@ -7,8 +7,14 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <cstring>
 #include <unordered_map>
 #include <filesystem>
+
+#ifndef _WIN32
+    #include <strings.h>
+    #define _stricmp strcasecmp
+#endif
 
 extern "C" {
 #include "lua.h"

@@ -193,6 +193,7 @@ namespace Lab {
           _brightColorTexture(other._brightColorTexture), _depthStencilRbo(other._depthStencilRbo),
           _bloomWidth(other._bloomWidth), _bloomHeight(other._bloomHeight),
           _quadVao(other._quadVao), _quadVbo(other._quadVbo),
+          _extractShader(std::move(other._extractShader)),
           _blurShader(std::move(other._blurShader)),
           _compositeShader(std::move(other._compositeShader)) {
         
@@ -230,6 +231,7 @@ namespace Lab {
             _pingPongColor[1] = other._pingPongColor[1];
             _quadVao = other._quadVao;
             _quadVbo = other._quadVbo;
+            _extractShader = std::move(other._extractShader);
             _blurShader = std::move(other._blurShader);
             _compositeShader = std::move(other._compositeShader);
 
@@ -272,6 +274,7 @@ namespace Lab {
             _quadVbo = 0;
         }
 
+        _extractShader.reset();
         _blurShader.reset();
         _compositeShader.reset();
         _initialized = false;
@@ -321,6 +324,7 @@ namespace Lab {
     }
 
     void PostProcessPipeline::initShaders() {
+        _extractShader = std::make_unique<Shader>(s_quadVertexShader, s_extractBrightFragmentShader);
         _blurShader = std::make_unique<Shader>(s_quadVertexShader, s_blurFragmentShader);
         _compositeShader = std::make_unique<Shader>(s_quadVertexShader, s_compositeFragmentShader);
     }
@@ -420,15 +424,13 @@ namespace Lab {
         glViewport(0, 0, _bloomWidth, _bloomHeight);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        // We can use the blur shader or an initial blit with bright extraction
-        static std::unique_ptr<Shader> s_extractShader;
-        if (!s_extractShader) {
-            s_extractShader = std::make_unique<Shader>(s_quadVertexShader, s_extractBrightFragmentShader);
+        if (!_extractShader) {
+            _extractShader = std::make_unique<Shader>(s_quadVertexShader, s_extractBrightFragmentShader);
         }
 
-        s_extractShader->use();
-        s_extractShader->setInt("uHDRScene", 0);
-        s_extractShader->setFloat("uThreshold", 0.95f);
+        _extractShader->use();
+        _extractShader->setInt("uHDRScene", 0);
+        _extractShader->setFloat("uThreshold", 0.95f);
         glBindTextureUnit(0, _hdrColorTexture);
 
         glBindVertexArray(_quadVao);

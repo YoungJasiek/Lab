@@ -34,7 +34,9 @@
 #include "LabComponents.h"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
+#if defined(_WIN32)
 #include <windows.h>
+#endif
 #include <iostream>
 #include <sstream>
 #include <filesystem>
@@ -159,8 +161,9 @@ public:
         // Initialize clean default studio scene
         newMap();
 
-        // Camera initial pose
+        // Camera initial pose pointing directly at starter scene geometry
         _camera.setPosition(Vec3(0, 8.0f, 18.0f));
+        _camera.lookAt(Vec3(0, 1.0f, 0.0f));
 
         // Unlock mouse cursor for UI desktop interaction
         setCursorCaptured(false);
@@ -600,6 +603,10 @@ public:
 
     void setWorkspace(EditorWorkspace ws) {
         _workspace = ws;
+        if (_isFlyingCamera) {
+            _isFlyingCamera = false;
+            setCursorCaptured(false);
+        }
         if (ws == EditorWorkspace::Project_Hub) {
             refreshProjectHub();
         } else if (ws == EditorWorkspace::Project_Settings) {
@@ -994,17 +1001,28 @@ public:
             _map->saveToFile(_currentMapPath);
         }
         _exportSettings.entrySceneURI = _currentMapPath;
+        _exportSettings.dimension = (_workspace == EditorWorkspace::Level2D_Tilemap || 
+                                     _workspace == EditorWorkspace::Level2D_HUD || 
+                                     _workspace == EditorWorkspace::Level2D_Animation) ? "2D" : "3D";
+        _exportSettings.retroFX = PackageManager::instance().isPackageEnabled("com.lab.retro-fx");
+        _exportSettings.retroScanlines = _retroScanlines;
+        _exportSettings.retroVignette = _retroVignette;
+        _exportSettings.retroAberration = _retroAberration;
+        _exportSettings.retroPixelScale = _retroPixelScale;
+        _exportSettings.retroColorTheme = _retroColorTheme;
 
         if (runAfterBuild) {
             logMessage("Compiling and packaging test game in DEBUG mode (destination: test_build/debug)...");
-            ExportResult res = ExportPipeline::buildAndPrepareTestGame(_exportSettings.gameTitle, _exportSettings.entrySceneURI, "test_build/debug");
+            ExportResult res = ExportPipeline::buildAndPrepareTestGame(_exportSettings.gameTitle, _exportSettings.entrySceneURI, "test_build/debug", &_exportSettings);
             _buildSuccess = res.success;
             _lastBuildLog = res.logMessage;
             if (res.success) {
                 logMessage("TEST BUILD SUCCESS: " + res.logMessage);
                 logMessage("Files packaged: " + std::to_string(res.copiedFiles) + " | Size: " + std::to_string(res.totalBytes / 1024) + " KB");
                 logMessage("Launching test game process: " + res.exportedExecutable.string());
-                bool launched = ExportPipeline::launchGame(res.exportedExecutable);
+                std::string mapFileName = std::filesystem::path(_currentMapPath).filename().string();
+                std::string launchArgs = "--config game.config --scene assets/maps/" + mapFileName;
+                bool launched = ExportPipeline::launchGame(res.exportedExecutable, launchArgs);
                 if (launched) {
                     logMessage("Standalone debug test game spawned successfully!");
                 } else {
@@ -1081,14 +1099,25 @@ public:
         bool is3DMapEditing = (_workspace == EditorWorkspace::World3D_Level || _workspace == EditorWorkspace::World3D_Animation);
         bool in3DViewport = is3DMapEditing && (mx >= vpX && mx <= vpX + vpW && my >= vpY && my <= vpY + vpH);
 
+        // Orbit Camera with Middle Mouse Button (MMB / button 2) OR Alt + Left Mouse Button
+        bool isAltDown = Input::isKeyPressed(342) || Input::isKeyPressed(346); // GLFW_KEY_LEFT_ALT / RIGHT_ALT
+        bool isOrbiting = is3DMapEditing && in3DViewport && (Input::isMouseButtonPressed(2) || (isAltDown && Input::isMouseButtonPressed(0)));
+
         // Mouse look in 3D Viewport when holding Right Mouse Button (only in 3D map workspaces)
-        if (is3DMapEditing && Input::isMouseButtonPressed(1)) {
+        if (isOrbiting) {
+            Vec3 pivot = (_selectionType != SelectionType::None) ? getSelectedPosition() : _cursorPos;
+            _camera.orbit(pivot, Input::mouseDelta, 0.25f);
+            if (_isFlyingCamera) {
+                _isFlyingCamera = false;
+                setCursorCaptured(false);
+            }
+        } else if (is3DMapEditing && Input::isMouseButtonPressed(1)) {
             if (_activeTool != 3) {
                 if (!_isFlyingCamera && in3DViewport) {
                     _isFlyingCamera = true;
                     setCursorCaptured(true);
-                }
-                if (_isFlyingCamera) {
+                    Input::mouseDelta = { 0.0f, 0.0f }; // Reset pre-capture deltas to avoid 180-deg flip
+                } else if (_isFlyingCamera) {
                     _camera.update(Input::mouseDelta);
                 }
             }
@@ -1366,16 +1395,16 @@ public:
 
         // 2. 3D Model Viewer Turntable Updates
         if (_workspace == EditorWorkspace::World3D_ModelViewer) {
-            if (_modelViewerAutoRotate) {
+            bool inMvViewport = (mx >= vpX && mx <= vpX + vpW && my >= vpY && my <= vpY + vpH);
+            if (inMvViewport && Input::isMouseButtonPressed(0)) {
+                _modelViewerYaw += (mx - _modelViewerLastMouseX) * 0.4f;
+                _modelViewerPitch = std::clamp(_modelViewerPitch - (my - _modelViewerLastMouseY) * 0.4f, -80.0f, 80.0f);
+            } else if (_modelViewerAutoRotate) {
                 _modelViewerYaw += 25.0f * time.delta;
                 if (_modelViewerYaw >= 360.0f) _modelViewerYaw -= 360.0f;
             }
-            if (in3DViewport && Input::isMouseButtonPressed(0)) {
-                _modelViewerYaw += (mx - _modelViewerLastMouseX) * 0.5f;
-                _modelViewerPitch = std::clamp(_modelViewerPitch + (my - _modelViewerLastMouseY) * 0.5f, -80.0f, 80.0f);
-            }
-            if (in3DViewport && std::abs(Input::scrollDelta) > 0.01f) {
-                _modelViewerDistance = std::clamp(_modelViewerDistance - Input::scrollDelta * 0.2f, 0.5f, 15.0f);
+            if (inMvViewport && std::abs(Input::scrollDelta) > 0.01f) {
+                _modelViewerDistance = std::clamp(_modelViewerDistance - Input::scrollDelta * 0.3f, 0.5f, 25.0f);
             }
             _modelViewerLastMouseX = mx;
             _modelViewerLastMouseY = my;
@@ -9232,7 +9261,7 @@ private:
     float _modelViewerYaw = 35.0f;
     float _modelViewerPitch = 15.0f;
     float _modelViewerDistance = 3.0f;
-    bool _modelViewerAutoRotate = true;
+    bool _modelViewerAutoRotate = false;
     bool _modelViewerWireframe = false;
     bool _modelViewerDragging = false;
     float _modelViewerLastMouseX = 0.0f;

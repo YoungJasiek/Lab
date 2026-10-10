@@ -71,6 +71,7 @@ namespace Lab {
         unsigned int _quadVbo = 0;
 
         // Shaders
+        std::unique_ptr<Shader> _extractShader;
         std::unique_ptr<Shader> _blurShader;
         std::unique_ptr<Shader> _compositeShader;
 

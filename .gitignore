@@ -13,6 +13,7 @@ auraTools/
 .agents/
 .vscode/
 build/
+build-*/
 Backups/
 .vs/
 bin/

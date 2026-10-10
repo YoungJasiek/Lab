@@ -343,7 +343,10 @@ namespace Lab {
     }
 
     Shader::~Shader() {
-        glDeleteProgram(_id);
+        if (_id != 0 && glad_glDeleteProgram != nullptr) {
+            glDeleteProgram(_id);
+            _id = 0;
+        }
     }
 
     void Shader::use() const {

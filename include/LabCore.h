@@ -109,5 +109,7 @@ namespace Lab {
         float _physicsAccumulator;
         bool _firstMouse;
         Vec2 _lastMousePos;
+        double _savedCursorX{0.0};
+        double _savedCursorY{0.0};
     };
 }

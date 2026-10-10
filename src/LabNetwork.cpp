@@ -7,6 +7,7 @@
 #include <sstream>
 #include <vector>
 #include <string>
+#include <ctime>
 
 #ifdef _WIN32
     #define WIN32_LEAN_AND_MEAN
@@ -21,6 +22,7 @@
 #else
     #include <sys/types.h>
     #include <sys/socket.h>
+    #include <sys/ioctl.h>
     #include <netinet/in.h>
     #include <arpa/inet.h>
     #include <netdb.h>
@@ -28,8 +30,10 @@
     #include <fcntl.h>
     #define INVALID_SOCKET -1
     #define SOCKET_ERROR -1
-    #define closesocket close
+    inline int closesocket(int s) { return ::close(s); }
+    inline int ioctlsocket(int s, unsigned long cmd, void* argp) { return ::ioctl(s, cmd, argp); }
     using SOCKET = int;
+    using u_long = unsigned long;
 #endif
 
 namespace Lab {
@@ -1020,8 +1024,17 @@ namespace Lab {
         return response;
     }
 #else
-    static std::string httpFetch(const std::string& /*url*/) {
-        return "";
+    static std::string httpFetch(const std::string& url) {
+        std::string cmd = "curl -s -m 3 \"" + url + "\"";
+        FILE* pipe = popen(cmd.c_str(), "r");
+        if (!pipe) return "";
+        char buffer[1024];
+        std::string result;
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+            result += buffer;
+        }
+        pclose(pipe);
+        return result;
     }
 #endif
 

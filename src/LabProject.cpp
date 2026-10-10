@@ -5,6 +5,7 @@
 #include <fstream>
 #include <cstdlib>
 #include <unordered_set>
+#include <algorithm>
 
 #if defined(_WIN32)
 #include <windows.h>

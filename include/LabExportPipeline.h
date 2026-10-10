@@ -30,6 +30,18 @@ namespace Lab {
         bool embedAssets{true};
         bool compressAssets{true};
         std::string entrySceneURI{"assets/maps/default_box.labmap"};
+        std::string dimension{"3D"};
+        int width{1280};
+        int height{720};
+        bool fullscreen{false};
+        std::string rulesPath{""};
+        std::string hudPath{""};
+        bool retroFX{false};
+        bool retroScanlines{true};
+        bool retroVignette{true};
+        bool retroAberration{true};
+        int retroPixelScale{2};
+        int retroColorTheme{0};
     };
 
     struct ExportResult {
@@ -48,7 +60,7 @@ namespace Lab {
         static bool validateSettings(const ExportSettings& settings, std::string& outError);
         static std::string generateBuildManifest(const ExportSettings& settings, size_t assetCount, uint64_t totalBytes);
         static ExportResult exportProject(const ExportSettings& settings);
-        static ExportResult buildAndPrepareTestGame(const std::string& gameTitle, const std::string& scenePath, const std::filesystem::path& customTestDir = "test_build/debug");
+        static ExportResult buildAndPrepareTestGame(const std::string& gameTitle, const std::string& scenePath, const std::filesystem::path& customTestDir = "test_build/debug", const ExportSettings* optionalSettings = nullptr);
         static bool launchGame(const std::filesystem::path& executablePath, const std::string& args = "");
 
         // Production Script Protection

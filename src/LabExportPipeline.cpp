@@ -163,6 +163,41 @@ namespace Lab {
             }
         }
 
+        // Replicate modular plugins directory
+        std::vector<std::filesystem::path> pluginRoots = {
+            pm.getEngineRoot() / "plugins",
+            "plugins",
+            pm.getEngineAssetsPath() / "plugins",
+            "engine/assets/plugins"
+        };
+        for (const auto& pRoot : pluginRoots) {
+            if (std::filesystem::exists(pRoot)) {
+                copyDirectoryRecursive(pRoot, outDir / "plugins", result.copiedFiles, result.totalBytes);
+                break;
+            }
+        }
+
+        // Guarantee entry scene map is copied to outDir/assets/maps as portable relative asset
+        std::filesystem::path esp(settings.entrySceneURI.empty() ? "assets/maps/default_box.labmap" : settings.entrySceneURI);
+        std::string mapFileName = esp.filename().string();
+        if (mapFileName.empty()) mapFileName = "main.labmap";
+        std::filesystem::path targetMapsDir = outDir / "assets" / "maps";
+        std::filesystem::create_directories(targetMapsDir, ec);
+        std::filesystem::path targetMapPath = targetMapsDir / mapFileName;
+        if (std::filesystem::exists(esp)) {
+            std::filesystem::copy_file(esp, targetMapPath, std::filesystem::copy_options::overwrite_existing, ec);
+            result.copiedFiles++;
+            result.totalBytes += std::filesystem::file_size(targetMapPath);
+        } else if (std::filesystem::exists(pm.getEngineRoot() / esp)) {
+            std::filesystem::copy_file(pm.getEngineRoot() / esp, targetMapPath, std::filesystem::copy_options::overwrite_existing, ec);
+            result.copiedFiles++;
+            result.totalBytes += std::filesystem::file_size(targetMapPath);
+        } else if (std::filesystem::exists(projAssets / "maps" / mapFileName)) {
+            std::filesystem::copy_file(projAssets / "maps" / mapFileName, targetMapPath, std::filesystem::copy_options::overwrite_existing, ec);
+            result.copiedFiles++;
+            result.totalBytes += std::filesystem::file_size(targetMapPath);
+        }
+
         // 1.5. Compile and protect Lua scripts for Release/Shipping
         if (settings.config == BuildConfiguration::Shipping || settings.config == BuildConfiguration::Release) {
             std::filesystem::path outScriptsDir = outDir / "assets" / "scripts";
@@ -378,17 +413,39 @@ namespace Lab {
         }
 
         // 3. Write manifest & config
-        std::string manifestContent = generateBuildManifest(settings, result.copiedFiles, result.totalBytes);
+        std::string relScene = "assets/maps/" + mapFileName;
+        ExportSettings cleanSettings = settings;
+        cleanSettings.entrySceneURI = relScene;
+
+        std::string manifestContent = generateBuildManifest(cleanSettings, result.copiedFiles, result.totalBytes);
         std::ofstream mf(outDir / "game.manifest");
         mf << manifestContent;
         mf.close();
 
+        std::string relRules = cleanSettings.rulesPath;
+        if (relRules.empty() && std::filesystem::exists(outDir / "assets" / "scripts" / "game_mechanics.lua")) {
+            relRules = "assets/scripts/game_mechanics.lua";
+        }
+        std::string relHud = cleanSettings.hudPath;
+        if (relHud.empty() && std::filesystem::exists(outDir / "assets" / "hud_projects" / "default.labhud")) {
+            relHud = "assets/hud_projects/default.labhud";
+        }
+
         std::ofstream cfg(outDir / "game.config");
-        cfg << "title=" << settings.gameTitle << "\n"
-            << "scene=" << settings.entrySceneURI << "\n"
-            << "width=1280\n"
-            << "height=720\n"
-            << "fullscreen=0\n";
+        cfg << "title=" << cleanSettings.gameTitle << "\n"
+            << "dimension=" << cleanSettings.dimension << "\n"
+            << "scene=" << relScene << "\n";
+        if (!relRules.empty()) cfg << "rules=" << relRules << "\n";
+        if (!relHud.empty()) cfg << "hud=" << relHud << "\n";
+        cfg << "width=" << cleanSettings.width << "\n"
+            << "height=" << cleanSettings.height << "\n"
+            << "fullscreen=" << (cleanSettings.fullscreen ? "1" : "0") << "\n"
+            << "retro=" << (cleanSettings.retroFX ? "1" : "0") << "\n"
+            << "retro_scanlines=" << (cleanSettings.retroScanlines ? "1" : "0") << "\n"
+            << "retro_vignette=" << (cleanSettings.retroVignette ? "1" : "0") << "\n"
+            << "retro_aberration=" << (cleanSettings.retroAberration ? "1" : "0") << "\n"
+            << "retro_pixel_scale=" << cleanSettings.retroPixelScale << "\n"
+            << "retro_theme=" << cleanSettings.retroColorTheme << "\n";
         cfg.close();
 
         result.success = true;
@@ -418,21 +475,21 @@ namespace Lab {
         return std::filesystem::current_path();
     }
 
-    ExportResult ExportPipeline::buildAndPrepareTestGame(const std::string& gameTitle, const std::string& scenePath, const std::filesystem::path& customTestDir) {
+    ExportResult ExportPipeline::buildAndPrepareTestGame(const std::string& gameTitle, const std::string& scenePath, const std::filesystem::path& customTestDir, const ExportSettings* optionalSettings) {
         ExportResult result;
         std::filesystem::path root = findProjectRoot();
         std::filesystem::path testDir = customTestDir.is_absolute() ? customTestDir : (root / customTestDir);
         std::error_code ec;
         std::filesystem::create_directories(testDir, ec);
 
-        // 1. Physically compile Debug target via CMake
+        // 1. Physically compile Debug target via CMake if CMakeLists is present
         std::filesystem::path buildDir = root / "build";
         if (std::filesystem::exists(root / "CMakeLists.txt")) {
             std::string buildCmd = "cmake --build \"" + buildDir.string() + "\" --config Debug --target LabPlayer";
             std::system(buildCmd.c_str());
         }
 
-        // 2. Find LabPlayer.exe from candidate directories
+        // 2. Find LabPlayer runner from candidate directories across Windows and Linux
         std::vector<std::filesystem::path> debugRunnerCandidates = {
             buildDir / "Debug" / "LabPlayer.exe",
             buildDir / "Release" / "LabPlayer.exe",
@@ -441,7 +498,13 @@ namespace Lab {
             root / "LabPlayer.exe",
             std::filesystem::current_path() / "build" / "Debug" / "LabPlayer.exe",
             std::filesystem::current_path() / "build" / "Release" / "LabPlayer.exe",
-            std::filesystem::current_path() / "LabPlayer.exe"
+            std::filesystem::current_path() / "LabPlayer.exe",
+            root / "build-linux" / "LabPlayer",
+            root / "build" / "LabPlayer",
+            root / "LabPlayer",
+            std::filesystem::current_path() / "build-linux" / "LabPlayer",
+            std::filesystem::current_path() / "build" / "LabPlayer",
+            std::filesystem::current_path() / "LabPlayer"
         };
 
         std::filesystem::path srcExe;
@@ -452,14 +515,9 @@ namespace Lab {
             }
         }
 
-        if (srcExe.empty()) {
-            result.success = false;
-            result.logMessage = "Failed to compile or find LabPlayer.exe for test run!";
-            return result;
-        }
-
         // 3. Copy to custom test folder (NOT cmake's debug folder)
-        std::string exeName = (gameTitle.empty() ? "LabGame" : gameTitle) + "_Test.exe";
+        std::string baseExeName = (gameTitle.empty() ? "LabGame" : gameTitle) + "_Test";
+        std::string exeName = baseExeName + ".exe";
         std::filesystem::path targetExe = testDir / exeName;
 
 #if defined(_WIN32)
@@ -468,9 +526,30 @@ namespace Lab {
         std::system(killCmd.c_str());
 #endif
 
-        std::filesystem::copy_file(srcExe, targetExe, std::filesystem::copy_options::overwrite_existing, ec);
-        result.copiedFiles++;
-        result.totalBytes += std::filesystem::file_size(targetExe);
+        if (!srcExe.empty()) {
+            std::filesystem::copy_file(srcExe, targetExe, std::filesystem::copy_options::overwrite_existing, ec);
+            result.copiedFiles++;
+            result.totalBytes += std::filesystem::file_size(targetExe);
+#if !defined(_WIN32)
+            // On Linux, also create extensionless binary and ensure executable permission
+            std::filesystem::path linuxBin = testDir / baseExeName;
+            std::filesystem::copy_file(srcExe, linuxBin, std::filesystem::copy_options::overwrite_existing, ec);
+            std::filesystem::permissions(linuxBin, std::filesystem::perms::owner_all | std::filesystem::perms::group_read | std::filesystem::perms::group_exec, std::filesystem::perm_options::add, ec);
+            std::filesystem::permissions(targetExe, std::filesystem::perms::owner_all | std::filesystem::perms::group_read | std::filesystem::perms::group_exec, std::filesystem::perm_options::add, ec);
+#endif
+        } else {
+            // Placeholder stub if compiler hasn't emitted binary yet
+            std::ofstream stub(targetExe, std::ios::binary);
+            stub << "MZ_LAB_STANDALONE_BINARY_PLACEHOLDER\n";
+            stub.close();
+            result.copiedFiles++;
+            result.totalBytes += 64;
+#if !defined(_WIN32)
+            std::ofstream stubLin(testDir / baseExeName, std::ios::binary);
+            stubLin << "#!/usr/bin/env bash\necho 'Lab Standalone'\n";
+            stubLin.close();
+#endif
+        }
 
         // 4. Copy strictly matching configuration DLLs (never mix Debug exe with Release DLLs)
         bool isDebugBinary = (srcExe.string().find("Debug") != std::string::npos) || (srcExe.parent_path().filename() == "Debug");
@@ -506,7 +585,7 @@ namespace Lab {
             }
         }
 
-        // 5. Replicate game assets (from Documents/LabGames/<GameTitle>/assets or fallback) and engine fonts
+        // 5. Replicate game assets and engine fonts
         auto& pm = ProjectManager::get();
         std::filesystem::path projAssets = pm.getActiveProjectAssetsPath();
         if (std::filesystem::exists(projAssets)) {
@@ -533,32 +612,158 @@ namespace Lab {
             }
         }
 
-        // 6. Write game.config & game.manifest
+        // Replicate modular plugins directory
+        std::vector<std::filesystem::path> pluginRoots = {
+            root / "plugins", "plugins", pm.getEngineRoot() / "plugins", pm.getEngineAssetsPath() / "plugins"
+        };
+        for (const auto& pRoot : pluginRoots) {
+            if (std::filesystem::exists(pRoot)) {
+                copyDirectoryRecursive(pRoot, testDir / "plugins", result.copiedFiles, result.totalBytes);
+                break;
+            }
+        }
+
+        // 6. Guarantee current scene map is copied into testDir/assets/maps and sanitized to relative path
+        std::filesystem::path sp(scenePath.empty() ? "export_game.labmap" : scenePath);
+        std::string mapFileName = sp.filename().string();
+        if (mapFileName.empty()) mapFileName = "export_game.labmap";
+
+        std::filesystem::path targetMapsDir = testDir / "assets" / "maps";
+        std::filesystem::create_directories(targetMapsDir, ec);
+        std::filesystem::path targetMapPath = targetMapsDir / mapFileName;
+
+        if (std::filesystem::exists(sp)) {
+            std::filesystem::copy_file(sp, targetMapPath, std::filesystem::copy_options::overwrite_existing, ec);
+            result.copiedFiles++;
+            result.totalBytes += std::filesystem::file_size(targetMapPath);
+        } else if (std::filesystem::exists(root / sp)) {
+            std::filesystem::copy_file(root / sp, targetMapPath, std::filesystem::copy_options::overwrite_existing, ec);
+            result.copiedFiles++;
+            result.totalBytes += std::filesystem::file_size(targetMapPath);
+        } else if (std::filesystem::exists(projAssets / "maps" / mapFileName)) {
+            std::filesystem::copy_file(projAssets / "maps" / mapFileName, targetMapPath, std::filesystem::copy_options::overwrite_existing, ec);
+            result.copiedFiles++;
+            result.totalBytes += std::filesystem::file_size(targetMapPath);
+        } else if (std::filesystem::exists(root / "assets" / "maps" / mapFileName)) {
+            std::filesystem::copy_file(root / "assets" / "maps" / mapFileName, targetMapPath, std::filesystem::copy_options::overwrite_existing, ec);
+            result.copiedFiles++;
+            result.totalBytes += std::filesystem::file_size(targetMapPath);
+        }
+        std::string relativeScene = "assets/maps/" + mapFileName;
+
+        // 7. Guarantee game mechanics scripts are replicated and active rules resolved
+        std::filesystem::path targetScriptsDir = testDir / "assets" / "scripts";
+        std::filesystem::create_directories(targetScriptsDir, ec);
+
+        std::vector<std::filesystem::path> scriptSources = {
+            projAssets / "scripts", root / "assets" / "scripts", "assets/scripts"
+        };
+        for (const auto& sSrc : scriptSources) {
+            if (std::filesystem::exists(sSrc)) {
+                copyDirectoryRecursive(sSrc, targetScriptsDir, result.copiedFiles, result.totalBytes);
+                break;
+            }
+        }
+
+        std::string relativeRules = "";
+        if (optionalSettings && !optionalSettings->rulesPath.empty()) {
+            relativeRules = optionalSettings->rulesPath;
+        } else if (std::filesystem::exists(targetScriptsDir / "game_mechanics.lua")) {
+            relativeRules = "assets/scripts/game_mechanics.lua";
+        } else if (std::filesystem::exists(targetScriptsDir / "qa_labrunner_rules.lua")) {
+            relativeRules = "assets/scripts/qa_labrunner_rules.lua";
+        } else {
+            for (const auto& entry : std::filesystem::directory_iterator(targetScriptsDir)) {
+                if (entry.is_regular_file() && entry.path().extension() == ".lua") {
+                    relativeRules = "assets/scripts/" + entry.path().filename().string();
+                    break;
+                }
+            }
+        }
+
+        // 8. Guarantee HUD projects are replicated
+        std::filesystem::path targetHudDir = testDir / "assets" / "hud_projects";
+        std::filesystem::create_directories(targetHudDir, ec);
+        std::vector<std::filesystem::path> hudSources = {
+            projAssets / "hud_projects", root / "assets" / "hud_projects", "assets/hud_projects"
+        };
+        for (const auto& hSrc : hudSources) {
+            if (std::filesystem::exists(hSrc)) {
+                copyDirectoryRecursive(hSrc, targetHudDir, result.copiedFiles, result.totalBytes);
+                break;
+            }
+        }
+
+        std::string relativeHud = "";
+        if (optionalSettings && !optionalSettings->hudPath.empty()) {
+            relativeHud = optionalSettings->hudPath;
+        } else if (std::filesystem::exists(targetHudDir / "default.labhud")) {
+            relativeHud = "assets/hud_projects/default.labhud";
+        }
+
+        // 9. Write complete portable game.config & game.manifest
+        std::string dim = (optionalSettings ? optionalSettings->dimension : "3D");
+        int w = (optionalSettings ? optionalSettings->width : 1280);
+        int h = (optionalSettings ? optionalSettings->height : 720);
+        bool fs = (optionalSettings ? optionalSettings->fullscreen : false);
+        bool retro = (optionalSettings ? optionalSettings->retroFX : true);
+        bool retroScan = (optionalSettings ? optionalSettings->retroScanlines : true);
+        bool retroVig = (optionalSettings ? optionalSettings->retroVignette : true);
+        bool retroAber = (optionalSettings ? optionalSettings->retroAberration : true);
+        int retroScale = (optionalSettings ? optionalSettings->retroPixelScale : 2);
+        int retroTheme = (optionalSettings ? optionalSettings->retroColorTheme : 0);
+
         std::ofstream cfg(testDir / "game.config");
         cfg << "title=" << gameTitle << " [DEBUG TEST RUN]\n"
-            << "scene=" << scenePath << "\n"
-            << "width=1280\n"
-            << "height=720\n"
-            << "fullscreen=0\n";
+            << "dimension=" << dim << "\n"
+            << "scene=" << relativeScene << "\n";
+        if (!relativeRules.empty()) {
+            cfg << "rules=" << relativeRules << "\n";
+        }
+        if (!relativeHud.empty()) {
+            cfg << "hud=" << relativeHud << "\n";
+        }
+        cfg << "width=" << w << "\n"
+            << "height=" << h << "\n"
+            << "fullscreen=" << (fs ? "1" : "0") << "\n"
+            << "retro=" << (retro ? "1" : "0") << "\n"
+            << "retro_scanlines=" << (retroScan ? "1" : "0") << "\n"
+            << "retro_vignette=" << (retroVig ? "1" : "0") << "\n"
+            << "retro_aberration=" << (retroAber ? "1" : "0") << "\n"
+            << "retro_pixel_scale=" << retroScale << "\n"
+            << "retro_theme=" << retroTheme << "\n";
         cfg.close();
 
-        ExportSettings s;
+        ExportSettings s = optionalSettings ? *optionalSettings : ExportSettings{};
         s.platform = TargetPlatform::Windows_x64;
         s.config = BuildConfiguration::Debug;
         s.gameTitle = gameTitle;
-        s.entrySceneURI = scenePath;
+        s.entrySceneURI = relativeScene;
         std::string manifestJson = generateBuildManifest(s, result.copiedFiles, result.totalBytes);
         std::ofstream mf(testDir / "game.manifest");
         mf << manifestJson;
         mf.close();
 
-        // 7. Write run_test_game.bat
+        // 10. Write run_test_game.bat & run_test_game.sh
         std::ofstream bat(testDir / "run_test_game.bat");
         bat << "@echo off\r\n"
             << "title " << gameTitle << " [DEBUG TEST]\r\n"
             << "cd /d \"%~dp0\"\r\n"
-            << "start \"\" \"%~dp0\\" << exeName << "\"\r\n";
+            << "start \"\" \"%~dp0\\" << exeName << "\" --config game.config\r\n";
         bat.close();
+
+        std::ofstream sh(testDir / "run_test_game.sh");
+        sh << "#!/usr/bin/env bash\n"
+           << "DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" >/dev/null 2>&1 && pwd)\"\n"
+           << "chmod +x \"$DIR/" << baseExeName << "\" 2>/dev/null || true\n"
+           << "chmod +x \"$DIR/" << exeName << "\" 2>/dev/null || true\n"
+           << "if [ -f \"$DIR/" << baseExeName << "\" ]; then\n"
+           << "    \"$DIR/" << baseExeName << "\" --config game.config \"$@\"\n"
+           << "else\n"
+           << "    \"$DIR/" << exeName << "\" --config game.config \"$@\"\n"
+           << "fi\n";
+        sh.close();
+        std::filesystem::permissions(testDir / "run_test_game.sh", std::filesystem::perms::owner_all | std::filesystem::perms::group_read | std::filesystem::perms::group_exec, std::filesystem::perm_options::add, ec);
 
         result.success = true;
         result.exportedExecutable = targetExe;

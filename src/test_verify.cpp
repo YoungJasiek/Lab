@@ -52,6 +52,9 @@ namespace FrozenLife = FrozenLifeGame;
 #include <cmath>
 #include <filesystem>
 #include <cassert>
+#include <cstring>
+#include <thread>
+#include <chrono>
 
 static void saveFrameToBMP(const char* filename, int width, int height) {
     std::vector<unsigned char> pixels(width * height * 4);
@@ -721,16 +724,19 @@ int main() {
     }
 
     // Spawn 2 bots for visual shootout
-    Lab::AIManager demoAI;
-    demoAI.spawnBotsForMap("facility_alpha.labmap", 2, Lab::GameMode::FFA);
-    demoAI.bots[0].position = Lab::Vec3(0.0f, 0.0f, -8.0f);
-    demoAI.bots[0].state = Lab::AIState::Attack;
-    demoAI.bots[0].muzzleFlashTimer = 0.08f;
+    {
+        Lab::AIManager demoAI;
+        demoAI.spawnBotsForMap("facility_alpha.labmap", 2, Lab::GameMode::FFA);
+        demoAI.bots[0].position = Lab::Vec3(0.0f, 0.0f, -8.0f);
+        demoAI.bots[0].state = Lab::AIState::Attack;
+        demoAI.bots[0].muzzleFlashTimer = 0.08f;
 
-    demoAI.bots[1].position = Lab::Vec3(5.0f, 0.0f, -10.0f);
-    demoAI.bots[1].takeDamage(40.0f, false); // Hurt flash on second bot
+        demoAI.bots[1].position = Lab::Vec3(5.0f, 0.0f, -10.0f);
+        demoAI.bots[1].takeDamage(40.0f, false); // Hurt flash on second bot
 
-    demoAI.render();
+        demoAI.render();
+        demoAI.bots.clear();
+    }
 
     // Golden Bullet Tracer from Player Gun
     Lab::BulletTracer playerTracer;

@@ -27,6 +27,7 @@ FetchContent_Declare(
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_WAYLAND OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(glfw)
 
 # Add Lua 5.4 scripting runtime
@@ -362,16 +363,21 @@ add_executable(LabPlayer src/player_main.cpp)
 target_compile_options(LabPlayer PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabPlayer PRIVATE LabEngineLib)
 
-# Post-build asset replication to output directories
+# Unified asset replication to output directory (avoids parallel race conditions across executables)
+add_custom_target(LabAssets ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets"
+        "${CMAKE_CURRENT_BINARY_DIR}/$<IF:$<BOOL:$<CONFIG>>,$<CONFIG>/,>assets"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/fonts"
+        "${CMAKE_CURRENT_BINARY_DIR}/$<IF:$<BOOL:$<CONFIG>>,$<CONFIG>/,>fonts"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins"
+        "${CMAKE_CURRENT_BINARY_DIR}/$<IF:$<BOOL:$<CONFIG>>,$<CONFIG>/,>plugins"
+    COMMENT "Synchronizing engine assets, fonts and plugins to output directory"
+)
 set(ASSET_TARGETS LabEditor LabHammer FrozenLife LabStudio LabHUDEditor TestVerify LabPlayer)
 foreach(tgt ${ASSET_TARGETS})
-    add_custom_command(TARGET ${tgt} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_CURRENT_SOURCE_DIR}/assets"
-            "$<TARGET_FILE_DIR:${tgt}>/assets"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_CURRENT_SOURCE_DIR}/fonts"
-            "$<TARGET_FILE_DIR:${tgt}>/fonts"
-    )
+    add_dependencies(${tgt} LabAssets)
 endforeach()
 

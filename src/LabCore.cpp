@@ -10,8 +10,15 @@
 #include <ctime>
 #include <cstring>
 #include <filesystem>
+#include <cstdlib>
 
 namespace Lab {
+
+    static void glfwErrorCallback(int error, const char* description) {
+        std::string desc = description ? description : "unknown";
+        std::cerr << "[GLFW Error " << error << "]: " << desc << std::endl;
+        LabLog::error("[GLFW Error " + std::to_string(error) + "]: " + desc);
+    }
 
     // Drag & drop: delegacja do wirtualnej metody Engine::onDrop
     static void labDropCallback(GLFWwindow* window, int count, const char** paths) {
@@ -43,7 +50,11 @@ namespace Lab {
         auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
         char timeBuf[32];
         struct tm tmBuf;
+#if defined(_WIN32)
         localtime_s(&tmBuf, &now);
+#else
+        localtime_r(&now, &tmBuf);
+#endif
         strftime(timeBuf, sizeof(timeBuf), "%H:%M:%S", &tmBuf);
 
         std::string line = "[" + std::string(timeBuf) + "] [" + level + "] " + msg;
@@ -130,14 +141,28 @@ namespace Lab {
     }
 
     void Engine::run() {
+#if !defined(_WIN32)
+        // On Linux / Mesa / WSL2 environments, enable modern OpenGL 4.6 & GLSL 460 if supported by Mesa driver
+        // (Mesa drivers like d3d12 often default to 4.2 unless explicitly requested/overridden).
+        setenv("MESA_GL_VERSION_OVERRIDE", "4.6", 0);
+        setenv("MESA_GLSL_VERSION_OVERRIDE", "460", 0);
+
+        const char* disp = std::getenv("DISPLAY");
+        const char* waylandDisp = std::getenv("WAYLAND_DISPLAY");
+        if ((!disp || std::strlen(disp) == 0) && (!waylandDisp || std::strlen(waylandDisp) == 0)) {
+            std::cerr << "\n[LabCore Warning] Neither DISPLAY nor WAYLAND_DISPLAY environment variable is set.\n"
+                      << "If running in WSL2, ensure WSLg or an X-Server (VcXsrv/X410) is running, or execute:\n"
+                      << "  export DISPLAY=:0\n" << std::endl;
+            LabLog::warn("[LabCore] Missing DISPLAY and WAYLAND_DISPLAY environment variables.");
+        }
+#endif
+
+        glfwSetErrorCallback(glfwErrorCallback);
+
         if (!glfwInit()) {
             std::cerr << "Failed to initialize GLFW" << std::endl;
             return;
         }
-
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
         GLFWmonitor* monitor = nullptr;
         int winW = _width;
@@ -153,9 +178,38 @@ namespace Lab {
             }
         }
 
-        _window = glfwCreateWindow(winW, winH, _title.c_str(), monitor, nullptr);
+        // Try highest profile (4.6) down to 3.3 for graceful driver, VM and Mesa compatibility
+        static const struct { int major; int minor; } glVersions[] = {
+            { 4, 6 },
+            { 4, 5 },
+            { 4, 4 },
+            { 4, 3 },
+            { 4, 2 },
+            { 4, 1 },
+            { 4, 0 },
+            { 3, 3 }
+        };
+
+        for (const auto& ver : glVersions) {
+            glfwDefaultWindowHints();
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, ver.major);
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, ver.minor);
+            glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+#if defined(__APPLE__)
+            glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+#endif
+            _window = glfwCreateWindow(winW, winH, _title.c_str(), monitor, nullptr);
+            if (_window) {
+                if (ver.major != 4 || ver.minor != 6) {
+                    std::cout << "[LabCore] Initialized OpenGL " << ver.major << "." << ver.minor << " Core Profile (Driver Fallback)." << std::endl;
+                    LabLog::info("[LabCore] Initialized OpenGL " + std::to_string(ver.major) + "." + std::to_string(ver.minor) + " Core Profile (Driver Fallback).");
+                }
+                break;
+            }
+        }
+
         if (!_window) {
-            std::cerr << "Failed to create GLFW window" << std::endl;
+            std::cerr << "Failed to create GLFW window with Core Profile (tried OpenGL 4.6 down to 3.3)" << std::endl;
             glfwTerminate();
             return;
         }
@@ -295,23 +349,35 @@ namespace Lab {
     }
 
     void Engine::setCursorCaptured(bool captured) {
+        if (_cursorCaptured == captured) return;
         _cursorCaptured = captured;
         if (!_window) return;
         _firstMouse = true;
         if (captured) {
+            glfwGetCursorPos(_window, &_savedCursorX, &_savedCursorY);
             glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+#if !defined(__linux__)
             if (glfwRawMouseMotionSupported()) {
                 glfwSetInputMode(_window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
             }
+#endif
         } else {
+#if !defined(__linux__)
             if (glfwRawMouseMotionSupported()) {
                 glfwSetInputMode(_window, GLFW_RAW_MOUSE_MOTION, GLFW_FALSE);
             }
+#endif
             glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            if (_savedCursorX > 0.0 || _savedCursorY > 0.0) {
+                glfwSetCursorPos(_window, _savedCursorX, _savedCursorY);
+                Input::mousePos.x = (float)_savedCursorX;
+                Input::mousePos.y = (float)_savedCursorY;
+            }
             if (_standardCursor) {
                 glfwSetCursor(_window, _standardCursor);
             }
         }
+        Input::mouseDelta = { 0, 0 };
     }
 
     void Engine::setFullscreen(bool enable) {
@@ -392,10 +458,24 @@ namespace Lab {
                 _instance->_lastMousePos.x = (float)xpos;
                 _instance->_lastMousePos.y = (float)ypos;
                 _instance->_firstMouse = false;
+                Input::mouseDelta = { 0.0f, 0.0f };
+                Input::mousePos.x = (float)xpos;
+                Input::mousePos.y = (float)ypos;
+                Input::mousePosition.x = (float)xpos;
+                Input::mousePosition.y = (float)ypos;
+                Input::mousePosition.z = 0.0f;
+                return;
             }
 
-            Input::mouseDelta.x += (float)xpos - _instance->_lastMousePos.x;
-            Input::mouseDelta.y += (float)ypos - _instance->_lastMousePos.y;
+            float dx = (float)xpos - _instance->_lastMousePos.x;
+            float dy = (float)ypos - _instance->_lastMousePos.y;
+
+            // Clamp delta spike (e.g. cursor warp/grab jumps) to prevent camera 180-deg flips
+            dx = std::clamp(dx, -100.0f, 100.0f);
+            dy = std::clamp(dy, -100.0f, 100.0f);
+
+            Input::mouseDelta.x += dx;
+            Input::mouseDelta.y += dy;
             _instance->_lastMousePos.x = (float)xpos;
             _instance->_lastMousePos.y = (float)ypos;
 

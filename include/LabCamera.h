@@ -48,8 +48,8 @@ namespace Lab {
 
         Camera(float fov, float aspect, float nearPlane, float farPlane)
             : fieldOfView(fov), nearClipPlane(nearPlane), farClipPlane(farPlane),
-              _fov(fov), _aspect(aspect), _near(nearPlane), _far(farPlane),
-              _position(0.0f, 1.8f, 0.0f), _yaw(-90.0f), _pitch(0.0f) {
+              _position(0.0f, 1.8f, 0.0f), _yaw(-90.0f), _pitch(0.0f),
+              _fov(fov), _aspect(aspect), _near(nearPlane), _far(farPlane) {
             orthographic = false;
             updateVectors();
         }
@@ -57,8 +57,8 @@ namespace Lab {
         Camera(float orthoSize, float aspect, float nearPlane, float farPlane, CameraProjection proj)
             : nearClipPlane(nearPlane), farClipPlane(farPlane),
               orthographicSize(orthoSize),
-              _fov(60.0f), _aspect(aspect), _near(nearPlane), _far(farPlane),
               _position(0.0f, 0.0f, 10.0f), _yaw(-90.0f), _pitch(0.0f),
+              _fov(60.0f), _aspect(aspect), _near(nearPlane), _far(farPlane),
               _orthoSize(orthoSize) {
             orthographic = (proj == CameraProjection::Orthographic);
             updateVectors();
@@ -214,16 +214,39 @@ namespace Lab {
 
         void update(const Vec2& mouseDelta) {
             float sensitivity = 0.15f;
-            _yaw += mouseDelta.x * sensitivity;
+            // Ochrona przed skokami kursora (warp spike przy przechwyceniu myszy w systemie/WSL)
+            float dx = std::clamp(mouseDelta.x, -80.0f, 80.0f);
+            float dy = std::clamp(mouseDelta.y, -80.0f, 80.0f);
+
+            _yaw += dx * sensitivity;
             // Zawijanie yaw w zakresie [0, 360) dla zachowania stabilności numerycznej
             _yaw = std::fmod(_yaw, 360.0f);
             if (_yaw < 0.0f) _yaw += 360.0f;
 
-            _pitch -= mouseDelta.y * sensitivity;
+            _pitch -= dy * sensitivity;
             if (_pitch > 89.0f) _pitch = 89.0f;
             if (_pitch < -89.0f) _pitch = -89.0f;
 
             updateVectors();
+        }
+
+        void orbit(const Vec3& pivot, const Vec2& mouseDelta, float sensitivity = 0.25f) {
+            float dx = std::clamp(mouseDelta.x, -60.0f, 60.0f);
+            float dy = std::clamp(mouseDelta.y, -60.0f, 60.0f);
+
+            _yaw += dx * sensitivity;
+            _yaw = std::fmod(_yaw, 360.0f);
+            if (_yaw < 0.0f) _yaw += 360.0f;
+
+            _pitch -= dy * sensitivity;
+            if (_pitch > 89.0f) _pitch = 89.0f;
+            if (_pitch < -89.0f) _pitch = -89.0f;
+
+            updateVectors();
+
+            // Przemieszczenie kamery na sferze wokol punktu obrotu
+            float dist = std::max(0.5f, (_position - pivot).length());
+            _position = pivot - _front * dist;
         }
 
         void move(const Vec3& direction, float speed) {

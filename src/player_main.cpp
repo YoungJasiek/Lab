@@ -3,6 +3,7 @@
 #include "LabHUDEditor.h"
 #include "LabScript.h"
 #include "LabProject.h"
+#include "LabPackage.h"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
@@ -56,11 +57,49 @@ static void saveFrameToBMP(const char* filename, int width, int height) {
     out.close();
 }
 
+static std::string normalizeToLocalAsset(const std::string& inputPath, const std::string& fallbackSubfolder = "") {
+    if (inputPath.empty()) return "";
+    if (std::filesystem::exists(inputPath)) return inputPath;
+
+    // 1. If path contains "assets/" or "assets\", strip foreign machine-specific absolute prefixes
+    size_t aPos = inputPath.find("assets/");
+    if (aPos == std::string::npos) aPos = inputPath.find("assets\\");
+    if (aPos != std::string::npos) {
+        std::string relFromAssets = inputPath.substr(aPos);
+        std::replace(relFromAssets.begin(), relFromAssets.end(), '\\', '/');
+        if (std::filesystem::exists(relFromAssets)) {
+            return relFromAssets;
+        }
+    }
+
+    // 2. Try VFS resolution
+    std::string vfsResolved = ProjectManager::get().resolveAssetPath(inputPath).string();
+    if (!vfsResolved.empty() && std::filesystem::exists(vfsResolved)) {
+        return vfsResolved;
+    }
+
+    // 3. Try filename in specified fallback subfolder
+    std::string fname = std::filesystem::path(inputPath).filename().string();
+    if (!fallbackSubfolder.empty()) {
+        std::string candidate = fallbackSubfolder + "/" + fname;
+        if (std::filesystem::exists(candidate)) return candidate;
+    }
+
+    // 4. Try direct filename in standard directories
+    if (std::filesystem::exists("assets/maps/" + fname)) return "assets/maps/" + fname;
+    if (std::filesystem::exists("assets/scripts/" + fname)) return "assets/scripts/" + fname;
+    if (std::filesystem::exists("assets/hud_projects/" + fname)) return "assets/hud_projects/" + fname;
+
+    return inputPath;
+}
+
 class LabPlayerApp : public Engine {
 public:
     LabPlayerApp(const std::string& title, int width, int height, const std::string& scenePath,
                  const std::string& hudPath = "", const std::string& rulesPath = "",
-                 const std::string& screenshotPath = "", const std::string& dimension = "3D")
+                 const std::string& screenshotPath = "", const std::string& dimension = "3D",
+                 bool retroFX = false, bool retroScanlines = true, bool retroVignette = true,
+                 bool retroAberration = true, int retroPixelScale = 2, int retroColorTheme = 0)
         : Engine(title, width, height),
           _gameTitle(title),
           _dimension(dimension),
@@ -68,6 +107,12 @@ public:
           _hudPath(hudPath),
           _rulesPath(rulesPath),
           _screenshotPath(screenshotPath),
+          _retroFX(retroFX),
+          _retroScanlines(retroScanlines),
+          _retroVignette(retroVignette),
+          _retroAberration(retroAberration),
+          _retroPixelScale(retroPixelScale),
+          _retroColorTheme(retroColorTheme),
           _camera(75.0f, (float)width / (float)height, 0.01f, 2000.0f),
           _playerPos(0.0f, 1.8f, 0.0f),
           _playerVel(0.0f, 0.0f, 0.0f),
@@ -100,6 +145,11 @@ public:
 
         // Load custom HUD Project (.labhud) if configured
         initCustomHUD();
+
+        // Auto-enable retro effects if plugin is active
+        if (!_retroFX && PackageManager::instance().isPackageEnabled("com.lab.retro-fx")) {
+            _retroFX = true;
+        }
 
         // Camera setup based on dimension (2D pixel/canvas vs 3D perspective)
         if (_dimension == "2D") {
@@ -163,11 +213,9 @@ public:
     }
 
     void initMissionRules() {
-        std::string resolvedRules = ProjectManager::get().resolveAssetPath(_rulesPath).string();
-        if (!resolvedRules.empty() && !std::filesystem::exists(resolvedRules)) {
-            if (std::filesystem::exists("assets/scripts/" + _rulesPath)) {
-                resolvedRules = "assets/scripts/" + _rulesPath;
-            }
+        std::string resolvedRules = normalizeToLocalAsset(_rulesPath, "assets/scripts");
+        if ((resolvedRules.empty() || !std::filesystem::exists(resolvedRules)) && std::filesystem::exists("assets/scripts/game_mechanics.lua")) {
+            resolvedRules = "assets/scripts/game_mechanics.lua";
         }
 
         if (!resolvedRules.empty() && std::filesystem::exists(resolvedRules)) {
@@ -181,16 +229,20 @@ public:
                              std::to_string(_totalCards) + ", Timer: " + std::to_string((int)_missionTimer) + "s)");
             } else {
                 LabLog::warn("Failed to load rules script: " + resolvedRules);
+                if (_map) _scriptEngine.setActiveMap(_map.get());
+            }
+        } else {
+            // Even without a specific rules file, always connect map entities to Lua script engine!
+            if (_map) {
+                _scriptEngine.setActiveMap(_map.get());
             }
         }
     }
 
     void initCustomHUD() {
-        std::string resolvedHud = ProjectManager::get().resolveAssetPath(_hudPath).string();
-        if (!resolvedHud.empty() && !std::filesystem::exists(resolvedHud)) {
-            if (std::filesystem::exists("assets/hud_projects/" + _hudPath)) {
-                resolvedHud = "assets/hud_projects/" + _hudPath;
-            }
+        std::string resolvedHud = normalizeToLocalAsset(_hudPath, "assets/hud_projects");
+        if ((resolvedHud.empty() || !std::filesystem::exists(resolvedHud)) && std::filesystem::exists("assets/hud_projects/default.labhud")) {
+            resolvedHud = "assets/hud_projects/default.labhud";
         }
 
         if (!resolvedHud.empty() && std::filesystem::exists(resolvedHud)) {
@@ -204,14 +256,9 @@ public:
     }
 
     void loadScene() {
-        std::string finalPath = _scenePath;
+        std::string finalPath = normalizeToLocalAsset(_scenePath, "assets/maps");
         if (!std::filesystem::exists(finalPath)) {
-            finalPath = ProjectManager::get().resolveAssetPath(_scenePath).string();
-        }
-        if (!std::filesystem::exists(finalPath)) {
-            if (_scenePath.rfind("assets/maps/", 0) != 0 && std::filesystem::exists("assets/maps/" + _scenePath)) {
-                finalPath = "assets/maps/" + _scenePath;
-            } else if (std::filesystem::exists("assets/maps/default_box.labmap")) {
+            if (std::filesystem::exists("assets/maps/default_box.labmap")) {
                 finalPath = "assets/maps/default_box.labmap";
             }
         }
@@ -333,6 +380,16 @@ public:
         if (Input::isKeyJustPressed(GLFW_KEY_ESCAPE)) {
             _isPaused = !_isPaused;
             setCursorCaptured(!_isPaused);
+        }
+
+        // Animate retro scanlines & toggle key F8
+        if (_retroFX) {
+            _retroScanlinePhase += dt * 3.5f;
+            if (_retroScanlinePhase > 6.283185f) _retroScanlinePhase -= 6.283185f;
+        }
+        if (Input::isKeyJustPressed(GLFW_KEY_F8)) {
+            _retroFX = !_retroFX;
+            LabLog::info(std::string("Retro CRT Post-Process FX toggled: ") + (_retroFX ? "ENABLED" : "DISABLED"));
         }
 
         // Mouse click to capture cursor when window loses focus / uncaptured
@@ -715,8 +772,33 @@ public:
 
             LabFont::drawText(bx + 30.0f, by + 65.0f, "Press [ ESC ] to Resume Exploration", 1.5f, Vec3(0.9f, 0.9f, 0.9f), LabFontType::System);
             LabFont::drawText(bx + 30.0f, by + 105.0f, "Press [ Q ] to Exit Game", 1.5f, Vec3(0.85f, 0.4f, 0.4f), LabFontType::System);
-
             LabFont::drawText(bx + 30.0f, by + 160.0f, "Powered by Lab Engine - Universal Standalone Runtime", 1.15f, Vec3(0.5f, 0.55f, 0.65f), LabFontType::System);
+        }
+
+        // Retro CRT & Post-Process FX (Scanlines, Vignette, CRT Badge)
+        if (_retroFX) {
+            if (_retroScanlines) {
+                float stepY = (float)_retroPixelScale * 2.0f;
+                Vec3 scanCol = (_retroColorTheme == 1) ? Vec3(0.18f, 0.12f, 0.02f) :
+                               (_retroColorTheme == 2) ? Vec3(0.02f, 0.18f, 0.05f) :
+                               (_retroColorTheme == 3) ? Vec3(0.08f, 0.03f, 0.12f) :
+                               Vec3(0.03f, 0.03f, 0.05f);
+                for (float sy = 0; sy < h; sy += stepY) {
+                    Renderer::drawRect(0, sy, w, 1.0f, scanCol);
+                }
+            }
+            if (_retroVignette) {
+                Vec3 vigCol = Vec3(0.02f, 0.03f, 0.05f);
+                float vigSize = 16.0f;
+                Renderer::drawRect(0, 0, w, vigSize, vigCol);
+                Renderer::drawRect(0, h - vigSize, w, vigSize, vigCol);
+                Renderer::drawRect(0, 0, vigSize, h, vigCol);
+                Renderer::drawRect(w - vigSize, 0, vigSize, h, vigCol);
+            }
+            // CRT FX ACTIVE Badge
+            Renderer::drawRect(16.0f, 16.0f, 130.0f, 22.0f, Vec3(0.10f, 0.18f, 0.12f));
+            Renderer::drawRect(16.0f, 16.0f, 130.0f, 2.0f, Vec3(0.3f, 0.8f, 0.4f));
+            LabFont::drawText(22.0f, 20.0f, "CRT FX ACTIVE", 1.25f, Vec3(0.4f, 1.0f, 0.5f), LabFontType::System);
         }
 
         Renderer::endUI();
@@ -841,6 +923,15 @@ private:
     std::string _rulesPath;
     std::string _screenshotPath;
 
+    // Retro CRT & Post-Process FX
+    bool _retroFX = false;
+    bool _retroScanlines = true;
+    bool _retroVignette = true;
+    bool _retroAberration = true;
+    int _retroPixelScale = 2;
+    int _retroColorTheme = 0;
+    float _retroScanlinePhase = 0.0f;
+
     Camera _camera;
     MapCamera* _activeCamera = nullptr;
     std::unique_ptr<LabMap> _map;
@@ -879,6 +970,12 @@ struct GameLaunchConfig {
     int height = 720;
     bool fullscreen = false;
     std::string dimension = "3D";
+    bool retroFX = false;
+    bool retroScanlines = true;
+    bool retroVignette = true;
+    bool retroAberration = true;
+    int retroPixelScale = 2;
+    int retroColorTheme = 0;
 };
 
 static void parseConfigStream(std::istream& stream, GameLaunchConfig& cfg) {
@@ -899,6 +996,12 @@ static void parseConfigStream(std::istream& stream, GameLaunchConfig& cfg) {
             else if (k == "width") cfg.width = std::atoi(v.c_str());
             else if (k == "height") cfg.height = std::atoi(v.c_str());
             else if (k == "fullscreen") cfg.fullscreen = (v == "1" || v == "true");
+            else if (k == "retro" || k == "retro_fx") cfg.retroFX = (v == "1" || v == "true");
+            else if (k == "retro_scanlines") cfg.retroScanlines = (v == "1" || v == "true");
+            else if (k == "retro_vignette") cfg.retroVignette = (v == "1" || v == "true");
+            else if (k == "retro_aberration") cfg.retroAberration = (v == "1" || v == "true");
+            else if (k == "retro_pixel_scale") cfg.retroPixelScale = std::clamp(std::atoi(v.c_str()), 1, 4);
+            else if (k == "retro_theme") cfg.retroColorTheme = std::clamp(std::atoi(v.c_str()), 0, 3);
         }
     }
 }
@@ -984,6 +1087,11 @@ static GameLaunchConfig loadGameConfig(const std::string& specificConfig = "") {
 int main(int argc, char* argv[]) {
     LabLog::info("Starting Lab Universal Player (LabPlayer Standalone)...");
 
+    // Discover and load drop-in modular plugins
+    if (std::filesystem::exists("plugins") || std::filesystem::exists("engine/assets/plugins")) {
+        PackageManager::instance().registerBuiltinPackages();
+    }
+
     std::string customConfigFile = "";
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -1015,6 +1123,8 @@ int main(int argc, char* argv[]) {
             config.rules = argv[++i];
         } else if (arg == "--screenshot" && i + 1 < argc) {
             config.screenshot = argv[++i];
+        } else if (arg == "--retro") {
+            config.retroFX = true;
         }
     }
 
@@ -1067,9 +1177,16 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    LabLog::info("Game: '" + config.title + "' | Dimension: '" + config.dimension + "' | Scene: '" + config.scene + "' | HUD: '" + config.hud + "' | Rules: '" + config.rules + "'");
+    // Auto-enable retro effects if Retro Post-Process Plugin is active
+    if (!config.retroFX && PackageManager::instance().isPackageEnabled("com.lab.retro-fx")) {
+        config.retroFX = true;
+    }
 
-    LabPlayerApp app(config.title, config.width, config.height, config.scene, config.hud, config.rules, config.screenshot, config.dimension);
+    LabLog::info("Game: '" + config.title + "' | Dimension: '" + config.dimension + "' | Scene: '" + config.scene + "' | HUD: '" + config.hud + "' | Rules: '" + config.rules + "' | RetroFX: " + (config.retroFX ? "ON" : "OFF"));
+
+    LabPlayerApp app(config.title, config.width, config.height, config.scene, config.hud, config.rules,
+                     config.screenshot, config.dimension, config.retroFX, config.retroScanlines,
+                     config.retroVignette, config.retroAberration, config.retroPixelScale, config.retroColorTheme);
     if (config.fullscreen) {
         app.setFullscreen(true);
     }

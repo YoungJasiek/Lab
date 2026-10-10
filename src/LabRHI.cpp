@@ -1,4 +1,5 @@
 #include "LabRHI.h"
+#include <cstring>
 
 namespace Lab {
 
