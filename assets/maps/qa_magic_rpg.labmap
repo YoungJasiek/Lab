@@ -1,0 +1,89 @@
+LABMAP_VERSION 1
+
+METADATA
+    name "QA Magic RPG: Akademia Latajacych Miotel"
+    ambient 0.16 0.14 0.22
+    sun_dir -0.3 -0.7 -0.5
+    sun_color 0.75 0.62 0.85
+END_METADATA
+
+ENTITIES
+    spawn 0 1.8 12 180
+    spawn_point info_player_deathmatch 0 1.8 12 180 ffa
+    spawn_point info_player_deathmatch 0 1.8 -16 0 ffa
+    weapon_spawner 1 -3 0 6 0 30
+    weapon_spawner 2 3 0 6 0 30
+    weapon_spawner 0 0 0 -6 180 30
+    camera cam_tpp 0 3 12 0 180 0 75 player 0.6 1.8 -3.5 0.3 1
+        script assets/scripts/qa_rpg_brooms.lua
+    brush cube 0 -0.5 0 44 1 44 0.78 0.75 0.82 floor_tiles.bmp 0.25 0.25 1
+        name "Dziedziniec"
+    brush cube 0 3.5 -22 44 7 1 0.66 0.58 0.63 brick_wall.bmp 0.25 0.25 1
+    brush cube 0 3.5 22 44 7 1 0.66 0.58 0.63 brick_wall.bmp 0.25 0.25 1
+    brush cube -22 3.5 0 1 7 44 0.66 0.58 0.63 brick_wall.bmp 0.25 0.25 1
+    brush cube 22 3.5 0 1 7 44 0.66 0.58 0.63 brick_wall.bmp 0.25 0.25 1
+    brush cube 0 7.15 -22 44 0.3 1.3 0.82 0.78 0.86 metal_hull.bmp 0.25 0.25 1
+    brush cube 0 7.15 22 44 0.3 1.3 0.82 0.78 0.86 metal_hull.bmp 0.25 0.25 1
+    brush cube -22 7.15 0 1.3 0.3 44 0.82 0.78 0.86 metal_hull.bmp 0.25 0.25 1
+    brush cube 22 7.15 0 1.3 0.3 44 0.82 0.78 0.86 metal_hull.bmp 0.25 0.25 1
+    brush cube -20 5 -20 4 10 4 0.58 0.53 0.61 concrete_wall.bmp 0.25 0.25 1
+    brush cube 20 5 -20 4 10 4 0.58 0.53 0.61 concrete_wall.bmp 0.25 0.25 1
+    brush cube -20 5 20 4 10 4 0.58 0.53 0.61 concrete_wall.bmp 0.25 0.25 1
+    brush cube 20 5 20 4 10 4 0.58 0.53 0.61 concrete_wall.bmp 0.25 0.25 1
+    brush cube -20 10.5 -20 5 1 5 0.38 0.32 0.42 metal_hull.bmp 0.25 0.25 1 0 45 0
+    brush cube 20 10.5 -20 5 1 5 0.38 0.32 0.42 metal_hull.bmp 0.25 0.25 1 0 45 0
+    brush cube -20 10.5 20 5 1 5 0.38 0.32 0.42 metal_hull.bmp 0.25 0.25 1 0 45 0
+    brush cube 20 10.5 20 5 1 5 0.38 0.32 0.42 metal_hull.bmp 0.25 0.25 1 0 45 0
+    brush cube -2.6 2.5 -21.4 1.2 5 1.2 0.6 0.55 0.62 concrete_wall.bmp 0.25 0.25 1
+    brush cube 2.6 2.5 -21.4 1.2 5 1.2 0.6 0.55 0.62 concrete_wall.bmp 0.25 0.25 1
+    brush cube 0 5.4 -21.4 6.4 0.8 1.2 0.7 0.65 0.72 metal_hull.bmp 0.25 0.25 1
+    brush cube -8 4 -21.4 1 3 0.15 0.55 0.1 0.15 brick_wall.bmp 0.25 0.25 1
+    brush cube -4 4 -21.4 1 3 0.15 0.85 0.65 0.2 brick_wall.bmp 0.25 0.25 1
+    brush cube 4 4 -21.4 1 3 0.15 0.85 0.65 0.2 brick_wall.bmp 0.25 0.25 1
+    brush cube 8 4 -21.4 1 3 0.15 0.55 0.1 0.15 brick_wall.bmp 0.25 0.25 1
+    brush cube -6 0.3 -1 3 0.6 3 0.6 0.58 0.65 concrete_wall.bmp 0.25 0.25 1
+        name "Fontanna"
+    brush cube -6 0.65 -1 2.4 0.15 2.4 0.45 0.7 0.95 cryo_glass.bmp 0.25 0.25 1
+    brush cube -6 0.15 -1 3.4 0.3 3.4 0.7 0.68 0.75 metal_hull.bmp 0.25 0.25 1
+    brush cube -4 0.25 4 2.2 0.5 0.8 0.5 0.33 0.17 brick_wall.bmp 0.25 0.25 1
+    brush cube 4 0.25 4 2.2 0.5 0.8 0.5 0.33 0.17 brick_wall.bmp 0.25 0.25 1
+    brush cube -7 3.6 -3 0.22 0.22 2.6 0.52 0.33 0.15 brick_wall.bmp 0.25 0.25 1
+        name "Miotla_A_Wierzba_trzonek"
+        script assets/scripts/qa_rpg_brooms.lua
+    brush cube -7 3.55 -4.6 0.55 0.4 1 0.9 0.74 0.36 floor_tiles.bmp 0.25 0.25 1
+        name "Miotla_A_Wierzba_wiechec"
+        script assets/scripts/qa_rpg_brooms.lua
+    brush cube 7 5.2 -8 2.6 0.22 0.22 0.52 0.33 0.15 brick_wall.bmp 0.25 0.25 1
+        name "Miotla_B_Burza_trzonek"
+        script assets/scripts/qa_rpg_brooms.lua
+    brush cube 8.7 5.15 -8 1 0.4 0.55 0.9 0.74 0.36 floor_tiles.bmp 0.25 0.25 1
+        name "Miotla_B_Burza_wiechec"
+        script assets/scripts/qa_rpg_brooms.lua
+    brush cube 0 7.5 3 0.22 0.22 2.6 0.52 0.33 0.15 brick_wall.bmp 0.25 0.25 1
+        name "Miotla_C_Sowa_trzonek"
+        script assets/scripts/qa_rpg_brooms.lua
+    brush cube 0 7.45 1.4 0.55 0.4 1 0.9 0.74 0.36 floor_tiles.bmp 0.25 0.25 1
+        name "Miotla_C_Sowa_wiechec"
+        script assets/scripts/qa_rpg_brooms.lua
+    brush cube 3 0.75 10 0.25 1.5 0.25 0.48 0.32 0.17 brick_wall.bmp 0.25 0.25 1
+    brush cube 5 0.75 10 0.25 1.5 0.25 0.48 0.32 0.17 brick_wall.bmp 0.25 0.25 1
+    brush cube 4 1.55 10 0.2 0.2 2.2 0.52 0.33 0.15 brick_wall.bmp 0.25 0.25 1
+        name "Miotla_D_Treningowa"
+        script assets/scripts/qa_rpg_brooms.lua
+    brush cube 4 1.5 11.4 0.5 0.35 0.8 0.9 0.74 0.36 floor_tiles.bmp 0.25 0.25 1
+    door brama_polnoc 0 2 -21.4 4 4 0.6 0 4 0 0.32 0.26 0.2 2 5
+        script assets/scripts/qa_rpg_quests.lua
+    light Lamp_Torch_SW -10 3.5 8 1 0.62 0.28 3 18 point
+    light Lamp_Torch_SE 10 3.5 8 1 0.62 0.28 3 18 point
+    light Lamp_Torch_NW -10 3.5 -12 1 0.62 0.28 3 18 point
+    light Lamp_Torch_NE 10 3.5 -12 1 0.62 0.28 3 18 point
+    sprite_2d ceiling_light.bmp -7 2.9 -3.6 1.2 1.2 0 0 1 1 0.8 0.3 1 0 0 1 1
+    sprite_2d ceiling_light.bmp 7 4.5 -8 1.2 1.2 0 0 1 1 0.8 0.3 1 0 0 1 1
+    sprite_2d ceiling_light.bmp 0 6.8 2.2 1.2 1.2 0 0 1 1 0.8 0.3 1 0 0 1 1
+    sprite_2d ceiling_light.bmp -10 3.5 8 0.9 0.9 0 0 1 1 0.65 0.25 1 0 0 1 1
+    sprite_2d ceiling_light.bmp 10 3.5 8 0.9 0.9 0 0 1 1 0.65 0.25 1 0 0 1 1
+    sprite_2d ceiling_light.bmp -10 3.5 -12 0.9 0.9 0 0 1 1 0.65 0.25 1 0 0 1 1
+    sprite_2d ceiling_light.bmp 10 3.5 -12 0.9 0.9 0 0 1 1 0.65 0.25 1 0 0 1 1
+    sprite_2d caution_sign.bmp 0 6.6 -21.4 1 1 0 0 1 1 0.85 0.15 1 0 0 1 1
+    sprite_2d caution_sign.bmp 7 6.4 -8 0.8 0.8 0 0 1 1 0.85 0.15 1 0 0 1 1
+END_ENTITIES

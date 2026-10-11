@@ -1,0 +1,163 @@
+LABHUD_VERSION 1
+
+# QA Magic RPG: Akademia Latajacych Miotel — HUD (RPG preset)
+# Tylko sprawdzona skladnia Card/Label/Crosshair.
+# Wiazania silnikowe: mission.name/cards/timer/status, player.health,
+# weapon.name/clip. rpg.* = klucze Lua (pusto bez setHUDText) albo
+# statyczny fallback przy pustym bindingu.
+
+METADATA
+    name "Magic RPG HUD"
+    author "QA (10y exp)"
+    resolution 1920 1080
+END_METADATA
+
+ASSETS
+END_ASSETS
+
+ELEMENTS
+    element top_bar Card 1500 30 380 36 0.16 0.17 0.19 0.90 TopLeft 0
+        text ""
+        font 1.8 0
+        border 0.23 0.24 0.27 1.0 1.0
+        texture ""
+        binding ""
+        children 2
+
+        element mission_label Label 16 11 200 18 0.98 0.78 0.08 1.0 TopLeft 0
+            text "AKADEMIA MIOTEL"
+            font 1.8 0
+            border 0.23 0.24 0.27 1.0 0.0
+            texture ""
+            binding "mission.name"
+            children 0
+
+        element timer_label Label 338 9 40 20 0.98 0.78 0.08 1.0 TopLeft 0
+            text "600"
+            font 2.2 0
+            border 0.23 0.24 0.27 1.0 0.0
+            texture ""
+            binding "match.timer"
+            children 0
+
+    element quest_card Card 40 30 280 68 0.16 0.17 0.19 0.90 TopLeft 0
+        text ""
+        font 2.0 0
+        border 0.23 0.24 0.27 1.0 1.0
+        texture ""
+        binding ""
+        children 2
+
+        element quest_label Label 38 26 80 20 0.98 0.78 0.08 1.0 TopLeft 0
+            text "ZWOJE"
+            font 2.2 0
+            border 0.23 0.24 0.27 1.0 0.0
+            texture ""
+            binding ""
+            children 0
+
+        element quest_value Label 170 16 100 30 0.98 0.78 0.08 1.0 TopLeft 0
+            text "0/5"
+            font 4.4 0
+            border 0.23 0.24 0.27 1.0 0.0
+            texture ""
+            binding "mission.cards"
+            children 0
+
+    element health_card Card 40 -108 255 68 0.16 0.17 0.19 0.90 BottomLeft 0
+        text ""
+        font 2.0 0
+        border 0.23 0.24 0.27 1.0 1.0
+        texture ""
+        binding ""
+        children 2
+
+        element health_label Label 42 26 80 20 0.98 0.78 0.08 1.0 TopLeft 0
+            text "HP"
+            font 2.2 0
+            border 0.23 0.24 0.27 1.0 0.0
+            texture ""
+            binding ""
+            children 0
+
+        element health_value Label 167 16 80 30 0.98 0.78 0.08 1.0 TopLeft 0
+            text "100"
+            font 4.4 0
+            border 0.23 0.24 0.27 1.0 0.0
+            texture ""
+            binding "player.health"
+            children 0
+
+    element mana_card Card 313 -108 255 68 0.16 0.17 0.19 0.90 BottomLeft 0
+        text ""
+        font 2.0 0
+        border 0.23 0.24 0.27 1.0 1.0
+        texture ""
+        binding ""
+        children 2
+
+        element mana_label Label 42 26 80 20 0.30 0.85 1.00 1.0 TopLeft 0
+            text "MANA"
+            font 2.2 0
+            border 0.23 0.24 0.27 1.0 0.0
+            texture ""
+            binding ""
+            children 0
+
+        element mana_value Label 167 16 80 30 0.30 0.85 1.00 1.0 TopLeft 0
+            text "100"
+            font 4.4 0
+            border 0.23 0.24 0.27 1.0 0.0
+            texture ""
+            binding ""
+            children 0
+
+    element wand_card Card -320 -108 300 68 0.16 0.17 0.19 0.90 BottomRight 0
+        text ""
+        font 2.0 0
+        border 0.23 0.24 0.27 1.0 1.0
+        texture ""
+        binding ""
+        children 2
+
+        element wand_name Label 20 16 170 18 0.98 0.78 0.08 1.0 TopLeft 0
+            text "ROZDZKA"
+            font 1.5 0
+            border 0.23 0.24 0.27 1.0 0.0
+            texture ""
+            binding "weapon.name"
+            children 0
+
+        element wand_ammo Label 195 16 80 30 0.98 0.78 0.08 1.0 TopLeft 0
+            text "12/60"
+            font 3.2 0
+            border 0.23 0.24 0.27 1.0 0.0
+            texture ""
+            binding "weapon.clip"
+            children 0
+
+    element dialog_card Card 560 -170 800 44 0.05 0.06 0.09 0.85 BottomLeft 0
+        text ""
+        font 1.2 0
+        border 0.23 0.24 0.27 1.0 1.0
+        texture ""
+        binding ""
+        children 1
+
+        element dialog_label Label 12 10 980 24 0.95 0.95 0.95 1.0 TopLeft 0
+            text "Wozny Grobik: Miotly same nie lataja, uczniu."
+            font 1.4 0
+            border 0.23 0.24 0.27 1.0 0.0
+            texture ""
+            binding ""
+            children 0
+
+    element crosshair Crosshair -10 -10 20 20 0.98 0.78 0.08 1.0 Center 10
+        text ""
+        font 2.0 0
+        border 0.98 0.78 0.08 1.0 0.0
+        texture ""
+        binding ""
+        children 0
+
+END_ELEMENTS

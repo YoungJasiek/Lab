@@ -1,0 +1,16 @@
+{
+  "name": "QA Magic RPG: Akademia Latajacych Miotel",
+  "dimension": "3D",
+  "version": "1.0.0",
+  "engine": "Lab Engine Studio 2026.10",
+  "author": "Lab Engine Core Team",
+  "description": "Built-in Showcase Game",
+  "display": {
+    "width": 1920,
+    "height": 1080,
+    "fullscreen": true,
+    "vsync": true
+  },
+  "entryScene": "assets/maps/qa_magic_rpg.labmap",
+  "defaultHud": "magic_rpg.labhud"
+}
