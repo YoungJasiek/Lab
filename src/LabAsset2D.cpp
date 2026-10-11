@@ -5,6 +5,7 @@
 #include <sstream>
 #include <iostream>
 #include <algorithm>
+#include <charconv>
 
 namespace Lab {
 
@@ -131,6 +132,24 @@ namespace Lab {
         SpriteFrame currentFrame;
         bool inFrame = false;
 
+        auto parseJsonVec2 = [](const std::string& str, Vec2& outVec) -> bool {
+            size_t openBracket = str.find('[');
+            if (openBracket == std::string::npos) return false;
+            const char* p = str.data() + openBracket + 1;
+            const char* end = str.data() + str.size();
+            while (p < end && (*p == ' ' || *p == '\t')) ++p;
+            float x = 0.0f;
+            auto [p1, ec1] = std::from_chars(p, end, x);
+            if (ec1 != std::errc{}) return false;
+            p = p1;
+            while (p < end && (*p == ' ' || *p == '\t' || *p == ',')) ++p;
+            float y = 0.0f;
+            auto [p2, ec2] = std::from_chars(p, end, y);
+            if (ec2 != std::errc{}) return false;
+            outVec = { x, y };
+            return true;
+        };
+
         while (std::getline(in, line)) {
             if (line.find("\"texturePath\":") != std::string::npos) {
                 size_t q1 = line.find('\"', line.find(':'));
@@ -157,21 +176,21 @@ namespace Lab {
                         currentFrame.name = line.substr(q1 + 1, q2 - q1 - 1);
                     }
                 } else if (line.find("\"uvMin\":") != std::string::npos) {
-                    float u = 0.0f, v = 0.0f;
-                    sscanf(line.c_str(), "%*[^[][%f,%f]", &u, &v);
-                    currentFrame.uvMin = { u, v };
+                    Vec2 uv{ 0.0f, 0.0f };
+                    parseJsonVec2(line, uv);
+                    currentFrame.uvMin = uv;
                 } else if (line.find("\"uvMax\":") != std::string::npos) {
-                    float u = 1.0f, v = 1.0f;
-                    sscanf(line.c_str(), "%*[^[][%f,%f]", &u, &v);
-                    currentFrame.uvMax = { u, v };
+                    Vec2 uv{ 1.0f, 1.0f };
+                    parseJsonVec2(line, uv);
+                    currentFrame.uvMax = uv;
                 } else if (line.find("\"size\":") != std::string::npos) {
-                    float w = 32.0f, h = 32.0f;
-                    sscanf(line.c_str(), "%*[^[][%f,%f]", &w, &h);
-                    currentFrame.size = { w, h };
+                    Vec2 sz{ 32.0f, 32.0f };
+                    parseJsonVec2(line, sz);
+                    currentFrame.size = sz;
                 } else if (line.find("\"pivot\":") != std::string::npos) {
-                    float px = 0.5f, py = 0.5f;
-                    sscanf(line.c_str(), "%*[^[][%f,%f]", &px, &py);
-                    currentFrame.pivot = { px, py };
+                    Vec2 pv{ 0.5f, 0.5f };
+                    parseJsonVec2(line, pv);
+                    currentFrame.pivot = pv;
                 } else if (line.find("\"duration\":") != std::string::npos) {
                     currentFrame.duration = static_cast<float>(std::atof(line.substr(line.find(':') + 1).c_str()));
                 }
