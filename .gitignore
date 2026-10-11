@@ -10,6 +10,8 @@ skills/
 scripts/
 !assets/scripts/
 !assets/scripts/**
+!.github/scripts/
+!.github/scripts/**
 !assets/textures/*.png
 !assets/textures/logos/
 !assets/textures/logos/**
