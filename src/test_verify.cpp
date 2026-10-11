@@ -2095,7 +2095,7 @@ int main() {
     }
 
     // =========================================================================
-    // [Test 25] Verifying Real-Time Lighting, Half-Life 2 Flashlight & Dynamic Shadows (Shadow Mapping + PCF)
+    // Test 25: Verifying Real-Time Lighting, Half-Life 2 Flashlight & Dynamic Shadows (Shadow Mapping + PCF)
     // =========================================================================
     {
         std::cout << "\n[Test 25] Verifying Real-Time Lighting, Tactical Flashlight & Shadow Mapping...\n";
@@ -5167,7 +5167,7 @@ int main() {
     }
 
     // =========================================================================
-    // [Test 48] Verifying Dynamic Multi-Light Forward Shading & .labmap Light Persistence
+    // Test 48: Verifying Dynamic Multi-Light Forward Shading & .labmap Light Persistence
     // =========================================================================
     {
         std::cout << "\n[Test 48] Verifying Dynamic Multi-Light Forward Shading & .labmap Light Persistence...\n";

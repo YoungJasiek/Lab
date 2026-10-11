@@ -46,7 +46,7 @@ def count_registered_tests(test_file: Path) -> int:
     matches = [int(m.group(1)) for m in TEST_NUMBERED_RE.finditer(text)]
     if not matches:
         return 0
-    return max(len(set(matches)), len(matches), max(matches))
+    return max(len(set(matches)), max(matches))
 
 
 def parse_executed_tests_from_log(log_file: Path) -> tuple[int, int, int] | None:

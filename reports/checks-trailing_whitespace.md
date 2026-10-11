@@ -1,10 +1,8 @@
 # Check: `trailing_whitespace`
 
 - Przeskanowane pliki: **144**
-- Tryb: **--fix**
+- Tryb: **report-only**
 - Pliki z problemami (nienaprawione): **0**
-- Naprawione pliki: **1**
+- Naprawione pliki: **0**
 
-## Naprawione pliki
-
-- `src/LabHUDEditor.cpp` (oczyszczone linie: 6, dodano EOF newline: False)
+Brak białych znaków na końcach linii oraz wszystkie pliki kończą się znakiem nowej linii.
