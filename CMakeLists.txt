@@ -12,9 +12,13 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # Strict compiler flags with standard MSVC DLL warning suppressions
 if(MSVC)
     set(COMPILER_FLAGS /W4 /EHsc /wd4251 /wd4275)
+    set(WARNING_AS_ERROR_FLAG /WX)
 else()
     set(COMPILER_FLAGS -Wall -Wextra -Wpedantic)
+    set(WARNING_AS_ERROR_FLAG -Werror -Wold-style-cast -Wsign-conversion)
 endif()
+
+set_source_files_properties(src/LabSpriteBatcher.cpp PROPERTIES COMPILE_OPTIONS "${WARNING_AS_ERROR_FLAG}")
 
 include(FetchContent)
 
