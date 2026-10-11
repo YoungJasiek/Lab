@@ -3426,8 +3426,68 @@ int main() {
         client.disconnect();
         server.tick(0.05f);
         server.stop();
+
+        // 8. Verify UDPSocket open/bind/loopback/close & SOCKET vs intptr_t comparison equivalence
+        {
+            using WinSocketT = uintptr_t;
+            constexpr WinSocketT kWinInvalidSocket = static_cast<WinSocketT>(~static_cast<WinSocketT>(0));
+            const WinSocketT rawError = kWinInvalidSocket;
+            const WinSocketT rawSuccess = 128u;
+
+            // Old logic (intptr_t s = socket(...); s == INVALID_SOCKET) vs New logic (SOCKET s = socket(...); s == INVALID_SOCKET)
+            const bool oldErrorCmp = (static_cast<WinSocketT>(static_cast<intptr_t>(rawError)) == kWinInvalidSocket);
+            const bool newErrorCmp = (static_cast<WinSocketT>(rawError) == kWinInvalidSocket);
+            const bool oldSuccessCmp = (static_cast<WinSocketT>(static_cast<intptr_t>(rawSuccess)) == kWinInvalidSocket);
+            const bool newSuccessCmp = (static_cast<WinSocketT>(rawSuccess) == kWinInvalidSocket);
+            if (!oldErrorCmp || !newErrorCmp || oldErrorCmp != newErrorCmp ||
+                oldSuccessCmp || newSuccessCmp || oldSuccessCmp != newSuccessCmp) {
+                std::cerr << "Assertion failed: SOCKET vs intptr_t INVALID_SOCKET comparison mismatch!\n";
+                return 1;
+            }
+
+            Lab::UDPSocket sockA;
+            Lab::UDPSocket sockB;
+            if (sockA.isOpen() || !sockA.open(0) || !sockA.isOpen() || sockA.getBoundPort() == 0) {
+                std::cerr << "Assertion failed: UDPSocket sockA failed to open on ephemeral port 0!\n";
+                return 1;
+            }
+            if (!sockB.open(0) || !sockB.isOpen() || sockB.getBoundPort() == 0) {
+                std::cerr << "Assertion failed: UDPSocket sockB failed to open on ephemeral port 0!\n";
+                return 1;
+            }
+
+            const char payload[] = "LAB_UDP_SOCKET_TEST";
+            Lab::SocketAddress destB("127.0.0.1", sockB.getBoundPort());
+            int sent = sockA.sendTo(payload, sizeof(payload), destB);
+            if (sent != static_cast<int>(sizeof(payload))) {
+                std::cerr << "Assertion failed: UDPSocket::sendTo returned " << sent << "\n";
+                return 1;
+            }
+
+            char recvBuf[64] = { 0 };
+            Lab::SocketAddress senderAddr;
+            int received = -1;
+            for (int attempt = 0; attempt < 20 && received <= 0; ++attempt) {
+                received = sockB.recvFrom(recvBuf, sizeof(recvBuf), senderAddr);
+                if (received <= 0) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(2));
+                }
+            }
+            if (received != static_cast<int>(sizeof(payload)) || std::strcmp(recvBuf, payload) != 0) {
+                std::cerr << "Assertion failed: UDPSocket::recvFrom mismatch (received=" << received << ")\n";
+                return 1;
+            }
+
+            sockA.close();
+            sockB.close();
+            if (sockA.isOpen() || sockB.isOpen()) {
+                std::cerr << "Assertion failed: UDPSocket remained open after close()!\n";
+                return 1;
+            }
+        }
+
         Lab::NetworkSystem::shutdown();
-        std::cout << "  [PASS] Dedicated server and network client clean shutdown verified!\n";
+        std::cout << "  [PASS] Dedicated server, UDPSocket lifecycle, and network client clean shutdown verified!\n";
     }
 
     // 34. Verify Lab Character & Weapon Studio Subsystem (Grip Poser, Reload Curve, Skins, Face Mimics & Lip-Sync)
