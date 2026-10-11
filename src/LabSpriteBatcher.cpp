@@ -66,20 +66,20 @@ namespace Lab {
 
             glGenBuffers(1, &_vbo);
             glBindBuffer(GL_ARRAY_BUFFER, _vbo);
-            glBufferData(GL_ARRAY_BUFFER, MAX_VERTICES * sizeof(SpriteVertex), nullptr, GL_DYNAMIC_DRAW);
+            glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(MAX_VERTICES * sizeof(SpriteVertex)), nullptr, GL_DYNAMIC_DRAW);
 
             // Setup interleaved vertex attributes
             glEnableVertexAttribArray(0);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(SpriteVertex), (void*)offsetof(SpriteVertex, position));
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(SpriteVertex), reinterpret_cast<const void*>(offsetof(SpriteVertex, position)));
 
             glEnableVertexAttribArray(1);
-            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(SpriteVertex), (void*)offsetof(SpriteVertex, texCoords));
+            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(SpriteVertex), reinterpret_cast<const void*>(offsetof(SpriteVertex, texCoords)));
 
             glEnableVertexAttribArray(2);
-            glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(SpriteVertex), (void*)offsetof(SpriteVertex, color));
+            glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(SpriteVertex), reinterpret_cast<const void*>(offsetof(SpriteVertex, color)));
 
             glEnableVertexAttribArray(3);
-            glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(SpriteVertex), (void*)offsetof(SpriteVertex, textureSlot));
+            glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(SpriteVertex), reinterpret_cast<const void*>(offsetof(SpriteVertex, textureSlot)));
 
             // Pre-generate element indices: 6 indices per quad (0, 1, 2, 2, 3, 0)
             std::vector<unsigned int> indices(MAX_INDICES);
@@ -96,7 +96,7 @@ namespace Lab {
 
             glGenBuffers(1, &_ebo);
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _ebo);
-            glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
+            glBufferData(GL_ELEMENT_ARRAY_BUFFER, static_cast<GLsizeiptr>(indices.size() * sizeof(unsigned int)), indices.data(), GL_STATIC_DRAW);
 
             glBindVertexArray(0);
 
@@ -200,7 +200,7 @@ namespace Lab {
             auto transformPoint = [&](float lx, float ly) -> Vec3 {
                 float rx = lx * cosA - ly * sinA;
                 float ry = lx * sinA + ly * cosA;
-                return Vec3(item.position.x + rx, item.position.y + ry, (float)item.layer * 0.001f);
+                return Vec3(item.position.x + rx, item.position.y + ry, static_cast<float>(item.layer) * 0.001f);
             };
 
             float slot = hasTextureBatch ? 0.0f : -1.0f;
@@ -242,9 +242,9 @@ namespace Lab {
             // Upload vertex data to GPU
             glBindVertexArray(_vao);
             glBindBuffer(GL_ARRAY_BUFFER, _vbo);
-            glBufferSubData(GL_ARRAY_BUFFER, 0, _vertices.size() * sizeof(SpriteVertex), _vertices.data());
+            glBufferSubData(GL_ARRAY_BUFFER, 0, static_cast<GLsizeiptr>(_vertices.size() * sizeof(SpriteVertex)), _vertices.data());
 
-            glDrawElements(GL_TRIANGLES, (GLsizei)indexCount, GL_UNSIGNED_INT, 0);
+            glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indexCount), GL_UNSIGNED_INT, nullptr);
             glBindVertexArray(0);
         }
 
