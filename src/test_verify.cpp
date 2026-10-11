@@ -8956,6 +8956,93 @@ int main() {
         Lab::LabTheme::setLanguage(Lab::EngineLanguage::English); // Restore English
         std::cout << "  [PASS] Sub-test D: Engine Languages (Języki Silnika: English/Polish dictionary) verified.\n";
 
+        // Sub-test E: SpriteSheet2D & LabTheme JSON Parser Round-Trip Verification
+        {
+            // 1. SpriteSheet2D saveToFile / loadFromFile round-trip
+            const std::string tempSheetPath = "build/temp_verify_spritesheet_roundtrip.json";
+            Lab::SpriteSheet2D srcSheet("assets/textures/test_atlas.png", 256, 128);
+            srcSheet.addFrame("hero_idle", 16.0f, 32.0f, 64.0f, 48.0f, { 0.25f, 0.75f });
+            srcSheet.addFrame("hero_run", 80.0f, 32.0f, 64.0f, 48.0f, { 0.5f, 1.0f });
+            if (!srcSheet.saveToFile(tempSheetPath)) {
+                std::cerr << "Assertion failed: SpriteSheet2D::saveToFile failed!\n";
+                return 1;
+            }
+
+            Lab::SpriteSheet2D dstSheet;
+            if (!dstSheet.loadFromFile(tempSheetPath)) {
+                std::cerr << "Assertion failed: SpriteSheet2D::loadFromFile failed!\n";
+                return 1;
+            }
+            std::error_code ec;
+            std::filesystem::remove(tempSheetPath, ec);
+
+            if (dstSheet.getTexturePath() != "assets/textures/test_atlas.png" ||
+                dstSheet.getTextureWidth() != 256 || dstSheet.getTextureHeight() != 128 ||
+                dstSheet.getFrameCount() != 2) {
+                std::cerr << "Assertion failed: SpriteSheet2D header/frame count mismatch after round-trip!\n";
+                return 1;
+            }
+            const Lab::SpriteFrame* f0 = dstSheet.getFrame("hero_idle");
+            const Lab::SpriteFrame* f1 = dstSheet.getFrame("hero_run");
+            if (!f0 || !f1 ||
+                std::abs(f0->uvMin.x - 0.0625f) > 0.001f || std::abs(f0->uvMin.y - 0.25f) > 0.001f ||
+                std::abs(f0->uvMax.x - 0.3125f) > 0.001f || std::abs(f0->uvMax.y - 0.625f) > 0.001f ||
+                std::abs(f0->size.x - 64.0f) > 0.01f || std::abs(f0->size.y - 48.0f) > 0.01f ||
+                std::abs(f0->pivot.x - 0.25f) > 0.001f || std::abs(f0->pivot.y - 0.75f) > 0.001f ||
+                std::abs(f1->pivot.x - 0.5f) > 0.001f || std::abs(f1->pivot.y - 1.0f) > 0.001f) {
+                std::cerr << "Assertion failed: SpriteSheet2D frame uvMin/uvMax/size/pivot mismatch after round-trip!\n";
+                return 1;
+            }
+
+            // 2. LabTheme saveThemeToJson / loadThemeFromJson round-trip (array [r, g, b] format)
+            const std::string tempThemePath = "build/temp_verify_theme_roundtrip.json";
+            Lab::LabTheme::resetDefaultColors();
+            Lab::LabTheme::getColors().windowBg = Lab::Vec3(0.123f, 0.456f, 0.789f);
+            Lab::LabTheme::getColors().accent = Lab::Vec3(0.910f, 0.520f, 0.130f);
+            if (!Lab::LabTheme::saveThemeToJson(tempThemePath)) {
+                std::cerr << "Assertion failed: LabTheme::saveThemeToJson failed!\n";
+                return 1;
+            }
+            Lab::LabTheme::resetDefaultColors();
+            if (!Lab::LabTheme::loadThemeFromJson(tempThemePath)) {
+                std::cerr << "Assertion failed: LabTheme::loadThemeFromJson failed!\n";
+                return 1;
+            }
+            std::filesystem::remove(tempThemePath, ec);
+            if (std::abs(Lab::LabTheme::colors().windowBg.x - 0.123f) > 0.002f ||
+                std::abs(Lab::LabTheme::colors().windowBg.y - 0.456f) > 0.002f ||
+                std::abs(Lab::LabTheme::colors().windowBg.z - 0.789f) > 0.002f ||
+                std::abs(Lab::LabTheme::colors().accent.x - 0.910f) > 0.002f ||
+                std::abs(Lab::LabTheme::colors().accent.y - 0.520f) > 0.002f ||
+                std::abs(Lab::LabTheme::colors().accent.z - 0.130f) > 0.002f) {
+                std::cerr << "Assertion failed: LabTheme array round-trip values mismatch!\n";
+                return 1;
+            }
+
+            // 3. LabTheme loadThemeFromJson hex "#RRGGBB" format
+            {
+                std::ofstream hexOut(tempThemePath);
+                hexOut << "{\n  \"colors\": {\n    \"windowBg\": \"#1A2B3C\",\n    \"accent\": \"F5821F\"\n  }\n}\n";
+            }
+            Lab::LabTheme::resetDefaultColors();
+            if (!Lab::LabTheme::loadThemeFromJson(tempThemePath)) {
+                std::cerr << "Assertion failed: LabTheme::loadThemeFromJson failed on hex input!\n";
+                return 1;
+            }
+            std::filesystem::remove(tempThemePath, ec);
+            if (std::abs(Lab::LabTheme::colors().windowBg.x - (0x1A / 255.0f)) > 0.002f ||
+                std::abs(Lab::LabTheme::colors().windowBg.y - (0x2B / 255.0f)) > 0.002f ||
+                std::abs(Lab::LabTheme::colors().windowBg.z - (0x3C / 255.0f)) > 0.002f ||
+                std::abs(Lab::LabTheme::colors().accent.x - (0xF5 / 255.0f)) > 0.002f ||
+                std::abs(Lab::LabTheme::colors().accent.y - (0x82 / 255.0f)) > 0.002f ||
+                std::abs(Lab::LabTheme::colors().accent.z - (0x1F / 255.0f)) > 0.002f) {
+                std::cerr << "Assertion failed: LabTheme hex color parsing mismatch!\n";
+                return 1;
+            }
+            Lab::LabTheme::resetDefaultColors();
+            std::cout << "  [PASS] Sub-test E: SpriteSheet2D and LabTheme JSON round-trip & hex parsing verified.\n";
+        }
+
         std::cout << "  [PASS] Test 82 Unified UI Theme, Shared Widgets & Engine Languages passed 100%!\n";
     }
 
@@ -9603,96 +9690,6 @@ int main() {
 
         std::cout << "  [PASS] Sub-test G: Exposed Cloth, WaterVolume, ForceField, Vehicle, Decal, PostProcess & Audio components verified.\n";
         std::cout << "  [PASS] Test 86 Entity-Component Camera & Decoupled Engine Architecture passed 100%!\n";
-    }
-
-    // =========================================================================
-    // [Test 87] SpriteSheet2D & LabTheme JSON Parser Round-Trip Verification
-    // =========================================================================
-    std::cout << "\n[Test 87] Verifying SpriteSheet2D and LabTheme JSON round-trip serialization & hex parsing...\n";
-    {
-        // 1. SpriteSheet2D saveToFile / loadFromFile round-trip
-        const std::string tempSheetPath = "build/temp_verify_spritesheet_roundtrip.json";
-        Lab::SpriteSheet2D srcSheet("assets/textures/test_atlas.png", 256, 128);
-        srcSheet.addFrame("hero_idle", 16.0f, 32.0f, 64.0f, 48.0f, { 0.25f, 0.75f });
-        srcSheet.addFrame("hero_run", 80.0f, 32.0f, 64.0f, 48.0f, { 0.5f, 1.0f });
-        if (!srcSheet.saveToFile(tempSheetPath)) {
-            std::cerr << "Assertion failed: SpriteSheet2D::saveToFile failed!\n";
-            return 1;
-        }
-
-        Lab::SpriteSheet2D dstSheet;
-        if (!dstSheet.loadFromFile(tempSheetPath)) {
-            std::cerr << "Assertion failed: SpriteSheet2D::loadFromFile failed!\n";
-            return 1;
-        }
-        std::error_code ec;
-        std::filesystem::remove(tempSheetPath, ec);
-
-        if (dstSheet.getTexturePath() != "assets/textures/test_atlas.png" ||
-            dstSheet.getTextureWidth() != 256 || dstSheet.getTextureHeight() != 128 ||
-            dstSheet.getFrameCount() != 2) {
-            std::cerr << "Assertion failed: SpriteSheet2D header/frame count mismatch after round-trip!\n";
-            return 1;
-        }
-        const Lab::SpriteFrame* f0 = dstSheet.getFrame("hero_idle");
-        const Lab::SpriteFrame* f1 = dstSheet.getFrame("hero_run");
-        if (!f0 || !f1 ||
-            std::abs(f0->uvMin.x - 0.0625f) > 0.001f || std::abs(f0->uvMin.y - 0.25f) > 0.001f ||
-            std::abs(f0->uvMax.x - 0.3125f) > 0.001f || std::abs(f0->uvMax.y - 0.625f) > 0.001f ||
-            std::abs(f0->size.x - 64.0f) > 0.01f || std::abs(f0->size.y - 48.0f) > 0.01f ||
-            std::abs(f0->pivot.x - 0.25f) > 0.001f || std::abs(f0->pivot.y - 0.75f) > 0.001f ||
-            std::abs(f1->pivot.x - 0.5f) > 0.001f || std::abs(f1->pivot.y - 1.0f) > 0.001f) {
-            std::cerr << "Assertion failed: SpriteSheet2D frame uvMin/uvMax/size/pivot mismatch after round-trip!\n";
-            return 1;
-        }
-
-        // 2. LabTheme saveThemeToJson / loadThemeFromJson round-trip (array [r, g, b] format)
-        const std::string tempThemePath = "build/temp_verify_theme_roundtrip.json";
-        Lab::LabTheme::resetDefaultColors();
-        Lab::LabTheme::getColors().windowBg = Lab::Vec3(0.123f, 0.456f, 0.789f);
-        Lab::LabTheme::getColors().accent = Lab::Vec3(0.910f, 0.520f, 0.130f);
-        if (!Lab::LabTheme::saveThemeToJson(tempThemePath)) {
-            std::cerr << "Assertion failed: LabTheme::saveThemeToJson failed!\n";
-            return 1;
-        }
-        Lab::LabTheme::resetDefaultColors();
-        if (!Lab::LabTheme::loadThemeFromJson(tempThemePath)) {
-            std::cerr << "Assertion failed: LabTheme::loadThemeFromJson failed!\n";
-            return 1;
-        }
-        std::filesystem::remove(tempThemePath, ec);
-        if (std::abs(Lab::LabTheme::colors().windowBg.x - 0.123f) > 0.002f ||
-            std::abs(Lab::LabTheme::colors().windowBg.y - 0.456f) > 0.002f ||
-            std::abs(Lab::LabTheme::colors().windowBg.z - 0.789f) > 0.002f ||
-            std::abs(Lab::LabTheme::colors().accent.x - 0.910f) > 0.002f ||
-            std::abs(Lab::LabTheme::colors().accent.y - 0.520f) > 0.002f ||
-            std::abs(Lab::LabTheme::colors().accent.z - 0.130f) > 0.002f) {
-            std::cerr << "Assertion failed: LabTheme array round-trip values mismatch!\n";
-            return 1;
-        }
-
-        // 3. LabTheme loadThemeFromJson hex "#RRGGBB" format
-        {
-            std::ofstream hexOut(tempThemePath);
-            hexOut << "{\n  \"colors\": {\n    \"windowBg\": \"#1A2B3C\",\n    \"accent\": \"F5821F\"\n  }\n}\n";
-        }
-        Lab::LabTheme::resetDefaultColors();
-        if (!Lab::LabTheme::loadThemeFromJson(tempThemePath)) {
-            std::cerr << "Assertion failed: LabTheme::loadThemeFromJson failed on hex input!\n";
-            return 1;
-        }
-        std::filesystem::remove(tempThemePath, ec);
-        if (std::abs(Lab::LabTheme::colors().windowBg.x - (0x1A / 255.0f)) > 0.002f ||
-            std::abs(Lab::LabTheme::colors().windowBg.y - (0x2B / 255.0f)) > 0.002f ||
-            std::abs(Lab::LabTheme::colors().windowBg.z - (0x3C / 255.0f)) > 0.002f ||
-            std::abs(Lab::LabTheme::colors().accent.x - (0xF5 / 255.0f)) > 0.002f ||
-            std::abs(Lab::LabTheme::colors().accent.y - (0x82 / 255.0f)) > 0.002f ||
-            std::abs(Lab::LabTheme::colors().accent.z - (0x1F / 255.0f)) > 0.002f) {
-            std::cerr << "Assertion failed: LabTheme hex color parsing mismatch!\n";
-            return 1;
-        }
-        Lab::LabTheme::resetDefaultColors();
-        std::cout << "  [PASS] SpriteSheet2D and LabTheme JSON round-trip & hex parsing verified.\n";
     }
 
     Lab::Renderer::shutdown();
