@@ -46,9 +46,30 @@ namespace Lab {
         return std::filesystem::current_path();
     }
 
+    static std::string getEnvVar(const char* name) {
+        if (!name || name[0] == '\0') return {};
+#ifdef _MSC_VER
+        size_t requiredSize = 0;
+        if (getenv_s(&requiredSize, nullptr, 0, name) != 0 || requiredSize == 0) {
+            return {};
+        }
+        std::string value(requiredSize, '\0');
+        if (getenv_s(&requiredSize, value.data(), value.size(), name) != 0) {
+            return {};
+        }
+        if (!value.empty() && value.back() == '\0') {
+            value.pop_back();
+        }
+        return value;
+#else
+        const char* val = std::getenv(name);
+        return (val && val[0] != '\0') ? std::string(val) : std::string{};
+#endif
+    }
+
     static std::filesystem::path resolveUserDocumentsRoot() {
-        const char* customEnv = std::getenv("LAB_PROJECTS_DIR");
-        if (customEnv && customEnv[0] != '\0') {
+        const std::string customEnv = getEnvVar("LAB_PROJECTS_DIR");
+        if (!customEnv.empty()) {
             return std::filesystem::path(customEnv);
         }
 
@@ -57,13 +78,13 @@ namespace Lab {
         if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_MYDOCUMENTS, NULL, 0, myDocs)) && myDocs[0] != '\0') {
             return std::filesystem::path(myDocs) / "LabGames";
         }
-        const char* userProfile = std::getenv("USERPROFILE");
-        if (userProfile && userProfile[0] != '\0') {
+        const std::string userProfile = getEnvVar("USERPROFILE");
+        if (!userProfile.empty()) {
             return std::filesystem::path(userProfile) / "Documents" / "LabGames";
         }
 #else
-        const char* home = std::getenv("HOME");
-        if (home && home[0] != '\0') {
+        const std::string home = getEnvVar("HOME");
+        if (!home.empty()) {
             return std::filesystem::path(home) / "Documents" / "LabGames";
         }
 #endif
