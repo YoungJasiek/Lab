@@ -180,7 +180,7 @@ namespace Lab {
                         if (it->position.x >= bMin.x && it->position.x <= bMax.x &&
                             it->position.y >= bMin.y && it->position.y <= bMax.y &&
                             it->position.z >= bMin.z && it->position.z <= bMax.z) {
-                            
+
                             // Rebound along fastest exit axis
                             float dx1 = std::abs(it->position.x - bMin.x);
                             float dx2 = std::abs(it->position.x - bMax.x);

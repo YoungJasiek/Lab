@@ -63,7 +63,7 @@ namespace Lab {
             // Inverse transpose for accurate non-uniform scaling normals
             mat3 normalMatrix = transpose(inverse(mat3(model)));
             Normal = normalize(normalMatrix * localNorm);
-            
+
             if (uvMode == 1) {
                 vec3 absN = abs(localNorm);
                 if (absN.y > 0.5) {
@@ -321,23 +321,23 @@ namespace Lab {
     // --- Shader Implementation ---
     Shader::Shader(const char* vertexSource, const char* fragmentSource) {
         unsigned int vertex, fragment;
-        
+
         vertex = glCreateShader(GL_VERTEX_SHADER);
         glShaderSource(vertex, 1, &vertexSource, NULL);
         glCompileShader(vertex);
         checkCompileErrors(vertex, "VERTEX");
-        
+
         fragment = glCreateShader(GL_FRAGMENT_SHADER);
         glShaderSource(fragment, 1, &fragmentSource, NULL);
         glCompileShader(fragment);
         checkCompileErrors(fragment, "FRAGMENT");
-        
+
         _id = glCreateProgram();
         glAttachShader(_id, vertex);
         glAttachShader(_id, fragment);
         glLinkProgram(_id);
         checkCompileErrors(_id, "PROGRAM");
-        
+
         glDeleteShader(vertex);
         glDeleteShader(fragment);
     }
@@ -511,19 +511,19 @@ namespace Lab {
         int rowSize = ((*width * *bpp + 31) / 32) * 4;
         int size = rowSize * std::abs(*height);
         unsigned char* data = new unsigned char[size];
-        
+
         file.seekg(dataOffset);
         file.read((char*)data, size);
 
         int channels = *bpp / 8;
         unsigned char* rgbData = new unsigned char[(*width) * std::abs(*height) * channels];
-        
+
         for (int y = 0; y < std::abs(*height); y++) {
             for (int x = 0; x < *width; x++) {
                 int bmpY = (*height > 0) ? y : (std::abs(*height) - 1 - y);
                 int srcIdx = bmpY * rowSize + x * channels;
                 int dstIdx = (y * (*width) + x) * channels;
-                
+
                 rgbData[dstIdx] = data[srcIdx + 2];
                 rgbData[dstIdx + 1] = data[srcIdx + 1];
                 rgbData[dstIdx + 2] = data[srcIdx];
@@ -888,7 +888,7 @@ namespace Lab {
         if (!_shader || !_id) return;
         glDepthFunc(GL_LEQUAL);
         _shader->use();
-        
+
         Mat4 view = camera.getViewMatrix();
         view.m[12] = view.m[13] = view.m[14] = 0.0f; // remove translation
         _shader->setMat4("view", view);
@@ -1460,7 +1460,7 @@ namespace Lab {
         } else {
             _defaultShader->setInt("useTexture", 0);
         }
-        
+
         glDisable(GL_CULL_FACE);
         mesh.draw();
         glEnable(GL_CULL_FACE);
@@ -1496,7 +1496,7 @@ namespace Lab {
         } else {
             _defaultShader->setInt("useTexture", 0);
         }
-        
+
         glDisable(GL_CULL_FACE);
         mesh.draw();
         glEnable(GL_CULL_FACE);
@@ -1557,7 +1557,7 @@ namespace Lab {
         glDisable(GL_DEPTH_TEST);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        
+
         // Ortho projection maps virtual coordinates (0..windowWidth, 0..windowHeight) to full viewport
         _uiProjMatrix.m[0] = 2.0f / windowWidth; _uiProjMatrix.m[4] = 0.0f; _uiProjMatrix.m[8] = 0.0f; _uiProjMatrix.m[12] = -1.0f;
         _uiProjMatrix.m[1] = 0.0f; _uiProjMatrix.m[5] = -2.0f / windowHeight; _uiProjMatrix.m[9] = 0.0f; _uiProjMatrix.m[13] = 1.0f;
@@ -1585,7 +1585,7 @@ namespace Lab {
 
         glBindBuffer(GL_ARRAY_BUFFER, _uiVbo);
         glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
-        
+
         glBindVertexArray(_uiVao);
         glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
         glBindVertexArray(0);

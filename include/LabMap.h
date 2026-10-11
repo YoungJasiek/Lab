@@ -91,7 +91,7 @@ namespace Lab {
         Vec3 color = { 0.3f, 0.35f, 0.4f };
         float openSpeed = 3.0f;
         float triggerRadius = 4.0f;
-        
+
         // Runtime animation state
         float currentProgress = 0.0f;
         bool isOpen = false;

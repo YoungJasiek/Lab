@@ -154,7 +154,7 @@ namespace Lab {
             res.m[10] = s.z;
             return res;
         }
-        
+
         static Mat4 lookAt(const Vec3& eye, const Vec3& center, const Vec3& up) {
             Vec3 f = (center - eye).normalized();
             Vec3 s = Vec3::cross(f, up).normalized();

@@ -45,7 +45,7 @@ namespace Lab {
         std::string shortName = "PISTOL";
         std::string modelFile = "assets/models/pistol.stl";
         std::string textureFile = "weapon_pistol.bmp";
-        
+
         bool isMelee = false;
         bool isProjectile = false;
         bool isAutomatic = false;

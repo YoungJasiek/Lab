@@ -57,7 +57,7 @@ namespace Lab {
 
         void toggleDarkness() {
             darknessMode = !darknessMode;
-            statusMessage = darknessMode ? "Hammer: Darkness Mode ON [Pitch Black Ambient/Sun]" 
+            statusMessage = darknessMode ? "Hammer: Darkness Mode ON [Pitch Black Ambient/Sun]"
                                          : "Hammer: Darkness Mode OFF [Standard Daylight]";
         }
 
@@ -96,10 +96,10 @@ namespace Lab {
             lt.radius = lightRadius;
             lt.type = MapLightType::Point;
             map.lights.push_back(lt);
-            statusMessage = "Placed Point Light #" + std::to_string(map.lights.size()) + " at (" + 
-                            std::to_string((int)lt.position.x) + ", " + 
-                            std::to_string((int)lt.position.y) + ", " + 
-                            std::to_string((int)lt.position.z) + ") [Radius: " + 
+            statusMessage = "Placed Point Light #" + std::to_string(map.lights.size()) + " at (" +
+                            std::to_string((int)lt.position.x) + ", " +
+                            std::to_string((int)lt.position.y) + ", " +
+                            std::to_string((int)lt.position.z) + ") [Radius: " +
                             std::to_string((int)lt.radius) + "m]";
         }
 

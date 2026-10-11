@@ -185,7 +185,7 @@ public:
 
             if (_cachedWeaponMeshes[i]) customSTLCount++;
         }
-        std::cout << "[Weapons] Synced 9 weapons with Character Studio: " << customSTLCount << " custom STL, " 
+        std::cout << "[Weapons] Synced 9 weapons with Character Studio: " << customSTLCount << " custom STL, "
                   << (9 - customSTLCount) << " built-in procedural.\n";
     }
 
@@ -1074,7 +1074,7 @@ public:
                             _hud.triggerHitmarker(hit.isHeadshot);
                             _particleSystem.spawnBlood(hit.point, -forward, hit.isHeadshot);
                             AudioEngine::playSound(SoundID::PipeHit);
-                        } else 
+                        } else
                         if (hit.tag == EntityTag::Bot) {
                             AudioEngine::playSound(SoundID::PipeHit);
                             for (auto& bot : _aiManager.bots) {

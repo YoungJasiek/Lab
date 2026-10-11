@@ -107,7 +107,7 @@ namespace Lab {
         static void shutdown();
         static void beginFrame(const Camera& camera);
         static void endFrame();
-        
+
         static void beginViewModel();
         static void endViewModel(const Camera& camera);
 
@@ -166,7 +166,7 @@ namespace Lab {
     private:
         static Mat4 getTransform(const Vec3& pos, const Vec3& rot, const Vec3& scale);
         static void applyLightingAndShadowUniforms(Shader* shader);
-        
+
         static Shader* _defaultShader;
         static Shader* _shadowDepthShader;
         static Shader* _uiShader;
@@ -174,7 +174,7 @@ namespace Lab {
         static Mesh* _quadMesh; // For baseplate
         static unsigned int _wireCubeVao, _wireCubeVbo, _wireCubeEbo;
         static unsigned int _uiVao, _uiVbo;
-        
+
         static Mat4 _viewMatrix;
         static Mat4 _projMatrix;
         static Mat4 _uiProjMatrix;

@@ -126,7 +126,7 @@ int main(int argc, char* argv[]) {
             uint32_t ticksProcessed = currentTick - lastReportTick;
             float actualHz = static_cast<float>(ticksProcessed) / 10.0f;
 
-            std::cout << "[Heartbeat] Server Tick: " << currentTick 
+            std::cout << "[Heartbeat] Server Tick: " << currentTick
                       << " | Actual Tickrate: " << actualHz << " Hz"
                       << " | Connected Players: " << server.getClientCount() << "\n";
 

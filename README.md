@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/OpenGL-4.5%2B%20Core%20(DSA)-5586A4?style=for-the-badge&logo=opengl" alt="OpenGL 4.5+">
   <img src="https://img.shields.io/badge/CMake-3.22%2B-064F8C?style=for-the-badge&logo=cmake" alt="CMake">
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20WASM-0078D6?style=for-the-badge" alt="Platform: Windows, Linux, WASM">
-  <img src="https://img.shields.io/badge/Tests-77%2F77%20Passed%20(100%25)-brightgreen?style=for-the-badge" alt="Tests: 77/77 Passed">
+  <img src="https://img.shields.io/badge/Tests-86%2F86%20Passed%20(100%25)-brightgreen?style=for-the-badge" alt="Tests: 86/86 Passed">
   <img src="https://img.shields.io/badge/Status-Active%20Ecosystem-blue?style=for-the-badge" alt="Status">
 </p>
 
@@ -30,7 +30,7 @@ The project encompasses the following primary targets:
 4. **Lab Player** (`LabPlayer.exe`): Lightweight standalone shipping runner with sub-second startup and zero editor overhead, booting cooked `.labpak` virtual packages directly.
 5. **Lab Studio** (`LabStudio.exe`): Specialized Character & Weapon Studio for weapon grip posing, bot weapon socket alignment, optical ADS tuning, reload curves, and lip-sync facial morphs.
 6. **LabServer** (`LabServer.exe`): Dedicated authoritative UDP multiplayer server running a deterministic 64–128Hz tickrate simulation (headless, zero GPU context).
-7. **TestVerify** (`TestVerify.exe`): Comprehensive automated regression and visual verification test suite executing **77 distinct tests** with a 100% pass rate.
+7. **TestVerify** (`TestVerify.exe`): Comprehensive automated regression and visual verification test suite executing **86 distinct tests** with a 100% pass rate.
 8. **Decoupled Engine Subsystem DLLs** (`LabCore.dll` through `LabExport.dll`): Dynamically linked libraries consumable by any application.
 
 ---
@@ -211,7 +211,7 @@ Lab/
 ├── include/                    # Public C++ engine headers (LabCore.h, LabEditor.h...)
 ├── src/                        # Engine and application implementation files
 │   ├── editor_main.cpp         # LabEditor implementation (workspaces, PIE, script IDE)
-│   ├── test_verify.cpp         # 77-Test automated and visual verification suite
+│   ├── test_verify.cpp         # 86-Test automated and visual verification suite
 │   └── ...
 └── assets/                     # Maps, textures, audio, models, fonts, and scripts
 ```
@@ -240,7 +240,7 @@ cmake .. -G "Visual Studio 17 2022" -A x64
 # 3. Compile in Release mode
 cmake --build . --config Release --parallel
 
-# 4. Run automated test suite (77 verification tests)
+# 4. Run automated test suite (86 verification tests)
 .\Release\TestVerify.exe
 ```
 

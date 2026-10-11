@@ -196,7 +196,7 @@ namespace Lab {
           _extractShader(std::move(other._extractShader)),
           _blurShader(std::move(other._blurShader)),
           _compositeShader(std::move(other._compositeShader)) {
-        
+
         _pingPongFbo[0] = other._pingPongFbo[0];
         _pingPongFbo[1] = other._pingPongFbo[1];
         _pingPongColor[0] = other._pingPongColor[0];

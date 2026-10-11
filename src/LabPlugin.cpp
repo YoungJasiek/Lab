@@ -123,7 +123,7 @@ size_t PluginManager::loadPluginsFromDirectory(const std::string& directoryPath)
     }
 
     size_t count = 0;
-    std::string expectedExt = 
+    std::string expectedExt =
 #if defined(_WIN32)
         ".dll";
 #elif defined(__APPLE__)

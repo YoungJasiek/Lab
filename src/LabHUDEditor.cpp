@@ -19,7 +19,7 @@
 #include <unordered_set>
 
 namespace Lab {
-    
+
     // =========================================================================
     // HUDProject Serialization
     // =========================================================================
@@ -42,7 +42,7 @@ namespace Lab {
             << elem.x << " " << elem.y << " " << elem.w << " " << elem.h << " "
             << elem.color.x << " " << elem.color.y << " " << elem.color.z << " " << elem.alpha << " "
             << hudAnchorName(elem.anchor) << " " << elem.zOrder << "\n";
-        
+
         std::string ind2((indentLevel + 1) * 4, ' ');
         if (elem.type == HUDElementType::Icon) {
             out << ind2 << "icon " << elem.iconId << "\n";
@@ -94,21 +94,21 @@ namespace Lab {
         std::string token;
         ss >> token; // "element"
         ss >> elem.id;
-        
+
         std::string typeStr;
         ss >> typeStr;
         elem.type = hudElementTypeFromName(typeStr);
 
         ss >> elem.x >> elem.y >> elem.w >> elem.h;
         ss >> elem.color.x >> elem.color.y >> elem.color.z >> elem.alpha;
-        
+
         std::string anchorStr;
         ss >> anchorStr;
         elem.anchor = hudAnchorFromName(anchorStr);
         ss >> elem.zOrder;
 
         int numChildren = 0;
-        
+
         while (std::getline(in, line)) {
             trimWhitespace(line);
             if (line.empty()) continue;
@@ -162,7 +162,7 @@ namespace Lab {
 
         auto proj = std::make_unique<HUDProject>();
         std::string line;
-        
+
         while (std::getline(in, line)) {
             trimWhitespace(line);
             if (line.empty()) continue;
@@ -225,7 +225,7 @@ namespace Lab {
 }
 
 namespace Lab {
-    
+
     // =========================================================================
     // Coordinate & Hit Test System
     // =========================================================================
@@ -235,7 +235,7 @@ namespace Lab {
         if (ref.rootIndex < 0 || ref.rootIndex >= (int)_project.rootElements.size()) return {0.0f, 0.0f};
         const HUDElement& root = _project.rootElements[ref.rootIndex];
         Vec2 pos = {root.x, root.y};
-        
+
         float sw = _project.resolutionW;
         float sh = _project.resolutionH;
         switch(root.anchor) {
@@ -287,7 +287,7 @@ namespace Lab {
             child.y = targetAbs.y - rootAbs.y;
         }
     }
-    
+
     ElementRef LabHUDEditor2D::hitTest(float cx, float cy) const {
         for (int i = (int)_project.rootElements.size() - 1; i >= 0; --i) {
             const auto& root = _project.rootElements[i];
@@ -314,7 +314,7 @@ namespace Lab {
         (void)cx; (void)cy; (void)ref;
         return -1;
     }
-    
+
     Vec2 LabHUDEditor2D::getElementSize(const ElementRef& ref) const {
         if (!ref.isValid()) return {0.0f, 0.0f};
         if (ref.rootIndex < 0 || ref.rootIndex >= (int)_project.rootElements.size()) return {0.0f, 0.0f};
@@ -338,7 +338,7 @@ namespace Lab {
         if (ref.childIndex < 0 || ref.childIndex >= (int)_project.rootElements[ref.rootIndex].children.size()) return nullptr;
         return &_project.rootElements[ref.rootIndex].children[ref.childIndex];
     }
-    
+
 }
 
 namespace Lab {
@@ -362,7 +362,7 @@ namespace Lab {
     void LabHUDEditor2D::pushUndoState() {}
     void LabHUDEditor2D::undo() {}
     void LabHUDEditor2D::redo() {}
-    
+
     void LabHUDEditor2D::deleteSelected() {
         ElementRef targetToDelete;
         if (!_selectedRefs.empty()) {
@@ -389,7 +389,7 @@ namespace Lab {
         _contextMenuOpen = false;
         _projectDirty = true;
     }
-    
+
     void LabHUDEditor2D::duplicateSelected() {
         ElementRef targetToDup;
         if (!_selectedRefs.empty()) targetToDup = _selectedRefs[0];
@@ -566,7 +566,7 @@ namespace Lab {
             _projectDirty = true;
         }
     }
-    
+
     float LabHUDEditor2D::screenToCanvasX(float sx) const { return (sx - _viewportX - _canvasPanX) / _canvasZoom; }
     float LabHUDEditor2D::screenToCanvasY(float sy) const { return (sy - _viewportY - _canvasPanY) / _canvasZoom; }
     float LabHUDEditor2D::canvasToScreenX(float cx) const { return _viewportX + _canvasPanX + cx * _canvasZoom; }
@@ -585,11 +585,11 @@ namespace Lab {
             updateProjectSelect(dt);
             return;
         }
-        
+
         if (_modalType != ModalType::None) {
             return; // Modal blocks interaction
         }
-        
+
         if (_contextMenuOpen) {
             if (_lmbClicked && (_mouseX < _contextMenuX || _mouseX > _contextMenuX + 200 || _mouseY < _contextMenuY || _mouseY > _contextMenuY + _contextMenuItems.size()*25)) {
                 _contextMenuOpen = false;
@@ -615,7 +615,7 @@ namespace Lab {
                 openContextMenu(_mouseX, _mouseY, hit.isValid(), hit);
             }
         }
-        
+
         if (_isPanning) {
             _canvasPanX = _panStartCanvasX + (_mouseX - _panStartX);
             _canvasPanY = _panStartCanvasY + (_mouseY - _panStartY);
@@ -696,7 +696,7 @@ namespace Lab {
 
     void LabHUDEditor2D::renderHUDElementRecursive(const HUDElement& elem, const Vec2& parentAbsPos, float vx, float vy, const ElementRef& ref) {
         if (!elem.visible) return;
-        
+
         float sx = canvasToScreenX(parentAbsPos.x);
         float sy = canvasToScreenY(parentAbsPos.y);
         float sw = elem.w * _canvasZoom;
@@ -733,7 +733,7 @@ namespace Lab {
     void LabHUDEditor2D::render(int screenWidth, int screenHeight) {
         _screenWidth = screenWidth; _screenHeight = screenHeight;
         Renderer::beginUI(screenWidth, screenHeight);
-        
+
         if (_mode == HUDEditorMode::ProjectSelect) {
             renderProjectSelect(screenWidth, screenHeight);
         } else {
@@ -742,10 +742,10 @@ namespace Lab {
 
         if (_modalType != ModalType::None) renderModalDialog();
         if (_contextMenuOpen) renderContextMenu();
-        
+
         Renderer::endUI();
     }
-    
+
     void LabHUDEditor2D::renderEditorUI(int w, int h) {
         float fw = static_cast<float>(w);
         float fh = static_cast<float>(h);
@@ -835,14 +835,14 @@ namespace Lab {
         float mw = 400, mh = 200;
         float mx = _screenWidth/2 - mw/2;
         float my = _screenHeight/2 - mh/2;
-        
+
         drawHammerPanel(mx, my, mw, mh, _modalTitle);
         LabFont::drawText(mx + 20, my + 40, _modalPrompt, 1.2f, Vec3(1,1,1), LabFontType::System);
-        
+
         Renderer::drawRect(mx + 20, my + 80, mw - 40, 30, Vec3(0.1f, 0.1f, 0.1f));
         drawHammerBevel(mx + 20, my + 80, mw - 40, 30, true);
         LabFont::drawText(mx + 25, my + 85, _modalBuffer + "_", 1.2f, Vec3(0.98f,0.78f,0.08f), LabFontType::System);
-        
+
         if (drawHammerButton(mx + 20, my + 140, 100, 30, "Cancel")) {
             closeModal();
         }
@@ -851,13 +851,13 @@ namespace Lab {
             closeModal();
         }
     }
-    
+
     void LabHUDEditor2D::renderContextMenu() {
         float mw = 200;
         float mh = _contextMenuItems.size() * 25.0f;
         Renderer::drawRect(_contextMenuX, _contextMenuY, mw, mh, Vec3(0.18f, 0.18f, 0.18f));
         drawHammerBevel(_contextMenuX, _contextMenuY, mw, mh, false);
-        
+
         float py = _contextMenuY;
         for (const auto& item : _contextMenuItems) {
             bool hover = _mouseX >= _contextMenuX && _mouseX <= _contextMenuX + mw && _mouseY >= py && _mouseY < py + 25;
@@ -877,12 +877,12 @@ namespace Lab {
         _modalOnConfirm = onConfirm;
     }
     void LabHUDEditor2D::closeModal() { _modalType = ModalType::None; }
-    
+
     void LabHUDEditor2D::openContextMenu(float sx, float sy, bool onElement, const ElementRef& targetRef) {
         _contextMenuOpen = true;
         _contextMenuX = sx; _contextMenuY = sy;
         _contextMenuItems.clear();
-        
+
         if (onElement) {
             _contextMenuItems.push_back({"Cut", nullptr});
             _contextMenuItems.push_back({"Copy", nullptr});
@@ -924,12 +924,12 @@ namespace Lab {
 
     void LabHUDEditor2D::renderLeftSidebar(float x, float y, float w, float h) {
         drawHammerPanel(x, y, w, h, "");
-        
+
         float tabW = w / 3.0f;
         if (drawHammerButton(x, y, tabW, 30, "WIDGETS", _sidebarTab == HUDSidebarTab::Widgets)) _sidebarTab = HUDSidebarTab::Widgets;
         if (drawHammerButton(x + tabW, y, tabW, 30, "HIERARCHY", _sidebarTab == HUDSidebarTab::Hierarchy)) _sidebarTab = HUDSidebarTab::Hierarchy;
         if (drawHammerButton(x + tabW * 2, y, tabW, 30, "ASSETS", _sidebarTab == HUDSidebarTab::Assets)) _sidebarTab = HUDSidebarTab::Assets;
-        
+
         float py = y + 35;
         if (_sidebarTab == HUDSidebarTab::Widgets) {
             for (const auto& tmpl : _widgetTemplates) {
@@ -1152,42 +1152,42 @@ namespace Lab {
     void LabHUDEditor2D::renderRightPropertyPanel(float x, float y, float w, float h) {
         drawHammerPanel(x, y, w, h, "PROPERTIES");
         if (_selectedRefs.empty()) return;
-        
+
         HUDElement* elem = getElement(_selectedRefs[0]);
         if (!elem) return;
-        
+
         float py = y + 25;
         LabFont::drawText(x + 10, py, "ID: " + elem->id + " (" + hudElementTypeName(elem->type) + ")", 1.2f, Vec3(1,1,1), LabFontType::System); py += 25;
-        
+
         // Dimensions
         if (drawHammerSlider(x + 10, py, w - 20, 20, "W", elem->w, 0, 2000, "%.0f")) _projectDirty = true; py += 24;
         if (drawHammerSlider(x + 10, py, w - 20, 20, "H", elem->h, 0, 2000, "%.0f")) _projectDirty = true; py += 28;
-        
+
         // =====================================================================
         // COLOR & OPACITY CONTROLS
         // =====================================================================
         Renderer::drawRect(x + 5, py, w - 10, 1, Vec3(0.3f, 0.3f, 0.3f)); py += 8;
         LabFont::drawText(x + 10, py, "COLOR & OPACITY", 1.2f, Vec3(1.0f, 0.75f, 0.2f), LabFontType::System); py += 20;
-        
+
         // Visual Color Swatch Preview
         float swatchW = w - 20;
         float swatchH = 26.0f;
         Renderer::drawRect(x + 10, py, swatchW, swatchH, elem->color);
         drawHammerBevel(x + 10, py, swatchW, swatchH, false);
-        
+
         char colBuf[64];
-        snprintf(colBuf, sizeof(colBuf), "RGB(%d, %d, %d) A:%.0f%%", 
+        snprintf(colBuf, sizeof(colBuf), "RGB(%d, %d, %d) A:%.0f%%",
             (int)(elem->color.x * 255.0f), (int)(elem->color.y * 255.0f), (int)(elem->color.z * 255.0f), elem->alpha * 100.0f);
         Vec3 swatchTextCol = (elem->color.x * 0.299f + elem->color.y * 0.587f + elem->color.z * 0.114f > 0.5f) ? Vec3(0,0,0) : Vec3(1,1,1);
         LabFont::drawText(x + 18, py + 4, colBuf, 1.25f, swatchTextCol, LabFontType::System);
         py += 32;
-        
+
         // RGBA Sliders
         if (drawHammerSlider(x + 10, py, w - 20, 18, "Red", elem->color.x, 0.0f, 1.0f, "%.2f")) _projectDirty = true; py += 22;
         if (drawHammerSlider(x + 10, py, w - 20, 18, "Green", elem->color.y, 0.0f, 1.0f, "%.2f")) _projectDirty = true; py += 22;
         if (drawHammerSlider(x + 10, py, w - 20, 18, "Blue", elem->color.z, 0.0f, 1.0f, "%.2f")) _projectDirty = true; py += 22;
         if (drawHammerSlider(x + 10, py, w - 20, 18, "Alpha", elem->alpha, 0.0f, 1.0f, "%.2f")) _projectDirty = true; py += 26;
-        
+
         // Quick Palette Swatches
         struct PaletteCol { const char* name; Vec3 col; };
         static const PaletteCol s_palette[] = {
@@ -1259,12 +1259,12 @@ namespace Lab {
         // =====================================================================
         Renderer::drawRect(x + 5, py, w - 10, 1, Vec3(0.3f, 0.3f, 0.3f)); py += 8;
         LabFont::drawText(x + 10, py, "LUA SCRIPTING", 1.2f, Vec3(1, 0.5f, 0), LabFontType::System); py += 18;
-        
+
         if (drawHammerButton(x + 10, py, w - 20, 26, "Edit Lua Script...")) {
             openModal(ModalType::EditLua, "Edit Lua", "Enter script:", elem->luaCustom, [elem, this](const std::string& v){ elem->luaCustom = v; _projectDirty = true; });
         }
         py += 30;
-        
+
         LabFont::drawText(x + 10, py, "Presets:", 1.2f, Vec3(0.8f,0.8f,0.8f), LabFontType::System); py += 18;
         if (drawHammerButton(x + 10, py, w - 20, 22, "[Player Health]")) {
             elem->binding = "Player:getHealth()";
@@ -1331,7 +1331,7 @@ namespace Lab {
     bool LabHUDEditor2D::drawHammerDropdownItem(float x, float y, float w, float h, const std::string& label, bool hovered, bool separator, bool disabled) {
         return LabTheme::drawDropdownItem(x, y, w, h, label, hovered, separator || label == "-", disabled) && _lmbClicked;
     }
-    
+
     void LabHUDEditor2D::renderGrid(float vx, float vy, float vw, float vh) {
         float scaledSnap = _gridSnap * _canvasZoom;
         if (scaledSnap < 4.0f) return;

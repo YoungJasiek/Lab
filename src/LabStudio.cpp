@@ -313,7 +313,7 @@ namespace Lab {
                 pushUndoState();
                 auto& curGrip = _weaponGrips[_selectedWeaponIndex];
                 curGrip.lockHands = !curGrip.lockHands;
-                log(curGrip.lockHands 
+                log(curGrip.lockHands
                     ? "Lock Hands ON [L]: Moving/rotating weapon will NOT move character hands."
                     : "Lock Hands OFF [L]: Weapon and hands move together.");
                 return;
@@ -1591,8 +1591,8 @@ namespace Lab {
         if (drawHammerButton(btnX, tbY + 2.0f, 116.0f, 24.0f, lockLabel, curGrip.lockHands)) {
             pushUndoState();
             curGrip.lockHands = !curGrip.lockHands;
-            log(curGrip.lockHands 
-                ? "Lock Hands ON: Moving weapon will NOT move character hands." 
+            log(curGrip.lockHands
+                ? "Lock Hands ON: Moving weapon will NOT move character hands."
                 : "Lock Hands OFF: Weapon and hands move together.");
         }
     }
@@ -1788,13 +1788,13 @@ namespace Lab {
         if (_poserSubMode == PoserSubMode::WeaponTransform) {
             // Mode Toggle: Move Weapon Only (Hands Fixed) vs Move Together
             float toggleH = 24.0f;
-            std::string modeLabel = grip.lockHands 
-                ? "[X] MOVE WEAPON ONLY (HANDS FIXED)" 
+            std::string modeLabel = grip.lockHands
+                ? "[X] MOVE WEAPON ONLY (HANDS FIXED)"
                 : "[ ] MOVE BOTH (WEAPON + HANDS)";
             if (drawHammerButton(x + 8.0f, curY, w - 16.0f, toggleH, modeLabel, grip.lockHands)) {
                 pushUndoState();
                 grip.lockHands = !grip.lockHands;
-                log(grip.lockHands 
+                log(grip.lockHands
                     ? "Lock Hands ON: Weapon transforms independently without moving hands."
                     : "Lock Hands OFF: Weapon and hands move together.");
             }
@@ -1803,8 +1803,8 @@ namespace Lab {
             // Group Box 1: Weapon Translation (Przesuwanie)
             Renderer::drawRect(x + 8.0f, curY, w - 16.0f, 100.0f, Vec3(0.18f, 0.19f, 0.21f));
             drawHammerBevel(x + 8.0f, curY, w - 16.0f, 100.0f, true);
-            LabFont::drawText(x + 14.0f, curY + 5.0f, 
-                grip.lockHands ? "WEAPON TRANSLATION (SAMODZIELNA BRON):" : "WEAPON TRANSLATION (PRZESUWANIE):", 
+            LabFont::drawText(x + 14.0f, curY + 5.0f,
+                grip.lockHands ? "WEAPON TRANSLATION (SAMODZIELNA BRON):" : "WEAPON TRANSLATION (PRZESUWANIE):",
                 1.4f, Vec3(0.4f, 0.85f, 1.0f), LabFontType::System);
 
             drawHammerSlider(x + 14.0f, curY + 22.0f, w - 28.0f, 16.0f, "Offset X (L/R):", grip.weaponOffset.x, -0.50f, 0.50f);
