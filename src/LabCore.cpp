@@ -12,6 +12,16 @@
 #include <filesystem>
 #include <cstdlib>
 
+#define STB_TRUETYPE_IMPLEMENTATION
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4505)
+#endif
+#include "stb_truetype.h"
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+
 namespace Lab {
 
     static void glfwErrorCallback(int error, const char* description) {

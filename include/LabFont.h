@@ -19,9 +19,6 @@
 #include <windows.h>
 #endif
 
-#ifndef STB_TRUETYPE_IMPLEMENTATION
-#define STB_TRUETYPE_IMPLEMENTATION
-#endif
 #ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable: 4505)
