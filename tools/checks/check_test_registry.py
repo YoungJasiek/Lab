@@ -46,14 +46,18 @@ def count_registered_tests(test_file: Path) -> int:
     matches = [int(m.group(1)) for m in TEST_NUMBERED_RE.finditer(text)]
     if not matches:
         return 0
-    return max(len(set(matches)), len(matches))
+    return max(len(set(matches)), len(matches), max(matches))
 
 
 def parse_executed_tests_from_log(log_file: Path) -> tuple[int, int, int] | None:
     """Zwraca (PASS, SKIP, FAIL) z wyniku wykonania TestVerify (krok 1), jeśli plik logu istnieje."""
     if not log_file.is_file():
         return None
-    text = log_file.read_text(encoding="utf-8", errors="replace")
+    raw = log_file.read_bytes()
+    if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
+        text = raw.decode("utf-16", errors="replace")
+    else:
+        text = raw.decode("utf-8", errors="replace").replace("\x00", "")
     m = TEST_SUMMARY_RE.search(text)
     if m:
         return int(m.group(1)), int(m.group(2)), int(m.group(3))
