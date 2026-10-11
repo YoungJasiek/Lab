@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstdio>
 #include <algorithm>
+#include <charconv>
 
 namespace Lab {
 
@@ -55,19 +56,43 @@ namespace Lab {
         size_t valStart = content.find_first_not_of(" \t\r\n", colon + 1);
         if (valStart == std::string::npos) return defaultVal;
         if (content[valStart] == '[') {
+            const char* p = content.data() + valStart + 1;
+            const char* end = content.data() + content.size();
+            auto skipSep = [&](const char*& cur) {
+                while (cur < end && (*cur == ' ' || *cur == '\t' || *cur == '\r' || *cur == '\n' || *cur == ',')) {
+                    ++cur;
+                }
+            };
             float r = 0.0f, g = 0.0f, b = 0.0f;
-            if (sscanf(content.c_str() + valStart, "[ %f , %f , %f", &r, &g, &b) == 3) {
-                return Vec3(r, g, b);
-            }
+            skipSep(p);
+            auto [p1, ec1] = std::from_chars(p, end, r);
+            if (ec1 != std::errc{}) return defaultVal;
+            p = p1;
+            skipSep(p);
+            auto [p2, ec2] = std::from_chars(p, end, g);
+            if (ec2 != std::errc{}) return defaultVal;
+            p = p2;
+            skipSep(p);
+            auto [p3, ec3] = std::from_chars(p, end, b);
+            if (ec3 != std::errc{}) return defaultVal;
+            return Vec3(r, g, b);
         } else if (content[valStart] == '"') {
             size_t endQuote = content.find('"', valStart + 1);
             if (endQuote != std::string::npos) {
                 std::string hexStr = content.substr(valStart + 1, endQuote - valStart - 1);
                 if (!hexStr.empty() && hexStr[0] == '#') hexStr = hexStr.substr(1);
                 if (hexStr.size() >= 6) {
+                    const char* hp = hexStr.data();
                     unsigned int r = 0, g = 0, b = 0;
-                    if (sscanf(hexStr.c_str(), "%02x%02x%02x", &r, &g, &b) == 3) {
-                        return Vec3(r / 255.0f, g / 255.0f, b / 255.0f);
+                    auto [rp, rec] = std::from_chars(hp, hp + 2, r, 16);
+                    auto [gp, gec] = std::from_chars(hp + 2, hp + 4, g, 16);
+                    auto [bp, bec] = std::from_chars(hp + 4, hp + 6, b, 16);
+                    if (rec == std::errc{} && rp == hp + 2 &&
+                        gec == std::errc{} && gp == hp + 4 &&
+                        bec == std::errc{} && bp == hp + 6) {
+                        return Vec3(static_cast<float>(r) / 255.0f,
+                                    static_cast<float>(g) / 255.0f,
+                                    static_cast<float>(b) / 255.0f);
                     }
                 }
             }
