@@ -9605,6 +9605,53 @@ int main() {
         std::cout << "  [PASS] Test 86 Entity-Component Camera & Decoupled Engine Architecture passed 100%!\n";
     }
 
+    // =========================================================================
+    // [Test 87] UDPSocket Open / Ephemeral Port Bind / Loopback Send-Recv / Close
+    // =========================================================================
+    std::cout << "\n[Test 87] Verifying UDPSocket open/bind/loopback/close lifecycle...\n";
+    {
+        Lab::UDPSocket sockA;
+        Lab::UDPSocket sockB;
+        if (sockA.isOpen() || !sockA.open(0) || !sockA.isOpen() || sockA.getBoundPort() == 0) {
+            std::cerr << "Assertion failed: UDPSocket sockA failed to open on ephemeral port 0!\n";
+            return 1;
+        }
+        if (!sockB.open(0) || !sockB.isOpen() || sockB.getBoundPort() == 0) {
+            std::cerr << "Assertion failed: UDPSocket sockB failed to open on ephemeral port 0!\n";
+            return 1;
+        }
+
+        const char payload[] = "LAB_UDP_SOCKET_TEST";
+        Lab::SocketAddress destB("127.0.0.1", sockB.getBoundPort());
+        int sent = sockA.sendTo(payload, sizeof(payload), destB);
+        if (sent != static_cast<int>(sizeof(payload))) {
+            std::cerr << "Assertion failed: UDPSocket::sendTo returned " << sent << "\n";
+            return 1;
+        }
+
+        char recvBuf[64] = { 0 };
+        Lab::SocketAddress senderAddr;
+        int received = -1;
+        for (int attempt = 0; attempt < 20 && received <= 0; ++attempt) {
+            received = sockB.recvFrom(recvBuf, sizeof(recvBuf), senderAddr);
+            if (received <= 0) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            }
+        }
+        if (received != static_cast<int>(sizeof(payload)) || std::strcmp(recvBuf, payload) != 0) {
+            std::cerr << "Assertion failed: UDPSocket::recvFrom mismatch (received=" << received << ")\n";
+            return 1;
+        }
+
+        sockA.close();
+        sockB.close();
+        if (sockA.isOpen() || sockB.isOpen()) {
+            std::cerr << "Assertion failed: UDPSocket remained open after close()!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] UDPSocket open/bind/loopback/close verified.\n";
+    }
+
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();

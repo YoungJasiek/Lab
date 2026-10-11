@@ -10,14 +10,20 @@
 #include <ctime>
 
 #ifdef _WIN32
+    #ifndef WIN32_LEAN_AND_MEAN
     #define WIN32_LEAN_AND_MEAN
+    #endif
+    #ifndef NOMINMAX
     #define NOMINMAX
+    #endif
     #include <winsock2.h>
     #include <ws2tcpip.h>
     #include <windows.h>
     #include <wininet.h>
-    #pragma comment(lib, "ws2_32.lib")
-    #pragma comment(lib, "wininet.lib")
+    #ifdef _MSC_VER
+        #pragma comment(lib, "ws2_32.lib")
+        #pragma comment(lib, "wininet.lib")
+    #endif
     using socklen_t = int;
 #else
     #include <sys/types.h>
@@ -196,7 +202,7 @@ namespace Lab {
         NetworkSystem::init();
         close();
 
-        intptr_t s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+        SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
         if (s == INVALID_SOCKET) {
             std::cerr << "[Network] Failed to create UDP socket.\n";
             return false;
@@ -204,11 +210,11 @@ namespace Lab {
 
         // Allow fast port reuse
         int opt = 1;
-        setsockopt(static_cast<SOCKET>(s), SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&opt), sizeof(opt));
+        setsockopt(s, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&opt), sizeof(opt));
 
         // Allow broadcast for LAN discovery
         int bcast = 1;
-        setsockopt(static_cast<SOCKET>(s), SOL_SOCKET, SO_BROADCAST, reinterpret_cast<const char*>(&bcast), sizeof(bcast));
+        setsockopt(s, SOL_SOCKET, SO_BROADCAST, reinterpret_cast<const char*>(&bcast), sizeof(bcast));
 
 #ifdef _WIN32
         // Disable WSAECONNRESET (10054) on Windows UDP sockets when ICMP Port Unreachable is received
@@ -217,7 +223,7 @@ namespace Lab {
         #endif
         BOOL bNewBehavior = FALSE;
         DWORD dwBytesReturned = 0;
-        WSAIoctl(static_cast<SOCKET>(s), SIO_UDP_CONNRESET, &bNewBehavior, sizeof(bNewBehavior), NULL, 0, &dwBytesReturned, NULL, NULL);
+        WSAIoctl(s, SIO_UDP_CONNRESET, &bNewBehavior, sizeof(bNewBehavior), NULL, 0, &dwBytesReturned, NULL, NULL);
 #endif
 
         sockaddr_in bindAddr{};
@@ -225,9 +231,9 @@ namespace Lab {
         bindAddr.sin_addr.s_addr = INADDR_ANY;
         bindAddr.sin_port = htons(port);
 
-        if (bind(static_cast<SOCKET>(s), reinterpret_cast<sockaddr*>(&bindAddr), sizeof(bindAddr)) == SOCKET_ERROR) {
+        if (bind(s, reinterpret_cast<sockaddr*>(&bindAddr), sizeof(bindAddr)) == SOCKET_ERROR) {
             std::cerr << "[Network] Failed to bind UDP socket to port " << port << ".\n";
-            closesocket(static_cast<SOCKET>(s));
+            closesocket(s);
             return false;
         }
 
@@ -235,14 +241,14 @@ namespace Lab {
         if (port == 0) {
             sockaddr_in queryAddr{};
             socklen_t len = sizeof(queryAddr);
-            if (getsockname(static_cast<SOCKET>(s), reinterpret_cast<sockaddr*>(&queryAddr), &len) == 0) {
+            if (getsockname(s, reinterpret_cast<sockaddr*>(&queryAddr), &len) == 0) {
                 _boundPort = ntohs(queryAddr.sin_port);
             }
         } else {
             _boundPort = port;
         }
 
-        _socketHandle = s;
+        _socketHandle = static_cast<intptr_t>(s);
         setNonBlocking(true);
         return true;
     }
@@ -514,7 +520,6 @@ namespace Lab {
         NetworkSystem::init();
 
         const char* stunHosts[] = { "stun.l.google.com", "stun1.l.google.com", "stun2.l.google.com" };
-        const uint16_t stunPort = 19302;
 
         for (const char* host : stunHosts) {
             addrinfo hints{};
