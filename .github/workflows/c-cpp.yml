@@ -34,9 +34,9 @@ jobs:
       working-directory: build/Release
       shell: pwsh
       run: |
-        ./TestVerify.exe | Tee-Object -FilePath test_output.log
+        ./TestVerify.exe | Tee-Object -FilePath ../test_verify_output.log
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        $summary = Select-String -Path test_output.log -Pattern "\[TestSummary\] PASS=(\d+) SKIP=(\d+) FAIL=(\d+)"
+        $summary = Select-String -Path ../test_verify_output.log -Pattern "\[TestSummary\] PASS=(\d+) SKIP=(\d+) FAIL=(\d+)"
         if (-not $summary) {
           Write-Error "Missing [TestSummary] line in TestVerify output!"
           exit 1
@@ -44,7 +44,7 @@ jobs:
         $skipCount = [int]$summary.Matches[0].Groups[2].Value
         $failCount = [int]$summary.Matches[0].Groups[3].Value
         if ($failCount -gt 0 -or $skipCount -gt 0) {
-          Write-Error "TestVerify reported FAIL=$failCount SKIP=$skipCount (SKIP > 0 is disallowed without justification in tests/allowed_skips.txt)."
+          Write-Error "TestVerify reported FAIL=$failCount SKIP=$skipCount (SKIP > 0 is disallowed)."
           exit 1
         }
 
@@ -97,8 +97,8 @@ jobs:
         set -o pipefail
         xvfb-run -a -s "-screen 0 1280x720x24" \
           env LIBGL_ALWAYS_SOFTWARE=1 MESA_GL_VERSION_OVERRIDE=4.5 MESA_GLSL_VERSION_OVERRIDE=450 \
-          ./build/TestVerify | tee test_output.log
-        grep -E "\[TestSummary\] PASS=[0-9]+ SKIP=0 FAIL=0" test_output.log
+          ./build/TestVerify | tee build/test_verify_output.log
+        grep -E "\[TestSummary\] PASS=[0-9]+ SKIP=0 FAIL=0" build/test_verify_output.log
 
   warnings:
     name: Compiler Warnings Audit (Non-Blocking)

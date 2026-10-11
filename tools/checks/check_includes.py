@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Wykrywa dyrektywy #include z nieistniejącym plikiem oraz nagłówki bibliotek zewnętrznych/systemowych podane w cudzysłowie zamiast w nawiasach kątowych."""
+"""Wykrywa #include z nieistniejącym plikiem oraz nagłówki zewnętrzne podane w cudzysłowie zamiast w nawiasach kątowych (opcjonalnie naprawia z --fix, zachowując oryginalne końce linii)."""
 
 from __future__ import annotations
 
@@ -11,46 +11,29 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REPORT = REPO_ROOT / "reports" / "checks-includes.md"
 
-EXCLUDED_NAMES = {"stb_truetype.h", "miniaudio.h", "gl.c", "gl.h", "khrplatform.h", "onelua.c"}
+EXCLUDED_NAMES = {"stb_truetype.h", "stb_image.h", "miniaudio.h", "gl.c", "gl.h", "khrplatform.h", "onelua.c"}
 
 EXTERNAL_HEADERS = {
-    # Standard C/C++ headers
-    "algorithm", "array", "atomic", "cassert", "cctype", "cerrno", "cfenv",
-    "cfloat", "charconv", "chrono", "cinttypes", "climits", "clocale", "cmath",
-    "complex", "concepts", "condition_variable", "coroutine", "csetjmp",
-    "csignal", "cstdarg", "cstddef", "cstdint", "cstdio", "cstdlib", "cstring",
-    "ctime", "cuchar", "cwchar", "cwctype", "deque", "exception", "execution",
-    "filesystem", "format", "forward_list", "fstream", "functional", "future",
-    "initializer_list", "iomanip", "ios", "iosfwd", "iostream", "istream",
-    "iterator", "latch", "limits", "list", "locale", "map", "memory",
-    "memory_resource", "mutex", "new", "numbers", "numeric", "optional",
-    "ostream", "queue", "random", "ranges", "ratio", "regex", "scoped_allocator",
-    "semaphore", "set", "shared_mutex", "source_location", "span", "sstream",
-    "stack", "stdexcept", "stop_token", "streambuf", "string", "string_view",
-    "syncstream", "system_error", "thread", "tuple", "type_traits", "typeindex",
-    "typeinfo", "unordered_map", "unordered_set", "utility", "valarray",
-    "variant", "vector", "version",
-    "assert.h", "ctype.h", "errno.h", "float.h", "limits.h", "locale.h",
-    "math.h", "setjmp.h", "signal.h", "stdarg.h", "stddef.h", "stdint.h",
-    "stdio.h", "stdlib.h", "string.h", "time.h",
-    # External / OS libraries
-    "GLFW/glfw3.h", "GLFW/glfw3native.h",
-    "glad/gl.h", "KHR/khrplatform.h",
-    "GL/gl.h", "GL/glu.h",
-    "lua.h", "lualib.h", "lauxlib.h", "lua.hpp",
-    "windows.h", "winsock2.h", "ws2tcpip.h", "wininet.h", "commdlg.h",
-    "shlobj.h", "shellapi.h", "mmsystem.h",
-    "sys/types.h", "sys/socket.h", "sys/ioctl.h", "sys/stat.h",
-    "netinet/in.h", "arpa/inet.h", "netdb.h", "unistd.h", "fcntl.h", "dlfcn.h",
+    "lua.h",
+    "lualib.h",
+    "lauxlib.h",
+    "luaconf.h",
+    "GLFW/glfw3.h",
+    "GLFW/glfw3native.h",
+    "windows.h",
+    "winsock2.h",
+    "ws2tcpip.h",
+    "commdlg.h",
+    "shlobj.h",
 }
 
-INCLUDE_RE = re.compile(r"^(\s*#\s*include\s*)([\"<])([^\"<>]+)([\">])(.*)$")
+INCLUDE_RE = re.compile(r"^(\s*#\s*include\s*)\"([^\"]+)\"(.*)$")
 
 
 def collect_files(paths: list[Path]) -> list[Path]:
     files: list[Path] = []
     for p in paths:
-        if p.is_file() and p.suffix.lower() in {".cpp", ".c", ".h", ".hpp"}:
+        if p.is_file():
             files.append(p)
         elif p.is_dir():
             for ext in ("*.cpp", "*.h", "*.hpp"):
@@ -61,14 +44,24 @@ def collect_files(paths: list[Path]) -> list[Path]:
     return sorted(set(files))
 
 
-def resolve_local_include(source_file: Path, included: str, search_dirs: list[Path]) -> bool:
-    candidate_rel = source_file.parent / included
-    if candidate_rel.exists():
+def resolve_quoted_include(source_file: Path, inc_target: str, include_dirs: list[Path]) -> bool:
+    rel_candidate = (source_file.parent / inc_target).resolve()
+    if rel_candidate.is_file():
         return True
-    for d in search_dirs:
-        if (d / included).exists():
+    for inc_dir in include_dirs:
+        if (inc_dir / inc_target).is_file():
             return True
     return False
+
+
+def split_eol(line_bytes: bytes) -> tuple[bytes, bytes]:
+    if line_bytes.endswith(b"\r\n"):
+        return line_bytes[:-2], b"\r\n"
+    if line_bytes.endswith(b"\n"):
+        return line_bytes[:-1], b"\n"
+    if line_bytes.endswith(b"\r"):
+        return line_bytes[:-1], b"\r"
+    return line_bytes, b""
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -82,7 +75,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--fix",
         action="store_true",
-        help="Zamień cudzysłowy na nawiasy kątowe dla nagłówków bibliotek zewnętrznych/systemowych",
+        help="Zamień #include \"zewnetrzny.h\" na #include <zewnetrzny.h> dla znanych bibliotek zewnętrznych",
     )
     parser.add_argument(
         "--report",
@@ -93,98 +86,100 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     target_paths = args.paths if args.paths else [REPO_ROOT / "include", REPO_ROOT / "src"]
-    search_dirs = [
+    include_dirs = [
         REPO_ROOT / "include",
-        REPO_ROOT / "src" / "glad" / "include",
-        REPO_ROOT / "external" / "lua",
-        REPO_ROOT,
+        REPO_ROOT / "src",
+        REPO_ROOT / "games" / "frozen_life" / "include",
     ]
     files = collect_files(target_paths)
 
     missing_includes: list[tuple[Path, int, str]] = []
     quoted_external: list[tuple[Path, int, str]] = []
-    fixed_external: list[tuple[Path, int, str]] = []
+    fixed_entries: list[tuple[Path, int, str]] = []
 
     for f in files:
-        raw_bytes = f.read_bytes()
-        newline = "\r\n" if b"\r\n" in raw_bytes else "\n"
-        text = raw_bytes.decode("utf-8", errors="replace")
-        orig_lines = text.splitlines()
-        new_lines: list[str] = []
+        raw_lines = f.read_bytes().splitlines(keepends=True)
         modified = False
+        new_chunks: list[bytes] = []
 
-        for idx, line in enumerate(orig_lines, start=1):
-            m = INCLUDE_RE.match(line)
+        for idx, raw_line in enumerate(raw_lines, start=1):
+            body_bytes, eol_bytes = split_eol(raw_line)
+            line_str = body_bytes.decode("utf-8", errors="replace")
+            m = INCLUDE_RE.match(line_str)
             if not m:
-                new_lines.append(line)
+                new_chunks.append(raw_line)
                 continue
 
-            prefix, open_delim, header_name, _close_delim, suffix = m.groups()
-            if open_delim == '"':
-                if header_name in EXTERNAL_HEADERS:
-                    if args.fix:
-                        new_lines.append(f"{prefix}<{header_name}>{suffix}")
-                        modified = True
-                        fixed_external.append((f, idx, header_name))
-                        continue
-                    else:
-                        quoted_external.append((f, idx, header_name))
-                elif not resolve_local_include(f, header_name, search_dirs):
-                    missing_includes.append((f, idx, header_name))
+            prefix, target, suffix = m.group(1), m.group(2), m.group(3)
+            if target in EXTERNAL_HEADERS or target.startswith(("GLFW/", "GL/", "KHR/")):
+                if args.fix:
+                    new_line_str = f"{prefix}<{target}>{suffix}"
+                    new_chunks.append(new_line_str.encode("utf-8") + eol_bytes)
+                    modified = True
+                    fixed_entries.append((f, idx, target))
+                else:
+                    quoted_external.append((f, idx, target))
+                    new_chunks.append(raw_line)
+                continue
 
-            new_lines.append(line)
+            if not resolve_quoted_include(f, target, include_dirs):
+                missing_includes.append((f, idx, target))
 
-        if modified:
-            updated = newline.join(new_lines) + (newline if text.endswith(("\n", "\r\n")) else "")
-            f.write_bytes(updated.encode("utf-8"))
+            new_chunks.append(raw_line)
+
+        if modified and args.fix:
+            f.write_bytes(b"".join(new_chunks))
 
     args.report.parent.mkdir(parents=True, exist_ok=True)
-    total_issues = len(missing_includes) + len(quoted_external)
     lines = [
         "# Check: `includes`",
         "",
         f"- Przeskanowane pliki: **{len(files)}**",
         f"- Tryb: **{'--fix' if args.fix else 'report-only'}**",
-        f"- Nieistniejące pliki `#include`: **{len(missing_includes)}**",
-        f"- Nagłówki zewnętrzne w cudzysłowie `\"...\"`: **{len(quoted_external)}**",
-        f"- Naprawione nagłówki zewnętrzne: **{len(fixed_external)}**",
+        f"- Brakujące pliki `#include`: **{len(missing_includes)}**",
+        f"- Nagłówki zewnętrzne w cudzysłowie (nienaprawione): **{len(quoted_external)}**",
+        f"- Naprawione dyrektywy `#include`: **{len(fixed_entries)}**",
         "",
     ]
 
     if missing_includes:
-        lines.append("## Nieistniejące pliki w `#include`")
+        lines.append("## Brakujące pliki `#include`")
         lines.append("")
-        for f, idx, hdr in missing_includes:
+        lines.append("| Plik | Linia | Szukany nagłówek |")
+        lines.append("|------|------:|------------------|")
+        for f, idx, target in missing_includes:
             rel = f.resolve().relative_to(REPO_ROOT) if f.resolve().is_relative_to(REPO_ROOT) else f
-            lines.append(f"- `{rel.as_posix()}:{idx}` — brak pliku `{hdr}`")
-            print(f"[FAIL] {rel.as_posix()}:{idx}: nieistniejący plik #include \"{hdr}\"")
+            lines.append(f"| `{rel.as_posix()}` | {idx} | `\"{target}\"` |")
+            print(f"[ERROR] {rel.as_posix()}:{idx}: nie znaleziono pliku #include \"{target}\"")
         lines.append("")
 
     if quoted_external:
-        lines.append("## Nagłówki zewnętrzne/systemowe w cudzysłowie zamiast `<...>`")
+        lines.append("## Nagłówki bibliotek zewnętrznych w cudzysłowie (zamiast `<...>`)")
         lines.append("")
-        for f, idx, hdr in quoted_external:
+        lines.append("| Plik | Linia | Nagłówek | Zalecana forma |")
+        lines.append("|------|------:|----------|----------------|")
+        for f, idx, target in quoted_external:
             rel = f.resolve().relative_to(REPO_ROOT) if f.resolve().is_relative_to(REPO_ROOT) else f
-            lines.append(f"- `{rel.as_posix()}:{idx}` — `#include \"{hdr}\"` powinno być `#include <{hdr}>`")
-            print(f"[WARN] {rel.as_posix()}:{idx}: zewnętrzny nagłówek w cudzysłowie: \"{hdr}\"")
+            lines.append(f"| `{rel.as_posix()}` | {idx} | `\"{target}\"` | `<{target}>` |")
+            print(f"[WARN] {rel.as_posix()}:{idx}: zewnętrzny nagłówek \"{target}\" powinien używać <{target}>")
         lines.append("")
 
-    if fixed_external:
+    if fixed_entries:
         lines.append("## Naprawione dyrektywy `#include`")
         lines.append("")
-        for f, idx, hdr in fixed_external:
+        for f, idx, target in fixed_entries:
             rel = f.resolve().relative_to(REPO_ROOT) if f.resolve().is_relative_to(REPO_ROOT) else f
-            lines.append(f"- `{rel.as_posix()}:{idx}` — zamieniono na `#include <{hdr}>`")
-            print(f"[FIXED] {rel.as_posix()}:{idx}: zamieniono na #include <{hdr}>")
+            lines.append(f"- `{rel.as_posix()}:{idx}`: `\"{target}\"` -> `<{target}>`")
+            print(f"[FIXED] {rel.as_posix()}:{idx}: zamieniono na #include <{target}>")
         lines.append("")
 
-    if total_issues == 0 and not fixed_external:
-        lines.append("Wszystkie dyrektywy `#include` są poprawne.")
+    if not missing_includes and not quoted_external and not fixed_entries:
+        lines.append("Wszystkie dyrektywy `#include` wskazują na istniejące pliki i używają właściwej notacji.")
         lines.append("")
         print(f"[OK] Wszystkie dyrektywy #include ({len(files)} plików) są poprawne.")
 
     args.report.write_text("\n".join(lines), encoding="utf-8")
-    return 1 if total_issues > 0 else 0
+    return 1 if (missing_includes or quoted_external) else 0
 
 
 if __name__ == "__main__":

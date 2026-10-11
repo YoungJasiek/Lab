@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Wykrywa (i opcjonalnie usuwa z flagą --fix) białe znaki na końcu linii oraz sprawdza końcowy znak nowej linii w plikach źródłowych."""
+"""Wykrywa (i opcjonalnie usuwa z flagą --fix) białe znaki na końcu linii oraz sprawdza końcowy znak nowej linii, zachowując oryginalne końce linii (\r\n lub \n) dla każdej linii pliku."""
 
 from __future__ import annotations
 
@@ -32,30 +32,40 @@ def check_and_optionally_fix(path: Path, fix: bool) -> tuple[list[int], bool, bo
     if not raw:
         return [], False, False
 
-    newline_bytes = b"\r\n" if b"\r\n" in raw else b"\n"
-    text = raw.decode("utf-8", errors="replace")
-    normalized = text.replace("\r\n", "\n")
-
-    missing_eof_newline = not normalized.endswith("\n")
-    raw_lines = normalized.split("\n")
-    if not missing_eof_newline:
-        raw_lines = raw_lines[:-1]
+    raw_lines = raw.splitlines(keepends=True)
+    missing_eof_newline = not raw.endswith((b"\n", b"\r\n"))
 
     trailing_ws_lines: list[int] = []
-    cleaned_lines: list[str] = []
-    for idx, line in enumerate(raw_lines, start=1):
-        stripped = line.rstrip(" \t")
-        if len(stripped) != len(line):
+    cleaned_chunks: list[bytes] = []
+    default_eol = b"\r\n" if b"\r\n" in raw else b"\n"
+
+    for idx, line_bytes in enumerate(raw_lines, start=1):
+        if line_bytes.endswith(b"\r\n"):
+            eol = b"\r\n"
+            body = line_bytes[:-2]
+        elif line_bytes.endswith(b"\n"):
+            eol = b"\n"
+            body = line_bytes[:-1]
+        elif line_bytes.endswith(b"\r"):
+            eol = b"\r"
+            body = line_bytes[:-1]
+        else:
+            eol = b""
+            body = line_bytes
+
+        stripped_body = body.rstrip(b" \t")
+        if len(stripped_body) != len(body):
             trailing_ws_lines.append(idx)
-        cleaned_lines.append(stripped)
+        cleaned_chunks.append(stripped_body + eol)
+
+    if missing_eof_newline:
+        cleaned_chunks.append(default_eol)
 
     has_issues = bool(trailing_ws_lines) or missing_eof_newline
     was_fixed = False
 
     if has_issues and fix:
-        sep = newline_bytes.decode("ascii")
-        new_text = sep.join(cleaned_lines) + sep
-        path.write_bytes(new_text.encode("utf-8"))
+        path.write_bytes(b"".join(cleaned_chunks))
         was_fixed = True
 
     return trailing_ws_lines, missing_eof_newline, was_fixed
@@ -72,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--fix",
         action="store_true",
-        help="Usuń białe znaki na końcu linii i dodaj brakujący znak nowej linii na końcu pliku",
+        help="Usuń białe znaki na końcu linii i dodaj brakujący znak nowej linii na końcu pliku (zachowując oryginalne \\r\\n lub \\n)",
     )
     parser.add_argument(
         "--report",

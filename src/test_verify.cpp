@@ -166,19 +166,92 @@ static int printTestSummaryAndExit(
     return 0;
 }
 
-int main() {
-    auto skipOpenGLTests = [](const char* reason) -> int {
-        std::cout << "[SKIP] OpenGL 4.5+ GPU context unavailable (" << reason << ").\n";
-        std::vector<std::pair<std::string, std::string>> skipped;
-        skipped.reserve(86);
-        for (int i = 1; i <= 86; ++i) {
-            skipped.emplace_back("Test " + std::to_string(i), reason);
+class TestCountingStreambuf : public std::streambuf {
+public:
+    explicit TestCountingStreambuf(std::streambuf* dest) : _dest(dest) {}
+
+    void finalizeAllPassed() {
+        if (!_currentTest.empty()) {
+            ++_passCount;
+            _currentTest.clear();
         }
-        return printTestSummaryAndExit(0, skipped, 0);
+    }
+
+    int passCount() const { return _passCount; }
+    const std::string& currentTest() const { return _currentTest; }
+
+protected:
+    int overflow(int ch) override {
+        if (ch == traits_type::eof()) {
+            return _dest->sputc(static_cast<char>(ch));
+        }
+        char c = static_cast<char>(ch);
+        if (c == '\n') {
+            inspectLine(_lineBuf);
+            _lineBuf.clear();
+        } else if (c != '\r') {
+            _lineBuf.push_back(c);
+        }
+        return _dest->sputc(c);
+    }
+
+    int sync() override {
+        return _dest->pubsync();
+    }
+
+private:
+    void inspectLine(const std::string& line) {
+        size_t pos = line.find("[Test ");
+        if (pos == std::string::npos) return;
+        size_t numStart = pos + 6;
+        size_t numEnd = numStart;
+        while (numEnd < line.size() && line[numEnd] >= '0' && line[numEnd] <= '9') {
+            ++numEnd;
+        }
+        if (numEnd > numStart && numEnd < line.size() && line[numEnd] == ']') {
+            if (!_currentTest.empty()) {
+                ++_passCount;
+            }
+            _currentTest = "Test " + line.substr(numStart, numEnd - numStart);
+        }
+    }
+
+    std::streambuf* _dest;
+    std::string _lineBuf;
+    std::string _currentTest;
+    int _passCount = 0;
+};
+
+int main() {
+    auto handleMissingOpenGLOrWindow = [](const char* reason) -> int {
+        auto allowedSkips = loadAllowedSkips();
+        std::vector<std::pair<std::string, std::string>> skipped;
+
+        auto globalIt = allowedSkips.find("OpenGLContext");
+        if (globalIt == allowedSkips.end()) {
+            globalIt = allowedSkips.find("GLFW");
+        }
+        if (globalIt != allowedSkips.end()) {
+            skipped.emplace_back(globalIt->first, reason);
+            return printTestSummaryAndExit(0, skipped, 0);
+        }
+
+        for (const auto& [name, _] : allowedSkips) {
+            if (name.rfind("Test ", 0) == 0) {
+                skipped.emplace_back(name, reason);
+            }
+        }
+        if (!skipped.empty()) {
+            return printTestSummaryAndExit(0, skipped, 0);
+        }
+
+        std::cerr << "[FAIL] Brak GLFW, okna lub kontekstu OpenGL 4.5+ (" << reason
+                  << ") — brak jawnego wpisu w tests/allowed_skips.txt!\n";
+        return printTestSummaryAndExit(0, {}, 1);
     };
 
     if (!glfwInit()) {
-        return skipOpenGLTests("glfwInit failed - no display or GPU available");
+        return handleMissingOpenGLOrWindow("glfwInit failed - no display or GPU available");
     }
 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
@@ -203,15 +276,33 @@ int main() {
     }
     if (!window) {
         glfwTerminate();
-        return skipOpenGLTests("glfwCreateWindow failed - no OpenGL context available");
+        return handleMissingOpenGLOrWindow("glfwCreateWindow failed - no OpenGL context available");
     }
     glfwMakeContextCurrent(window);
 
     if (!gladLoadGL(glfwGetProcAddress) || glad_glCreateTextures == nullptr) {
         glfwDestroyWindow(window);
         glfwTerminate();
-        return skipOpenGLTests("OpenGL 4.5+ DSA context unavailable");
+        return handleMissingOpenGLOrWindow("OpenGL 4.5+ DSA context unavailable");
     }
+
+    std::streambuf* origCoutBuf = std::cout.rdbuf();
+    TestCountingStreambuf countingBuf(origCoutBuf);
+    std::cout.rdbuf(&countingBuf);
+    struct CoutRestoreGuard {
+        std::streambuf* orig;
+        TestCountingStreambuf* tracker;
+        bool completedNormally = false;
+        ~CoutRestoreGuard() {
+            std::cout.rdbuf(orig);
+            if (!completedNormally) {
+                if (!tracker->currentTest().empty()) {
+                    std::cerr << "[FAIL] Test przerwany bledem: " << tracker->currentTest() << "\n";
+                }
+                printTestSummaryAndExit(tracker->passCount(), {}, 1);
+            }
+        }
+    } coutGuard{ origCoutBuf, &countingBuf };
 
     int testWinW = 0, testWinH = 0, testFbW = 0, testFbH = 0;
     glfwGetWindowSize(window, &testWinW, &testWinH);
@@ -9700,7 +9791,9 @@ int main() {
     glfwDestroyWindow(window);
     glfwTerminate();
 
-    int summaryRc = printTestSummaryAndExit(86, {}, 0);
+    countingBuf.finalizeAllPassed();
+    coutGuard.completedNormally = true;
+    int summaryRc = printTestSummaryAndExit(countingBuf.passCount(), {}, 0);
     if (summaryRc != 0) {
         return summaryRc;
     }
