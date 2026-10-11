@@ -1161,7 +1161,7 @@ namespace Lab {
         float py = y + 25;
         LabFont::drawText(x + 10, py, "ID: " + elem->id + " (" + hudElementTypeName(elem->type) + ")", 1.2f, Vec3(1,1,1), LabFontType::System);
         py += 25;
-        
+
         // Dimensions
         if (drawHammerSlider(x + 10, py, w - 20, 20, "W", elem->w, 0, 2000, "%.0f")) {
             _projectDirty = true;
@@ -1171,7 +1171,7 @@ namespace Lab {
             _projectDirty = true;
         }
         py += 28;
-        
+
         // =====================================================================
         // COLOR & OPACITY CONTROLS
         // =====================================================================
@@ -1179,7 +1179,7 @@ namespace Lab {
         py += 8;
         LabFont::drawText(x + 10, py, "COLOR & OPACITY", 1.2f, Vec3(1.0f, 0.75f, 0.2f), LabFontType::System);
         py += 20;
-        
+
         // Visual Color Swatch Preview
         float swatchW = w - 20;
         float swatchH = 26.0f;
@@ -1210,7 +1210,7 @@ namespace Lab {
             _projectDirty = true;
         }
         py += 26;
-        
+
         // Quick Palette Swatches
         struct PaletteCol { const char* name; Vec3 col; };
         static const PaletteCol s_palette[] = {
@@ -1289,12 +1289,12 @@ namespace Lab {
         py += 8;
         LabFont::drawText(x + 10, py, "LUA SCRIPTING", 1.2f, Vec3(1, 0.5f, 0), LabFontType::System);
         py += 18;
-        
+
         if (drawHammerButton(x + 10, py, w - 20, 26, "Edit Lua Script...")) {
             openModal(ModalType::EditLua, "Edit Lua", "Enter script:", elem->luaCustom, [elem, this](const std::string& v){ elem->luaCustom = v; _projectDirty = true; });
         }
         py += 30;
-        
+
         LabFont::drawText(x + 10, py, "Presets:", 1.2f, Vec3(0.8f,0.8f,0.8f), LabFontType::System);
         py += 18;
         if (drawHammerButton(x + 10, py, w - 20, 22, "[Player Health]")) {
