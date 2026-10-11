@@ -22,7 +22,7 @@ namespace Lab {
         Vec3 position{ 0.0f, 0.0f, 0.0f };
         Vec3 size{ 0.70f, 0.55f, 0.12f };
         Vec3 normal{ 0.0f, 0.0f, 1.0f };
-        
+
         std::string title = "RETINAL SCANNER";
         std::string subtitle = "BIOMETRIC AIRLOCK GATE";
         std::string statusText = "STANDBY - READY";

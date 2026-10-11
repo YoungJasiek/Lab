@@ -1096,7 +1096,7 @@ int main() {
         // 1. Check that b1 engaged b2 even though player is dead
         std::cout << "[Test] Bot 1 state: " << (int)aiMgr.bots[0].state << " HP: " << aiMgr.bots[0].health
                   << " Bot 2 HP: " << aiMgr.bots[1].health << "\n";
-        
+
         // 2. Check that bot 1 moved (tactical strafe / advance) even when player is stationary / dead
         float movedDist = (aiMgr.bots[0].position - initPos1).length();
         std::cout << "[Test] Bot 1 moved distance during combat: " << movedDist << "m\n";
@@ -1130,8 +1130,8 @@ int main() {
         auto tdmAlphaSpawns = alphaMap->getSpawnsForTeam(Lab::GameMode::TDM, 1);
         auto tdmBetaSpawns = alphaMap->getSpawnsForTeam(Lab::GameMode::TDM, 0);
 
-        std::cout << "[Test] Spawns found - FFA: " << ffaSpawns.size() 
-                  << ", Team Alpha (Blue): " << tdmAlphaSpawns.size() 
+        std::cout << "[Test] Spawns found - FFA: " << ffaSpawns.size()
+                  << ", Team Alpha (Blue): " << tdmAlphaSpawns.size()
                   << ", Team Beta (Red): " << tdmBetaSpawns.size() << "\n";
 
         if (ffaSpawns.empty() || tdmAlphaSpawns.empty() || tdmBetaSpawns.empty()) {
@@ -1238,7 +1238,7 @@ int main() {
         Lab::Renderer::drawRect(0, 0, (float)w, 24.0f, winBg);
         Lab::LabFont::drawText(14.0f, 5.0f, "File  Edit  View  Tools  Help", 1.8f, textDark, Lab::LabFontType::System);
         Lab::LabFont::drawText((float)w - 380.0f, 5.0f, "Lab Hammer 2026 - Spawns & Prebuilts", 1.8f, Lab::Vec3(0.15f, 0.45f, 0.75f), Lab::LabFontType::GeoSans);
-        
+
         // Toolbar (18 buttons with icons)
         Lab::Renderer::drawRect(0, 24.0f, (float)w, 34.0f, winBg);
         Lab::Renderer::drawRect(0, 57.0f, (float)w, 1.0f, winBorder);
@@ -1433,7 +1433,7 @@ int main() {
         }
         std::unique_ptr<Lab::Mesh> pipeStl(Lab::Mesh::loadSTL("assets/models/pipe.stl"));
         if (pipeStl) {
-            std::cout << "[Test] User STL weapon model loaded successfully: assets/models/pipe.stl (triangles: " 
+            std::cout << "[Test] User STL weapon model loaded successfully: assets/models/pipe.stl (triangles: "
                       << pipeStl->getIndexCount() / 3 << ")\n";
         }
 
@@ -1829,7 +1829,7 @@ int main() {
             std::cerr << "Assertion failed: Inspect rotation should tilt weapon right to inspect receiver\n";
             return 1;
         }
-        std::cout << "  [PASS] Weapon Inspect State verified: Progress=" << animator.getStateProgress() 
+        std::cout << "  [PASS] Weapon Inspect State verified: Progress=" << animator.getStateProgress()
                   << ", PosY=" << inspectPos.y << ", RotY=" << inspectRot.y << "\n";
 
         // Cancel inspect on combat action
@@ -2574,7 +2574,7 @@ int main() {
         // 2. Verify Decal Geometry (4 vertices, 6 indices per quad)
         for (const auto& d : decalSys.getDecals()) {
             if (d.vertices.size() != 4 || d.indices.size() != 6) {
-                std::cerr << "Assertion failed: Decal geometry invalid! Vertices=" << d.vertices.size() 
+                std::cerr << "Assertion failed: Decal geometry invalid! Vertices=" << d.vertices.size()
                           << " Indices=" << d.indices.size() << "\n";
                 return 1;
             }
@@ -3371,7 +3371,7 @@ int main() {
             std::cerr << "Assertion failed: Snapshot playerCount should be 1!\n";
             return 1;
         }
-        std::cout << "  [PASS] Authoritative NetServerSnapshot received (Server Tick: " << snap.serverTick 
+        std::cout << "  [PASS] Authoritative NetServerSnapshot received (Server Tick: " << snap.serverTick
                   << ", Authoritative Pos: " << snap.players[0].position.z << "m)!\n";
         client.consumeSnapshot();
 
@@ -3418,7 +3418,7 @@ int main() {
             std::cerr << "Assertion failed: Discovered server info mismatch (expected port " << testPort << ", got " << disc.port << ")!\n";
             return 1;
         }
-        std::cout << "  [PASS] ServerBrowser LAN discovery verified: found " << disc.name 
+        std::cout << "  [PASS] ServerBrowser LAN discovery verified: found " << disc.name
                   << " (Map: " << disc.map << ", Mode: " << disc.mode << ", Ping: " << disc.pingMs << "ms)!\n";
         browser.stop();
 
@@ -4063,10 +4063,10 @@ int main() {
                         std::cerr << "Assertion failed: Client 2 position fell into floor (Y=" << finalSnap.players[i].position.y << ")\n";
                         return 1;
                     }
-                    std::cout << "  [PASS] Remote player 'BravoGhost' confirmed in snapshot: Pos=(" 
-                              << finalSnap.players[i].position.x << ", " 
-                              << finalSnap.players[i].position.y << ", " 
-                              << finalSnap.players[i].position.z << ") Alive=" 
+                    std::cout << "  [PASS] Remote player 'BravoGhost' confirmed in snapshot: Pos=("
+                              << finalSnap.players[i].position.x << ", "
+                              << finalSnap.players[i].position.y << ", "
+                              << finalSnap.players[i].position.z << ") Alive="
                               << (int)finalSnap.players[i].isAlive << "!\n";
                 }
             }
@@ -4261,7 +4261,7 @@ int main() {
             const auto& droppedItem = items.back();
             if (droppedItem.type != Lab::PickupType::WeaponDrop ||
                 droppedItem.weaponId != static_cast<int>(expectedDrop)) {
-                std::cerr << "Assertion failed: Bot dropped incorrect weapon! Expected " 
+                std::cerr << "Assertion failed: Bot dropped incorrect weapon! Expected "
                           << static_cast<int>(expectedDrop) << " got " << droppedItem.weaponId << "\n";
                 return 1;
             }
@@ -4452,7 +4452,7 @@ int main() {
         assert(singleClip.name == "Firing Rifle");
         assert(singleClip.duration > 1.0f);
         assert(!singleClip.tracks.empty());
-        std::cout << "  [PASS] Single clip loaded: '" << singleClip.name << "' (Duration: " 
+        std::cout << "  [PASS] Single clip loaded: '" << singleClip.name << "' (Duration: "
                   << singleClip.duration << "s, Tracks: " << singleClip.tracks.size() << ")\n";
 
         // 2. Batch Ingestion of all 19 FBX / .anim Clips from Directory
@@ -4482,7 +4482,7 @@ int main() {
         assert(rightHandIdx >= 0);
         assert(spineIdx >= 0);
         assert(headIdx >= 0);
-        std::cout << "  [PASS] Mixamo rig fuzzy bone mapping verified (RightHand: Bone #" 
+        std::cout << "  [PASS] Mixamo rig fuzzy bone mapping verified (RightHand: Bone #"
                   << rightHandIdx << ", Spine: Bone #" << spineIdx << ", Head: Bone #" << headIdx << ")!\n";
 
         // 4. CharacterStudio Integration & Animation Switcher Verification
@@ -4779,7 +4779,7 @@ int main() {
             std::cerr << "Assertion failed: DedicatedServer getters do not reflect loaded ServerConfig\n";
             return 1;
         }
-        std::cout << "  [PASS] DedicatedServer initialized with ServerConfig: Port=" << srv.getPort() 
+        std::cout << "  [PASS] DedicatedServer initialized with ServerConfig: Port=" << srv.getPort()
                   << ", Name=" << srv.getServerName() << ", Tickrate=" << srv.getTickrate() << "Hz!\n";
 
         srv.stop();
@@ -4791,7 +4791,7 @@ int main() {
     // =========================================================================
     {
         std::cout << "\n[Test 46] Verifying Robust Input Edge Transitions & Mouse Click Latch...\n";
-        
+
         // 1. Reset state
         std::memset(Lab::Input::keys, 0, sizeof(Lab::Input::keys));
         std::memset(Lab::Input::keysJustPressed, 0, sizeof(Lab::Input::keysJustPressed));
@@ -5012,7 +5012,7 @@ int main() {
             return 1;
         }
         if (mapIn->lights[0].name != "ceiling_warm_lamp" || std::abs(mapIn->lights[0].intensity - 2.0f) > 0.01f) {
-            std::cerr << "Assertion failed: First light data mismatch: name=" << mapIn->lights[0].name 
+            std::cerr << "Assertion failed: First light data mismatch: name=" << mapIn->lights[0].name
                       << ", int=" << mapIn->lights[0].intensity << "\n";
             return 1;
         }
@@ -5079,12 +5079,12 @@ int main() {
                 return 1;
             }
             if (tex->getWidth() != 128 || tex->getHeight() != 128) {
-                std::cerr << "Assertion failed: Texture dimensions mismatch for " << texName 
+                std::cerr << "Assertion failed: Texture dimensions mismatch for " << texName
                           << ": expected 128x128, got " << tex->getWidth() << "x" << tex->getHeight() << "\n";
                 return 1;
             }
             if (tex->getChannels() < 3) {
-                std::cerr << "Assertion failed: Texture channels mismatch for " << texName 
+                std::cerr << "Assertion failed: Texture channels mismatch for " << texName
                           << ": expected >= 3, got " << tex->getChannels() << "\n";
                 return 1;
             }
@@ -5134,7 +5134,7 @@ int main() {
             return 1;
         }
         if (darkMap->brushes.size() < 15) {
-            std::cerr << "Assertion failed: Expected at least 15 brushes in darkness showcase map, got " 
+            std::cerr << "Assertion failed: Expected at least 15 brushes in darkness showcase map, got "
                       << darkMap->brushes.size() << "\n";
             return 1;
         }
@@ -5146,11 +5146,11 @@ int main() {
             }
         }
         if (newTextureBrushCount < 15) {
-            std::cerr << "Assertion failed: Expected at least 15 brushes referencing new textures, got " 
+            std::cerr << "Assertion failed: Expected at least 15 brushes referencing new textures, got "
                       << newTextureBrushCount << "\n";
             return 1;
         }
-        std::cout << "  [PASS] Darkness showcase map verified: " << darkMap->brushes.size() 
+        std::cout << "  [PASS] Darkness showcase map verified: " << darkMap->brushes.size()
                   << " brushes (" << newTextureBrushCount << " textured with new PNG materials)!\n";
 
         // 4. Render 3D Scene of darkness.labmap and capture frame
@@ -5492,7 +5492,7 @@ int main() {
             std::cerr << "Assertion failed: Host did not receive incoming damage event!\n";
             return 1;
         }
-        std::cout << "  [PASS] Authoritative damage event verified: Attacker " << hostDamageEvents[0].attackerId 
+        std::cout << "  [PASS] Authoritative damage event verified: Attacker " << hostDamageEvents[0].attackerId
                   << " hit Target " << hostDamageEvents[0].targetId << " for " << hostDamageEvents[0].damage << " HP!\n";
 
         // 6. Test Lethal Headshot Elimination & Kill Event Broadcast
@@ -5508,7 +5508,7 @@ int main() {
             std::cerr << "Assertion failed: Kill event not broadcast properly or headshot flag missing!\n";
             return 1;
         }
-        std::cout << "  [PASS] Authoritative Kill Event verified: Killer " << peerKills[0].killerName 
+        std::cout << "  [PASS] Authoritative Kill Event verified: Killer " << peerKills[0].killerName
                   << " eliminated " << peerKills[0].victimName << " (HEADSHOT)!\n";
 
         // 7. Verify Authoritative 3-Second Player Respawn
@@ -5632,9 +5632,9 @@ int main() {
             std::cerr << "Assertion failed: Fetched room data does not match published parameters!\n";
             return 1;
         }
-        std::cout << "  [PASS] Room fetched successfully: Code=" << room.roomCode 
-                  << ", WAN=" << room.publicIP << ":" << room.publicPort 
-                  << ", LAN=" << room.lanIP << ":" << room.lanPort 
+        std::cout << "  [PASS] Room fetched successfully: Code=" << room.roomCode
+                  << ", WAN=" << room.publicIP << ":" << room.publicPort
+                  << ", LAN=" << room.lanIP << ":" << room.lanPort
                   << ", Map=" << room.mapName << "\n";
 
         // Test Guest Punch registration
@@ -5731,7 +5731,7 @@ int main() {
             std::cerr << "Assertion failed: Update calls mismatch!\n";
             return 1;
         }
-        std::cout << "  [PASS] Executed " << iterations << " plugin update iterations in " 
+        std::cout << "  [PASS] Executed " << iterations << " plugin update iterations in "
                   << totalMicros << " us (Avg: " << avgNanosPerCall << " ns per update call)!\n";
 
         // Unregister test
@@ -5825,7 +5825,7 @@ int main() {
             std::cerr << "Assertion failed: Stress broadcast event count mismatch!\n";
             return 1;
         }
-        std::cout << "  [PASS] Dispatched " << stressCount << " typed events in " 
+        std::cout << "  [PASS] Dispatched " << stressCount << " typed events in "
                   << totalMicros / 1000.0 << " ms (Avg: " << nanosPerEvent << " ns per event)!\n";
 
         eb.clear();
@@ -7735,7 +7735,7 @@ int main() {
                 Input.registerAxis("LuaThrottle", "Vehicle throttle", "W", "S", "RightTrigger")
                 Input.bindKey("LuaSpecialAttack", "Q")
                 Input.bindGamepadButton("LuaSpecialAttack", "RightBumper")
-                
+
                 local isPressed = Input.isActionPressed("LuaSpecialAttack")
                 local axisVal = Input.getAxis("LuaThrottle")
                 Input.saveBindings("build/test_lua_bindings.json")
@@ -9039,13 +9039,13 @@ int main() {
         }
 
         if (scene->weaponSpawners[0].prefabRef != "weapon_m4a4s" || scene->weaponSpawners[0].weaponId != 3) {
-            std::cerr << "Assertion failed: Spawner 0 weaponId -> prefabRef failed! Got prefabRef: " 
+            std::cerr << "Assertion failed: Spawner 0 weaponId -> prefabRef failed! Got prefabRef: "
                       << scene->weaponSpawners[0].prefabRef << ", id: " << scene->weaponSpawners[0].weaponId << "\n";
             return 1;
         }
 
         if (scene->weaponSpawners[1].prefabRef != "weapon_pipe" || scene->weaponSpawners[1].weaponId != 0) {
-            std::cerr << "Assertion failed: Spawner 1 weaponId -> prefabRef failed! Got prefabRef: " 
+            std::cerr << "Assertion failed: Spawner 1 weaponId -> prefabRef failed! Got prefabRef: "
                       << scene->weaponSpawners[1].prefabRef << ", id: " << scene->weaponSpawners[1].weaponId << "\n";
             return 1;
         }
@@ -9069,7 +9069,7 @@ int main() {
             return 1;
         }
         if (genericMapLoad->brushes.size() != 1 || genericMapLoad->weaponSpawners.size() != 2) {
-            std::cerr << "Assertion failed: Generic LabMap::loadFromFile data mismatch! Brushes: " 
+            std::cerr << "Assertion failed: Generic LabMap::loadFromFile data mismatch! Brushes: "
                       << genericMapLoad->brushes.size() << ", Spawners: " << genericMapLoad->weaponSpawners.size() << "\n";
             return 1;
         }

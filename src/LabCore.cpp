@@ -254,7 +254,7 @@ namespace Lab {
         _running = true;
         _lastFrameTime = glfwGetTime();
         const float fixedDelta = 1.0f / 64.0f; // 64-tick physics rate
-        
+
         while (!glfwWindowShouldClose(_window) && _running) {
             // Clear transient per-frame edge states before polling
             std::memset(Input::keysJustPressed, 0, sizeof(Input::keysJustPressed));
@@ -301,7 +301,7 @@ namespace Lab {
 
             // Variable framerate update
             onUpdate(_time);
-            
+
             // Render
             onRender();
 

@@ -1001,8 +1001,8 @@ public:
             _map->saveToFile(_currentMapPath);
         }
         _exportSettings.entrySceneURI = _currentMapPath;
-        _exportSettings.dimension = (_workspace == EditorWorkspace::Level2D_Tilemap || 
-                                     _workspace == EditorWorkspace::Level2D_HUD || 
+        _exportSettings.dimension = (_workspace == EditorWorkspace::Level2D_Tilemap ||
+                                     _workspace == EditorWorkspace::Level2D_HUD ||
                                      _workspace == EditorWorkspace::Level2D_Animation) ? "2D" : "3D";
         _exportSettings.retroFX = PackageManager::instance().isPackageEnabled("com.lab.retro-fx");
         _exportSettings.retroScanlines = _retroScanlines;
@@ -2433,20 +2433,20 @@ public:
             b.size.x = std::max(0.5f, b.size.x + dw);
             b.size.y = std::max(0.5f, b.size.y + dh);
             b.size.z = std::max(0.5f, b.size.z + dd);
-            logMessage("Resized Brush #" + std::to_string(_selectedIndex) + " to (" + 
+            logMessage("Resized Brush #" + std::to_string(_selectedIndex) + " to (" +
                        std::to_string((int)b.size.x) + "x" + std::to_string((int)b.size.y) + "x" + std::to_string((int)b.size.z) + ")");
         } else if (_selectionType == SelectionType::Prop && _selectedIndex >= 0 && _selectedIndex < (int)_map->props.size()) {
             auto& p = _map->props[_selectedIndex];
             p.scale.x = std::max(0.2f, p.scale.x + dw);
             p.scale.y = std::max(0.2f, p.scale.y + dh);
             p.scale.z = std::max(0.2f, p.scale.z + dd);
-            logMessage("Rescaled Prop #" + std::to_string(_selectedIndex) + " to (" + 
+            logMessage("Rescaled Prop #" + std::to_string(_selectedIndex) + " to (" +
                        std::to_string((int)p.scale.x) + "x" + std::to_string((int)p.scale.y) + "x" + std::to_string((int)p.scale.z) + ")");
         } else if (_selectionType == SelectionType::Light && _selectedIndex >= 0 && _selectedIndex < (int)_map->lights.size()) {
             auto& lt = _map->lights[_selectedIndex];
             lt.radius = std::max(2.0f, lt.radius + dw);
             lt.intensity = std::max(0.2f, lt.intensity + dh * 0.5f);
-            logMessage("Adjusted Light #" + std::to_string(_selectedIndex) + " (Intensity: " + 
+            logMessage("Adjusted Light #" + std::to_string(_selectedIndex) + " (Intensity: " +
                        std::to_string(lt.intensity) + ", Radius: " + std::to_string((int)lt.radius) + "m)");
         }
     }

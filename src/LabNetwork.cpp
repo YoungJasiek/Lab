@@ -1190,8 +1190,8 @@ namespace Lab {
 
         _running = true;
         uint16_t hz = _config.tickrate > 0 ? _config.tickrate : 64;
-        std::cout << "[Server] Dedicated Authoritative Server started on port " << _port 
-                  << " (Map: " << _mapName << ", Solid Boxes: " << _solidBoxes.size() 
+        std::cout << "[Server] Dedicated Authoritative Server started on port " << _port
+                  << " (Map: " << _mapName << ", Solid Boxes: " << _solidBoxes.size()
                   << ", Tickrate: " << hz << "Hz, Mode: " << _gameMode << ").\n";
 
         // Publish to Cloud Rendezvous Broker for zero-config Plug & Play
@@ -1288,7 +1288,7 @@ namespace Lab {
                         _clients.push_back(newClient);
                         client = &_clients.back();
 
-                        std::cout << "[Server] Client connected: " << newClient.name 
+                        std::cout << "[Server] Client connected: " << newClient.name
                                   << " (ID: " << newClient.clientId << ", from: " << sender.toString() << ")\n";
                     }
 
@@ -1758,7 +1758,7 @@ namespace Lab {
                     _connectedMapName = resp->mapName;
                     if (_connectedMapName.empty()) _connectedMapName = "facility_alpha.labmap";
                     _state = ClientConnectionState::Connected;
-                    std::cout << "[Client] Connected to server! Assigned Client ID: " << _assignedClientId 
+                    std::cout << "[Client] Connected to server! Assigned Client ID: " << _assignedClientId
                               << ", Map: " << _connectedMapName << "\n";
                 }
             } else if (msgType == NetMsgType::ServerSnapshot) {

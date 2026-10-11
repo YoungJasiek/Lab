@@ -173,10 +173,10 @@ public:
 
     void discoverTextures() {
         auto& pm = ProjectManager::get();
-        std::vector<std::string> searchDirs = { 
+        std::vector<std::string> searchDirs = {
             (pm.getActiveProjectAssetsPath() / "textures").string(),
             (pm.getEngineAssetsPath() / "textures").string(),
-            "assets/textures", "../assets/textures", "textures" 
+            "assets/textures", "../assets/textures", "textures"
         };
         for (const auto& dir : searchDirs) {
             if (std::filesystem::exists(dir)) {
@@ -196,10 +196,10 @@ public:
 
     void discoverModels() {
         auto& pm = ProjectManager::get();
-        std::vector<std::string> searchDirs = { 
+        std::vector<std::string> searchDirs = {
             (pm.getActiveProjectAssetsPath() / "models").string(),
             (pm.getEngineAssetsPath() / "models").string(),
-            "assets/models", "../assets/models", "models" 
+            "assets/models", "../assets/models", "models"
         };
         for (const auto& dir : searchDirs) {
             if (std::filesystem::exists(dir)) {

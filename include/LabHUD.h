@@ -129,11 +129,11 @@ namespace Lab {
             float topY = 30.0f;
 
             drawCard(topX, topY, topW, topH, tileBg, tileBorder);
-            
+
             // Map Name + Mode label
             std::string headerStr = mapName + " [" + gameModeName + "]";
             LabFont::drawText(topX + 16.0f, topY + 11.0f, headerStr, 1.8f, textYellow, LabFontType::GeoSans);
-            
+
             // Frags badge
             std::string fragStr = "KILLS: " + std::to_string(frags);
             LabFont::drawText(topX + topW - 145.0f, topY + 11.0f, fragStr, 1.8f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::GeoSans);
@@ -163,7 +163,7 @@ namespace Lab {
             float suitCardW = 240.0f;
             float suitX = startX;
             drawCard(suitX, cardY, suitCardW, cardH, tileBg, tileBorder);
-            
+
             drawSuitIcon(suitX + 16.0f, cardY + 18.0f, 16.0f, 20.0f, textYellow);
             LabFont::drawText(suitX + 38.0f, cardY + 26.0f, "SUIT", 2.2f, textYellow, LabFontType::GeoSans);
 

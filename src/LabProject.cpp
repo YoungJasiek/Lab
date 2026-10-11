@@ -35,7 +35,7 @@ namespace Lab {
 #endif
         for (auto cur : checks) {
             for (int i = 0; i < 5; ++i) {
-                if (std::filesystem::exists(cur / "CMakeLists.txt") && 
+                if (std::filesystem::exists(cur / "CMakeLists.txt") &&
                    (std::filesystem::exists(cur / "include") || std::filesystem::exists(cur / "src"))) {
                     return cur;
                 }

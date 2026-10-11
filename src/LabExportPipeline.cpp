@@ -16,9 +16,9 @@
 #endif
 
 extern "C" {
-#include "lua.h"
-#include "lauxlib.h"
-#include "lualib.h"
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
 }
 
 namespace Lab {
@@ -151,10 +151,10 @@ namespace Lab {
         }
 
         // Replicate engine runtime fonts (from engine/assets/fonts or root fonts)
-        std::vector<std::filesystem::path> fontRoots = { 
+        std::vector<std::filesystem::path> fontRoots = {
             pm.getEngineAssetsPath() / "fonts",
             pm.getEngineRoot() / "fonts",
-            "fonts", "../fonts", "../../fonts" 
+            "fonts", "../fonts", "../../fonts"
         };
         for (const auto& fRoot : fontRoots) {
             if (std::filesystem::exists(fRoot)) {
@@ -631,9 +631,9 @@ namespace Lab {
             }
         }
 
-        std::vector<std::filesystem::path> fontRoots = { 
+        std::vector<std::filesystem::path> fontRoots = {
             pm.getEngineAssetsPath() / "fonts",
-            root / "fonts", "fonts", "../fonts", "../../fonts" 
+            root / "fonts", "fonts", "../fonts", "../../fonts"
         };
         for (const auto& fRoot : fontRoots) {
             if (std::filesystem::exists(fRoot)) {
