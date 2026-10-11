@@ -96,16 +96,85 @@ static void saveFrameToBMP(const char* filename, int width, int height) {
     std::cout << "[Test] Saved verification frame: " << filename << std::endl;
 }
 
+static std::unordered_map<std::string, std::string> loadAllowedSkips() {
+    std::unordered_map<std::string, std::string> allowed;
+    const char* candidates[] = {
+        "tests/allowed_skips.txt",
+        "../tests/allowed_skips.txt",
+        "../../tests/allowed_skips.txt"
+    };
+    for (const char* path : candidates) {
+        std::ifstream in(path);
+        if (!in.is_open()) continue;
+        std::string line;
+        while (std::getline(in, line)) {
+            size_t first = line.find_first_not_of(" \t\r\n");
+            if (first == std::string::npos || line[first] == '#') continue;
+            size_t sep = line.find('|', first);
+            if (sep == std::string::npos) continue;
+            std::string name = line.substr(first, sep - first);
+            while (!name.empty() && (name.back() == ' ' || name.back() == '\t')) name.pop_back();
+            std::string reason = line.substr(sep + 1);
+            size_t rFirst = reason.find_first_not_of(" \t\r\n");
+            reason = (rFirst == std::string::npos) ? "" : reason.substr(rFirst);
+            while (!reason.empty() && (reason.back() == ' ' || reason.back() == '\t' || reason.back() == '\r')) reason.pop_back();
+            if (!name.empty() && !reason.empty()) {
+                allowed[name] = reason;
+            }
+        }
+        break;
+    }
+    return allowed;
+}
+
+static int printTestSummaryAndExit(
+    int passCount,
+    const std::vector<std::pair<std::string, std::string>>& skippedTests,
+    int failCount
+) {
+    auto allowedSkips = loadAllowedSkips();
+    int skipCount = static_cast<int>(skippedTests.size());
+    int unauthorizedSkips = 0;
+
+    std::cout << "\n==========================================================\n";
+    std::cout << "[TestSummary] PASS=" << passCount
+              << " SKIP=" << skipCount
+              << " FAIL=" << failCount
+              << " TOTAL=" << (passCount + skipCount + failCount) << "\n";
+
+    if (!skippedTests.empty()) {
+        std::cout << "[TestSummary] Pominiete testy (SKIP=" << skipCount << "):\n";
+        for (const auto& [testName, skipReason] : skippedTests) {
+            auto it = allowedSkips.find(testName);
+            if (it != allowedSkips.end()) {
+                std::cout << "  - [SKIP][ALLOWED] " << testName
+                          << " (" << skipReason << ") | uzasadnienie: " << it->second << "\n";
+            } else {
+                std::cout << "  - [SKIP][UNAUTHORIZED] " << testName
+                          << " (" << skipReason << ") — brak wpisu w tests/allowed_skips.txt!\n";
+                ++unauthorizedSkips;
+            }
+        }
+    }
+    std::cout << "==========================================================\n";
+
+    if (failCount > 0 || unauthorizedSkips > 0) {
+        std::cerr << "[TestSummary] ERROR: Wykryto bledy (FAIL=" << failCount
+                  << ") lub nieautoryzowane pominiecia testow (SKIP=" << unauthorizedSkips << ").\n";
+        return 1;
+    }
+    return 0;
+}
+
 int main() {
     auto skipOpenGLTests = [](const char* reason) -> int {
         std::cout << "[SKIP] OpenGL 4.5+ GPU context unavailable (" << reason << ").\n";
-        std::cout << "[SKIP] Skipping OpenGL-dependent verification suites:\n";
-        std::cout << "  - [SKIP] 3D Renderer & Texture Loading (facility_alpha.labmap)\n";
-        std::cout << "  - [SKIP] Hammer Editor UI & Framebuffer BMP Capture\n";
-        std::cout << "  - [SKIP] Dynamic Lighting, ShadowMap (PCF) & PostProcessPipeline (HDR/Bloom)\n";
-        std::cout << "  - [SKIP] 2D SpriteBatcher GPU Buffer Upload & InstancedMesh Draw Calls\n";
-        std::cout << "  - [SKIP] Advanced Graphics GPU Pipeline (BakedLightmap, ShadowAtlas, CubemapProbe)\n";
-        return 0;
+        std::vector<std::pair<std::string, std::string>> skipped;
+        skipped.reserve(86);
+        for (int i = 1; i <= 86; ++i) {
+            skipped.emplace_back("Test " + std::to_string(i), reason);
+        }
+        return printTestSummaryAndExit(0, skipped, 0);
     };
 
     if (!glfwInit()) {
@@ -156,7 +225,7 @@ int main() {
     Lab::Renderer::init();
 
     // 1. Verify Map Loading
-    std::cout << "[Test] Loading facility_alpha.labmap...\n";
+    std::cout << "[Test 1] Loading facility_alpha.labmap...\n";
     auto map = Lab::LabMap::loadFromFile("assets/maps/facility_alpha.labmap");
     if (!map) {
         std::cerr << "ERROR: Failed to load facility_alpha.labmap!\n";
@@ -165,6 +234,7 @@ int main() {
     std::cout << "[Test] Map name: " << map->metadata.name << " Brushes: " << map->brushes.size() << "\n";
 
     // 2. Verify Texture Loading
+    std::cout << "[Test 2] Verifying Texture Loading...\n";
     std::unordered_map<std::string, std::unique_ptr<Lab::Texture>> textures;
     for (const auto& b : map->brushes) {
         if (!b.texturePath.empty() && !textures.contains(b.texturePath)) {
@@ -185,7 +255,7 @@ int main() {
     Lab::Renderer::setSunLight(map->metadata.sunDir, map->metadata.sunColor, map->metadata.ambientColor);
 
     // 3a. Verify Frustum Culling
-    std::cout << "[Test] Verifying 6-plane Frustum Culling...\n";
+    std::cout << "[Test 3] Verifying 6-plane Frustum Culling...\n";
     cam.updateFrustum();
     // In front of camera
     Lab::Vec3 frontObjMin(cam.getPosition() + cam.getFront() * 5.0f - Lab::Vec3(1, 1, 1));
@@ -254,6 +324,7 @@ int main() {
     glfwSwapBuffers(window);
 
     // 4. Render Map Selection Menu
+    std::cout << "[Test 4] Rendering Map Selection Menu...\n";
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     Lab::Renderer::beginUI(w, h);
     Lab::Renderer::drawRect(0, 0, (float)w, (float)h, { 0.06f, 0.08f, 0.11f });
@@ -308,7 +379,7 @@ int main() {
     Lab::Renderer::drawCube(Lab::Vec3(0, 2.0f, 0), Lab::Vec3(0.06f, 0.06f, 1.6f), Lab::Vec3(0, 0.5f, 1), false);
 
     // ==================== 5. Automated Hitbox Verification for SidebarLayout ====================
-    std::cout << "[Test] Verifying SidebarLayout hitboxes across multiple resolutions...\n";
+    std::cout << "[Test 5] Verifying SidebarLayout hitboxes across multiple resolutions...\n";
     float testResolutions[3][2] = {
         { 1280.0f, 720.0f },
         { 1600.0f, 900.0f },
@@ -399,6 +470,7 @@ int main() {
     std::cout << "[Test] SidebarLayout hitboxes verified: 100% accurate, no overlaps, strict containment!\n";
 
     // 6. Render Full Hammer Editor Interface frame (Outliner Tab active)
+    std::cout << "[Test 6] Rendering Full Hammer Editor Interface frame (Outliner Tab active)...\n";
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     hammerCam.setPosition(Lab::Vec3(0, 8.0f, 18.0f));
     Lab::Renderer::beginFrame(hammerCam);
@@ -521,6 +593,7 @@ int main() {
     glfwSwapBuffers(window);
 
     // 7. Render Hammer with Properties Tab active -> test_hammer_properties.bmp
+    std::cout << "[Test 7] Rendering Hammer with Properties Tab active...\n";
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     Lab::Renderer::beginFrame(hammerCam);
     for (const auto& b : map->brushes) {
@@ -644,7 +717,7 @@ int main() {
     Lab::LabFont::drawText((float)w - 220.0f, (float)h - 17.0f, "Snap: 1 | F9: Run", 1.5f, textDark, Lab::LabFontType::System);
 
     // ==================== 8. Automated Combat & Hitscan Raycast Verification ====================
-    std::cout << "[Test] Verifying Tag-Based Raycast Hitscan and Combat AI...\n";
+    std::cout << "[Test 8] Verifying Tag-Based Raycast Hitscan and Combat AI...\n";
     {
         // 1. Single Bot Hitscan & Headshot Test
         Lab::CombatBot testBot(1, "TargetBot", Lab::Vec3(0.0f, 0.0f, -6.0f), Lab::Vec3(4.0f, 0.0f, -6.0f));
@@ -722,6 +795,7 @@ int main() {
     std::cout << "[Test] Combat AI & Hitscan tests passed: 100% accuracy on Headshots, Body, and Team allocation!\n";
 
     // 9. Render Combat Shootout Frame -> test_combat_shooting.bmp
+    std::cout << "[Test 9] Rendering Combat Shootout Frame...\n";
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     Lab::Camera combatCam(75.0f, 16.0f / 9.0f, 0.01f, 1000.0f);
     combatCam.setPosition(Lab::Vec3(0.0f, 1.8f, 0.0f));
@@ -775,6 +849,7 @@ int main() {
     glfwSwapBuffers(window);
 
     // 10. Render Multiplayer Host Game Setup Menu -> test_host_menu.bmp
+    std::cout << "[Test 10] Rendering Multiplayer Host Game Setup Menu...\n";
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     Lab::Renderer::beginUI(w, h);
     Lab::Renderer::drawRect(0, 0, (float)w, (float)h, { 0.06f, 0.08f, 0.11f });
@@ -852,7 +927,7 @@ int main() {
     glfwSwapBuffers(window);
 
     // ==================== 11. UNIT TESTS: LABCOLLISION (WALL COLLISION & SLIDING) ====================
-    std::cout << "[Test] Verifying LabCollision AABB Move & Slide against Solid Geometry...\n";
+    std::cout << "[Test 11] Verifying LabCollision AABB Move & Slide against Solid Geometry...\n";
     auto solidBoxes = Lab::LabCollision::getMapSolidBoxes(*map);
     if (solidBoxes.empty()) {
         std::cerr << "ERROR: Failed to extract solid collision boxes from map!\n";
@@ -907,7 +982,7 @@ int main() {
     std::cout << "[Test] Floor landing verified: Player landed at eyeHeight Y = " << testPos.y << "\n";
 
     // ==================== 12. UNIT TESTS: BOT RESPAWN & STATS ====================
-    std::cout << "[Test] Verifying Bot Death and Automated Respawn Cycle...\n";
+    std::cout << "[Test 12] Verifying Bot Death and Automated Respawn Cycle...\n";
     Lab::CombatBot testBot(99, "Respawn Bot", Lab::Vec3(5.0f, 0.0f, 5.0f), Lab::Vec3(15.0f, 0.0f, 5.0f));
     bool died = testBot.takeDamage(120.0f, true);
     if (!died || testBot.state != Lab::AIState::Dead || testBot.deaths != 1 || testBot.respawnTimer <= 0.0f) {
@@ -927,7 +1002,7 @@ int main() {
     std::cout << "[Test] Bot Respawn verified: Bot successfully revived to 100 HP at patrol start!\n";
 
     // ==================== 13. UNIT TESTS: IN-GAME CHAT ====================
-    std::cout << "[Test] Verifying In-Game Chat System...\n";
+    std::cout << "[Test 13] Verifying In-Game Chat System...\n";
     Lab::LabChat chat;
     chat.open();
     if (!chat.isOpen) {
@@ -948,7 +1023,7 @@ int main() {
     std::cout << "[Test] Chat verified: Sent message '" << sentChat << "' successfully buffered!\n";
 
     // ==================== 14. UNIT TESTS: PICKUP MANAGER ====================
-    std::cout << "[Test] Verifying Ammo & Medkit Pickup Manager...\n";
+    std::cout << "[Test 14] Verifying Ammo & Medkit Pickup Manager...\n";
     Lab::PickupManager pickups;
     pickups.spawnPickup(Lab::PickupType::Ammo, Lab::Vec3(0.0f, 0.5f, 0.0f), 36);
     pickups.spawnPickup(Lab::PickupType::Medkit, Lab::Vec3(0.0f, 0.5f, 0.0f), 50);
@@ -971,6 +1046,7 @@ int main() {
     std::cout << "[Test] Pickups verified: Collected +36 AMMO and +50 HP on proximity!\n";
 
     // ==================== 15. RENDER FRAME: SCOREBOARD TABLE UNDER TAB ====================
+    std::cout << "[Test 15] Rendering Scoreboard Table under TAB...\n";
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     Lab::Camera gameCam(75.0f, (float)w / (float)h, 0.01f, 1000.0f);
     gameCam.setPosition(Lab::Vec3(0.0f, 1.70f, -5.0f));
@@ -1034,6 +1110,7 @@ int main() {
     glfwSwapBuffers(window);
 
     // ==================== 16. RENDER FRAME: 3D PICKUPS & IN-GAME CHAT ====================
+    std::cout << "[Test 16] Rendering 3D Pickups & In-Game Chat...\n";
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     gameCam.setPosition(Lab::Vec3(0.0f, 1.70f, -8.0f));
     Lab::Renderer::beginFrame(gameCam);
@@ -1077,7 +1154,7 @@ int main() {
     glFinish();
     saveFrameToBMP("test_ammo_and_chat.bmp", w, h);
     // ==================== 17. VERIFY BOT COMBAT: MULTI-TARGET & TACTICAL STRAFING ====================
-    std::cout << "[Test] Verifying Bot Multi-Targeting and Combat Tactical Movement...\n";
+    std::cout << "[Test 17] Verifying Bot Multi-Targeting and Combat Tactical Movement...\n";
     {
         Lab::AIManager aiMgr;
         // Spawn 2 bots in FFA
@@ -1121,7 +1198,7 @@ int main() {
     }
 
     // ==================== 18. VERIFY MAP SPAWNS & HAMMER PREBUILTS ====================
-    std::cout << "[Test] Verifying Map Spawn System (FFA, Team Alpha, Team Beta) and Serialization...\n";
+    std::cout << "[Test 18] Verifying Map Spawn System (FFA, Team Alpha, Team Beta) and Serialization...\n";
     {
         // 1. Verify loading spawns from facility_alpha.labmap
         auto alphaMap = Lab::LabMap::loadFromFile("assets/maps/facility_alpha.labmap");
@@ -3607,6 +3684,7 @@ int main() {
         studio.getWeaponGripMut(Lab::WeaponID::M4A4S).lockHands = true;
 
         // Test Serialization of weapon transform & LockHands
+        std::cout << "\n[Test 35] Verifying Weapon Transform Serialization, LockHands & Viewport Tool Modes...\n";
         std::string transformCfg = "build/test_transform.cfg";
         studio.saveConfig(transformCfg);
         Lab::CharacterStudio studioTransformLoader;
@@ -3658,6 +3736,7 @@ int main() {
         std::cout << "  [PASS] Weapon translation, rotation, scaling, and viewport tools validated!\n";
 
         // 9. Verify Custom STL Model Selection & Base Scale Auto-Normalization
+        std::cout << "\n[Test 36] Verifying Custom STL Model Selection & Base Scale Auto-Normalization...\n";
         {
             studio.setSelectedWeapon(1); // Pistol
             studio.getWeaponSkinMut(Lab::WeaponID::Pistol).modelFile = "Model.stl";
@@ -3687,6 +3766,7 @@ int main() {
         }
 
         // 10. Visual Verification 1: Character Studio Stage & Hammer UI (Full responsive layout)
+        std::cout << "\n[Test 37] Verifying Character Studio & Weapon Grip Poser Visual Frames...\n";
         glClearColor(0.12f, 0.13f, 0.15f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -3733,6 +3813,7 @@ int main() {
         std::cout << "  [PASS] Saved Custom Model.stl FPP viewmodel frame to 'test_custom_model_viewmodel.bmp'.\n";
 
         // 11. Verify Universal STBI Texture Loading (PNG / misnamed BMP) & Textured STL Viewmodel
+        std::cout << "\n[Test 38] Verifying Universal STBI Texture Loading & Textured STL Viewmodel...\n";
         {
             std::unique_ptr<Lab::Texture> pipePng(new Lab::Texture("assets/models/textures/PipeWrenchTool_baseColor.png"));
             if (!pipePng || pipePng->getId() == 0 || pipePng->getWidth() <= 64) {
@@ -9619,6 +9700,10 @@ int main() {
     glfwDestroyWindow(window);
     glfwTerminate();
 
+    int summaryRc = printTestSummaryAndExit(86, {}, 0);
+    if (summaryRc != 0) {
+        return summaryRc;
+    }
     std::cout << "[Test] All automated and visual verifications passed with 100% success!\n";
     return 0;
 }
