@@ -44,6 +44,7 @@ namespace FrozenLife = FrozenLifeGame;
 #include "LabEntity.h"
 #include "LabTransform.h"
 #include "LabComponent.h"
+#include "LabHUDEditor.h"
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -8239,6 +8240,71 @@ int main() {
             return 1;
         }
         std::cout << "  [PASS] Sub-test C: In-Engine simulation loop OnUpdate(dt) tick verified.\n";
+
+        // Sub-test D: LabHUDEditor2D Property Panel slider vertical layout & independent W/H/RGBA updates
+        {
+            const std::string tempHudPath = "build/temp_verify_hud_prop_layout.labhud";
+            Lab::HUDProject initialProj;
+            initialProj.name = "RegressionHUD";
+            if (!initialProj.saveToFile(tempHudPath)) {
+                std::cerr << "Assertion failed: Failed to save initial temporary HUDProject to " << tempHudPath << "\n";
+                return 1;
+            }
+
+            Lab::LabHUDEditor2D hudEditor;
+            hudEditor.init();
+            if (!hudEditor.loadHUDFile(tempHudPath)) {
+                std::cerr << "Assertion failed: LabHUDEditor2D failed to load temporary .labhud file!\n";
+                return 1;
+            }
+
+            // Frame 1: Click first widget template ("Rect" at x=20, y=120 in left sidebar) to insert & select element
+            hudEditor.update(0.016f, 20.0f, 120.0f, false, false);
+            hudEditor.render(1280, 720);
+            hudEditor.update(0.016f, 20.0f, 120.0f, true, false);
+            hudEditor.render(1280, 720);
+            hudEditor.update(0.016f, 20.0f, 120.0f, false, false);
+            hudEditor.render(1280, 720);
+
+            // Frame 2: Click & drag midpoint of "H" slider (x=1115, y=156) without touching "W" slider (y=122..142)
+            hudEditor.update(0.016f, 1115.0f, 156.0f, true, false);
+            hudEditor.render(1280, 720);
+            hudEditor.update(0.016f, 1115.0f, 156.0f, false, false);
+            hudEditor.render(1280, 720);
+
+            // Frame 3: Click & drag midpoint of "Green" slider (x=1115, y=265) without touching "Red" slider (y=234..252)
+            hudEditor.update(0.016f, 1115.0f, 265.0f, true, false);
+            hudEditor.render(1280, 720);
+            hudEditor.update(0.016f, 1115.0f, 265.0f, false, false);
+            hudEditor.render(1280, 720);
+
+            // Frame 4: Click toolbar Save tool (icon index 2 at x=98, y=52)
+            hudEditor.update(0.016f, 98.0f, 52.0f, true, false);
+            hudEditor.render(1280, 720);
+            hudEditor.update(0.016f, 98.0f, 52.0f, false, false);
+            hudEditor.render(1280, 720);
+
+            auto savedProj = Lab::HUDProject::loadFromFile(tempHudPath);
+            std::error_code ec;
+            std::filesystem::remove(tempHudPath, ec);
+            if (!savedProj || savedProj->rootElements.empty()) {
+                std::cerr << "Assertion failed: Expected saved HUDProject to contain inserted Rect element!\n";
+                return 1;
+            }
+            const auto& elem = savedProj->rootElements[0];
+            if (std::abs(elem.w - 100.0f) > 1.0f || std::abs(elem.h - 1000.0f) > 25.0f) {
+                std::cerr << "Assertion failed: Expected W=100, H~1000 after dragging H slider, got W="
+                          << elem.w << ", H=" << elem.h << "\n";
+                return 1;
+            }
+            if (std::abs(elem.color.x - 0.8f) > 0.05f || std::abs(elem.color.y - 0.5f) > 0.05f) {
+                std::cerr << "Assertion failed: Expected Red=0.80, Green~0.50 after dragging Green slider, got R="
+                          << elem.color.x << ", G=" << elem.color.y << "\n";
+                return 1;
+            }
+            hudEditor.shutdown();
+            std::cout << "  [PASS] Sub-test D: LabHUDEditor2D::renderRightPropertyPanel slider vertical layout & independent W/H/RGBA updates verified.\n";
+        }
 
         std::cout << "  [PASS] Test 75 Lua Scripting & Workspaces passed 100%!\n";
     }

@@ -672,6 +672,8 @@ namespace Lab {
     }
 
     void LabHUDEditor2D::handleKeyDown(int key, bool ctrl, bool shift) {
+        (void)ctrl;
+        (void)shift;
         if (_modalType != ModalType::None) {
             if (key == GLFW_KEY_ESCAPE) {
                 closeModal();
@@ -1157,17 +1159,26 @@ namespace Lab {
         if (!elem) return;
 
         float py = y + 25;
-        LabFont::drawText(x + 10, py, "ID: " + elem->id + " (" + hudElementTypeName(elem->type) + ")", 1.2f, Vec3(1,1,1), LabFontType::System); py += 25;
+        LabFont::drawText(x + 10, py, "ID: " + elem->id + " (" + hudElementTypeName(elem->type) + ")", 1.2f, Vec3(1,1,1), LabFontType::System);
+        py += 25;
 
         // Dimensions
-        if (drawHammerSlider(x + 10, py, w - 20, 20, "W", elem->w, 0, 2000, "%.0f")) _projectDirty = true; py += 24;
-        if (drawHammerSlider(x + 10, py, w - 20, 20, "H", elem->h, 0, 2000, "%.0f")) _projectDirty = true; py += 28;
+        if (drawHammerSlider(x + 10, py, w - 20, 20, "W", elem->w, 0, 2000, "%.0f")) {
+            _projectDirty = true;
+        }
+        py += 24;
+        if (drawHammerSlider(x + 10, py, w - 20, 20, "H", elem->h, 0, 2000, "%.0f")) {
+            _projectDirty = true;
+        }
+        py += 28;
 
         // =====================================================================
         // COLOR & OPACITY CONTROLS
         // =====================================================================
-        Renderer::drawRect(x + 5, py, w - 10, 1, Vec3(0.3f, 0.3f, 0.3f)); py += 8;
-        LabFont::drawText(x + 10, py, "COLOR & OPACITY", 1.2f, Vec3(1.0f, 0.75f, 0.2f), LabFontType::System); py += 20;
+        Renderer::drawRect(x + 5, py, w - 10, 1, Vec3(0.3f, 0.3f, 0.3f));
+        py += 8;
+        LabFont::drawText(x + 10, py, "COLOR & OPACITY", 1.2f, Vec3(1.0f, 0.75f, 0.2f), LabFontType::System);
+        py += 20;
 
         // Visual Color Swatch Preview
         float swatchW = w - 20;
@@ -1183,10 +1194,22 @@ namespace Lab {
         py += 32;
 
         // RGBA Sliders
-        if (drawHammerSlider(x + 10, py, w - 20, 18, "Red", elem->color.x, 0.0f, 1.0f, "%.2f")) _projectDirty = true; py += 22;
-        if (drawHammerSlider(x + 10, py, w - 20, 18, "Green", elem->color.y, 0.0f, 1.0f, "%.2f")) _projectDirty = true; py += 22;
-        if (drawHammerSlider(x + 10, py, w - 20, 18, "Blue", elem->color.z, 0.0f, 1.0f, "%.2f")) _projectDirty = true; py += 22;
-        if (drawHammerSlider(x + 10, py, w - 20, 18, "Alpha", elem->alpha, 0.0f, 1.0f, "%.2f")) _projectDirty = true; py += 26;
+        if (drawHammerSlider(x + 10, py, w - 20, 18, "Red", elem->color.x, 0.0f, 1.0f, "%.2f")) {
+            _projectDirty = true;
+        }
+        py += 22;
+        if (drawHammerSlider(x + 10, py, w - 20, 18, "Green", elem->color.y, 0.0f, 1.0f, "%.2f")) {
+            _projectDirty = true;
+        }
+        py += 22;
+        if (drawHammerSlider(x + 10, py, w - 20, 18, "Blue", elem->color.z, 0.0f, 1.0f, "%.2f")) {
+            _projectDirty = true;
+        }
+        py += 22;
+        if (drawHammerSlider(x + 10, py, w - 20, 18, "Alpha", elem->alpha, 0.0f, 1.0f, "%.2f")) {
+            _projectDirty = true;
+        }
+        py += 26;
 
         // Quick Palette Swatches
         struct PaletteCol { const char* name; Vec3 col; };
@@ -1218,8 +1241,10 @@ namespace Lab {
         // TYPOGRAPHY & FONT SIZE CONTROLS
         // =====================================================================
         if (elem->type == HUDElementType::Label || elem->type == HUDElementType::Button || !elem->text.empty()) {
-            Renderer::drawRect(x + 5, py, w - 10, 1, Vec3(0.3f, 0.3f, 0.3f)); py += 8;
-            LabFont::drawText(x + 10, py, "TYPOGRAPHY", 1.2f, Vec3(1.0f, 0.75f, 0.2f), LabFontType::System); py += 20;
+            Renderer::drawRect(x + 5, py, w - 10, 1, Vec3(0.3f, 0.3f, 0.3f));
+            py += 8;
+            LabFont::drawText(x + 10, py, "TYPOGRAPHY", 1.2f, Vec3(1.0f, 0.75f, 0.2f), LabFontType::System);
+            py += 20;
 
             if (drawHammerButton(x + 10, py, w - 20, 26, "Edit Text: \"" + (elem->text.empty() ? "(empty)" : elem->text.substr(0, 18)) + "\"")) {
                 openModal(ModalType::EditText, "Edit Text", "Enter text:", elem->text, [elem, this](const std::string& v){ elem->text = v; _projectDirty = true; });
@@ -1227,7 +1252,8 @@ namespace Lab {
             py += 30;
 
             // Font Type Buttons
-            LabFont::drawText(x + 10, py, "Font Type:", 1.2f, Vec3(0.85f, 0.85f, 0.85f), LabFontType::System); py += 18;
+            LabFont::drawText(x + 10, py, "Font Type:", 1.2f, Vec3(0.85f, 0.85f, 0.85f), LabFontType::System);
+            py += 18;
             float fw = (w - 30) / 3.0f;
             if (drawHammerButton(x + 10, py, fw, 24, "GeoSans", elem->fontType == 0)) { elem->fontType = 0; _projectDirty = true; }
             if (drawHammerButton(x + 10 + fw, py, fw, 24, "System", elem->fontType == 1)) { elem->fontType = 1; _projectDirty = true; }
@@ -1235,7 +1261,9 @@ namespace Lab {
             py += 28;
 
             // Font Size Slider
-            if (drawHammerSlider(x + 10, py, w - 20, 18, "Size", elem->fontSize, 0.5f, 6.0f, "%.1f")) _projectDirty = true;
+            if (drawHammerSlider(x + 10, py, w - 20, 18, "Size", elem->fontSize, 0.5f, 6.0f, "%.1f")) {
+                _projectDirty = true;
+            }
             py += 24;
 
             // Font Size Quick Nudge & Presets
@@ -1257,39 +1285,47 @@ namespace Lab {
         // =====================================================================
         // LUA SCRIPTING
         // =====================================================================
-        Renderer::drawRect(x + 5, py, w - 10, 1, Vec3(0.3f, 0.3f, 0.3f)); py += 8;
-        LabFont::drawText(x + 10, py, "LUA SCRIPTING", 1.2f, Vec3(1, 0.5f, 0), LabFontType::System); py += 18;
+        Renderer::drawRect(x + 5, py, w - 10, 1, Vec3(0.3f, 0.3f, 0.3f));
+        py += 8;
+        LabFont::drawText(x + 10, py, "LUA SCRIPTING", 1.2f, Vec3(1, 0.5f, 0), LabFontType::System);
+        py += 18;
 
         if (drawHammerButton(x + 10, py, w - 20, 26, "Edit Lua Script...")) {
             openModal(ModalType::EditLua, "Edit Lua", "Enter script:", elem->luaCustom, [elem, this](const std::string& v){ elem->luaCustom = v; _projectDirty = true; });
         }
         py += 30;
 
-        LabFont::drawText(x + 10, py, "Presets:", 1.2f, Vec3(0.8f,0.8f,0.8f), LabFontType::System); py += 18;
+        LabFont::drawText(x + 10, py, "Presets:", 1.2f, Vec3(0.8f,0.8f,0.8f), LabFontType::System);
+        py += 18;
         if (drawHammerButton(x + 10, py, w - 20, 22, "[Player Health]")) {
             elem->binding = "Player:getHealth()";
             elem->luaOnUpdate = "elem.text = tostring(Player:getHealth()); if Player:getHealth() < 30 then elem.color = {1,0.2,0.2} end";
             _projectDirty = true;
-        } py += 24;
+        }
+        py += 24;
         if (drawHammerButton(x + 10, py, w - 20, 22, "[Player Armor]")) {
             elem->binding = "Player:getArmor()";
             elem->luaOnUpdate = "elem.text = Player:getArmor() .. '%'";
             _projectDirty = true;
-        } py += 24;
+        }
+        py += 24;
         if (drawHammerButton(x + 10, py, w - 20, 22, "[Weapon Ammo]")) {
             elem->binding = "Weapon:getAmmo()";
             elem->luaOnUpdate = "elem.text = Weapon:getClip() .. ' / ' .. Weapon:getReserve()";
             _projectDirty = true;
-        } py += 24;
+        }
+        py += 24;
         if (drawHammerButton(x + 10, py, w - 20, 22, "[Match Timer]")) {
             elem->binding = "Match:getTimer()";
             elem->luaOnUpdate = "elem.text = tostring(math.floor(Match:getTimer()))";
             _projectDirty = true;
-        } py += 24;
+        }
+        py += 24;
         if (drawHammerButton(x + 10, py, w - 20, 22, "[Respawn Button]")) {
             elem->luaOnClick = "Player:respawn(); HUD:hide()";
             _projectDirty = true;
-        } py += 24;
+        }
+        py += 24;
     }
 
 }
