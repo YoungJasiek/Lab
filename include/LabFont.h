@@ -19,13 +19,17 @@
 #include <windows.h>
 #endif
 
-#ifndef STBTT_STATIC
-#define STBTT_STATIC
-#endif
 #ifndef STB_TRUETYPE_IMPLEMENTATION
 #define STB_TRUETYPE_IMPLEMENTATION
 #endif
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4505)
+#endif
 #include "stb_truetype.h"
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 namespace Lab {
 
