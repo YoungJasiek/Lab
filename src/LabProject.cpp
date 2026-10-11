@@ -677,7 +677,16 @@ namespace Lab {
 
         // 1. Virtual URI schemes
         if (pathOrUri.rfind("engine://", 0) == 0) {
-            return getEngineAssetsPath() / pathOrUri.substr(9);
+            std::string sub = pathOrUri.substr(9);
+            auto inEngineAssets = getEngineAssetsPath() / sub;
+            if (std::filesystem::exists(inEngineAssets)) {
+                return inEngineAssets;
+            }
+            auto inLegacyAssets = m_engineRoot / "assets" / sub;
+            if (std::filesystem::exists(inLegacyAssets)) {
+                return inLegacyAssets;
+            }
+            return inEngineAssets;
         }
         if (pathOrUri.rfind("game://", 0) == 0) {
             return getActiveProjectAssetsPath() / pathOrUri.substr(7);
