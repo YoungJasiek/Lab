@@ -1,0 +1,4 @@
+# Jawna lista dopuszczalnych pominiętych testów (SKIP) w TestVerify.
+# Format linii: <Nazwa lub identyfikator testu> | <Uzasadnienie>
+# Domyślnie lista jest pusta (wszystkie 86 testów, w tym testy OpenGL 4.5+ uruchamiane przez Mesa/xvfb-run, muszą przechodzić).
+# Każde pominięcie (SKIP > 0) spoza tej listy kończy przebieg TestVerify i job CI błędem (kod wyjścia 1).
