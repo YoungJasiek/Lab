@@ -1,228 +1,87 @@
-# 📋 Lab Engine — Kompletny Rejestr Architektoniczny TODO i Plan Totalnego De-Hardcodingu
+# 📋 Lab Engine — Audyt Funkcjonalności 2D, 3D oraz Lista TODO
 
-> **Status:** Główny dokument architektoniczny (Master Roadmap)  
-> **Cel:** Przekształcenie Lab Engine z monolitycznego silnika strzelanki FPS w **w pełni uniwersalny, data-driven silnik 2D & 3D** (C++20, OpenGL 4.5+ DSA, DOD/ECS, Lua 5.4), w którym dowolny gatunek gry (platformówka, RPG, wyścigi, symulator, horror, RTS, czy showcase FPS *Frozen-Life*) jest tworzony bez modyfikacji i rekompilacji kodu silnika.
+## 🖼️ Audyt Funkcjonalności Silnika 2D (Stan i TODO)
 
----
-
-## 🧭 Spis Treści
-1. [Brutalna Prawda: Gdzie jeszcze tkwi hardcoding?](#-brutalna-prawda-gdzie-jeszcze-tkwi-hardcoding)
-2. [Obszar 1: Kamery (Koniec z wymuszonym FPS i zacinającym się TPP)](#-obszar-1-kamery-koniec-z-wymuszonym-fps-i-zacinającym-się-tpp)
-3. [Obszar 2: Bronie i Mechaniki Walki (Ekstrakcja z Rdzenia DLL do Gry)](#-obszar-2-bronie-i-mechaniki-walki-ekstrakcja-z-rdzenia-dll-do-gry)
-4. [Obszar 3: Kontroler Gracza i Ruch (Koniec ze sztywnym humanoidem)](#-obszar-3-kontroler-gracza-i-ruch-koniec-ze-sztywnym-humanoidem)
-5. [Obszar 4: HUD i Interfejs (Likwidacja sztywnego paska pancerza i amunicji)](#-obszar-4-hud-i-interfejs-likwidacja-sztywnego-paska-pancerza-i-amunicji)
-6. [Obszar 5: Sieć i Multiplayer (Likwidacja frLimit i deathmatchu w protokole)](#-obszar-5-sieć-i-multiplayer-likwidacja-fraglimit-i-deathmatchu-w-protokole)
-7. [Obszar 6: Tryby Gry i Sesja (Likwidacja sztywnego FFA / DM / TDM)](#-obszar-6-tryby-gry-i-sesja-likwidacja-sztywnego-ffa--dm--tdm)
-8. [Obszar 7: Shadery i Materiały (Koniec ze stringami GLSL w plikach C++)](#-obszar-7-shadery-i-materiały-koniec-ze-stringami-glsl-w-plikach-c)
-9. [Obszar 8: Edytor i Prefaby (Likwidacja switcha i string-search "barrel")](#-obszar-8-edytor-i-prefaby-likwidacja-switcha-i-string-search-barrel)
-10. [Obszar 9: Parser Mapy i Sceny (Likwidacja sztywnych tokenów w LabMap)](#-obszar-9-parser-mapy-i-sceny-likwidacja-sztywnych-tokenów-w-labmap)
-11. [Obszar 10: Skrypty Lua (Pełna ekspozycja silnika dla skryptów)](#-obszar-10-skrypty-lua-pełna-ekspozycja-silnika-dla-skryptów)
-12. [Harmonogram Wdrożenia: Etapy od M1 do M8](#-harmonogram-wdrożenia-etapy-od-m1-do-m8)
+| Funkcjonalność | Status | Co mamy w kodzie (`include/` & `src/`) | Czego brakuje |
+| :--- | :---: | :--- | :--- |
+| **Renderowanie sprite’ów, warstw i z-order** | ✅ **Pełne** | `Lab::SpriteBatcher` (`LabSpriteBatcher.h/.cpp`): wsadowe rysowanie do 10 000 quadów w 1 draw-callu, dedykowany shader GLSL 450, obrót wokół pivotu (`origin`), wycinki UV i stabilne sortowanie (`std::stable_sort`) po `layer` (z-order) oraz `sequenceId`. | — |
+| **Animacje sprite’ów** | 🟡 **Częściowe** | `Lab::SpriteSheet2D`, `Lab::Animation2D`, `Lab::AnimationPlayer2D` (`LabAsset2D.h/.cpp`): cięcie arkuszy na siatkę (`sliceGrid`), animacje poklatkowe, kontrola FPS/pętli oraz zapis/odczyt JSON. | ❌ Brak **animacji szkieletowych 2D** (np. Spine / 2D bone mesh deforming – szkielet w silniku jest tylko 3D). |
+| **Kolizje 2D i fizyka 2D** | 🟡 **Częściowe** | `Lab::PhysicsWorld2D`, `Lab::RigidBody2D`, `Lab::AABB2D` (`LabPhysics2D.h/.cpp`): własny silnik fizyki 2D (ciała `Static`, `Kinematic`, `Dynamic`, grawitacja, impulsy, tarcie, restytucja, raycast 2D) oraz kolizje **AABB (`Box`) i okręgów (`Circle`)**. | ❌ Brak kolizji dla **wielokątów 2D** (SAT 2D) oraz brak zewnętrznej biblioteki **Box2D** (fizyka jest autorska). |
+| **Kamera 2D (przewijanie, zoom, parallax)** | 🟡 **Częściowe** | `Lab::Camera` (`LabCamera.h` – `CameraProjection::Orthographic`, `InitializeCamera2D`): rzutowanie ortogonalne, płynne przewijanie X/Y, zoom (`orthographicSize`) oraz konwersja współrzędnych `screenToWorldPoint2D`. | ❌ Brak wbudowanego systemu/komponentu **parallax scrolling** dla warstw tła. |
+| **Tilemapy i edytor poziomów** | 🟡 **Częściowe** | `Lab::Tilemap2D` i `Lab::TilemapLayer2D` (`LabAsset2D.h/.cpp`): wielowarstwowe tilemapy renderowane przez `SpriteBatcher`, serializacja JSON oraz tryb `EditorWorkspace::Level2D_Tilemap` w `editor_main.cpp`. | ❌ W edytorze 2D brakuje wizualnej palety kafelków i narzędzia pędzla (malowania kafli myszką na żywo). |
+| **Wejście (klawiatura, mysz, dotyk, gamepad)** | 🟡 **Częściowe** | `Lab::InputActionManager` (`LabInput.h/.cpp`) i `Lab::Input` (`LabCore.h`): pełna obsługa klawiatury, myszy oraz **gamepada** (15 przycisków, 6 osi, deadzone, bindowanie akcji i zapis do pliku). | ❌ Brak obsługi **dotyku (touch / multi-touch)**. |
+| **Dźwięk (odtwarzanie, miksowanie, 3D/przestrzenny)** | ✅ **Pełne** | `Lab::AudioEngine` (`LabAudio.h/.cpp`) oparty na `miniaudio.h`: miksowanie do 64 kanałów, dźwięk 2D i przestrzenny 3D z tłumieniem dystansowym (`playSound3D`, `setListener`), głośność główna + proceduralny syntezator WAV. | — |
+| **System zdarzeń/sygnałów i sceny** | 🟡 **Częściowe** | `Lab::EventBus` (`LabEvent.h` – subskrypcje, natychmiastowy broadcast i kolejkowanie zdarzeń), `Lab::LabScene` (`LabScene.h`), `Lab::SceneNode` (`LabSceneNode.h` – hierarchia transformacji rodzic-dziecko) oraz `Lab::Prefab`. | ❌ Brak menedżera stosu scen (`SceneManager`) z ładowaniem addytywnym lub asynchronicznymi przejściami między scenami. |
+| **Prosty system cząsteczek i efektów** | 🟡 **Częściowe** | `Lab::ParticleSystem` (`LabParticles.h/.cpp`): ogień, dym, iskry, krew, mróz, odłamki z fizyką odbić i blendingiem addytywnym/alfa. | ❌ Obecny system cząsteczek operuje na billboardach kamery 3D – brak dedykowanego emitera 2D spiętego ze `SpriteBatcher`. |
+| **UI i obsługa tekstu/czcionek** | ✅ **Pełne** | `Lab::LabFont` (`LabFont.h` – rasteryzacja TrueType `stb_truetype` do atlasów 512×512 + GDI/Dot-Matrix), `Lab::LabHUD` (`LabHUD.h`) oraz wizualny edytor `Lab::LabHUDEditor` (`LabHUDEditor.h` – kotwiczenie, przyciski, paski postępu, panele, karty, ikony). | — |
 
 ---
 
-## 🔎 Brutalna Prawda: Gdzie jeszcze tkwi hardcoding?
+## 🧊 Audyt Funkcjonalności Silnika 3D (Stan i TODO)
 
-Podczas głębokiego audytu kodu wyszło na jaw, że hardcoding to nie tylko bronie i przyciski w edytorze. **Praktycznie każdy podsystem silnika został napisany z założeniem, że jedyną istniejącą grą jest sieciowy FPS deathmatch:**
-
-| Podsystem | Gdzie jest zaszyty w kodzie? | Co jest zaszyte na sztywno? |
-|---|---|---|
-| **Kamery** | `player_main.cpp:391`, `LabCamera.h` | Kamera na sztywno przyklejona do oczu gracza (`_playerPos + Vec3(0, 0.2f, 0)`), zacinająca się pętla TPP po wszystkich pędzlach mapy, brak normalnego Spring-Arma. |
-| **Ruch Gracza** | `player_main.cpp:350`, `main.cpp` | Na sztywno zaszyty biegający człowiek: grawitacja `25.0f`, skok `8.5f`, prędkości `6.0f` i `12.0f`. Brak możliwości sterowania statkiem, kulą, autem czy kamerą RTS bez pisania nowego playera. |
-| **HUD / UI** | `LabHUD.h:14-36` | Pancerz kombinezonu (`suitArmor`), amunicja w magazynku (`ammoClip`), rezerwa (`ammoReserve`), trafienia w głowę (`hitmarkerHeadshot`), nazwa broni (`PISTOLET`). |
-| **Multiplayer** | `LabNetwork.h:33-263` | Pakiety sieciowe mają pola: `NetMsgKillEvent`, `killerId`, `killerName`, `kills`, `deaths`, `fragLimit = 25`. |
-| **Tryby Gry** | `LabSession.h:6-48` | Enum `GameMode` zawiera tylko: `FFA`, `DM`, `TDM`. Brak wsparcia dla kampanii, poziomów logicznych, sandboxu czy wyścigów. |
-| **Shadery** | `LabRenderer.cpp:21`, `LabDecals.cpp:11`, `LabParticles.cpp` | Wszystkie shadery OpenGL GLSL to `const char*` jako raw stringi w kodzie C++. Nie można zmodyfikować shadera bez rekompilacji silnika! |
-| **Materiały** | `LabRenderer.h:42` | Brak klasy `Material`. Tekstury przekazywane jako pojedyncze ID. W edytorze silnik dosłownie szuka słowa: `if (modelPath.find("barrel")) tex = getTexture("barrel_hazard.png")`! |
-| **Format Mapy** | `LabMap.cpp:73-200` | Sztywne tokeny tekstowe: `brush`, `prop`, `door`, `camera`, `light`. Nie da się dodać nowej encji do mapy bez edycji parsera w C++. |
-| **Skrypty Lua** | `LabScript.cpp:124-200` | Lua nie może tworzyć encji, nie może dodawać komponentów, nie może czytać prefabs ani reagować na ogólne kolizje fizyczne. Posiada za to sztywne `lua_UnlockDoor` i `lua_AddChatMessage`. |
+| Funkcjonalność | Status | Co mamy w kodzie (`include/` & `src/`) | Czego brakuje |
+| :--- | :---: | :--- | :--- |
+| **Pipeline renderowania: shadery, materiały, PBR, cienie, GI** | 🟡 **Częściowe** | `Lab::Renderer` (`LabRenderer.h`), `Lab::ShadowMap` (`LabLight.h` – cienie kierunkowe 2048×2048 z PCF 3×3), do 16 świateł punktowych + latarka, klasy `Lab::PBRMaterial` i `Lab::PBRShading` (`LabGraphics.h` – Cook-Torrance GGX + statyczne IBL z HDRI). | ❌ Domyślny shader sceny w `LabRenderer.cpp` nadal używa modelu Blinn-Phong zamiast pełnego PBR; brak dynamicznego Global Illumination (SSGI/Voxel GI). |
+| **Import modeli (glTF, FBX, STL), siatki, szkielety, morfy** | ✅ **Pełne** | `Lab::GLTFLoader` (`LabSkeletal.h` – glTF 2.0 / GLB), `Lab::FBXLoader`, `Mesh::loadSTL`, skinning GPU (64 kości), gniazda kości (`getSocketTransform`) oraz `Lab::FacialMesh` (`LabFace.h`) z **Morph Targets** i lip-synciem z audio PCM. | — |
+| **System animacji 3D (szkieletowe, blend trees, IK)** | 🟡 **Częściowe** | `Lab::Animator` (`LabSkeletal.h/.cpp`): interpolacja klatek (lerp/slerp), cross-fade między dwoma klipami animacji oraz proceduralna animacja rąk FPP (`Lab::ProceduralArms` w `LabArms.h`). | ❌ Całkowity brak **Blend Trees** (1D/2D blend spaces) oraz brak **odwrotnej kinematyki (IK)**. |
+| **Fizyka 3D i kolizje 3D (BVH, bryły otaczające)** | 🟡 **Częściowe** | Bogata autorska fizyka: `Lab::PhysicsWorld` (`LabPhysics.h`), `Lab::CCDPhysics` (`LabCCD.h` – ciągła detekcja kolizji, `ConvexHull3D` SAT, `TriangleMeshCollider3D`), `moveAndSlide`, ragdolle (`LabRagdoll.h`), pojazdy (`LabVehicle.h`), tkaniny Verleta (`LabCloth.h`), ciecze (`LabFluid.h`). | ❌ Brak integracji z zewnętrznym silnikiem (Bullet/PhysX/Jolt) oraz brak drzew przestrzennych **BVH / Octree** (broadphase działa liniowo). |
+| **Kamery 3D, system LOD i culling (frustum, occlusion)** | 🟡 **Częściowe** | Kamery perspektywiczne i ortogonalne (`Lab::Camera` w `LabCamera.h`) oraz **Frustum Culling** (test 6 płaszczyzn ostrosłupa względem AABB w `isInFrustum`). | ❌ Brak systemu **LOD** (Levels of Detail) dla siatek oraz brak **Occlusion Cullingu**. |
+| **Terrain, niebo, mgła, post-processing** | 🟡 **Częściowe** | `Lab::Skybox` (`LabRenderer.h`) i `Lab::HDRISkybox` (`LabGraphics.h`), mgła odległościowa i wysokościowa (`FogSettings`), `Lab::PostProcessPipeline` (`LabPostProcess.h` – **HDR** `GL_RGBA16F`, **Bloom** Gaussowski, **Tone Mapping** ACES/Reinhard). | ❌ Brak systemu **Terrain** (`voxel_terrain.cpp` to tylko pusta zaślepka pluginu) oraz brak **Anti-Aliasingu** (FXAA/TAA/MSAA). |
+| **Sztuczna inteligencja i nawigacja (navmesh, pathfinding)** | 🟡 **Częściowe** | `Lab::CombatBot` i `Lab::AIManager` (`LabAI.h/.cpp`): maszyna stanów FSM (`Patrol`, `Alert`, `Chase`, `Attack`, `Hurt`, `Dead`), patrolowanie po waypointach i test widoczności raycastem (`hasLineOfSight`). | ❌ Brak generatora **NavMesh** i algorytmu **pathfindingu (A\*)** (w edytorze jest tylko znacznik `NavMesh Obstacle Box`). |
+| **Wiele platform i API graficznych (Vulkan, DX, Metal, OpenGL)** | 🟡 **Częściowe** | Pełne wsparcie **OpenGL 4.5+ Core DSA** oraz warstwa abstrakcji `Lab::IRHIDevice` i kompilator `Lab::RenderGraph` (`LabRHI.h/.cpp`). | ❌ Backendy **Vulkan, DirectX 12 i Metal** w `LabRHI.cpp` zwracają na razie atrapę (`MockDevice`). |
+| **Edytor 3D, profilowanie i zarządzanie zasobami (streaming, pamięć)** | 🟡 **Częściowe** | Rozbudowany edytor 3D CSG/CAD (`Lab::LabHammerEditor` w `LabEditor.h`, `Lab::LabStudioApp` w `LabStudio.h`), `Lab::Profiler` (`LabProfiler.h` – czasy CPU, liczniki RAM/VRAM, draw calle), `Lab::VFS` (`LabVFS.h`) i `Lab::AssetRegistry` (`LabAsset.h`). | ❌ Brak **asynchronicznego streamingu zasobów** w tle (ładowanie z dysku jest synchroniczne) oraz brak własnych alokatorów aren/puli pamięci. |
 
 ---
 
-## 🎥 Obszar 1: Kamery (Koniec z wymuszonym FPS i zacinającym się TPP)
+## ⚙️ Audyt Elementów Wspólnych 2D/3D (Stan i TODO)
 
-### Aktualny stan:
-- W `player_main.cpp` kamera domyślnie przybiera widok oczu gracza.
-- TPP w `player_main.cpp` (linie 392–412) to prowizorka: ręczne sprawdzanie `for (const auto& b : _map->brushes)` w pętli bez raycastu, co powoduje zacinanie, brak płynności i przenikanie przez obiekty niebędące pędzlami (np. propsy).
-- Kąty pitch/yaw gubią się przy manipulacji myszą lub blokują na sztywno.
-
-### Zadania do wykonania:
-- [ ] **Modułowy Kontroler Kamer (`CameraController`):**
-  - [ ] **Tryb 1: Third-Person Orbit (TPP):**
-    - Orbitowanie myszą wokół dowolnego celu (gracz, pojazd, obiekt).
-    - Regulacja dystansu kółkiem myszy (Zoom In/Out).
-    - **Spring-Arm / Camera Boom z Raycastem/SphereCastem:** Jeśli ściana, sufit lub prop zasłania postać, kamera natychmiast i płynnie skraca ramię wysięgnika przed przeszkodę, eliminując przenikanie przez ściany.
-    - Opcja: Camera Shoulder Offset (widok zza prawego/lewego ramienia).
-  - [ ] **Tryb 2: First-Person (FPS):** Opcjonalny kontroler pierwszoosobowy dla gier, które tego wymagają, z niezależnym obrotem głowy i tłumieniem wstrząsów.
-  - [ ] **Tryb 3: Top-Down / Rzut z góry / Izometria:** Płynne śledzenie w płaszczyźnie XZ z regulowanym kątem pochylenia i amortyzacją ruchu (dla RPG, strategii, gier taktycznych).
-  - [ ] **Tryb 4: 2D Orthographic Platformer:** Śledzenie z deadzone (martwą strefą), wyprzedzaniem ruchu (look-ahead) i granicami mapy (Camera Bounds).
-  - [ ] **Tryb 5: Free-Fly / Cinematic:** Swobodna kamera do cutscenek i prezentacji.
-- [ ] **Płynne przejścia kamer (Camera Blending):**
-  - [ ] Możliwość płynnej interpolacji pozycji, rotacji i FOV między dwiema kamerami w scenie (`blendToCamera(targetCam, duration, easing)`).
+| Funkcjonalność | Status | Co mamy w kodzie (`include/` & `src/`) | Czego brakuje |
+| :--- | :---: | :--- | :--- |
+| **Pętla gry i zarządzanie czasem (delta time, fixed step)** | ✅ **Pełne** | `Lab::Engine::run` (`LabCore.h/.cpp`): precyzyjny `deltaTime`, akumulator fizyki `_physicsAccumulator` wywołujący `onFixedUpdate` ze stałym krokiem (domyślnie 64 Hz) niezależnie od FPS. | — |
+| **Architektura ECS lub komponentowa** | ✅ **Pełne (Komponentowa)** | `Lab::Entity` (`LabEntity.h`) i `Lab::Component` (`LabComponent.h`, `LabComponents.h`): pełny obiektowy system komponentowy (`AddComponent<T>`, `GetComponent<T>`, cykl życia `Awake`/`Start`/`Update`/`LateUpdate`). | ℹ️ Architektura komponentowa w stylu klasycznego Unity (`std::unique_ptr<Component>`), brak czystego Data-Oriented ECS opartego o archetypy/sparse-sety. |
+| **System zasobów (ładowanie, cache, referencje)** | 🟡 **Częściowe** | 128-bitowe identyfikatory GUID (`Lab::AssetID`), rejestr metadanych `Lab::AssetRegistry` (`LabAsset.h`) oraz wirtualny system plików `Lab::VFS` (`LabVFS.h`, `assets://`). | ❌ Brak centralnego cache'u z automatycznym zliczaniem referencji (smart handles / LRU) – każdy podsystem przechowuje załadowane zasoby osobno. |
+| **Serializacja scen i danych** | ✅ **Pełne** | Zapis/odczyt scen `.labscene` (`LabScene.cpp`), map CSG `.labmap` (`LabMap.cpp`), projektów `.labproject`, archiwów `.labpak` (`LabPackage.h`), animacji `.anim` oraz plików JSON dla 2D. | — |
+| **Skryptowanie (np. C#, Lua, GDScript)** | ✅ **Pełne (Lua 5.4)** | `Lab::ScriptEngine` (`LabScript.h/.cpp`) i `Lab::ScriptComponent` (`LabComponents.h`): wbudowana **Lua 5.4** z hot-reloadingiem, kompilacją do bytecode'u `.luac` i bindingami C++. | ℹ️ Wspierana jest wyłącznie Lua 5.4 (brak C# i GDScript). |
+| **Debugowanie, logowanie i profilowanie** | ✅ **Pełne** | `Lab::LabLog` (`LabCore.h` – logi konsolowe i do pliku `lab_engine.log`), `Lab::Profiler` (`LabProfiler.h` – `ProfileScope`), rysowanie kształtów debugowych (`drawDebugLine`, `drawDebugBox`, `drawBoundingBox`) i konsola REPL w edytorze. | — |
+| **Lokalizacja i obsługa wielu języków** | 🟡 **Częściowe** | `Lab::LabTheme::tr` (`LabTheme.h/.cpp`): przełączanie języków (`English` / `Polish`) w interfejsie edytora. | ❌ Słownik jest zaszyty w kodzie C++ (tylko dla UI edytora); brak ładowania zewnętrznych tabel tłumaczeń (CSV/JSON/.po) dla gier. |
+| **Eksport na różne platformy** | 🟡 **Częściowe** | `Lab::ExportPipeline` (`LabExportPipeline.h/.cpp`): pełny eksport standalone dla **Windows x64** (z kompilacją skryptów Lua do bytecode'u w trybie `Shipping` i pakowaniem assetów) oraz generowanie szablonów paczek dla **Linux, macOS i WebAssembly (WebGL 2.0)**. | ❌ Dla Linux/macOS/WASM eksporter generuje skrypty startowe, `index.html` i pliki CMake, ale wymaga zewnętrznego kompilatora (np. Emscripten), by zbudować binarkę docelową. |
 
 ---
 
-## 🔫 Obszar 2: Bronie i Mechaniki Walki (Ekstrakcja z Rdzenia DLL do Gry)
+## ✅ Lista Zadań Uzupełniających (Brakujące Funkcje 2D / 3D / Core)
 
-### Aktualny stan:
-- `include/LabWeapon.h` w `LabWorld.dll` zawiera enum `WeaponID` (Pipe, Pistol, Shotgun, M4A4S, SG553, Minigun, PlasmaGun, Railgun, RPG) oraz sztywne ścieżki do modeli `.stl`.
-- `include/LabArms.h` zawiera model rąk FPP ze specyficzną animacją rury hydraulicznej.
-- `include/LabCombat.h` zawiera `bool isHeadshot` w ogólnym raycaście fizyki.
-- `include/LabAI.h` zawiera `CombatBot` z zasadami gry w deathmatch.
+### Zadania 2D:
+- [x] `SpriteBatcher` z obsługą warstw (`layer` z-order) i obrotu wokół pivotu (`LabSpriteBatcher`)
+- [x] Arkusze sprite'ów (`SpriteSheet2D`) i animacje poklatkowe (`AnimationPlayer2D`)
+- [x] Fizyka 2D dla AABB (`Box`) i okręgów (`Circle`) oraz Raycast 2D (`LabPhysics2D`)
+- [ ] **Kolizje wielokątów 2D (Convex Polygon SAT 2D)** w `LabPhysics2D`
+- [ ] **Animacje szkieletowe 2D** (kości 2D, deformacja siatek 2D / import Spine lub DragonBones)
+- [ ] **Komponent Parallax Scrolling 2D** (`ParallaxLayer2D` z mnożnikiem prędkości względem kamery)
+- [ ] **Interaktywny Edytor Tilemap (Tile Palette & Brush Tool)** w przestrzeni roboczej `Level2D_Tilemap`
+- [ ] **Emiter Cząsteczek 2D (`ParticleEmitter2D`)** zintegrowany bezpośrednio ze `SpriteBatcher`
+- [ ] **Obsługa ekranów dotykowych (Touch / Multi-touch)** w `LabInput`
 
-### Zadania do wykonania:
-- [ ] **Wydzielenie logiki FPS ze wszystkich bibliotek silnika:**
-  - [ ] Przenieść `LabWeapon.*`, `LabArms.*`, `CombatBot` z rdzenia (`LabWorld.dll`, `LabAnimation.dll`, `LabAI.dll`) do dedykowanego projektu gry: `games/FrozenLife/` lub opcjonalnego modułu `plugins/FPSGame/`.
-  - [ ] Rdzeń silnika staje się w 100% czysty od jakiejkolwiek wzmianki o broniach i strzelaninach.
-- [ ] **Czysty Raycast i Kolizje:**
-  - [ ] Usunąć `isHeadshot` i specyficzne tagi (`EntityTag::Medkit`, `AmmoDrop`) z `LabCombat.h`.
-  - [ ] Wprowadzić uniwersalną strukturę `HitResult`: obiekt trafiony, punkt trafienia, normalna powierzchni, odległość, materiał fizyczny.
+### Zadania 3D:
+- [x] Import glTF 2.0 / GLB, FBX, STL, skinning GPU (64 kości) oraz Morph Targets + Lip-Sync (`LabSkeletal`, `LabFace`)
+- [x] Cienie kierunkowe (`ShadowMap` 2048×2048 PCF), Skybox / HDRI, Mgła, HDR + Bloom + Tone Mapping (`ACES`/`Reinhard`)
+- [x] Frustum Culling (`Camera::isInFrustum`)
+- [ ] **Domyślny shader PBR w `LabRenderer`** (zastąpienie głównego shadera Blinn-Phong pełnym Cook-Torrance PBR z `LabGraphics`)
+- [ ] **Anti-Aliasing (FXAA / TAA / MSAA)** w potoku `PostProcessPipeline`
+- [ ] **Drzewa miksowania animacji (1D/2D Blend Trees)** oraz **Odwrotna Kinematyka (Two-Bone IK / Foot IK)** w `LabSkeletal`
+- [ ] **Struktura przestrzenna BVH / Octree** dla szerokiej fazy kolizji 3D i raycastingu
+- [ ] **System LOD (Levels of Detail)** dla automatycznego przełączania siatek 3D zależnie od dystansu
+- [ ] **Occlusion Culling** (np. zapytania GPU Hardware Occlusion Queries lub Hi-Z)
+- [ ] **System Terenu 3D (`TerrainMesh` / Heightmap / Voxel Terrain)** z malowaniem tekstur (splatmap)
+- [ ] **Generowanie NavMesh i Pathfinding A\*** w `LabAI` (wykorzystujące istniejące znaczniki `NavMesh Obstacle Box`)
+- [ ] **Asynchroniczny Streaming Zasobów** (wielowątkowe ładowanie tekstur i modeli w tle)
+- [ ] **Prawdziwy backend Vulkan / DirectX 12** pod interfejsem `IRHIDevice` (`LabRHI`)
 
----
-
-## 🏃 Obszar 3: Kontroler Gracza i Ruch (Koniec ze sztywnym humanoidem)
-
-### Aktualny stan:
-- W `player_main.cpp` (linie 350–390) gracz to na sztywno zakodowany człowiek biegający po podłodze:
-  `_playerVel.y -= 25.0f * dt`, `_playerVel.y = 8.5f`, `speed = 6.0f / 12.0f`.
-- Nie da się stworzyć gry ze statkiem kosmicznym, samochodem, toczącą się kulą czy postacią 2D bez pisania od zera całego pliku wykonywalnego.
-
-### Zadania do wykonania:
-- [ ] **Komponentowa Architektura Kontrolerów Ruchu:**
-  - [ ] `CharacterMovementComponent`: konfigurowalny ruch humanoidalny (prędkość, siła skoku, grawitacja, tarcie, płynne wchodzenie na stopnie / step-height).
-  - [ ] `FlyingMovementComponent`: swobodny ruch 6DOF dla statków kosmicznych i dronów.
-  - [ ] `VehicleMovementComponent`: fizyczny model pojazdu kołowego.
-  - [ ] `TopDownMovementComponent`: poruszanie się postaci w widoku z góry (sterowanie myszką lub WSAD w 8 kierunkach).
-  - [ ] `Platformer2DMovementComponent`: fizyka platformowa 2D (skok ze zmienną wysokością, coyote time, jump buffering).
-
----
-
-## 🖥️ Obszar 4: HUD i Interfejs (Likwidacja sztywnego paska pancerza i amunicji)
-
-### Aktualny stan:
-- Klasa `LabHUD` w `include/LabHUD.h` posiada sztywne pola: `suitArmor`, `ammoClip`, `ammoReserve`, `frags`, `weaponName = "PISTOLET"`, `hitmarkerHeadshot`.
-- Jeśli tworzysz grę logiczną lub platformówkę, silnik ładuje elementy HUD-u ze strzelanki Quake/Half-Life.
-
-### Zadania do wykonania:
-- [ ] **Prawdziwy Płótno GUI / UI Canvas System:**
-  - [ ] Przekształcenie systemu HUD w generyczne drzewo widgetów 2D: `Canvas`, `Panel`, `TextLabel`, `Image`, `ProgressBar`, `Button`.
-  - [ ] Możliwość tworzenia layoutu HUD w plikach JSON (`assets/ui/hud_layout.json`) lub w edytorze `LabHUDEditor`.
-  - [ ] Sterowanie właściwościami elementów UI z poziomu skryptów Lua: `UI.SetText("score_label", "Points: 100")`, `UI.SetProgress("health_bar", 0.75)`.
-
----
-
-## 🌐 Obszar 5: Sieć i Multiplayer (Likwidacja fragLimit i deathmatchu w protokole)
-
-### Aktualny stan:
-- `include/LabNetwork.h` posiada na stałe zaszyte pakiety: `NetMsgKillEvent` (`killerId`, `killerName`), `kills`, `deaths`, `fragLimit = 25`.
-- Biblioteka sieciowa silnika narzuca, że multiplayer to deathmatch na zabójstwa.
-
-### Zadania do wykonania:
-- [ ] **Generyczna Warstwa Sieciowa (State Replication & RPC):**
-  - [ ] Oczyszczenie `LabNetwork.dll` z pojęć zabójstw, fragów i deathmatchu.
-  - [ ] Wprowadzenie generycznych pakietów:
-    - Replikacja stanu encji (`NetMsgEntityState`: GUID, position, rotation, velocity, user_state).
-    - Zdalne wywołania procedur (`NetMsgRPC`: targetEntity, methodId, payload).
-    - Dowolne dane gry przesyłane w elastycznych wiadomościach danych.
-  - [ ] Tablica wyników i zasady wygranej definiowane w skrypcie/kodzie gry, a nie w protokole sieciowym silnika.
-
----
-
-## 🎮 Obszar 6: Tryby Gry i Sesja (Likwidacja sztywnego FFA / DM / TDM)
-
-### Aktualny stan:
-- `include/LabSession.h` zawiera enum `GameMode { FFA, DM, TDM }` oraz pola `fragLimit = 25`, `botCount = 0`, `botDifficulty = 1`.
-- Silnik nie ma pojęcia o trybach dla jednego gracza innych niż strzelanie do botów na arenie.
-
-### Zadania do wykonania:
-- [ ] **Abstrakcyjny `GameModeBase`:**
-  - [ ] Architektura `GameModeBase` z cyklem życia: `OnGameStart()`, `OnPlayerJoin()`, `OnPlayerLeave()`, `OnGameEnd()`, `CheckWinCondition()`.
-  - [ ] Gry definiują własne tryby (np. `PlatformerGameMode`, `RacingGameMode`, `PuzzleGameMode`, `StoryCampaignGameMode`).
-  - [ ] Możliwość pisania pełnej logiki trybu gry w Lua.
-
----
-
-## 🎨 Obszar 7: Shadery i Materiały (Koniec ze stringami GLSL w plikach C++)
-
-### Aktualny stan:
-- Wszystkie shadery (`defaultVertexShaderSrc`, shadery cząsteczek, post-processingu i dekali) są wpisane jako `const char*` bezpośrednio w plikach `.cpp`.
-- Brak klasy `Material` – parametry i tekstury są rzucane ad-hoc jako shadery bez standaryzacji.
-- Brak możliwości modyfikacji wyglądu grafiki bez rekompilacji kodu C++.
-
-### Zadania do wykonania:
-- [ ] **Zewnętrzne Pliki Shaderów (`assets/shaders/`):**
-  - [ ] Wydzielenie kodu GLSL do plików: `assets/shaders/standard.vert`, `assets/shaders/standard.frag`, `postprocess.frag`, `particles.vert` itd.
-  - [ ] System ładowania i kompilacji shaderów z dysku z obsługą **Hot-Reloadingu** (zmiana shadera w notatniku natychmiast odświeża obraz w działającym edytorze).
-- [ ] **Wdrożenie Pełnego Systemu Materiałów (`Material`):**
-  - [ ] Klasa `Material`: wskaźnik na shader, mapa tekstur (Albedo, Normal, Roughness, Metallic, AO, Emission) oraz parametry (kolor, przezroczystość, tiling).
-  - [ ] Pliki materiałów w formacie JSON (`assets/materials/concrete_wall.mat`).
-
----
-
-## 📦 Obszar 8: Edytor i Prefaby (Likwidacja switcha i string-search "barrel")
-
-### Aktualny stan:
-- `editor_main.cpp` (linie 2607–2850): funkcja `placePrebuilt(int prebuiltId)` ma wielki `switch` z 18 na sztywno wpisanymi encjami.
-- W linii 5658 edytor dosłownie szuka stringów w nazwie pliku, żeby zgadnąć teksturę:
-  `if (p.modelPath.find("barrel")) tex = getTexture("barrel_hazard.png")`.
-
-### Zadania do wykonania:
-- [ ] **System Prefabów (`assets/prefabs/*.prefab` w JSON):**
-  - [ ] Każdy obiekt (skrzynka, ściana, lampa, wróg, platforma) definiowany jako plik prefabu z listą komponentów.
-- [ ] **Dynamiczna Paleta w Edytorze:**
-  - [ ] Usunięcie funkcji `placePrebuilt` i całego `switch`.
-  - [ ] Edytor skanuje katalog `assets/prefabs/` i automatycznie buduje kategorie i przyciski w zakładce *Add Entity*.
-  - [ ] Kliknięcie wczytuje prefab i dodaje go do sceny – 0 linii C++ potrzebnych do dodania nowego obiektu.
-
----
-
-## 🗺️ Obszar 9: Parser Mapy i Sceny (Likwidacja sztywnych tokenów w LabMap)
-
-### Aktualny stan:
-- `LabMap.cpp` używa prymitywnego parsera tekstu ze sztywnymi instrukcjami `if (token == "brush")`, `if (token == "door")`, `if (token == "prop")`.
-- Nie da się zapisać żadnego nowego typu obiektu ani komponentu bez ręcznego dopisywania kolejnych `if (token == ...)` w parserze C++.
-
-### Zadania do wykonania:
-- [ ] **Nowoczesny Format Sceny (`.labscene` w JSON):**
-  - [ ] Każdy obiekt sceny to standardowa encja z listą komponentów zapisanych w JSON.
-  - [ ] Dowolny komponent jest automatycznie serializowany i deserializowany.
-  - [ ] Przestarzały format `.labmap` traktowany wyłącznie jako format legacy z automatycznym konwerterem do `.labscene`.
-
----
-
-## 📜 Obszar 10: Skrypty Lua (Pełna ekspozycja silnika dla skryptów)
-
-### Aktualny stan:
-- `LabScript.cpp` udostępnia zaledwie kilkanaście funkcji.
-- Lua nie ma możliwości:
-  - Spawnowania prefabów ani nowych encji.
-  - Dodawania komponentów do istniejących obiektów.
-  - Odbierania zdarzeń kolizji (`OnCollisionEnter`, `OnTriggerEnter`).
-  - Sterowania kamerami (poza statyczną zmianą nazwy).
-
-### Zadania do wykonania:
-- [ ] **Rozszerzenie API Lua (`LabScript`):**
-  - [ ] `World.SpawnPrefab(prefabPath, x, y, z)`
-  - [ ] `World.DestroyEntity(entityId)`
-  - [ ] `Entity.AddComponent(entityId, componentType, params)`
-  - [ ] `Camera.SetMode("TPP")`, `Camera.SetTarget(entityId)`, `Camera.SetDistance(5.0)`
-  - [ ] Obsługa zdarzeń `OnCollision(hitInfo)` i `OnTrigger(otherEntityId)`.
-
----
-
-## 📅 Harmonogram Wdrożenia: Etapy od M1 do M8
-
-| Etap | Nazwa | Zakres prac |
-|---|---|---|
-| **M1** | **System Prefabów Data-Driven** | Likwidacja `placePrebuilt switch` i string-search w edytorze. Dynamiczne czytanie `assets/prefabs/*.prefab`. |
-| **M2** | **Uniwersalny System Kamer** | Modułowy `CameraController`: bezbłędny TPP Orbit ze Spring-Armem i kolizjami, czysty FPS, Top-Down, 2D Platformer. |
-| **M3** | **Uniwersalny Kontroler Postaci** | Likwidacja sztywnych prędkości/grawitacji w playerze na rzecz wymiennych komponentów ruchu (`CharacterMovement`, `Flying`, `TopDown`). |
-| **M4** | **Ekstrakcja Broni i Walki z Core** | Przeniesienie `LabWeapon`, `LabArms`, `CombatBot` do projektu *Frozen-Life*. Oczyszczenie fizyki z `isHeadshot`. |
-| **M5** | **Zewnętrzne Shadery i Materiały** | Wydzielenie kodu GLSL do `assets/shaders/` z hot-reloadingiem oraz wprowadzenie klasy `Material`. |
-| **M6** | **Generyczny Płótno UI / HUD** | Likwidacja `LabHUD` (pancerz HEV, amunicja) na rzecz drzewa widgetów 2D sterowanych z JSON i Lua. |
-| **M7** | **Generyczna Sieć i Tryby Gry** | Usunięcie `NetMsgKillEvent` i `GameMode::FFA/DM/TDM` na rzecz replikacji stanu encji i klasy `GameModeBase`. |
-| **M8** | **Pełne API Skryptowe Lua** | Umożliwienie tworzenia pełnych gier w Lua (spawnowanie encji, prefaby, kolizje, logika wygranej). |
-
----
-
-*Rejestr jest oficjalnym dokumentem architektonicznym projektu Lab Engine. Wszelkie przyszłe prace programistyczne muszą być zgodne z zasadą pełnej uniwersalności i decouplingiem rdzenia od konkretnych gier.*
+### Zadania Wspólne (Core):
+- [x] Pętla gry z `deltaTime` i stałym krokiem fizyki (`onFixedUpdate` 64 Hz)
+- [x] Obiektowa architektura komponentowa (`Entity` / `Component`) oraz serializacja `.labscene` / `.labpak`
+- [x] Skryptowanie Lua 5.4 z kompilacją do bytecode'u `.luac` i hot-reloadingiem
+- [x] Logowanie (`LabLog`), geometria debugowa i `Profiler`
+- [ ] **Menedżer Scen (`SceneManager`)** z obsługą stosu scen, ładowania addytywnego i płynnych przejść
+- [ ] **Centralny Cache Zasobów (`ResourceManager<T>`)** ze zliczaniem referencji (`std::shared_ptr` / smart handles) i zwalnianiem pamięci (LRU)
+- [ ] **Zewnętrzny System Lokalizacji (i18n)** ładujący pliki tłumaczeń JSON/CSV dla gier (zamiast sztywnego słownika w `LabTheme.cpp`)
+- [ ] **Automatyczna integracja kompilatorów cross-platform (Emscripten / Linux)** w `ExportPipeline`
