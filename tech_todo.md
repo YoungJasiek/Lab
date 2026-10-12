@@ -61,11 +61,11 @@ Ten plik zawiera twarde błędy techniczne, dziury pamięciowe, pozorne implemen
   - `applyLightingAndShadowUniforms` jest wołane przy **każdym pojedynczym `drawCube` / `drawMesh`** i w pętli po 16 światłach punktowych za każdym razem skleja na stercie `std::string prefix = "uPointLights[" + std::to_string(i) + "].";`. *(Naprawione: `Shader::_uniformCache` + statyczna tablica nazw uniformów świateł punktowych bez alokacji co draw call)*.
 - [x] **Bruteforce 37 ścieżek przy szukaniu zasobów (`src/LabRenderer.cpp:401-459`):**
   - Funkcja `resolveAssetPath` w `LabRenderer.cpp` omija `LabVFS` i sprawdza w pętli 37 zgadywanych ścieżek względnych (`../../assets/models/textures/`, `build/Release/` itd.). *(Naprawione: `resolveAssetPath` w pierwszej kolejności odpytuje `VFS::get().resolve()` przed fallbackiem do ścieżek lokalnych)*.
-- [ ] **Liniowe `dynamic_cast` w `Entity::GetComponent<T>()` (`include/LabEntity.h:46-57`):**
-  - Każde pobranie komponentu (w tym szukanie kamery w `LabScene::GetMainCamera`) wykonuje liniowy przegląd wektora i `dynamic_cast`.
-- [ ] **Konfiguracja `CMakeLists.txt` (`CMakeLists.txt:9-21`):**
-  - Globalne `CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON` eksportuje wszystkie symbole wewnętrzne z 11 bibliotek `.dll` zamiast polegać na jawnych makrach API.
-  - Flaga `WARNING_AS_ERROR_FLAG` (`/WX` / `-Werror`) jest nałożona wyłącznie na jeden plik (`src/LabSpriteBatcher.cpp`), a nie na targety silnika.
+- [x] **Liniowe `dynamic_cast` w `Entity::GetComponent<T>()` (`include/LabEntity.h:46-57`):**
+  - Każde pobranie komponentu (w tym szukanie kamery w `LabScene::GetMainCamera`) wykonuje liniowy przegląd wektora i `dynamic_cast`. *(Naprawione: wprowadzono tablicę mieszającą `std::unordered_map<std::type_index, Component*> m_componentCache` zapewniającą dostęp $O(1)$ bez `dynamic_cast` przy powtarzanych odczytach)*.
+- [x] **Konfiguracja `CMakeLists.txt` (`CMakeLists.txt:9-21`):**
+  - Globalne `CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON` eksportuje wszystkie symbole wewnętrzne z 11 bibliotek `.dll` zamiast polegać na jawnych makrach API. *(Naprawione: wydzielono opcję `LAB_EXPORT_ALL_SYMBOLS` obok makr `LAB_CORE_BUILD` / `LAB_RENDER_BUILD`)*.
+  - Flaga `WARNING_AS_ERROR_FLAG` (`/WX` / `-Werror`) jest nałożona wyłącznie na jeden plik (`src/LabSpriteBatcher.cpp`), a nie na targety silnika. *(Naprawione: rozszerzono ścisłe `/WX` / `-Werror` na kluczowe moduły `LabSpriteBatcher`, `LabVFS`, `LabRHI`, `LabPostProcess`, `LabGraphics`, `LabPhysics` oraz dodano globalny przełącznik `LAB_STRICT_WARNINGS_AS_ERRORS`)*.
 
 ---
 

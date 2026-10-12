@@ -6,6 +6,8 @@
 #include <memory>
 #include <algorithm>
 #include <type_traits>
+#include <typeindex>
+#include <unordered_map>
 
 namespace Lab {
 
@@ -26,6 +28,7 @@ namespace Lab {
         void AddTag(const std::string& t) { tag = t; }
 
         virtual ~Entity() {
+            m_componentCache.clear();
             for (auto& comp : m_components) {
                 if (comp) comp->OnDestroy();
             }
@@ -38,6 +41,7 @@ namespace Lab {
             auto comp = std::make_shared<T>(std::forward<Args>(args)...);
             comp->entity = this;
             m_components.push_back(comp);
+            m_componentCache[std::type_index(typeid(T))] = comp.get();
             comp->Awake();
             comp->Start();
             return comp;
@@ -49,9 +53,17 @@ namespace Lab {
             if constexpr (std::is_same<T, Transform>::value) {
                 return transform.get();
             }
+            const std::type_index key(typeid(T));
+            auto it = m_componentCache.find(key);
+            if (it != m_componentCache.end()) {
+                return static_cast<T*>(it->second);
+            }
             for (const auto& comp : m_components) {
                 T* casted = dynamic_cast<T*>(comp.get());
-                if (casted) return casted;
+                if (casted) {
+                    m_componentCache[key] = casted;
+                    return casted;
+                }
             }
             return nullptr;
         }
@@ -67,6 +79,7 @@ namespace Lab {
             for (auto it = m_components.begin(); it != m_components.end(); ++it) {
                 T* casted = dynamic_cast<T*>(it->get());
                 if (casted) {
+                    m_componentCache.clear();
                     (*it)->OnDestroy();
                     m_components.erase(it);
                     return true;
@@ -95,6 +108,7 @@ namespace Lab {
 
     private:
         std::vector<std::shared_ptr<Component>> m_components;
+        mutable std::unordered_map<std::type_index, Component*> m_componentCache;
     };
 
     inline Transform* Component::getTransform() const {

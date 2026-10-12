@@ -5,8 +5,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Enable automatic symbol export for Windows dynamic link libraries (.dll)
-set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+option(LAB_EXPORT_ALL_SYMBOLS "Automatically export all Windows DLL symbols" ON)
+option(LAB_STRICT_WARNINGS_AS_ERRORS "Treat all compiler warnings as errors across all targets" OFF)
+
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ${LAB_EXPORT_ALL_SYMBOLS})
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Strict compiler flags with standard MSVC DLL warning suppressions
@@ -18,7 +20,19 @@ else()
     set(WARNING_AS_ERROR_FLAG -Werror -Wold-style-cast -Wsign-conversion)
 endif()
 
-set_source_files_properties(src/LabSpriteBatcher.cpp PROPERTIES COMPILE_OPTIONS "${WARNING_AS_ERROR_FLAG}")
+if(LAB_STRICT_WARNINGS_AS_ERRORS)
+    list(APPEND COMPILER_FLAGS ${WARNING_AS_ERROR_FLAG})
+endif()
+
+set_source_files_properties(
+    src/LabSpriteBatcher.cpp
+    src/LabVFS.cpp
+    src/LabRHI.cpp
+    src/LabPostProcess.cpp
+    src/LabGraphics.cpp
+    src/LabPhysics.cpp
+    PROPERTIES COMPILE_OPTIONS "${WARNING_AS_ERROR_FLAG}"
+)
 
 include(FetchContent)
 
