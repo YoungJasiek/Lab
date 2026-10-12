@@ -102,3 +102,12 @@ cmake --build build --config Release --parallel
 * **[`PLAN.md`](PLAN.md)** — Master 5-phase stabilization and repair roadmap (Phase 1: Hygiene & Sanitizers → Phase 2: Tests → Phase 3: Memory, Monolith Split & Game Decoupling → Phase 4: HL2 Renderer Polish → Phase 5: New Features).
 * **[`tech_todo.md`](tech_todo.md)** — Detailed code-level audit checklist (Rule of Five, dangling pointers, uniform caching, security & input validation).
 * **[`AGENTS.md`](AGENTS.md)** & **[`.agents/skills/FL_SKILL/SKILL.md`](.agents/skills/FL_SKILL/SKILL.md)** — Mandatory coding, architectural, and anti-bloat rules for human and AI contributors.
+
+---
+
+## 🙏 Acknowledgments & Inspiration
+
+Special thanks to **Valve Corporation** and the creators of the **Half-Life** series (*Half-Life*, *Half-Life 2*) and the **Source Engine** (including the **Valve Hammer Editor** and the **Valve Developer Community**). Their pioneering work on crisp Blinn-Phong lighting, radiosity lightmaps, CSG brush workflows, tactile physics interactions, and modular engine architecture serves as the primary inspiration behind **Lab Engine** and **Frozen-Life**.
+
+*Lab Engine is an independent, clean-room open-source project and is not affiliated with or endorsed by Valve Corporation.*
+

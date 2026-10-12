@@ -11,13 +11,13 @@
       ]
     },
     {
-      "source": "/(.*)\\.(html|htm)",
+      "source": "/(.*)\\.(html|htm|css|js)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
       ]
     },
     {
-      "source": "/(.*)\\.(png|jpg|jpeg|webp|ico|svg|css|js)",
+      "source": "/(.*)\\.(png|jpg|jpeg|webp|ico|svg)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=86400, stale-while-revalidate=604800" }
       ]
