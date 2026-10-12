@@ -657,34 +657,25 @@ namespace Lab {
             std::transform(lowerPath.begin(), lowerPath.end(), lowerPath.begin(), [](unsigned char c) { return (char)::tolower(c); });
 
             unsigned char baseR = 70, baseG = 75, baseB = 85;
-            bool isCrate = (lowerPath.find("crate") != std::string::npos);
-            bool isBarrel = (lowerPath.find("barrel") != std::string::npos);
+            bool isCrate = (lowerPath.find("crate") != std::string::npos || lowerPath.find("wood") != std::string::npos);
+            bool isBarrel = (lowerPath.find("barrel") != std::string::npos || lowerPath.find("hazard") != std::string::npos);
             bool isDebris = (lowerPath.find("debris") != std::string::npos);
 
-            if (lowerPath.find("pipe") != std::string::npos) {
-                baseR = 145; baseG = 148; baseB = 152; // Steel / Cast Iron
-            } else if (lowerPath.find("pistol") != std::string::npos) {
-                baseR = 42; baseG = 45; baseB = 50;   // Tactical polymer
-            } else if (lowerPath.find("shotgun") != std::string::npos) {
-                baseR = 52; baseG = 56; baseB = 64;   // Gunmetal blue
-            } else if (lowerPath.find("m4a4") != std::string::npos) {
-                baseR = 48; baseG = 54; baseB = 60;   // Matte black carbine
-            } else if (lowerPath.find("sg553") != std::string::npos) {
-                baseR = 58; baseG = 72; baseB = 58;   // Military olive
-            } else if (lowerPath.find("minigun") != std::string::npos) {
-                baseR = 64; baseG = 66; baseB = 72;   // Heavy dark metal
-            } else if (lowerPath.find("plasma") != std::string::npos) {
-                baseR = 25; baseG = 110; baseB = 140; // Pulse cyan core
-            } else if (lowerPath.find("railgun") != std::string::npos) {
-                baseR = 140; baseG = 80; baseB = 35;  // Copper magnetic rail
-            } else if (lowerPath.find("rpg") != std::string::npos) {
-                baseR = 70; baseG = 80; baseB = 52;   // Olive explosive
-            } else if (isCrate) {
+            if (isCrate) {
                 baseR = 150; baseG = 105; baseB = 62; // Warm Source pine/cedar
             } else if (isBarrel) {
-                baseR = 180; baseG = 30; baseB = 25;  // Hazardous explosive red
+                baseR = 180; baseG = 30; baseB = 25;  // Industrial hazard red
             } else if (isDebris) {
                 baseR = 120; baseG = 85; baseB = 50;  // Splintered wood
+            } else {
+                // Generic deterministic hash-based metallic surface fallback (zero game-specific weapon names)
+                uint32_t h = 2166136261u;
+                for (unsigned char c : lowerPath) {
+                    h = (h ^ c) * 16777619u;
+                }
+                baseR = static_cast<unsigned char>(45 + (h & 0x3F));
+                baseG = static_cast<unsigned char>(48 + ((h >> 8) & 0x3F));
+                baseB = static_cast<unsigned char>(52 + ((h >> 16) & 0x3F));
             }
 
             for (int y = 0; y < _height; ++y) {

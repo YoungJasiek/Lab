@@ -557,37 +557,71 @@ namespace Lab {
         return true;
     }
 
+    Vec3* MapEntityHandle::getPosition() const {
+        if (!map) return nullptr;
+        switch (type) {
+            case Type::Brush:  return (index < map->brushes.size()) ? &map->brushes[index].position : nullptr;
+            case Type::Prop:   return (index < map->props.size())   ? &map->props[index].position   : nullptr;
+            case Type::Door:   return (index < map->doors.size())   ? &map->doors[index].position   : nullptr;
+            case Type::Camera: return (index < map->cameras.size()) ? &map->cameras[index].position : nullptr;
+            case Type::Sprite: return (index < map->sprites.size()) ? &map->sprites[index].position : nullptr;
+            case Type::Light:  return (index < map->lights.size())  ? &map->lights[index].position  : nullptr;
+            default:           return nullptr;
+        }
+    }
+
+    Vec3* MapEntityHandle::getRotation() const {
+        if (!map) return nullptr;
+        switch (type) {
+            case Type::Brush:  return (index < map->brushes.size()) ? &map->brushes[index].rotation : nullptr;
+            case Type::Prop:   return (index < map->props.size())   ? &map->props[index].rotation   : nullptr;
+            case Type::Camera: return (index < map->cameras.size()) ? &map->cameras[index].rotation : nullptr;
+            default:           return nullptr;
+        }
+    }
+
+    Vec3* MapEntityHandle::getColor() const {
+        if (!map) return nullptr;
+        switch (type) {
+            case Type::Brush:  return (index < map->brushes.size()) ? &map->brushes[index].color : nullptr;
+            case Type::Prop:   return (index < map->props.size())   ? &map->props[index].color   : nullptr;
+            case Type::Door:   return (index < map->doors.size())   ? &map->doors[index].color   : nullptr;
+            case Type::Light:  return (index < map->lights.size())  ? &map->lights[index].color  : nullptr;
+            default:           return nullptr;
+        }
+    }
+
     MapEntityHandle LabMap::findEntityByName(const std::string& name) {
         if (name.empty()) return {};
 
         for (size_t i = 0; i < brushes.size(); ++i) {
             if (brushes[i].name == name) {
-                return { MapEntityHandle::Type::Brush, i, brushes[i].name, &brushes[i].position, &brushes[i].rotation, &brushes[i].color };
+                return { MapEntityHandle::Type::Brush, i, brushes[i].name, this };
             }
         }
         for (size_t i = 0; i < props.size(); ++i) {
             if (props[i].name == name) {
-                return { MapEntityHandle::Type::Prop, i, props[i].name, &props[i].position, &props[i].rotation, &props[i].color };
+                return { MapEntityHandle::Type::Prop, i, props[i].name, this };
             }
         }
         for (size_t i = 0; i < doors.size(); ++i) {
             if (doors[i].name == name) {
-                return { MapEntityHandle::Type::Door, i, doors[i].name, &doors[i].position, nullptr, &doors[i].color };
+                return { MapEntityHandle::Type::Door, i, doors[i].name, this };
             }
         }
         for (size_t i = 0; i < cameras.size(); ++i) {
             if (cameras[i].name == name) {
-                return { MapEntityHandle::Type::Camera, i, cameras[i].name, &cameras[i].position, &cameras[i].rotation, nullptr };
+                return { MapEntityHandle::Type::Camera, i, cameras[i].name, this };
             }
         }
         for (size_t i = 0; i < sprites.size(); ++i) {
             if (sprites[i].name == name) {
-                return { MapEntityHandle::Type::Sprite, i, sprites[i].name, &sprites[i].position, nullptr, nullptr };
+                return { MapEntityHandle::Type::Sprite, i, sprites[i].name, this };
             }
         }
         for (size_t i = 0; i < lights.size(); ++i) {
             if (lights[i].name == name) {
-                return { MapEntityHandle::Type::Light, i, lights[i].name, &lights[i].position, nullptr, &lights[i].color };
+                return { MapEntityHandle::Type::Light, i, lights[i].name, this };
             }
         }
         return {};

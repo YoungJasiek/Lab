@@ -11,9 +11,9 @@ Ten plik zawiera twarde błędy techniczne, dziury pamięciowe, pozorne implemen
 - [x] **Brak walidacji strumieni i odczyt niezainicjalizowanej pamięci w loaderach (`src/LabRenderer.cpp`):**
   - `Mesh::loadSTL` (L906–1005): odczytuje `triangleCount` i w pętli `for` woła `file.read(...)` bez sprawdzenia `if (!file)`. Dla uciętego pliku lub pliku ASCII STL funkcja czyta niezainicjalizowane śmieci ze stosu (`float n[3], v[3][3]`) i alokuje miliony wierzchołków. *(Naprawione: walidacja rozmiaru pliku `84 + triangleCount * 50 <= fileSize` oraz sprawdzanie każdego `file.read`)*.
   - `loadBMP` (L487–535) i `loadTGA` (L461–485): rzutowanie `*(int*)&header[18]` (strict aliasing UB), brak sprawdzenia przepełnienia całkowitego przy `width * height * channels`, brak sprawdzenia czy `file.read` faktycznie wczytało oczekiwaną liczbę bajtów, ręczne `new unsigned char[]` / `delete[]`. *(Naprawione: `std::memcpy`, walidacja wymiarów `<= 16384`, sprawdzanie `file.read`, `std::vector<unsigned char>` dla bufora pośredniego)*.
-- [ ] **Wiszące wskaźniki (Dangling Pointers) w `MapEntityHandle` i Lua (`include/LabMap.h`, `src/LabScript.cpp`):**
+- [x] **Wiszące wskaźniki (Dangling Pointers) w `MapEntityHandle` i Lua (`include/LabMap.h`, `src/LabScript.cpp`):**
   - `LabMap::findEntityByName` (`include/LabMap.h:197-207`) zwraca strukturę `MapEntityHandle` z surowymi wskaźnikami `Vec3* position`, `Vec3* rotation`, `Vec3* color` wskazującymi bezpośrednio do wnętrza wektorów `std::vector<MapBrush>`, `std::vector<MapProp>` itd.
-  - Jakikwiek `push_back` na tych wektorach podczas działania skryptu unieważnia wskaźniki (Use-After-Free).
+  - Jakikolwiek `push_back` na tych wektorach podczas działania skryptu unieważnia wskaźniki (Use-After-Free). *(Naprawione: `MapEntityHandle` przechowuje `LabMap*` oraz indeks `size_t index` i dynamicznie rozwiązuje wskaźniki z kontrolą zakresu w `getPosition()`/`getRotation()`/`getColor()`, przetestowane przy realokacji 64 elementów w `Test 76`)*.
 - [x] **Niepełne czyszczenie i wiszące wskaźniki w `Renderer::shutdown()` (`src/LabRenderer.cpp:1177-1188`):**
   - Po `delete _defaultShader`, `delete _uiShader`, `delete _cubeMesh` wskaźniki nie są zerowane (`nullptr` ustawiany jest tylko dla `_shadowDepthShader`), a `_quadMesh` nie jest zwalniany w ogóle. *(Naprawione: zerowanie wszystkich wskaźników i ID VAO/VBO oraz zwalnianie `_quadMesh`)*.
 
@@ -27,7 +27,7 @@ Ten plik zawiera twarde błędy techniczne, dziury pamięciowe, pozorne implemen
   3. Osobny graf sceny `SceneNode` (`include/LabSceneNode.h:11-56`) z hierarchią rodzic-dziecko i prefabami, całkowicie odcięty od `Entity` i `Transform`.
   4. `ScriptEngine` (`src/LabScript.cpp:57-85, 179-300`) operuje wyłącznie na starym `LabMap*`, ignorując `Entity` oraz `SceneNode`.
 - [ ] **Wyciek logiki gry *Frozen-Life* do rdzenia silnika (`LabRender`, `LabPhysics`, `LabWorld`):**
-  - `Texture::Texture` (`src/LabRenderer.cpp:606-630`) ma zahardkodowane nazwy broni i obiektów z gry (`"m4a4"`, `"sg553"`, `"minigun"`, `"plasma"`, `"railgun"`, `"rpg"`, `"pistol"`, `"shotgun"`, `"crate"`, `"barrel"`).
+  - [x] `Texture::Texture` (`src/LabRenderer.cpp:606-630`) ma zahardkodowane nazwy broni i obiektów z gry (`"m4a4"`, `"sg553"`, `"minigun"`, `"plasma"`, `"railgun"`, `"rpg"`, `"pistol"`, `"shotgun"`). *(Naprawione: zastąpione deterministycznym hashem FNV-1a generującym neutralny odcień materiału bez nazw broni z gry)*.
   - `PostProcessPipeline` (`src/LabPostProcess.cpp:132-150`) ma na stałe zaszyty w głównym shaderze silnika efekt zamarzania wizjera (`uFrostIntensity`, `fbmFrost`).
   - `LabScene` (`include/LabScene.h:140-144`) zawiera metody `weaponIdToPrefab` / `prefabToWeaponId` mapujące konkretne bronie z FPS-a.
   - `RigidBody` i `PhysicsWorld` (`include/LabPhysics.h:15-60`, `src/LabPhysics.cpp:192-289`) zawierają logikę `PropType::Crate`, `PropType::ExplosiveBarrel`, `health`, `maxHealth`, `isHeadshot`, a solver fizyczny bezpośrednio wywołuje `AudioEngine::playSound3D(SoundID::CrateBreak, ...)` oraz `Renderer::drawCube(...)` (przez co `LabPhysics.dll` musi linkować `LabRender` i `LabAudio`).

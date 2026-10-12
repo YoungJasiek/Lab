@@ -8189,11 +8189,21 @@ int main() {
         map.props.push_back(prop);
 
         auto hKlocek = map.findEntityByName("Klocek1");
-        if (!hKlocek.isValid() || hKlocek.position->y != 2.0f) {
+        if (!hKlocek.isValid() || hKlocek.getPosition()->y != 2.0f) {
             std::cerr << "Assertion failed: findEntityByName('Klocek1') failed!\n";
             return 1;
         }
-        std::cout << "  [PASS] Sub-test A: findEntityByName correctly resolved 'Klocek1'.\n";
+        // Force vector reallocation on map.brushes and verify MapEntityHandle does not dangle
+        for (int r = 0; r < 64; ++r) {
+            Lab::MapBrush extra;
+            extra.name = "ExtraBrush_" + std::to_string(r);
+            map.brushes.push_back(extra);
+        }
+        if (!hKlocek.isValid() || hKlocek.getPosition()->y != 2.0f) {
+            std::cerr << "Assertion failed: MapEntityHandle dangled after vector reallocation!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test A: findEntityByName correctly resolved 'Klocek1' (reallocation-safe).\n";
 
         // Sub-test B: Lua World & HUD Scripting Engine
         Lab::ScriptEngine scriptEngine;

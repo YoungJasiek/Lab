@@ -194,16 +194,20 @@ namespace Lab {
         int frameIndex = 0;
     };
 
+    class LabMap;
+
     struct MapEntityHandle {
         enum class Type { None, Brush, Prop, Door, Sprite, Light, Camera };
         Type type = Type::None;
         size_t index = 0;
         std::string name = "";
-        Vec3* position = nullptr;
-        Vec3* rotation = nullptr;
-        Vec3* color = nullptr;
+        LabMap* map = nullptr;
 
-        bool isValid() const { return type != Type::None && position != nullptr; }
+        Vec3* getPosition() const;
+        Vec3* getRotation() const;
+        Vec3* getColor() const;
+
+        bool isValid() const { return type != Type::None && getPosition() != nullptr; }
     };
 
     class LabMap {

@@ -193,8 +193,8 @@ namespace Lab {
 
         if (name && s_activeMap) {
             auto h = s_activeMap->findEntityByName(name);
-            if (h.isValid()) {
-                *h.position = { x, y, z };
+            if (auto* pos = h.getPosition()) {
+                *pos = { x, y, z };
             }
         }
         return 0;
@@ -209,10 +209,10 @@ namespace Lab {
         float x = 0.0f, y = 0.0f, z = 0.0f;
         if (name && s_activeMap) {
             auto h = s_activeMap->findEntityByName(name);
-            if (h.isValid()) {
-                x = h.position->x;
-                y = h.position->y;
-                z = h.position->z;
+            if (const auto* pos = h.getPosition()) {
+                x = pos->x;
+                y = pos->y;
+                z = pos->z;
             }
         }
         lua_pushnumber(L, x);
@@ -233,10 +233,10 @@ namespace Lab {
 
         if (name && s_activeMap) {
             auto h = s_activeMap->findEntityByName(name);
-            if (h.isValid()) {
-                h.position->x += dx;
-                h.position->y += dy;
-                h.position->z += dz;
+            if (auto* pos = h.getPosition()) {
+                pos->x += dx;
+                pos->y += dy;
+                pos->z += dz;
             }
         }
         return 0;
@@ -250,7 +250,7 @@ namespace Lab {
         float x = 0.0f;
         if (name && s_activeMap) {
             auto h = s_activeMap->findEntityByName(name);
-            if (h.isValid()) x = h.position->x;
+            if (const auto* pos = h.getPosition()) x = pos->x;
         }
         lua_pushnumber(L, x);
         return 1;
@@ -264,7 +264,7 @@ namespace Lab {
         float y = 0.0f;
         if (name && s_activeMap) {
             auto h = s_activeMap->findEntityByName(name);
-            if (h.isValid()) y = h.position->y;
+            if (const auto* pos = h.getPosition()) y = pos->y;
         }
         lua_pushnumber(L, y);
         return 1;
@@ -278,7 +278,7 @@ namespace Lab {
         float z = 0.0f;
         if (name && s_activeMap) {
             auto h = s_activeMap->findEntityByName(name);
-            if (h.isValid()) z = h.position->z;
+            if (const auto* pos = h.getPosition()) z = pos->z;
         }
         lua_pushnumber(L, z);
         return 1;
@@ -292,7 +292,7 @@ namespace Lab {
         float x = (float)luaL_checknumber(L, 2);
         if (name && s_activeMap) {
             auto h = s_activeMap->findEntityByName(name);
-            if (h.isValid()) h.position->x = x;
+            if (auto* pos = h.getPosition()) pos->x = x;
         }
         return 0;
     }
@@ -305,7 +305,7 @@ namespace Lab {
         float y = (float)luaL_checknumber(L, 2);
         if (name && s_activeMap) {
             auto h = s_activeMap->findEntityByName(name);
-            if (h.isValid()) h.position->y = y;
+            if (auto* pos = h.getPosition()) pos->y = y;
         }
         return 0;
     }
@@ -318,7 +318,7 @@ namespace Lab {
         float z = (float)luaL_checknumber(L, 2);
         if (name && s_activeMap) {
             auto h = s_activeMap->findEntityByName(name);
-            if (h.isValid()) h.position->z = z;
+            if (auto* pos = h.getPosition()) pos->z = z;
         }
         return 0;
     }
@@ -370,10 +370,10 @@ namespace Lab {
 
         if (name && s_activeMap) {
             auto h = s_activeMap->findEntityByName(name);
-            if (h.isValid()) {
-                h.position->x += dx;
-                h.position->y += dy;
-                h.position->z += dz;
+            if (auto* pos = h.getPosition()) {
+                pos->x += dx;
+                pos->y += dy;
+                pos->z += dz;
             }
         }
         return 0;
