@@ -1,14 +1,17 @@
 # Lab Engine: plan naprawy i rozwoju
 
-Ten dokument jest źródłem prawdy dla pracy nad silnikiem. Zasady dla narzędzi AI są w `AGENTS.md`. Stan opisany poniżej pochodzi z przeglądu kodu (commit `6842c94`), nie z deklaracji w README.
+Ten dokument jest źródłem prawdy dla pracy nad silnikiem. Zasady dla narzędzi AI są w `AGENTS.md` oraz `.agents/skills/FL_SKILL/SKILL.md`. Szczegółowa techniczna lista błędów w kodzie i bezpieczeństwie znajduje się w `tech_todo.md`. Stan opisany poniżej pochodzi z przeglądu kodu, nie z dawnych deklaracji marketingowych.
 
 ## 0. Cel i zakres
 
-**Cel:** stabilny silnik FPS w stylu Source Engine (Half-Life 2): Blinn-Phong, ostre cienie, lightmapy, cubemapy, subtelny bloom i HDR, korekcja kolorów i winieta, FXAA lub MSAA. **Bez PBR i bez TAA.** Z modułem 2D na poziomie „działa i jest przetestowany”.
+**Tożsamość projektu:**
+- **Lab Engine** to wielogrowy, niezależny od gatunku fundament silnika 2D i 3D (C++20, OpenGL 4.5+ Core).
+- **Frozen-Life** to pierwsza gra (FPS w stylu Source Engine / Half-Life 2) zbudowana na tym silniku.
+- **Cel obecnego etapu:** wyczyścić dług technologiczny powstały przy przejściu z „silnika pod jedną grę” na „silnik ogólny”, oddzielić resztki logiki *Frozen-Life* od rdzenia silnika (`LabCore`, `LabRender`, `LabPhysics`, `LabWorld`, `LabScript`) oraz ustabilizować styl wizualny 3D (Blinn-Phong, ostre cienie, lightmapy, cubemapy, subtelny bloom i HDR, korekcja kolorów i winieta, FXAA lub MSAA — **bez PBR i bez TAA**) i potok 2D.
 
-**Poza zakresem na teraz:** Vulkan, DirectX 12, Metal, nowe systemy (LOD, NavMesh, Blend Trees, IK, streaming), nowe funkcje edytora. Wracają po fazach 1–3.
+**Poza zakresem na teraz:** Vulkan, DirectX 12, Metal, WebAssembly (WASM), nowe podsystemy (LOD, NavMesh, Blend Trees, IK, streaming), nowe funkcje edytora i moduły pod nieistniejące gry. Wracają dopiero po zamknięciu faz 1–4.
 
-**Kryterium sukcesu:** każdy moduł ma jedno z trzech oznaczeń w README: *stabilny* (testy, CI, dokumentacja), *eksperymentalny* (działa, brak testów) albo *atrapa* (nie działa, zapisane jako ograniczenie).
+**Kryterium sukcesu:** każdy moduł ma jedno z trzech oznaczeń w README: *stabilny* (testy, CI, dokumentacja), *eksperymentalny* (działa, brak pełnych testów) albo *atrapa* (nie działa / mock, zapisane jako ograniczenie).
 
 ## 1. Stan wyjściowy (fakty z kodu)
 
@@ -139,6 +142,14 @@ Konkretna lista, w kolejności od najprostszej:
 **3.4 Porządki w TODO/FIXME**
 - Przejdź 49 znaczników. Każdy: napraw, zamień na issue w GitHubie albo usuń jako nieaktualny.
 - *Akceptacja:* w `src/` i `include/` zostają tylko znaczniki z numerem issue.
+
+**3.5 Oddzielenie logiki *Frozen-Life* od rdzenia silnika i unifikacja sceny**
+- Przenieś logikę specyficzną dla *Frozen-Life* z bibliotek silnika do warstwy gry / danych:
+  - Z `LabRender` (`Texture`, `PostProcessPipeline`): usuń zahardkodowane nazwy broni (`m4a4`, `railgun` itd.) oraz efekt szronu wizjera (`uFrostIntensity`).
+  - Z `LabPhysics` (`RigidBody`, `PhysicsWorld`): wydziel `PropType::Crate`/`ExplosiveBarrel`, `health`/`maxHealth` oraz bezpośrednie wywołania `AudioEngine` i `Renderer` do callbacków / komponentów gry.
+  - Z `LabScript` i `LabWorld`: przenieś tabele broni (`_weaponDefs`, `weaponIdToPrefab`) i misji (`cardCount`) poza ogólny silnik skryptowy i format `.labscene`.
+- Uporządkuj relację `LabScene`, `LabMap` i `SceneNode` (zgodnie z listą w `tech_todo.md`), eliminując surowe wskaźniki w `MapEntityHandle`.
+- *Akceptacja:* biblioteki `LabCore`, `LabRender`, `LabPhysics`, `LabAudio`, `LabScript` nie zawierają żadnych odniesień do broni ani mechanik *Frozen-Life*, a `FrozenLife.exe` działa bez zmian w zachowaniu.
 
 ### Faza 4: renderer w stylu HL2 (po fazach 1–3)
 

@@ -1,0 +1,149 @@
+version: 1.0.0
+last_updated: '2026-10-10T21:25:58.288395+00:00'
+stats:
+  total_documents: 9
+  total_categories: 8
+categories:
+- id: LG
+  name: Spatial Audio
+- id: LE
+  name: Build, Packaging & Distribution
+- id: LA
+  name: Lab Core & Architecture
+- id: LB
+  name: Lab Editor & Tooling
+- id: LH
+  name: Multiplayer & Networking
+- id: LD
+  name: Physics & Simulation
+- id: LC
+  name: Universal 2D Engine Pipeline
+- id: LF
+  name: Lua Scripting & Dynamic Runtime
+documents:
+- docid: LA01
+  name: Engine Architecture & Core Standards
+  related_docs:
+  - LB01
+  - LC01
+  - LD01
+  - LE01
+  tags:
+  - engine-core
+  - rhi
+  - dsa
+  - c++20
+  path: core/LA01-engine-architecture.md
+  category: LA
+- docid: LB01
+  name: LabEditor Multi-Workspace Suite
+  related_docs:
+  - LA01
+  - LB02
+  - LC01
+  - LF01
+  tags:
+  - editor
+  - tools
+  - workspaces
+  - pie
+  path: editor/LB01-lab-editor-suite.md
+  category: LB
+- docid: LB02
+  name: LabHammer 3D Level Editor & CSG
+  related_docs:
+  - LB01
+  - LA01
+  - LD01
+  tags:
+  - editor
+  - hammer
+  - csg
+  - labmap
+  path: editor/LB02-hammer-level-editor.md
+  category: LB
+- docid: LC01
+  name: Universal 2D Engine Pipeline & Systems
+  related_docs:
+  - LA01
+  - LB01
+  - LD01
+  tags:
+  - rendering-2d
+  - spritebatcher
+  - tilemaps
+  - hud
+  path: rendering-2d/LC01-2d-pipeline-and-systems.md
+  category: LC
+- docid: LD01
+  name: Advanced Physics & Dynamics Subsystems
+  related_docs:
+  - LA01
+  - LB01
+  - LB02
+  tags:
+  - physics
+  - vehicles
+  - fluids
+  - ragdolls
+  - sat-ccd
+  path: physics/LD01-physics-and-dynamics.md
+  category: LD
+- docid: LE01
+  name: Universal Build Pipeline & Shipping
+  related_docs:
+  - LA01
+  - LF01
+  tags:
+  - build
+  - export
+  - packaging
+  - labpak
+  - plugins
+  path: build/LE01-build-and-export-pipeline.md
+  category: LE
+- docid: LF01
+  name: Lua 5.4 Scripting & Dynamic Runtime
+  related_docs:
+  - LA01
+  - LB01
+  - LE01
+  tags:
+  - scripting
+  - lua
+  - vm
+  - runtime
+  - ide
+  - bytecode
+  path: scripting/LF01-lua-scripting-and-ide.md
+  category: LF
+- docid: LG01
+  name: Spatial Audio & Procedural Synthesizer
+  related_docs:
+  - LA01
+  - LB01
+  - LF01
+  tags:
+  - audio
+  - miniaudio
+  - spatial
+  - procedural-wav
+  - lip-sync
+  path: audio/LG01-spatial-audio-system.md
+  category: LG
+- docid: LH01
+  name: Authoritative Multiplayer Architecture
+  related_docs:
+  - LA01
+  - LE01
+  - LF01
+  tags:
+  - network
+  - multiplayer
+  - udp
+  - replication
+  - dedicated-server
+  - ecs
+  - source-architecture
+  path: network/LH01-authoritative-multiplayer.md
+  category: LH
