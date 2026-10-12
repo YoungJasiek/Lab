@@ -1669,8 +1669,83 @@ pre {
 }
 
 @media (max-width: 768px) {
+  html,
+  body {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
+  .vdc-page-container {
+    max-width: 100vw;
+    overflow-x: hidden;
+    border-left: none;
+    border-right: none;
+  }
+
+  .vdc-top-header {
+    padding: 0 8px;
+    gap: 6px;
+    height: auto;
+    min-height: var(--header-height);
+    flex-wrap: nowrap;
+  }
+
+  .vdc-header-left {
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+  }
+
   .vdc-mobile-burger {
-    display: block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .vdc-brand {
+    gap: 6px;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .vdc-logo-stamp {
+    font-size: 0.95rem;
+    padding: 1px 6px;
+    letter-spacing: 1.5px;
+    flex-shrink: 0;
+  }
+
+  .vdc-brand-text {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .vdc-brand-title {
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .vdc-brand-sub,
+  .vdc-header-right {
+    display: none !important;
+  }
+
+  .vdc-search-bar {
+    width: 125px;
+    flex-shrink: 0;
+  }
+
+  .vdc-search-input {
+    padding: 3px 6px;
+    font-size: 11px;
+  }
+
+  .vdc-search-btn {
+    padding: 3px 7px;
+    font-size: 10px;
   }
 
   .vdc-sidebar {
@@ -1698,18 +1773,78 @@ pre {
     grid-template-columns: 1fr;
   }
 
-  .vdc-search-bar {
-    width: 180px;
-  }
-
   .vdc-main-content,
   .vdc-content {
-    padding: 0 16px 32px 16px;
+    padding: 0 12px 28px 12px;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  .vdc-page-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .wiki-tab {
+    white-space: nowrap;
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  .toc,
+  .vdc-toc,
+  .toc.toc-right,
+  .talk-archive-box {
+    float: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 10px 0 16px 0 !important;
+  }
+
+  .wikitable {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .vdc-navbox-table,
+  .vdc-navbox-table tbody,
+  .vdc-navbox-table tr,
+  .vdc-navbox-table th,
+  .vdc-navbox-table td {
+    display: block;
+    width: 100% !important;
+    text-align: left !important;
+    border-right: none !important;
+  }
+
+  .vdc-navbox-subgroup,
+  .vdc-navbox-logo-cell {
+    display: none !important;
+  }
+
+  .vdc-navbox-group {
+    background: #23272f;
+    color: #e2e8f0;
+    padding: 5px 10px;
+    border-bottom: 1px solid #323842;
+  }
+
+  .vdc-navbox-list {
+    padding: 6px 10px 10px 10px;
+  }
+
+  .vdc-navbox-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
   }
 
   .vdc-footer {
     flex-direction: column;
     align-items: flex-start;
+    padding: 16px 12px;
   }
 }
 

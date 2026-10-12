@@ -11,6 +11,19 @@ document.addEventListener('DOMContentLoaded', () => {
     document.documentElement.setAttribute('data-theme', 'dark');
   } catch (e) {}
 
+  // Remove any legacy sticky bars or banners if cached
+  document.querySelectorAll('.sticky-mobile-cta, .vdc-cookie-banner').forEach(el => el.remove());
+
+  // Ensure all wikitables are wrapped for horizontal scrolling on narrow viewports
+  document.querySelectorAll('table.wikitable').forEach(table => {
+    if (!table.parentElement || !table.parentElement.classList.contains('table-wrapper')) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'table-wrapper';
+      table.parentNode.insertBefore(wrapper, table);
+      wrapper.appendChild(table);
+    }
+  });
+
   initMobileSidebar();
   initTocToggle();
   initActiveNav();
