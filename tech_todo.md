@@ -6,17 +6,16 @@ Ten plik zawiera twarde błędy techniczne, dziury pamięciowe, pozorne implemen
 
 ## 1. Krytyczne błędy pamięci, UB i zarządzania zasobami (P0)
 
-- [ ] **Złamanie Rule of Five w zasobach OpenGL (`include/LabRenderer.h`):**
-  - Klasy `Shader` (L24–40), `Texture` (L42–59), `Mesh` (L61–89) oraz `Skybox` (L91–102) posiadają destruktory wywołujące `glDeleteProgram`, `glDeleteTextures`, `glDeleteBuffers`, `glDeleteVertexArrays` oraz `delete _shader`, ale **nie mają zablokowanego kopiowania (`= delete`) ani semantyki przenoszenia (`noexcept`)**.
-  - Skopiowanie obiektu przez wartość lub realokacja w `std::vector` powoduje zwolnienie aktywnego zasobu GPU lub podwójne `delete _shader` (double-free).
-- [ ] **Brak walidacji strumieni i odczyt niezainicjalizowanej pamięci w loaderach (`src/LabRenderer.cpp`):**
-  - `Mesh::loadSTL` (L906–1005): odczytuje `triangleCount` i w pętli `for` woła `file.read(...)` bez sprawdzenia `if (!file)`. Dla uciętego pliku lub pliku ASCII STL funkcja czyta niezainicjalizowane śmieci ze stosu (`float n[3], v[3][3]`) i alokuje miliony wierzchołków. Ponadto zwraca surowy wskaźnik `Mesh*` (`new Mesh`).
-  - `loadBMP` (L487–535) i `loadTGA` (L461–485): rzutowanie `*(int*)&header[18]` (strict aliasing UB), brak sprawdzenia przepełnienia całkowitego przy `width * height * channels`, brak sprawdzenia czy `file.read` faktycznie wczytało oczekiwaną liczbę bajtów, ręczne `new unsigned char[]` / `delete[]`.
+- [x] **Złamanie Rule of Five w zasobach OpenGL (`include/LabRenderer.h`):**
+  - Klasy `Shader` (L24–40), `Texture` (L42–59), `Mesh` (L61–89) oraz `Skybox` (L91–102) posiadają destruktory wywołujące `glDeleteProgram`, `glDeleteTextures`, `glDeleteBuffers`, `glDeleteVertexArrays` oraz `delete _shader`, ale **nie mają zablokowanego kopiowania (`= delete`) ani semantyki przenoszenia (`noexcept`)**. *(Naprawione: `= delete` na kopiowaniu, konstruktory i operatory przenoszące `noexcept`, `std::unique_ptr<Shader>` w `Skybox` i `SpriteBatcher`)*.
+- [x] **Brak walidacji strumieni i odczyt niezainicjalizowanej pamięci w loaderach (`src/LabRenderer.cpp`):**
+  - `Mesh::loadSTL` (L906–1005): odczytuje `triangleCount` i w pętli `for` woła `file.read(...)` bez sprawdzenia `if (!file)`. Dla uciętego pliku lub pliku ASCII STL funkcja czyta niezainicjalizowane śmieci ze stosu (`float n[3], v[3][3]`) i alokuje miliony wierzchołków. *(Naprawione: walidacja rozmiaru pliku `84 + triangleCount * 50 <= fileSize` oraz sprawdzanie każdego `file.read`)*.
+  - `loadBMP` (L487–535) i `loadTGA` (L461–485): rzutowanie `*(int*)&header[18]` (strict aliasing UB), brak sprawdzenia przepełnienia całkowitego przy `width * height * channels`, brak sprawdzenia czy `file.read` faktycznie wczytało oczekiwaną liczbę bajtów, ręczne `new unsigned char[]` / `delete[]`. *(Naprawione: `std::memcpy`, walidacja wymiarów `<= 16384`, sprawdzanie `file.read`, `std::vector<unsigned char>` dla bufora pośredniego)*.
 - [ ] **Wiszące wskaźniki (Dangling Pointers) w `MapEntityHandle` i Lua (`include/LabMap.h`, `src/LabScript.cpp`):**
   - `LabMap::findEntityByName` (`include/LabMap.h:197-207`) zwraca strukturę `MapEntityHandle` z surowymi wskaźnikami `Vec3* position`, `Vec3* rotation`, `Vec3* color` wskazującymi bezpośrednio do wnętrza wektorów `std::vector<MapBrush>`, `std::vector<MapProp>` itd.
-  - Jakikolwiek `push_back` na tych wektorach podczas działania skryptu unieważnia wskaźniki (Use-After-Free).
-- [ ] **Niepełne czyszczenie i wiszące wskaźniki w `Renderer::shutdown()` (`src/LabRenderer.cpp:1177-1188`):**
-  - Po `delete _defaultShader`, `delete _uiShader`, `delete _cubeMesh` wskaźniki nie są zerowane (`nullptr` ustawiany jest tylko dla `_shadowDepthShader`), a `_quadMesh` nie jest zwalniany w ogóle.
+  - Jakikwiek `push_back` na tych wektorach podczas działania skryptu unieważnia wskaźniki (Use-After-Free).
+- [x] **Niepełne czyszczenie i wiszące wskaźniki w `Renderer::shutdown()` (`src/LabRenderer.cpp:1177-1188`):**
+  - Po `delete _defaultShader`, `delete _uiShader`, `delete _cubeMesh` wskaźniki nie są zerowane (`nullptr` ustawiany jest tylko dla `_shadowDepthShader`), a `_quadMesh` nie jest zwalniany w ogóle. *(Naprawione: zerowanie wszystkich wskaźników i ID VAO/VBO oraz zwalnianie `_quadMesh`)*.
 
 ---
 
@@ -57,9 +56,9 @@ Ten plik zawiera twarde błędy techniczne, dziury pamięciowe, pozorne implemen
 
 ## 4. Wąskie gardła wydajnościowe i konfiguracja budowania (P1 / P2)
 
-- [ ] **Brak cache'owania lokalizacji uniformów + alokacje `std::string` co draw call (`src/LabRenderer.cpp:356-380, 1054-1097`):**
+- [x] **Brak cache'owania lokalizacji uniformów + alokacje `std::string` co draw call (`src/LabRenderer.cpp:356-380, 1054-1097`):**
   - Każde `setMat4` / `setVec3` / `setFloat` odpytuje sterownik przez `glGetUniformLocation`.
-  - `applyLightingAndShadowUniforms` jest wołane przy **każdym pojedynczym `drawCube` / `drawMesh`** i w pętli po 16 światłach punktowych za każdym razem skleja na stercie `std::string prefix = "uPointLights[" + std::to_string(i) + "].";`.
+  - `applyLightingAndShadowUniforms` jest wołane przy **każdym pojedynczym `drawCube` / `drawMesh`** i w pętli po 16 światłach punktowych za każdym razem skleja na stercie `std::string prefix = "uPointLights[" + std::to_string(i) + "].";`. *(Naprawione: `Shader::_uniformCache` + statyczna tablica nazw uniformów świateł punktowych bez alokacji co draw call)*.
 - [ ] **Bruteforce 37 ścieżek przy szukaniu zasobów (`src/LabRenderer.cpp:401-459`):**
   - Funkcja `resolveAssetPath` w `LabRenderer.cpp` omija `LabVFS` i sprawdza w pętli 37 zgadywanych ścieżek względnych (`../../assets/models/textures/`, `build/Release/` itd.).
 - [ ] **Liniowe `dynamic_cast` w `Entity::GetComponent<T>()` (`include/LabEntity.h:46-57`):**

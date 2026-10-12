@@ -1,6 +1,8 @@
 #pragma once
 #include <vector>
 #include <string>
+#include <memory>
+#include <unordered_map>
 #include "LabMath.h"
 #include "LabCamera.h"
 #include "LabLight.h"
@@ -26,7 +28,13 @@ namespace Lab {
         Shader(const char* vertexSource, const char* fragmentSource);
         ~Shader();
 
+        Shader(const Shader&) = delete;
+        Shader& operator=(const Shader&) = delete;
+        Shader(Shader&& other) noexcept;
+        Shader& operator=(Shader&& other) noexcept;
+
         void use() const;
+        int getUniformLocation(const std::string& name) const;
         void setMat4(const std::string& name, const Mat4& mat) const;
         void setMat4Array(const std::string& name, const Mat4* mats, int count) const;
         void setVec3(const std::string& name, const Vec3& vec) const;
@@ -35,7 +43,8 @@ namespace Lab {
         void setFloat(const std::string& name, float value) const;
 
     private:
-        unsigned int _id;
+        unsigned int _id{0};
+        mutable std::unordered_map<std::string, int> _uniformCache;
         void checkCompileErrors(unsigned int shader, std::string type);
     };
 
@@ -44,6 +53,11 @@ namespace Lab {
         Texture(const std::string& path);
         Texture(const unsigned char* data, int width, int height, int channels);
         ~Texture();
+
+        Texture(const Texture&) = delete;
+        Texture& operator=(const Texture&) = delete;
+        Texture(Texture&& other) noexcept;
+        Texture& operator=(Texture&& other) noexcept;
 
         void bind(unsigned int slot = 0) const;
         void unbind() const;
@@ -54,14 +68,19 @@ namespace Lab {
         int getChannels() const { return _channels; }
 
     private:
-        unsigned int _id;
-        int _width, _height, _channels;
+        unsigned int _id{0};
+        int _width{0}, _height{0}, _channels{0};
     };
 
     class Mesh {
     public:
         Mesh(const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices);
         ~Mesh();
+
+        Mesh(const Mesh&) = delete;
+        Mesh& operator=(const Mesh&) = delete;
+        Mesh(Mesh&& other) noexcept;
+        Mesh& operator=(Mesh&& other) noexcept;
 
         static Mesh* loadSTL(const std::string& path);
         void draw() const;
@@ -82,8 +101,8 @@ namespace Lab {
         }
 
     private:
-        unsigned int _vao, _vbo, _ebo;
-        int _indexCount;
+        unsigned int _vao{0}, _vbo{0}, _ebo{0};
+        int _indexCount{0};
         Vec3 _minBounds{0.0f, 0.0f, 0.0f};
         Vec3 _maxBounds{0.0f, 0.0f, 0.0f};
     };
@@ -93,12 +112,17 @@ namespace Lab {
         Skybox(const std::vector<std::string>& faces);
         ~Skybox();
 
+        Skybox(const Skybox&) = delete;
+        Skybox& operator=(const Skybox&) = delete;
+        Skybox(Skybox&& other) noexcept;
+        Skybox& operator=(Skybox&& other) noexcept;
+
         void draw(const Camera& camera, const Mat4& projection) const;
 
     private:
-        unsigned int _id;
-        unsigned int _vao, _vbo;
-        Shader* _shader;
+        unsigned int _id{0};
+        unsigned int _vao{0}, _vbo{0};
+        std::unique_ptr<Shader> _shader;
     };
 
     class Renderer {

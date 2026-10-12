@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <cstdint>
+#include <memory>
 #include "LabMath.h"
 
 namespace Lab {
@@ -44,6 +45,11 @@ namespace Lab {
 
         SpriteBatcher();
         ~SpriteBatcher();
+
+        SpriteBatcher(const SpriteBatcher&) = delete;
+        SpriteBatcher& operator=(const SpriteBatcher&) = delete;
+        SpriteBatcher(SpriteBatcher&&) noexcept = default;
+        SpriteBatcher& operator=(SpriteBatcher&&) noexcept = default;
 
         void init();
         void shutdown();
@@ -97,7 +103,7 @@ namespace Lab {
         unsigned int _vao{0};
         unsigned int _vbo{0};
         unsigned int _ebo{0};
-        Shader* _shader{nullptr};
+        std::unique_ptr<Shader> _shader;
 
         SpriteBatchStats _stats;
     };

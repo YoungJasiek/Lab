@@ -349,34 +349,61 @@ namespace Lab {
         }
     }
 
+    Shader::Shader(Shader&& other) noexcept
+        : _id(other._id), _uniformCache(std::move(other._uniformCache)) {
+        other._id = 0;
+    }
+
+    Shader& Shader::operator=(Shader&& other) noexcept {
+        if (this != &other) {
+            if (_id != 0 && glad_glDeleteProgram != nullptr) {
+                glDeleteProgram(_id);
+            }
+            _id = other._id;
+            _uniformCache = std::move(other._uniformCache);
+            other._id = 0;
+        }
+        return *this;
+    }
+
     void Shader::use() const {
         glUseProgram(_id);
     }
 
+    int Shader::getUniformLocation(const std::string& name) const {
+        auto it = _uniformCache.find(name);
+        if (it != _uniformCache.end()) {
+            return it->second;
+        }
+        int loc = glGetUniformLocation(_id, name.c_str());
+        _uniformCache.emplace(name, loc);
+        return loc;
+    }
+
     void Shader::setMat4(const std::string& name, const Mat4& mat) const {
-        glUniformMatrix4fv(glGetUniformLocation(_id, name.c_str()), 1, GL_FALSE, mat.m);
+        glUniformMatrix4fv(getUniformLocation(name), 1, GL_FALSE, mat.m);
     }
 
     void Shader::setMat4Array(const std::string& name, const Mat4* mats, int count) const {
         if (count > 0 && mats) {
-            glUniformMatrix4fv(glGetUniformLocation(_id, name.c_str()), count, GL_FALSE, mats[0].m);
+            glUniformMatrix4fv(getUniformLocation(name), count, GL_FALSE, mats[0].m);
         }
     }
 
     void Shader::setVec3(const std::string& name, const Vec3& vec) const {
-        glUniform3f(glGetUniformLocation(_id, name.c_str()), vec.x, vec.y, vec.z);
+        glUniform3f(getUniformLocation(name), vec.x, vec.y, vec.z);
     }
 
     void Shader::setVec2(const std::string& name, const Vec2& vec) const {
-        glUniform2f(glGetUniformLocation(_id, name.c_str()), vec.x, vec.y);
+        glUniform2f(getUniformLocation(name), vec.x, vec.y);
     }
 
     void Shader::setInt(const std::string& name, int value) const {
-        glUniform1i(glGetUniformLocation(_id, name.c_str()), value);
+        glUniform1i(getUniformLocation(name), value);
     }
 
     void Shader::setFloat(const std::string& name, float value) const {
-        glUniform1f(glGetUniformLocation(_id, name.c_str()), value);
+        glUniform1f(getUniformLocation(name), value);
     }
 
     void Shader::checkCompileErrors(unsigned int shader, std::string type) {
@@ -463,23 +490,27 @@ namespace Lab {
         std::ifstream file(resolved, std::ios::binary);
         if (!file.is_open()) return nullptr;
 
-        unsigned char header[18];
-        file.read((char*)header, 18);
+        unsigned char header[18]{};
+        if (!file.read(reinterpret_cast<char*>(header), 18)) return nullptr;
 
         *width = header[12] + (header[13] << 8);
         *height = header[14] + (header[15] << 8);
         *bpp = header[16];
 
-        if (*width <= 0 || *height <= 0 || (*bpp != 24 && *bpp != 32)) return nullptr;
+        if (*width <= 0 || *width > 16384 || *height <= 0 || *height > 16384 || (*bpp != 24 && *bpp != 32)) {
+            return nullptr;
+        }
 
-        int size = (*width) * (*height) * ((*bpp) / 8);
+        size_t bytesPerPixel = static_cast<size_t>(*bpp / 8);
+        size_t size = static_cast<size_t>(*width) * static_cast<size_t>(*height) * bytesPerPixel;
         unsigned char* data = new unsigned char[size];
-        file.read((char*)data, size);
+        if (!file.read(reinterpret_cast<char*>(data), static_cast<std::streamsize>(size))) {
+            delete[] data;
+            return nullptr;
+        }
 
-        for (int i = 0; i < size; i += (*bpp) / 8) {
-            unsigned char temp = data[i];
-            data[i] = data[i + 2];
-            data[i + 2] = temp;
+        for (size_t i = 0; i < size; i += bytesPerPixel) {
+            std::swap(data[i], data[i + 2]);
         }
         return data;
     }
@@ -491,38 +522,50 @@ namespace Lab {
             return nullptr;
         }
 
-        unsigned char header[54];
-        file.read((char*)header, 54);
+        unsigned char header[54]{};
+        if (!file.read(reinterpret_cast<char*>(header), 54)) {
+            return nullptr;
+        }
 
         if (header[0] != 'B' || header[1] != 'M') {
             return nullptr;
         }
 
-        *width = *(int*)&header[18];
-        *height = *(int*)&header[22];
-        *bpp = *(short*)&header[28];
+        int32_t rawWidth = 0, rawHeight = 0, rawOffset = 0;
+        int16_t rawBpp = 0;
+        std::memcpy(&rawOffset, &header[10], sizeof(int32_t));
+        std::memcpy(&rawWidth, &header[18], sizeof(int32_t));
+        std::memcpy(&rawHeight, &header[22], sizeof(int32_t));
+        std::memcpy(&rawBpp, &header[28], sizeof(int16_t));
 
-        if (*width <= 0 || *height == 0 || (*bpp != 24 && *bpp != 32)) {
+        *width = rawWidth;
+        *height = rawHeight;
+        *bpp = rawBpp;
+
+        int absHeight = std::abs(*height);
+        if (*width <= 0 || *width > 16384 || absHeight <= 0 || absHeight > 16384 || (*bpp != 24 && *bpp != 32)) {
             return nullptr;
         }
 
-        int dataOffset = *(int*)&header[10];
-        if (dataOffset < 54) dataOffset = 54;
-        int rowSize = ((*width * *bpp + 31) / 32) * 4;
-        int size = rowSize * std::abs(*height);
-        unsigned char* data = new unsigned char[size];
+        int dataOffset = (rawOffset < 54) ? 54 : rawOffset;
+        size_t rowSize = static_cast<size_t>(((*width * *bpp + 31) / 32) * 4);
+        size_t size = rowSize * static_cast<size_t>(absHeight);
+        std::vector<unsigned char> data(size);
 
         file.seekg(dataOffset);
-        file.read((char*)data, size);
+        if (!file.read(reinterpret_cast<char*>(data.data()), static_cast<std::streamsize>(size))) {
+            return nullptr;
+        }
 
         int channels = *bpp / 8;
-        unsigned char* rgbData = new unsigned char[(*width) * std::abs(*height) * channels];
+        size_t outSize = static_cast<size_t>(*width) * static_cast<size_t>(absHeight) * static_cast<size_t>(channels);
+        unsigned char* rgbData = new unsigned char[outSize];
 
-        for (int y = 0; y < std::abs(*height); y++) {
+        for (int y = 0; y < absHeight; y++) {
             for (int x = 0; x < *width; x++) {
-                int bmpY = (*height > 0) ? y : (std::abs(*height) - 1 - y);
-                int srcIdx = bmpY * rowSize + x * channels;
-                int dstIdx = (y * (*width) + x) * channels;
+                int bmpY = (*height > 0) ? y : (absHeight - 1 - y);
+                size_t srcIdx = static_cast<size_t>(bmpY) * rowSize + static_cast<size_t>(x * channels);
+                size_t dstIdx = static_cast<size_t>(y * (*width) + x) * static_cast<size_t>(channels);
 
                 rgbData[dstIdx] = data[srcIdx + 2];
                 rgbData[dstIdx + 1] = data[srcIdx + 1];
@@ -530,7 +573,6 @@ namespace Lab {
                 if (channels == 4) rgbData[dstIdx + 3] = data[srcIdx + 3];
             }
         }
-        delete[] data;
         return rgbData;
     }
 
@@ -723,7 +765,33 @@ namespace Lab {
     Texture::~Texture() {
         if (_id && glfwGetCurrentContext() != nullptr) {
             glDeleteTextures(1, &_id);
+            _id = 0;
         }
+    }
+
+    Texture::Texture(Texture&& other) noexcept
+        : _id(other._id), _width(other._width), _height(other._height), _channels(other._channels) {
+        other._id = 0;
+        other._width = 0;
+        other._height = 0;
+        other._channels = 0;
+    }
+
+    Texture& Texture::operator=(Texture&& other) noexcept {
+        if (this != &other) {
+            if (_id && glfwGetCurrentContext() != nullptr) {
+                glDeleteTextures(1, &_id);
+            }
+            _id = other._id;
+            _width = other._width;
+            _height = other._height;
+            _channels = other._channels;
+            other._id = 0;
+            other._width = 0;
+            other._height = 0;
+            other._channels = 0;
+        }
+        return *this;
     }
 
     void Texture::bind(unsigned int slot) const {
@@ -806,7 +874,38 @@ namespace Lab {
             if (_vbo) glDeleteBuffers(1, &_vbo);
             if (_ebo) glDeleteBuffers(1, &_ebo);
             if (_vao) glDeleteVertexArrays(1, &_vao);
+            _vbo = _ebo = _vao = 0;
         }
+    }
+
+    Mesh::Mesh(Mesh&& other) noexcept
+        : _vao(other._vao), _vbo(other._vbo), _ebo(other._ebo),
+          _indexCount(other._indexCount), _minBounds(other._minBounds), _maxBounds(other._maxBounds) {
+        other._vao = 0;
+        other._vbo = 0;
+        other._ebo = 0;
+        other._indexCount = 0;
+    }
+
+    Mesh& Mesh::operator=(Mesh&& other) noexcept {
+        if (this != &other) {
+            if (glfwGetCurrentContext() != nullptr) {
+                if (_vbo) glDeleteBuffers(1, &_vbo);
+                if (_ebo) glDeleteBuffers(1, &_ebo);
+                if (_vao) glDeleteVertexArrays(1, &_vao);
+            }
+            _vao = other._vao;
+            _vbo = other._vbo;
+            _ebo = other._ebo;
+            _indexCount = other._indexCount;
+            _minBounds = other._minBounds;
+            _maxBounds = other._maxBounds;
+            other._vao = 0;
+            other._vbo = 0;
+            other._ebo = 0;
+            other._indexCount = 0;
+        }
+        return *this;
     }
 
     // --- Skybox Implementation ---
@@ -874,14 +973,41 @@ namespace Lab {
                 FragColor = texture(skybox, TexCoords);
             }
         )";
-        _shader = new Shader(skyboxVertSrc, skyboxFragSrc);
+        _shader = std::make_unique<Shader>(skyboxVertSrc, skyboxFragSrc);
     }
 
     Skybox::~Skybox() {
-        if (_shader) delete _shader;
-        if (_id) glDeleteTextures(1, &_id);
-        if (_vbo) glDeleteBuffers(1, &_vbo);
-        if (_vao) glDeleteVertexArrays(1, &_vao);
+        _shader.reset();
+        if (glfwGetCurrentContext() != nullptr) {
+            if (_id) glDeleteTextures(1, &_id);
+            if (_vbo) glDeleteBuffers(1, &_vbo);
+            if (_vao) glDeleteVertexArrays(1, &_vao);
+        }
+    }
+
+    Skybox::Skybox(Skybox&& other) noexcept
+        : _id(other._id), _vao(other._vao), _vbo(other._vbo), _shader(std::move(other._shader)) {
+        other._id = 0;
+        other._vao = 0;
+        other._vbo = 0;
+    }
+
+    Skybox& Skybox::operator=(Skybox&& other) noexcept {
+        if (this != &other) {
+            if (glfwGetCurrentContext() != nullptr) {
+                if (_id) glDeleteTextures(1, &_id);
+                if (_vbo) glDeleteBuffers(1, &_vbo);
+                if (_vao) glDeleteVertexArrays(1, &_vao);
+            }
+            _id = other._id;
+            _vao = other._vao;
+            _vbo = other._vbo;
+            _shader = std::move(other._shader);
+            other._id = 0;
+            other._vao = 0;
+            other._vbo = 0;
+        }
+        return *this;
     }
 
     void Skybox::draw(const Camera& camera, const Mat4& projection) const {
@@ -908,17 +1034,27 @@ namespace Lab {
         if (s_missingSTL.contains(path)) return nullptr;
 
         std::string resolved = resolveAssetPath(path);
-        std::ifstream file(resolved, std::ios::binary);
+        std::ifstream file(resolved, std::ios::binary | std::ios::ate);
         if (!file.is_open()) {
+            s_missingSTL.insert(path);
+            return nullptr;
+        }
+
+        std::streamsize fileSize = file.tellg();
+        if (fileSize < 84) {
             s_missingSTL.insert(path);
             return nullptr;
         }
 
         file.seekg(80);
         unsigned int triangleCount = 0;
-        file.read((char*)&triangleCount, 4);
+        if (!file.read(reinterpret_cast<char*>(&triangleCount), 4)) {
+            s_missingSTL.insert(path);
+            return nullptr;
+        }
 
-        if (triangleCount == 0 || triangleCount > 5000000) {
+        if (triangleCount == 0 || triangleCount > 5000000 ||
+            static_cast<std::streamsize>(84ULL + static_cast<uint64_t>(triangleCount) * 50ULL) > fileSize) {
             s_missingSTL.insert(path);
             return nullptr;
         }
@@ -935,11 +1071,13 @@ namespace Lab {
         Vec3 maxB(-1e9f, -1e9f, -1e9f);
 
         for (unsigned int i = 0; i < triangleCount; i++) {
-            float n[3], v[3][3];
-            unsigned short attr;
-            file.read((char*)n, 12);
-            for(int j=0; j<3; j++) file.read((char*)v[j], 12);
-            file.read((char*)&attr, 2);
+            float n[3]{}, v[3][3]{};
+            unsigned short attr = 0;
+            if (!file.read(reinterpret_cast<char*>(n), 12)) return nullptr;
+            for (int j = 0; j < 3; j++) {
+                if (!file.read(reinterpret_cast<char*>(v[j]), 12)) return nullptr;
+            }
+            if (!file.read(reinterpret_cast<char*>(&attr), 2)) return nullptr;
 
             Vec3 normal(n[0], n[1], n[2]);
             // If STL file normals are zero/invalid, calculate facet normal
@@ -1084,20 +1222,53 @@ namespace Lab {
             shader->setInt("shadowMap", 1);
         }
 
-        // Dynamic Point Lights upload
+        // Dynamic Point Lights upload (pre-formatted uniform names to avoid heap allocations per draw call)
+        struct PointLightUniformNames {
+            std::string pos, col, intensity, radius;
+        };
+        static const PointLightUniformNames s_lightNames[16] = {
+            {"uPointLights[0].position",  "uPointLights[0].color",  "uPointLights[0].intensity",  "uPointLights[0].radius"},
+            {"uPointLights[1].position",  "uPointLights[1].color",  "uPointLights[1].intensity",  "uPointLights[1].radius"},
+            {"uPointLights[2].position",  "uPointLights[2].color",  "uPointLights[2].intensity",  "uPointLights[2].radius"},
+            {"uPointLights[3].position",  "uPointLights[3].color",  "uPointLights[3].intensity",  "uPointLights[3].radius"},
+            {"uPointLights[4].position",  "uPointLights[4].color",  "uPointLights[4].intensity",  "uPointLights[4].radius"},
+            {"uPointLights[5].position",  "uPointLights[5].color",  "uPointLights[5].intensity",  "uPointLights[5].radius"},
+            {"uPointLights[6].position",  "uPointLights[6].color",  "uPointLights[6].intensity",  "uPointLights[6].radius"},
+            {"uPointLights[7].position",  "uPointLights[7].color",  "uPointLights[7].intensity",  "uPointLights[7].radius"},
+            {"uPointLights[8].position",  "uPointLights[8].color",  "uPointLights[8].intensity",  "uPointLights[8].radius"},
+            {"uPointLights[9].position",  "uPointLights[9].color",  "uPointLights[9].intensity",  "uPointLights[9].radius"},
+            {"uPointLights[10].position", "uPointLights[10].color", "uPointLights[10].intensity", "uPointLights[10].radius"},
+            {"uPointLights[11].position", "uPointLights[11].color", "uPointLights[11].intensity", "uPointLights[11].radius"},
+            {"uPointLights[12].position", "uPointLights[12].color", "uPointLights[12].intensity", "uPointLights[12].radius"},
+            {"uPointLights[13].position", "uPointLights[13].color", "uPointLights[13].intensity", "uPointLights[13].radius"},
+            {"uPointLights[14].position", "uPointLights[14].color", "uPointLights[14].intensity", "uPointLights[14].radius"},
+            {"uPointLights[15].position", "uPointLights[15].color", "uPointLights[15].intensity", "uPointLights[15].radius"}
+        };
+
         int numPointLights = std::min((int)Renderer::_pointLights.size(), 16);
         shader->setInt("uNumPointLights", numPointLights);
         for (int i = 0; i < numPointLights; ++i) {
-            std::string prefix = "uPointLights[" + std::to_string(i) + "].";
-            shader->setVec3(prefix + "position", Renderer::_pointLights[i].position);
-            shader->setVec3(prefix + "color", Renderer::_pointLights[i].color);
-            shader->setFloat(prefix + "intensity", Renderer::_pointLights[i].intensity);
-            shader->setFloat(prefix + "radius", Renderer::_pointLights[i].radius);
+            shader->setVec3(s_lightNames[i].pos, Renderer::_pointLights[i].position);
+            shader->setVec3(s_lightNames[i].col, Renderer::_pointLights[i].color);
+            shader->setFloat(s_lightNames[i].intensity, Renderer::_pointLights[i].intensity);
+            shader->setFloat(s_lightNames[i].radius, Renderer::_pointLights[i].radius);
         }
     }
 
     // --- Renderer Implementation ---
     void Renderer::init() {
+#ifndef NDEBUG
+        if (glad_glDebugMessageCallback != nullptr) {
+            glEnable(GL_DEBUG_OUTPUT);
+            glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+            glDebugMessageCallback([](GLenum /*source*/, GLenum type, GLuint id, GLenum severity,
+                                      GLsizei /*length*/, const GLchar* message, const void* /*userParam*/) {
+                if (severity == GL_DEBUG_SEVERITY_NOTIFICATION) return;
+                std::cerr << "[GL Debug] (id=" << id << ", type=0x" << std::hex << type << std::dec << "): "
+                          << (message ? message : "") << "\n";
+            }, nullptr);
+        }
+#endif
         glClearColor(0.05f, 0.07f, 0.10f, 1.0f);
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
@@ -1176,15 +1347,20 @@ namespace Lab {
 
     void Renderer::shutdown() {
         delete _defaultShader;
+        _defaultShader = nullptr;
         delete _shadowDepthShader;
         _shadowDepthShader = nullptr;
         delete _uiShader;
+        _uiShader = nullptr;
         delete _cubeMesh;
-        if (_wireCubeVao) glDeleteVertexArrays(1, &_wireCubeVao);
-        if (_wireCubeVbo) glDeleteBuffers(1, &_wireCubeVbo);
-        if (_wireCubeEbo) glDeleteBuffers(1, &_wireCubeEbo);
-        glDeleteVertexArrays(1, &_uiVao);
-        glDeleteBuffers(1, &_uiVbo);
+        _cubeMesh = nullptr;
+        delete _quadMesh;
+        _quadMesh = nullptr;
+        if (_wireCubeVao) { glDeleteVertexArrays(1, &_wireCubeVao); _wireCubeVao = 0; }
+        if (_wireCubeVbo) { glDeleteBuffers(1, &_wireCubeVbo); _wireCubeVbo = 0; }
+        if (_wireCubeEbo) { glDeleteBuffers(1, &_wireCubeEbo); _wireCubeEbo = 0; }
+        if (_uiVao) { glDeleteVertexArrays(1, &_uiVao); _uiVao = 0; }
+        if (_uiVbo) { glDeleteBuffers(1, &_uiVbo); _uiVbo = 0; }
     }
 
     void Renderer::setSunLight(const Vec3& direction, const Vec3& color, const Vec3& ambient) {

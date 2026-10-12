@@ -100,7 +100,7 @@ namespace Lab {
 
             glBindVertexArray(0);
 
-            _shader = new Shader(spriteVertexShaderSrc, spriteFragmentShaderSrc);
+            _shader = std::make_unique<Shader>(spriteVertexShaderSrc, spriteFragmentShaderSrc);
         }
 
         _initialized = true;
@@ -116,10 +116,7 @@ namespace Lab {
             _vao = _vbo = _ebo = 0;
         }
 
-        if (_shader) {
-            delete _shader;
-            _shader = nullptr;
-        }
+        _shader.reset();
 
         _queue.clear();
         _vertices.clear();
