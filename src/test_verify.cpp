@@ -6406,7 +6406,23 @@ int main() {
                 return 1;
             }
 
-            std::cout << "  [PASS] Sub-test A: VFS mounts and path resolution verified!\n";
+            // Verify Path Traversal rejection ('..')
+            if (!vfs.resolve("assets://../../Windows/win.ini").empty() || vfs.exists("assets://../../Windows/win.ini")) {
+                std::cerr << "Assertion failed: VFS did not block directory traversal ('..')!\n";
+                return 1;
+            }
+
+            // Verify Lua VM Sandbox blocks os.execute and io
+            {
+                Lab::ScriptEngine sbEngine;
+                sbEngine.init("");
+                if (!sbEngine.executeString("assert(os.execute == nil and io == nil and dofile == nil and loadfile == nil)")) {
+                    std::cerr << "Assertion failed: Lua VM sandbox did not strip os.execute / io / dofile!\n";
+                    return 1;
+                }
+            }
+
+            std::cout << "  [PASS] Sub-test A: VFS mounts, path traversal protection, and Lua sandbox verified!\n";
         }
 
         // --- Sub-test B: 128-bit GUID Generation, Parsing & Formatting ---

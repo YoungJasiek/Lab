@@ -821,6 +821,32 @@ namespace Lab {
         std::string controlPath = "/ctl/IPConn";
         std::string serviceType = "urn:schemas-upnp-org:service:WANIPConnection:1";
 
+        auto isPrivateIPv4 = [](const std::string& ip) -> bool {
+            unsigned int a = 0, b = 0, c = 0, d = 0;
+            if (std::sscanf(ip.c_str(), "%u.%u.%u.%u", &a, &b, &c, &d) != 4) return false;
+            if (a > 255 || b > 255 || c > 255 || d > 255) return false;
+            if (a == 10 || a == 127) return true;
+            if (a == 192 && b == 168) return true;
+            if (a == 172 && b >= 16 && b <= 31) return true;
+            return false;
+        };
+
+        auto escapeXml = [](const std::string& raw) -> std::string {
+            std::string out;
+            out.reserve(raw.size());
+            for (char ch : raw) {
+                switch (ch) {
+                    case '&':  out += "&amp;"; break;
+                    case '<':  out += "&lt;"; break;
+                    case '>':  out += "&gt;"; break;
+                    case '"':  out += "&quot;"; break;
+                    case '\'': out += "&apos;"; break;
+                    default:   out += ch; break;
+                }
+            }
+            return out;
+        };
+
         if (found && location.rfind("http://", 0) == 0) {
             std::string sub = location.substr(7);
             size_t slash = sub.find('/');
@@ -835,8 +861,15 @@ namespace Lab {
                 routerPort = 80;
             }
 
+            if (!isPrivateIPv4(routerHost)) {
+                size_t lastDot = localIP.find_last_of('.');
+                routerHost = (lastDot != std::string::npos) ? (localIP.substr(0, lastDot) + ".1") : "192.168.1.1";
+                routerPort = 80;
+                xmlPath.clear();
+            }
+
             // Fetch router XML root description to discover authoritative controlURL
-            std::string xml = httpGetRequest(routerHost, routerPort, xmlPath, 800);
+            std::string xml = xmlPath.empty() ? std::string() : httpGetRequest(routerHost, routerPort, xmlPath, 800);
             if (!xml.empty()) {
                 size_t sPos = xml.find("urn:schemas-upnp-org:service:WANIPConnection:1");
                 if (sPos == std::string::npos) sPos = xml.find("urn:schemas-upnp-org:service:WANPPPConnection:1");
@@ -869,6 +902,7 @@ namespace Lab {
             }
         }
 
+        std::string safeDescription = escapeXml(description);
         std::string soapBody =
             "<?xml version=\"1.0\"?>\r\n"
             "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">\r\n"
@@ -880,7 +914,7 @@ namespace Lab {
             "<NewInternalPort>" + std::to_string(port) + "</NewInternalPort>\r\n"
             "<NewInternalClient>" + localIP + "</NewInternalClient>\r\n"
             "<NewEnabled>1</NewEnabled>\r\n"
-            "<NewPortMappingDescription>" + description + "</NewPortMappingDescription>\r\n"
+            "<NewPortMappingDescription>" + safeDescription + "</NewPortMappingDescription>\r\n"
             "<NewLeaseDuration>0</NewLeaseDuration>\r\n"
             "</u:AddPortMapping>\r\n"
             "</s:Body>\r\n"

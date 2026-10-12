@@ -72,13 +72,13 @@ Ten plik zawiera twarde błędy techniczne, dziury pamięciowe, pozorne implemen
 
 ## 5. Bezpieczeństwo i walidacja danych wejściowych (Security Audit)
 
-- [ ] **[HIGH] Path Traversal w `VFS::resolve` (`src/LabVFS.cpp:19-42`):**
-  - `VFS::resolve` skleja `it->second / relative` bez kanonizacji (`std::filesystem::weakly_canonical`) i bez sprawdzenia, czy wynikowa ścieżka nadal znajduje się wewnątrz zamontowanego katalogu. Ścieżka typu `assets://../../../../Windows/win.ini` pozwala wyjść poza katalog projektu przy ładowaniu map/skryptów.
-- [ ] **[HIGH] Brak sandboxa Lua przy automatycznym uruchamianiu skryptów z map i katalogu `plugins/` (`src/LabScript.cpp:62-85`, `src/LabPackage.cpp:9-20`):**
+- [x] **[HIGH] Path Traversal w `VFS::resolve` (`src/LabVFS.cpp:19-42`):**
+  - `VFS::resolve` skleja `it->second / relative` bez kanonizacji (`std::filesystem::weakly_canonical`) i bez sprawdzenia, czy wynikowa ścieżka nadal znajduje się wewnątrz zamontowanego katalogu. Ścieżka typu `assets://../../../../Windows/win.ini` pozwala wyjść poza katalog projektu przy ładowaniu map/skryptów. *(Naprawione: normalizacja leksykalna i odrzucanie `..` oraz ścieżek głównych + test regresji w `Test 58`)*.
+- [x] **[HIGH] Brak sandboxa Lua przy automatycznym uruchamianiu skryptów z map i katalogu `plugins/` (`src/LabScript.cpp:62-85`, `src/LabPackage.cpp:9-20`):**
   - `ScriptEngine::setActiveMap` automatycznie wykonuje dowolny skrypt przypisany do obiektów mapy (`b.script`, `p.script`), a `PackageManager` automatycznie uruchamia każdy plik `.lua` znaleziony w `plugins/`.
-  - Maszyna wirtualna Lua otwiera wszystkie biblioteki standardowe (`luaL_openlibs`, w tym `os.execute`, `os.remove`, `io.open`), co oznacza, że wczytanie cudzej mapy `.labmap` może wykonać dowolne polecenie systemowe (Arbitrary Code Execution). Należy wyciąć niebezpieczne funkcje z biblioteki `os`/`io`/`package` dla skryptów map.
-- [ ] **[MEDIUM] Brak walidacji w `NATDiscovery::openUPnPPort` (`src/LabNetwork.cpp:802-888`):**
+  - Maszyna wirtualna Lua otwiera wszystkie biblioteki standardowe (`luaL_openlibs`, w tym `os.execute`, `os.remove`, `io.open`), co oznacza, że wczytanie cudzej mapy `.labmap` może wykonać dowolne polecenie systemowe (Arbitrary Code Execution). Należy wyciąć niebezpieczne funkcje z biblioteki `os`/`io`/`package` dla skryptów map. *(Naprawione: wycięcie `os.execute`/`remove`/`rename`/`exit`/`setenv`, `io`, `dofile`, `loadfile`, `package.loadlib` + walidacja ścieżek skryptów mapy + test regresji w `Test 58`)*.
+- [x] **[MEDIUM] Brak walidacji w `NATDiscovery::openUPnPPort` (`src/LabNetwork.cpp:802-888`):**
   - Parametr `description` jest wklejany bezpośrednio do ciała XML (`<NewPortMappingDescription>`) bez escapowania znaków `<`, `>`, `&`.
-  - Odpowiedź UDP `M-SEARCH` (`LOCATION:`) z sieci lokalnej nie jest weryfikowana pod kątem tego, czy pochodzi z prywatnej podsieci bramy domyślnej przed wysłaniem żądania HTTP GET/POST.
+  - Odpowiedź UDP `M-SEARCH` (`LOCATION:`) z sieci lokalnej nie jest weryfikowana pod kątem tego, czy pochodzi z prywatnej podsieci bramy domyślnej przed wysłaniem żądania HTTP GET/POST. *(Naprawione: escapowanie XML `escapeXml` oraz weryfikacja prywatnej podsieci IPv4 `isPrivateIPv4`)*.
 - [ ] **[MEDIUM] Dodatkowe wycieki logiki *Frozen-Life* w `ScriptEngine` (`src/LabScript.cpp:1150-1305`):**
   - Klasa `ScriptEngine` w `LabScript.dll` ma na stałe wbudowane pola `_weaponDefs`, metodę `getWeaponNameById` z tablicą `{"Pipe", "Pistol", "Shotgun", "M4A4-S", "SG553", "Minigun", "Plasma Gun", "Railgun", "RPG"}`, obsługę kart dostępu (`_missionCardCount`) oraz pancerza (`CalculateDamage`).

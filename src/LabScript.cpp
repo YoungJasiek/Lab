@@ -62,10 +62,15 @@ namespace Lab {
         // Auto-run scripts attached to map entities (brush, prop, door, camera, sprite)
         auto runScriptIfAny = [this](const std::string& sPath) {
             if (sPath.empty()) return;
-            std::string resolved = sPath;
+            std::filesystem::path normPath = std::filesystem::path(sPath).lexically_normal();
+            if (normPath.has_root_name()) return;
+            for (const auto& part : normPath) {
+                if (part == "..") return;
+            }
+            std::string resolved = normPath.string();
             if (!std::filesystem::exists(resolved)) {
-                if (std::filesystem::exists("assets/scripts/" + sPath)) resolved = "assets/scripts/" + sPath;
-                else if (std::filesystem::exists("../assets/scripts/" + sPath)) resolved = "../assets/scripts/" + sPath;
+                if (std::filesystem::exists("assets/scripts/" + resolved)) resolved = "assets/scripts/" + resolved;
+                else if (std::filesystem::exists("../assets/scripts/" + resolved)) resolved = "../assets/scripts/" + resolved;
             }
             if (std::filesystem::exists(resolved)) {
                 std::ifstream f(resolved);
@@ -990,6 +995,32 @@ namespace Lab {
         }
 
         luaL_openlibs(_L);
+
+        // Sandbox Lua VM: strip dangerous OS command execution and raw host filesystem access
+        lua_getglobal(_L, "os");
+        if (lua_istable(_L, -1)) {
+            const char* blockedOs[] = { "execute", "remove", "rename", "exit", "setenv", "tmpname" };
+            for (const char* fn : blockedOs) {
+                lua_pushnil(_L);
+                lua_setfield(_L, -2, fn);
+            }
+        }
+        lua_pop(_L, 1);
+
+        lua_pushnil(_L);
+        lua_setglobal(_L, "io");
+        lua_pushnil(_L);
+        lua_setglobal(_L, "dofile");
+        lua_pushnil(_L);
+        lua_setglobal(_L, "loadfile");
+
+        lua_getglobal(_L, "package");
+        if (lua_istable(_L, -1)) {
+            lua_pushnil(_L);
+            lua_setfield(_L, -2, "loadlib");
+        }
+        lua_pop(_L, 1);
+
         registerEngineBindings();
 
         _currentScriptPath = scriptPath;
