@@ -885,112 +885,6 @@ function initTalkDiscussionSystem() {
 }
 
 /* ====================================================================
-   COOKIE CONSENT BANNER & GDPR COMPLIANCE
-   ==================================================================== */
-function initCookieConsent() {
-  const CONSENT_KEY = 'lab_cookie_consent';
-  let consent = null;
-  try {
-    consent = localStorage.getItem(CONSENT_KEY);
-  } catch (e) {}
-
-  if (consent) {
-    if (consent === 'all') {
-      initAnalytics(true);
-    } else {
-      initAnalytics(false);
-    }
-    return;
-  }
-
-  // Create banner DOM
-  const banner = document.createElement('div');
-  banner.className = 'vdc-cookie-banner';
-  banner.setAttribute('role', 'dialog');
-  banner.setAttribute('aria-label', 'Cookie Consent');
-  banner.innerHTML = `
-    <div class="cookie-header">
-      <span class="cookie-badge">Privacy</span>
-      <h3 class="cookie-title">Cookie &amp; Storage Preferences</h3>
-    </div>
-    <p class="cookie-desc">
-      We use local storage and non-invasive telemetry to measure documentation usage, search queries, and improve the Lab Developer Community. No third-party ad tracking is ever used. See our <a href="privacy.html">Privacy Policy</a>.
-    </p>
-    <div class="cookie-actions">
-      <button type="button" class="cookie-btn cookie-btn-ghost" id="cookie-btn-essential">Essential Only</button>
-      <button type="button" class="cookie-btn cookie-btn-primary" id="cookie-btn-accept">Accept All</button>
-    </div>
-  `;
-
-  document.body.appendChild(banner);
-
-  // Trigger animation after slight delay
-  setTimeout(() => {
-    banner.classList.add('active');
-  }, 400);
-
-  const closeBanner = (level) => {
-    try {
-      localStorage.setItem(CONSENT_KEY, level);
-    } catch (e) {}
-    banner.classList.remove('active');
-    setTimeout(() => banner.remove(), 350);
-    initAnalytics(level === 'all');
-  };
-
-  const btnAccept = document.getElementById('cookie-btn-accept');
-  const btnEssential = document.getElementById('cookie-btn-essential');
-
-  if (btnAccept) btnAccept.addEventListener('click', () => closeBanner('all'));
-  if (btnEssential) btnEssential.addEventListener('click', () => closeBanner('essential'));
-}
-
-/* ====================================================================
-   LIGHTWEIGHT PRIVACY-RESPECTING ANALYTICS MODULE
-   ==================================================================== */
-function initAnalytics(allowTelemetry = false) {
-  window.LabAnalytics = {
-    allowTelemetry,
-    trackEvent: function(category, action, label = '') {
-      if (!this.allowTelemetry && category !== 'essential') return;
-      const payload = {
-        category,
-        action,
-        label,
-        path: window.location.pathname,
-        timestamp: new Date().toISOString()
-      };
-      // Dispatch custom DOM event for local debugging or listener integration
-      window.dispatchEvent(new CustomEvent('lab:analytics', { detail: payload }));
-      // If user configured Google Analytics tag
-      if (typeof window.gtag === 'function' && window.GA_MEASUREMENT_ID) {
-        window.gtag('event', action, {
-          event_category: category,
-          event_label: label
-        });
-      }
-    },
-    trackPageView: function() {
-      this.trackEvent('navigation', 'page_view', document.title);
-    }
-  };
-
-  window.LabAnalytics.trackPageView();
-
-  // Track important outbound and download clicks
-  document.addEventListener('click', (e) => {
-    const target = e.target.closest('a');
-    if (!target) return;
-    const href = target.getAttribute('href') || '';
-    if (href.includes('github.com')) {
-      window.LabAnalytics.trackEvent('outbound', 'github_click', href);
-    } else if (href.endsWith('.exe') || href.endsWith('.zip') || href.endsWith('.tar.gz')) {
-      window.LabAnalytics.trackEvent('download', 'binary_download', href);
-    }
-  });
-}
-
-/* ====================================================================
    FORM ERROR STATES & CLIENT-SIDE VALIDATION
    ==================================================================== */
 function initFormValidation() {
@@ -1048,35 +942,9 @@ function initFormValidation() {
   });
 }
 
-/* ====================================================================
-   STICKY MOBILE CTA (< 768px)
-   ==================================================================== */
-function initStickyMobileCTA() {
-  if (document.querySelector('.sticky-mobile-cta')) return;
-
-  const stickyBar = document.createElement('div');
-  stickyBar.className = 'sticky-mobile-cta';
-  stickyBar.setAttribute('role', 'complementary');
-  stickyBar.setAttribute('aria-label', 'Quick Actions');
-
-  stickyBar.innerHTML = `
-    <div class="sticky-mobile-inner">
-      <span class="sticky-mobile-label">Lab Engine SDK v0.1.0</span>
-      <div class="sticky-mobile-actions">
-        <a href="modules.html" class="sticky-btn sticky-btn-ghost">&#128214; Modules</a>
-        <a href="frozen-life.html" class="sticky-btn sticky-btn-primary">&#9889; Play Build</a>
-      </div>
-    </div>
-  `;
-
-  document.body.appendChild(stickyBar);
-}
-
 // Global bootstrap for the web components
 document.addEventListener('DOMContentLoaded', () => {
-  initCookieConsent();
   initFormValidation();
-  initStickyMobileCTA();
 });
 
 

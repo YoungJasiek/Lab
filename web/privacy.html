@@ -100,23 +100,23 @@
           This policy applies to all visitors accessing the static HTML/JS documentation site, client-side tools, and community discussion mock interfaces. The project is maintained as an open-source technical initiative under the authorship of <strong>YoungJasiek</strong>.
         </p>
 
-        <h2>2. Information We Collect</h2>
+        <h2>2. Information We Collect (Zero Cookies)</h2>
         <p>
-          We do not require user account creation, password registration, or payment information. The website operates primarily as a static technical manual. Specifically:
+          We do not require user account creation, password registration, or payment information. We do <strong>NOT</strong> set or collect any tracking, profiling, or advertising cookies. Specifically:
         </p>
         <ul>
-          <li><strong>Client-Side Local Storage:</strong> We use your browser's <code>localStorage</code> solely to remember functional user interface state: dark/light theme preference, sidebar collapse status, cookie consent preference (<code>lab_cookie_consent</code>), and offline discussion draft text in the Talk page.</li>
-          <li><strong>Aggregated Telemetry &amp; Analytics:</strong> When you consent via our cookie banner, anonymized client-side events (such as page title views, search query counts, and download clicks) may be tracked to gauge interest in specific engine modules. No personally identifiable information (PII) or IP addresses are persisted.</li>
-          <li><strong>Server Logs:</strong> Standard HTTP server request logs (including user agent and IP address) may be processed transiently by GitHub Pages or your hosting CDN for DDoS mitigation and reliability.</li>
+          <li><strong>Zero Tracking Cookies:</strong> The website does not store or process third-party tracking cookies or marketing identifiers.</li>
+          <li><strong>Client-Side Local Storage:</strong> We use your browser's <code>localStorage</code> solely to remember functional user interface state: dark/light theme preference, sidebar collapse status, and offline discussion draft text in the Talk page.</li>
+          <li><strong>Server Logs:</strong> Standard HTTP server request logs may be processed transiently by your hosting CDN or GitHub Pages for DDoS mitigation and infrastructure security.</li>
         </ul>
 
-        <h2>3. Cookie and Storage Controls</h2>
+        <h2>3. Local Storage Controls</h2>
         <p>
-          You have full control over your stored preferences. You can clear all cached Lab Developer Community settings at any time using your browser's developer tools or by clicking the button below:
+          You have full control over your stored browser preferences. You can clear all cached Lab Developer Community settings at any time using your browser settings or by clicking the button below:
         </p>
         <p>
-          <button type="button" class="cookie-btn cookie-btn-ghost" onclick="localStorage.clear(); alert('Local storage and preferences cleared.'); location.reload();">
-            &#128465; Clear Local Storage &amp; Reset Preferences
+          <button type="button" class="mw-btn-secondary" onclick="localStorage.clear(); alert('Local storage and preferences cleared.'); location.reload();">
+            Clear Local Storage &amp; Reset Preferences
           </button>
         </p>
 
