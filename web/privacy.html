@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Privacy Policy for Lab Developer Community – Information on data handling, local storage, analytics, and cookie preferences for Lab Engine wiki.">
+  <meta name="author" content="YoungJasiek">
+  <title>Privacy Policy – Lab Developer Community</title>
+
+  <!-- Complete Favicon Set -->
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="manifest" href="site.webmanifest">
+
+  <!-- Open Graph / Social Meta Tags -->
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="Privacy Policy – Lab Developer Community">
+  <meta property="og:description" content="Official privacy and data policy for the Lab Engine documentation hub.">
+  <meta property="og:image" content="assets/img/og-preview.png">
+  <meta property="og:url" content="https://youngjasiek.github.io/Lab/privacy.html">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="assets/img/og-preview.png">
+
+  <!-- Core Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <a href="#content" class="skip-link">Skip to main content</a>
+
+  <!-- Top Header -->
+  <header class="vdc-top-header" role="banner">
+    <div class="vdc-header-left">
+      <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
+      <a href="index.html" class="vdc-brand">
+        <span class="vdc-logo-stamp">LAB</span>
+        <div class="vdc-brand-text">
+          <span class="vdc-brand-title">Developer Community</span>
+          <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LABHAMMER</span>
+        </div>
+      </a>
+    </div>
+
+    <div class="vdc-search-bar" role="search">
+      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search Lab Developer Community" aria-label="Search wiki documentation">
+      <button id="search-go-btn" class="vdc-search-btn" aria-label="Search">Go</button>
+    </div>
+
+    <div class="vdc-header-right">
+      <div class="vdc-user-tools">
+        <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="user-link">YoungJasiek</a>
+        <span class="pipe-sep">&bull;</span>
+        <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="user-link">Git Source</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="vdc-page-container">
+    <!-- Sidebar Navigation -->
+    <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
+      <div class="sidebar-block">
+        <div class="sidebar-title">Navigation</div>
+        <ul class="sidebar-links">
+          <li><a href="index.html">Main Page</a></li>
+          <li><a href="modules.html">Lab SDK Index</a></li>
+          <li><a href="wiki-contents.html">Wiki Contents</a></li>
+          <li><a href="project-hub.html">Community &amp; Project Hub</a></li>
+          <li><a href="talk.html">Discussion (Talk)</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Legal &amp; Policy</div>
+        <ul class="sidebar-links">
+          <li><a href="privacy.html" class="active">Privacy Policy</a></li>
+          <li><a href="terms.html">Terms of Use</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main id="content" class="vdc-main-content" role="main">
+      <div class="wiki-breadcrumbs">
+        <a href="index.html">Main Page</a> &raquo; <span class="crumb-current">Privacy Policy</span>
+      </div>
+
+      <h1 class="firstHeading">Lab Developer Community: Privacy Policy</h1>
+
+      <div class="legal-article-container">
+        <p><em>Last updated: October 2026 &bull; Effective immediately</em></p>
+
+        <p>
+          Welcome to the <strong>Lab Developer Community</strong> (the official open-source documentation portal and technical reference for the Lab Engine and Frozen-Life ecosystem, hosted at <a href="https://github.com/YoungJasiek/Lab">github.com/YoungJasiek/Lab</a>). We take your digital privacy seriously and adhere strictly to principles of data minimization and transparency.
+        </p>
+
+        <h2>1. Scope and Controller</h2>
+        <p>
+          This policy applies to all visitors accessing the static HTML/JS documentation site, client-side tools, and community discussion mock interfaces. The project is maintained as an open-source technical initiative under the authorship of <strong>YoungJasiek</strong>.
+        </p>
+
+        <h2>2. Information We Collect</h2>
+        <p>
+          We do not require user account creation, password registration, or payment information. The website operates primarily as a static technical manual. Specifically:
+        </p>
+        <ul>
+          <li><strong>Client-Side Local Storage:</strong> We use your browser's <code>localStorage</code> solely to remember functional user interface state: dark/light theme preference, sidebar collapse status, cookie consent preference (<code>lab_cookie_consent</code>), and offline discussion draft text in the Talk page.</li>
+          <li><strong>Aggregated Telemetry &amp; Analytics:</strong> When you consent via our cookie banner, anonymized client-side events (such as page title views, search query counts, and download clicks) may be tracked to gauge interest in specific engine modules. No personally identifiable information (PII) or IP addresses are persisted.</li>
+          <li><strong>Server Logs:</strong> Standard HTTP server request logs (including user agent and IP address) may be processed transiently by GitHub Pages or your hosting CDN for DDoS mitigation and reliability.</li>
+        </ul>
+
+        <h2>3. Cookie and Storage Controls</h2>
+        <p>
+          You have full control over your stored preferences. You can clear all cached Lab Developer Community settings at any time using your browser's developer tools or by clicking the button below:
+        </p>
+        <p>
+          <button type="button" class="cookie-btn cookie-btn-ghost" onclick="localStorage.clear(); alert('Local storage and preferences cleared.'); location.reload();">
+            &#128465; Clear Local Storage &amp; Reset Preferences
+          </button>
+        </p>
+
+        <h2>4. Third-Party Code &amp; Repositories</h2>
+        <p>
+          This site links to external GitHub repositories, external contributors, and open-source packages (e.g., Lua 5.4, miniaudio, OpenGL references). We do not control and are not responsible for the privacy practices of external third-party sites.
+        </p>
+
+        <h2>5. Contact Information</h2>
+        <p>
+          For privacy inquiries, questions regarding documentation accuracy, or data requests, please open an issue on the official repository at <a href="https://github.com/YoungJasiek/Lab/issues" target="_blank" rel="noopener noreferrer">github.com/YoungJasiek/Lab/issues</a>.
+        </p>
+      </div>
+
+      <!-- Footer NavBox -->
+      <div class="vdc-navbox" role="navigation" aria-label="Navigation Box" style="margin-top: 40px;">
+        <div class="vdc-navbox-header">Lab Engine &amp; Frozen-Life Ecosystem</div>
+        <table class="vdc-navbox-table">
+          <tbody>
+            <tr>
+              <th class="vdc-navbox-group">Documentation</th>
+              <td class="vdc-navbox-subgroup">Policy</td>
+              <td class="vdc-navbox-list">
+                <a href="index.html">Main Page</a> &bull;
+                <a href="privacy.html">Privacy Policy</a> &bull;
+                <a href="terms.html">Terms of Use</a> &bull;
+                <a href="wiki-contents.html">Wiki Contents</a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

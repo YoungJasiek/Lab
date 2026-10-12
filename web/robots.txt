@@ -1,0 +1,6 @@
+# robots.txt for Lab Developer Community (Lab Engine Documentation Hub)
+User-agent: *
+Allow: /
+
+# Sitemap Index
+Sitemap: https://youngjasiek.github.io/Lab/sitemap.xml

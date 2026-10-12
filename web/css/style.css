@@ -2887,4 +2887,428 @@ pre {
   margin-bottom: 8px;
 }
 
+/* ====================================================================
+   HERO CALL-TO-ACTION (CTA ABOVE THE FOLD)
+   ==================================================================== */
+.vdc-hero-cta-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 16px 0 20px 0;
+  align-items: center;
+}
+
+.btn-hero {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  border: 1px solid transparent;
+  line-height: 1.2;
+}
+
+.btn-hero-primary {
+  background: linear-gradient(135deg, #00d2ff 0%, #0088cc 100%);
+  color: #0b0f14 !important;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(0, 210, 255, 0.35);
+  border-color: #00e5ff;
+}
+
+.btn-hero-primary:hover {
+  background: linear-gradient(135deg, #33dcff 0%, #0099e6 100%);
+  box-shadow: 0 6px 20px rgba(0, 210, 255, 0.55);
+  transform: translateY(-1px);
+  color: #000000 !important;
+}
+
+.btn-hero-secondary {
+  background: #1c222d;
+  color: #e2e8f0 !important;
+  border: 1px solid #333d4d;
+}
+
+.btn-hero-secondary:hover {
+  background: #252e3d;
+  border-color: #00d2ff;
+  color: #00d2ff !important;
+  transform: translateY(-1px);
+}
+
+.btn-hero-github {
+  background: #141820;
+  color: #94a3b8 !important;
+  border: 1px solid #28303f;
+}
+
+.btn-hero-github:hover {
+  background: #1e2430;
+  color: #ffffff !important;
+  border-color: #475569;
+}
+
+/* ====================================================================
+   STICKY MOBILE CTA (< 768px)
+   ==================================================================== */
+.sticky-mobile-cta {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 9998;
+  background: rgba(14, 18, 24, 0.94);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(0, 210, 255, 0.25);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.6);
+  padding: 8px 12px;
+  transform: translateY(0);
+  transition: transform 0.25s ease;
+}
+
+.sticky-mobile-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.sticky-mobile-label {
+  font-size: 0.8rem;
+  color: var(--wiki-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sticky-mobile-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.sticky-btn {
+  padding: 8px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: 4px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid transparent;
+}
+
+.sticky-btn-primary {
+  background: #00d2ff;
+  color: #000000 !important;
+  font-weight: 700;
+}
+
+.sticky-btn-ghost {
+  background: #1c222d;
+  color: #d1d5db !important;
+  border-color: #374151;
+}
+
+@media (max-width: 768px) {
+  .sticky-mobile-cta {
+    display: block;
+  }
+  /* Extra bottom padding on mobile body so sticky footer doesn't obscure content */
+  body {
+    padding-bottom: 58px;
+  }
+}
+
+/* ====================================================================
+   LOADING STATES & SKELETONS
+   ==================================================================== */
+.is-loading {
+  position: relative;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(0, 210, 255, 0.25);
+  border-top-color: #00d2ff;
+  border-radius: 50%;
+  animation: vdc-spin 0.75s linear infinite;
+  vertical-align: middle;
+}
+
+.spinner-lg {
+  width: 32px;
+  height: 32px;
+  border-width: 3px;
+}
+
+@keyframes vdc-spin {
+  to { transform: rotate(360deg); }
+}
+
+.btn-loading {
+  position: relative;
+  color: transparent !important;
+  pointer-events: none;
+}
+
+.btn-loading::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  margin-top: -8px;
+  margin-left: -8px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: vdc-spin 0.75s linear infinite;
+}
+
+.skeleton-box {
+  display: inline-block;
+  height: 1em;
+  position: relative;
+  overflow: hidden;
+  background-color: #1e2430;
+  border-radius: 3px;
+}
+
+.skeleton-box::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0,
+    rgba(255, 255, 255, 0.05) 20%,
+    rgba(255, 255, 255, 0.1) 60%,
+    rgba(255, 255, 255, 0)
+  );
+  animation: vdc-shimmer 1.8s infinite;
+  content: '';
+}
+
+@keyframes vdc-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* ====================================================================
+   FORM ERROR STATES & VALIDATION
+   ==================================================================== */
+.is-invalid,
+input:user-invalid,
+textarea:user-invalid {
+  border-color: #ff4d4f !important;
+  box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.25) !important;
+  background-color: rgba(255, 77, 79, 0.04) !important;
+}
+
+.form-error-msg {
+  display: none;
+  font-size: 0.78rem;
+  color: #ff6b6b;
+  margin-top: 4px;
+  line-height: 1.3;
+}
+
+.is-invalid + .form-error-msg,
+.form-field-error .form-error-msg {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+@keyframes vdc-shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+.form-shake {
+  animation: vdc-shake 0.4s ease;
+}
+
+/* ====================================================================
+   COOKIE CONSENT BANNER (GDPR / PRIVACY)
+   ==================================================================== */
+.vdc-cookie-banner {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  left: 24px;
+  max-width: 520px;
+  margin: 0 auto 0 auto;
+  z-index: 10001;
+  background: rgba(17, 21, 28, 0.96);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(0, 210, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8), 0 0 16px rgba(0, 210, 255, 0.15);
+  border-radius: 6px;
+  padding: 16px 20px;
+  display: none;
+  transform: translateY(20px);
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.vdc-cookie-banner.active {
+  display: block;
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.cookie-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.cookie-badge {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgba(0, 210, 255, 0.15);
+  color: #00d2ff;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 210, 255, 0.3);
+}
+
+.cookie-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+}
+
+.cookie-desc {
+  font-size: 0.82rem;
+  color: #94a3b8;
+  line-height: 1.5;
+  margin: 0 0 14px 0;
+}
+
+.cookie-desc a {
+  color: #00d2ff;
+  text-decoration: underline;
+}
+
+.cookie-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.cookie-btn {
+  padding: 7px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.cookie-btn-primary {
+  background: #00d2ff;
+  color: #0b0f14;
+  border-color: #00e5ff;
+}
+
+.cookie-btn-primary:hover {
+  background: #33dcff;
+}
+
+.cookie-btn-ghost {
+  background: #1c222d;
+  color: #cbd5e1;
+  border-color: #333d4d;
+}
+
+.cookie-btn-ghost:hover {
+  background: #252e3d;
+  color: #ffffff;
+}
+
+/* ====================================================================
+   CUSTOM 404, THANK-YOU & LEGAL PAGE CONTAINER STYLING
+   ==================================================================== */
+.vdc-error-hero {
+  text-align: center;
+  padding: 60px 20px;
+  background: radial-gradient(circle at center, rgba(0, 210, 255, 0.06) 0%, transparent 70%);
+  border-bottom: 1px solid var(--wiki-border);
+  margin-bottom: 30px;
+}
+
+.vdc-error-code {
+  font-family: var(--font-mono);
+  font-size: 6rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  color: #00d2ff;
+  text-shadow: 0 0 24px rgba(0, 210, 255, 0.4);
+  line-height: 1;
+  margin: 0 0 10px 0;
+}
+
+.vdc-error-sub {
+  font-size: 1.35rem;
+  color: #ffffff;
+  font-weight: 600;
+  margin: 0 0 14px 0;
+}
+
+.vdc-error-desc {
+  max-width: 600px;
+  margin: 0 auto 24px auto;
+  color: var(--wiki-text-secondary);
+  line-height: 1.6;
+}
+
+.legal-article-container {
+  max-width: 860px;
+  margin: 0 auto;
+  line-height: 1.7;
+  color: #cbd5e1;
+}
+
+.legal-article-container h2 {
+  border-bottom: 1px solid var(--wiki-border);
+  padding-bottom: 6px;
+  margin-top: 32px;
+  color: #ffffff;
+}
+
+.legal-article-container p,
+.legal-article-container ul {
+  margin-bottom: 16px;
+}
+
+
 
