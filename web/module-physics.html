@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Deterministic 3D physics module featuring swept-AABB collision detection, kinematic moveAndSlide player movement, dynamic rigid bodies with impulse resolution, and branchless slab raycasting.">
-  <meta name="keywords" content="LabPhysics.dll, Lab Engine, C++20, OpenGL 4.5, Game Engine Subsystem, Modular DLL, Frozen-Life">
+  <meta name="keywords" content="physics.dll, Lab Engine, C++20, OpenGL 4.5, Game Engine Subsystem, Modular DLL, Frozen-Life">
   <meta name="author" content="YoungJasiek">
 
-  <title>LabPhysics – Kinematics, Swept-AABB & Rigid Bodies – Lab Developer Community</title>
+  <title>physics.dll – Kinematics, Swept-AABB & Rigid Bodies – Lab Developer Community</title>
 
     <!-- Complete Favicon Set -->
   <link rel="icon" type="image/x-icon" href="favicon.ico">
@@ -19,14 +19,14 @@
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Lab Developer Community">
-  <meta property="og:title" content="LabPhysics – Kinematics, Swept-AABB & Rigid Bodies – Lab Developer Community">
+  <meta property="og:title" content="physics.dll – Kinematics, Swept-AABB & Rigid Bodies – Lab Developer Community">
   <meta property="og:description" content="Deterministic 3D physics module featuring swept-AABB collision detection, kinematic moveAndSlide player movement, dynamic rigid bodies with impulse resolution, and branchless slab raycasting.">
   <meta property="og:image" content="assets/img/og-preview.png">
   <meta property="og:url" content="https://youngjasiek.github.io/Lab/module-physics.html">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="LabPhysics – Kinematics, Swept-AABB & Rigid Bodies – Lab Developer Community">
+  <meta name="twitter:title" content="physics.dll – Kinematics, Swept-AABB & Rigid Bodies – Lab Developer Community">
   <meta name="twitter:description" content="Deterministic 3D physics module featuring swept-AABB collision detection, kinematic moveAndSlide player movement, dynamic rigid bodies with impulse resolution, and branchless slab raycasting.">
   <meta name="twitter:image" content="assets/img/og-preview.png">
 
@@ -99,7 +99,7 @@
           <li><a href="module-animation.html">animation.dll</a></li>
           <li><a href="module-world.html">world.dll</a></li>
           <li><a href="module-network.html">network.dll</a></li>
-          <li><a href="module-ai.html">LabAI.dll</a></li>
+          <li><a href="module-ai.html">ai.dll</a></li>
           <li><a href="module-script.html">script.dll</a></li>
           <li><a href="module-studio.html">studio.dll</a></li>
           <li><a href="module-hud.html">hud.dll</a></li>
@@ -150,20 +150,20 @@
       
 
       <!-- Article Header -->
-      <h1 class="firstHeading">LabPhysics.dll (Kinematics & Rigid Body Physics)</h1>
+      <h1 class="firstHeading">physics.dll (Kinematics & Rigid Body Physics)</h1>
       
 
       <!-- ================================================================
            RIGHT-FLOATING MEDIAWIKI INFOBOX (Featuring dll.png / dll.webp)
            ================================================================ -->
-      <aside class="infobox" aria-label="LabPhysics.dll Technical Information">
+      <aside class="infobox" aria-label="physics.dll Technical Information">
         <div class="infobox-title">
-          LabPhysics.dll
+          physics.dll
           <span class="infobox-subtitle">PHYSICS ENGINE SUBSYSTEM</span>
         </div>
         <div class="infobox-image">
-          <img src="assets/img/dll.webp" data-full="assets/img/dll.png" alt="LabPhysics.dll Dynamic Link Library" style="max-height: 150px; object-fit: contain; padding: 10px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));">
-          <div class="infobox-caption">Modular C++20 Dynamic Link Library (LabPhysics.dll)</div>
+          <img src="assets/img/dll.webp" data-full="assets/img/dll.png" alt="physics.dll Dynamic Link Library" style="max-height: 150px; object-fit: contain; padding: 10px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));">
+          <div class="infobox-caption">Modular C++20 Dynamic Link Library (physics.dll)</div>
         </div>
         <table class="infobox-table">
           <tbody>
@@ -208,7 +208,7 @@
         
         <div class="wiki-notice-content">
           <strong>Decoupled Subsystem Architecture:</strong>
-          <code>physics.dll</code> is compiled as an independent, portable x64 dynamic link library (DLL) with clean C++20 interfaces. Consumers link against <code>LabPhysics.lib</code> and runtime loads <code>physics.dll</code>, ensuring zero build coupling between the engine modules and client games like <a href="frozen-life.html">Frozen-Life (FL)</a>.
+          <code>physics.dll</code> is compiled as an independent, portable x64 dynamic link library (DLL) with clean C++20 interfaces. Consumers link against <code>physics.lib</code> and runtime loads <code>physics.dll</code>, ensuring zero build coupling between the engine modules and client games like <a href="frozen-life.html">Frozen-Life (FL)</a>.
         </div>
       </div>
 
@@ -231,8 +231,8 @@
       <div class="build-highlight-card">
         <div class="build-header-row">
           <div>
-            <h3 style="margin:0; font-size: 1.3rem;">LabPhysics.dll Specifications</h3>
-            <div style="font-size:0.8rem; color:var(--wiki-text-muted); margin-top:2px;">Target: <code>bin/Release/LabPhysics.dll</code> &bull; Platform: Windows x64 (MSVC 2022) &bull; Standard: ISO C++20</div>
+            <h3 style="margin:0; font-size: 1.3rem;">physics.dll Specifications</h3>
+            <div style="font-size:0.8rem; color:var(--wiki-text-muted); margin-top:2px;">Target: <code>bin/Release/physics.dll</code> &bull; Platform: Windows x64 (MSVC 2022) &bull; Standard: ISO C++20</div>
           </div>
           <span class="build-version-tag">SUBSYSTEM: PHYSICS ENGINE</span>
         </div>
@@ -287,7 +287,7 @@ Lab::Vec3 finalPos = Lab::Physics::moveAndSlide(currentPos, velocity, dt, player
       <section id="sec-cmake" class="wiki-section-container">
         <h2><span class="mw-headline">4. CMake Integration &amp; Compilation</span></h2>
         <p>To integrate <code>physics.dll</code> into your game client, level editor, or standalone tool, link against its import library target in CMake:</p>
-        <div class="code-block"><pre><code># Link against LabPhysics.dll in CMakeLists.txt
+        <div class="code-block"><pre><code># Link against physics.dll in CMakeLists.txt
 find_package(LabEngine REQUIRED)
 
 target_include_directories(MyTarget PRIVATE
@@ -295,14 +295,14 @@ target_include_directories(MyTarget PRIVATE
 )
 
 target_link_libraries(MyTarget PRIVATE
-    LabPhysics
+    physics
 )
 
-# Automatically copy LabPhysics.dll to the output directory on build
+# Automatically copy physics.dll to the output directory on build
 add_custom_command(TARGET MyTarget POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${LAB_BIN_DIR}/LabPhysics.dll"
-    "$&lt;TARGET_FILE_DIR:MyTarget&gt;/LabPhysics.dll"
+    "${LAB_BIN_DIR}/physics.dll"
+    "$&lt;TARGET_FILE_DIR:MyTarget&gt;/physics.dll"
 )</code></pre></div>
       </section>
 
@@ -324,19 +324,19 @@ add_custom_command(TARGET MyTarget POST_BUILD
               <tr>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>include/LabPhysics.h</code></td>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-accent); font-family: var(--font-mono);">Lab::Physics</td>
-                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for LabPhysics.dll.</td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for physics.dll.</td>
               </tr>
 
               <tr>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>include/LabCollision.h</code></td>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-accent); font-family: var(--font-mono);">Lab::Collision</td>
-                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for LabPhysics.dll.</td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for physics.dll.</td>
               </tr>
 
               <tr>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>include/LabCombat.h</code></td>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-accent); font-family: var(--font-mono);">Lab::Combat</td>
-                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for LabPhysics.dll.</td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for physics.dll.</td>
               </tr>
             </tbody>
           </table>
@@ -382,7 +382,7 @@ add_custom_command(TARGET MyTarget POST_BUILD
                 <a href="module-animation.html">animation.dll</a> &bull;
                 <a href="module-world.html">world.dll</a> &bull;
                 <a href="module-network.html">network.dll</a> &bull;
-                <a href="module-ai.html">LabAI.dll</a> &bull;
+                <a href="module-ai.html">ai.dll</a> &bull;
                 <a href="module-script.html">script.dll</a> &bull;
                 <a href="module-studio.html">studio.dll</a> &bull;
                 <a href="module-hud.html">hud.dll</a>

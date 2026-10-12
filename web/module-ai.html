@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Autonomous sensory bot artificial intelligence module featuring ray-AABB line of sight perception, behavioral finite state machine (Patrol, Alert, Chase, Combat, Retreat), and 19-clip FBX Mixamo animation retargeting.">
-  <meta name="keywords" content="LabAI.dll, Lab Engine, C++20, OpenGL 4.5, Game Engine Subsystem, Modular DLL, Frozen-Life">
+  <meta name="keywords" content="ai.dll, Lab Engine, C++20, OpenGL 4.5, Game Engine Subsystem, Modular DLL, Frozen-Life">
   <meta name="author" content="YoungJasiek">
 
-  <title>LabAI – CombatBot Sensory AI & FBX Retargeting – Lab Developer Community</title>
+  <title>ai.dll – CombatBot Sensory AI & FBX Retargeting – Lab Developer Community</title>
 
     <!-- Complete Favicon Set -->
   <link rel="icon" type="image/x-icon" href="favicon.ico">
@@ -19,14 +19,14 @@
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Lab Developer Community">
-  <meta property="og:title" content="LabAI – CombatBot Sensory AI & FBX Retargeting – Lab Developer Community">
+  <meta property="og:title" content="ai.dll – CombatBot Sensory AI & FBX Retargeting – Lab Developer Community">
   <meta property="og:description" content="Autonomous sensory bot artificial intelligence module featuring ray-AABB line of sight perception, behavioral finite state machine (Patrol, Alert, Chase, Combat, Retreat), and 19-clip FBX Mixamo animation retargeting.">
   <meta property="og:image" content="assets/img/og-preview.png">
   <meta property="og:url" content="https://youngjasiek.github.io/Lab/module-ai.html">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="LabAI – CombatBot Sensory AI & FBX Retargeting – Lab Developer Community">
+  <meta name="twitter:title" content="ai.dll – CombatBot Sensory AI & FBX Retargeting – Lab Developer Community">
   <meta name="twitter:description" content="Autonomous sensory bot artificial intelligence module featuring ray-AABB line of sight perception, behavioral finite state machine (Patrol, Alert, Chase, Combat, Retreat), and 19-clip FBX Mixamo animation retargeting.">
   <meta name="twitter:image" content="assets/img/og-preview.png">
 
@@ -99,7 +99,7 @@
           <li><a href="module-animation.html">animation.dll</a></li>
           <li><a href="module-world.html">world.dll</a></li>
           <li><a href="module-network.html">network.dll</a></li>
-          <li><a href="module-ai.html" class="active">LabAI.dll</a></li>
+          <li><a href="module-ai.html" class="active">ai.dll</a></li>
           <li><a href="module-script.html">script.dll</a></li>
           <li><a href="module-studio.html">studio.dll</a></li>
           <li><a href="module-hud.html">hud.dll</a></li>
@@ -150,26 +150,26 @@
       
 
       <!-- Article Header -->
-      <h1 class="firstHeading">LabAI.dll (Tactical Bot AI & Retargeting)</h1>
+      <h1 class="firstHeading">ai.dll (Tactical Bot AI & Retargeting)</h1>
       
 
       <!-- ================================================================
            RIGHT-FLOATING MEDIAWIKI INFOBOX (Featuring dll.png / dll.webp)
            ================================================================ -->
-      <aside class="infobox" aria-label="LabAI.dll Technical Information">
+      <aside class="infobox" aria-label="ai.dll Technical Information">
         <div class="infobox-title">
-          LabAI.dll
-          <span class="infobox-subtitle">BOT AI SUBSYSTEM SUBSYSTEM</span>
+          ai.dll
+          <span class="infobox-subtitle">BOT AI SUBSYSTEM</span>
         </div>
         <div class="infobox-image">
-          <img src="assets/img/dll.webp" data-full="assets/img/dll.png" alt="LabAI.dll Dynamic Link Library" style="max-height: 150px; object-fit: contain; padding: 10px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));">
-          <div class="infobox-caption">Modular C++20 Dynamic Link Library (LabAI.dll)</div>
+          <img src="assets/img/dll.webp" data-full="assets/img/dll.png" alt="ai.dll Dynamic Link Library" style="max-height: 150px; object-fit: contain; padding: 10px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));">
+          <div class="infobox-caption">Modular C++20 Dynamic Link Library (ai.dll)</div>
         </div>
         <table class="infobox-table">
           <tbody>
             <tr>
               <td class="infobox-label">Target Name</td>
-              <td class="infobox-data"><code>LabAI.dll</code></td>
+              <td class="infobox-data"><code>ai.dll</code></td>
             </tr>
             <tr>
               <td class="infobox-label">Output Type</td>
@@ -208,7 +208,7 @@
         
         <div class="wiki-notice-content">
           <strong>Decoupled Subsystem Architecture:</strong>
-          <code>LabAI.dll</code> is compiled as an independent, portable x64 dynamic link library (DLL) with clean C++20 interfaces. Consumers link against <code>LabAI.lib</code> and runtime loads <code>LabAI.dll</code>, ensuring zero build coupling between the engine modules and client games like <a href="frozen-life.html">Frozen-Life (FL)</a>.
+          <code>ai.dll</code> is compiled as an independent, portable x64 dynamic link library (DLL) with clean C++20 interfaces. Consumers link against <code>ai.lib</code> and runtime loads <code>ai.dll</code>, ensuring zero build coupling between the engine modules and client games like <a href="frozen-life.html">Frozen-Life (FL)</a>.
         </div>
       </div>
 
@@ -230,8 +230,8 @@
       <div class="build-highlight-card">
         <div class="build-header-row">
           <div>
-            <h3 style="margin:0; font-size: 1.3rem;">LabAI.dll Specifications</h3>
-            <div style="font-size:0.8rem; color:var(--wiki-text-muted); margin-top:2px;">Target: <code>bin/Release/LabAI.dll</code> &bull; Platform: Windows x64 (MSVC 2022) &bull; Standard: ISO C++20</div>
+            <h3 style="margin:0; font-size: 1.3rem;">ai.dll Specifications</h3>
+            <div style="font-size:0.8rem; color:var(--wiki-text-muted); margin-top:2px;">Target: <code>bin/Release/ai.dll</code> &bull; Platform: Windows x64 (MSVC 2022) &bull; Standard: ISO C++20</div>
           </div>
           <span class="build-version-tag">SUBSYSTEM: BOT AI SUBSYSTEM</span>
         </div>
@@ -276,8 +276,8 @@
       <!-- CMake Integration Section -->
       <section id="sec-cmake" class="wiki-section-container">
         <h2><span class="mw-headline">3. CMake Integration &amp; Compilation</span></h2>
-        <p>To integrate <code>LabAI.dll</code> into your game client, level editor, or standalone tool, link against its import library target in CMake:</p>
-        <div class="code-block"><pre><code># Link against LabAI.dll in CMakeLists.txt
+        <p>To integrate <code>ai.dll</code> into your game client, level editor, or standalone tool, link against its import library target in CMake:</p>
+        <div class="code-block"><pre><code># Link against ai.dll in CMakeLists.txt
 find_package(LabEngine REQUIRED)
 
 target_include_directories(MyTarget PRIVATE
@@ -285,21 +285,21 @@ target_include_directories(MyTarget PRIVATE
 )
 
 target_link_libraries(MyTarget PRIVATE
-    LabAI
+    ai
 )
 
-# Automatically copy LabAI.dll to the output directory on build
+# Automatically copy ai.dll to the output directory on build
 add_custom_command(TARGET MyTarget POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${LAB_BIN_DIR}/LabAI.dll"
-    "$&lt;TARGET_FILE_DIR:MyTarget&gt;/LabAI.dll"
+    "${LAB_BIN_DIR}/ai.dll"
+    "$&lt;TARGET_FILE_DIR:MyTarget&gt;/ai.dll"
 )</code></pre></div>
       </section>
 
       <!-- Public Headers Section -->
       <section id="sec-api" class="wiki-section-container">
         <h2><span class="mw-headline">4. Exported API Headers &amp; Interfaces</span></h2>
-        <p>The following public header files define the exposed surface of <code>LabAI.dll</code>. Symbols are exported via the standard <code>LAB_API</code> macro (translating to <code>__declspec(dllexport)</code> during module compilation and <code>__declspec(dllimport)</code> for client consumers):</p>
+        <p>The following public header files define the exposed surface of <code>ai.dll</code>. Symbols are exported via the standard <code>LAB_API</code> macro (translating to <code>__declspec(dllexport)</code> during module compilation and <code>__declspec(dllimport)</code> for client consumers):</p>
         <div style="overflow-x: auto; margin: 16px 0;">
           <table class="infobox-table" style="width: 100%; border: 1px solid var(--wiki-border);">
             <thead>
@@ -314,7 +314,7 @@ add_custom_command(TARGET MyTarget POST_BUILD
               <tr>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>include/LabAI.h</code></td>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-accent); font-family: var(--font-mono);">Lab::AI</td>
-                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for LabAI.dll.</td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for ai.dll.</td>
               </tr>
             </tbody>
           </table>
@@ -360,7 +360,7 @@ add_custom_command(TARGET MyTarget POST_BUILD
                 <a href="module-animation.html">animation.dll</a> &bull;
                 <a href="module-world.html">world.dll</a> &bull;
                 <a href="module-network.html">network.dll</a> &bull;
-                <a href="module-ai.html">LabAI.dll</a> &bull;
+                <a href="module-ai.html">ai.dll</a> &bull;
                 <a href="module-script.html">script.dll</a> &bull;
                 <a href="module-studio.html">studio.dll</a> &bull;
                 <a href="module-hud.html">hud.dll</a>

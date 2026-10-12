@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Ultra-low latency client-server networking running at 64-128Hz tickrates with UDP sockets, client-side prediction, server reconciliation, LAN broadcast discovery, and multiplayer chat.">
-  <meta name="keywords" content="LabNetwork.dll, Lab Engine, C++20, OpenGL 4.5, Game Engine Subsystem, Modular DLL, Frozen-Life">
+  <meta name="keywords" content="network.dll, Lab Engine, C++20, OpenGL 4.5, Game Engine Subsystem, Modular DLL, Frozen-Life">
   <meta name="author" content="YoungJasiek">
 
-  <title>LabNetwork – Authoritative UDP Multiplayer – Lab Developer Community</title>
+  <title>network.dll – Authoritative UDP Multiplayer – Lab Developer Community</title>
 
     <!-- Complete Favicon Set -->
   <link rel="icon" type="image/x-icon" href="favicon.ico">
@@ -19,14 +19,14 @@
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Lab Developer Community">
-  <meta property="og:title" content="LabNetwork – Authoritative UDP Multiplayer – Lab Developer Community">
+  <meta property="og:title" content="network.dll – Authoritative UDP Multiplayer – Lab Developer Community">
   <meta property="og:description" content="Ultra-low latency client-server networking running at 64-128Hz tickrates with UDP sockets, client-side prediction, server reconciliation, LAN broadcast discovery, and multiplayer chat.">
   <meta property="og:image" content="assets/img/og-preview.png">
   <meta property="og:url" content="https://youngjasiek.github.io/Lab/module-network.html">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="LabNetwork – Authoritative UDP Multiplayer – Lab Developer Community">
+  <meta name="twitter:title" content="network.dll – Authoritative UDP Multiplayer – Lab Developer Community">
   <meta name="twitter:description" content="Ultra-low latency client-server networking running at 64-128Hz tickrates with UDP sockets, client-side prediction, server reconciliation, LAN broadcast discovery, and multiplayer chat.">
   <meta name="twitter:image" content="assets/img/og-preview.png">
 
@@ -99,7 +99,7 @@
           <li><a href="module-animation.html">animation.dll</a></li>
           <li><a href="module-world.html">world.dll</a></li>
           <li><a href="module-network.html" class="active">network.dll</a></li>
-          <li><a href="module-ai.html">LabAI.dll</a></li>
+          <li><a href="module-ai.html">ai.dll</a></li>
           <li><a href="module-script.html">script.dll</a></li>
           <li><a href="module-studio.html">studio.dll</a></li>
           <li><a href="module-hud.html">hud.dll</a></li>
@@ -150,20 +150,20 @@
       
 
       <!-- Article Header -->
-      <h1 class="firstHeading">LabNetwork.dll (64-128Hz UDP Multiplayer)</h1>
+      <h1 class="firstHeading">network.dll (64-128Hz UDP Multiplayer)</h1>
       
 
       <!-- ================================================================
            RIGHT-FLOATING MEDIAWIKI INFOBOX (Featuring dll.png / dll.webp)
            ================================================================ -->
-      <aside class="infobox" aria-label="LabNetwork.dll Technical Information">
+      <aside class="infobox" aria-label="network.dll Technical Information">
         <div class="infobox-title">
-          LabNetwork.dll
-          <span class="infobox-subtitle">NETWORKING SUBSYSTEM SUBSYSTEM</span>
+          network.dll
+          <span class="infobox-subtitle">NETWORKING SUBSYSTEM</span>
         </div>
         <div class="infobox-image">
-          <img src="assets/img/dll.webp" data-full="assets/img/dll.png" alt="LabNetwork.dll Dynamic Link Library" style="max-height: 150px; object-fit: contain; padding: 10px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));">
-          <div class="infobox-caption">Modular C++20 Dynamic Link Library (LabNetwork.dll)</div>
+          <img src="assets/img/dll.webp" data-full="assets/img/dll.png" alt="network.dll Dynamic Link Library" style="max-height: 150px; object-fit: contain; padding: 10px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));">
+          <div class="infobox-caption">Modular C++20 Dynamic Link Library (network.dll)</div>
         </div>
         <table class="infobox-table">
           <tbody>
@@ -208,7 +208,7 @@
         
         <div class="wiki-notice-content">
           <strong>Decoupled Subsystem Architecture:</strong>
-          <code>network.dll</code> is compiled as an independent, portable x64 dynamic link library (DLL) with clean C++20 interfaces. Consumers link against <code>LabNetwork.lib</code> and runtime loads <code>network.dll</code>, ensuring zero build coupling between the engine modules and client games like <a href="frozen-life.html">Frozen-Life (FL)</a>.
+          <code>network.dll</code> is compiled as an independent, portable x64 dynamic link library (DLL) with clean C++20 interfaces. Consumers link against <code>network.lib</code> and runtime loads <code>network.dll</code>, ensuring zero build coupling between the engine modules and client games like <a href="frozen-life.html">Frozen-Life (FL)</a>.
         </div>
       </div>
 
@@ -231,8 +231,8 @@
       <div class="build-highlight-card">
         <div class="build-header-row">
           <div>
-            <h3 style="margin:0; font-size: 1.3rem;">LabNetwork.dll Specifications</h3>
-            <div style="font-size:0.8rem; color:var(--wiki-text-muted); margin-top:2px;">Target: <code>bin/Release/LabNetwork.dll</code> &bull; Platform: Windows x64 (MSVC 2022) &bull; Standard: ISO C++20</div>
+            <h3 style="margin:0; font-size: 1.3rem;">network.dll Specifications</h3>
+            <div style="font-size:0.8rem; color:var(--wiki-text-muted); margin-top:2px;">Target: <code>bin/Release/network.dll</code> &bull; Platform: Windows x64 (MSVC 2022) &bull; Standard: ISO C++20</div>
           </div>
           <span class="build-version-tag">SUBSYSTEM: NETWORKING SUBSYSTEM</span>
         </div>
@@ -285,7 +285,7 @@
       <section id="sec-cmake" class="wiki-section-container">
         <h2><span class="mw-headline">4. CMake Integration &amp; Compilation</span></h2>
         <p>To integrate <code>network.dll</code> into your game client, level editor, or standalone tool, link against its import library target in CMake:</p>
-        <div class="code-block"><pre><code># Link against LabNetwork.dll in CMakeLists.txt
+        <div class="code-block"><pre><code># Link against network.dll in CMakeLists.txt
 find_package(LabEngine REQUIRED)
 
 target_include_directories(MyTarget PRIVATE
@@ -293,14 +293,14 @@ target_include_directories(MyTarget PRIVATE
 )
 
 target_link_libraries(MyTarget PRIVATE
-    LabNetwork
+    network
 )
 
-# Automatically copy LabNetwork.dll to the output directory on build
+# Automatically copy network.dll to the output directory on build
 add_custom_command(TARGET MyTarget POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${LAB_BIN_DIR}/LabNetwork.dll"
-    "$&lt;TARGET_FILE_DIR:MyTarget&gt;/LabNetwork.dll"
+    "${LAB_BIN_DIR}/network.dll"
+    "$&lt;TARGET_FILE_DIR:MyTarget&gt;/network.dll"
 )</code></pre></div>
       </section>
 
@@ -322,13 +322,13 @@ add_custom_command(TARGET MyTarget POST_BUILD
               <tr>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>include/LabNetwork.h</code></td>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-accent); font-family: var(--font-mono);">Lab::Network</td>
-                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for LabNetwork.dll.</td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for network.dll.</td>
               </tr>
 
               <tr>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>include/LabChat.h</code></td>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-accent); font-family: var(--font-mono);">Lab::Chat</td>
-                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for LabNetwork.dll.</td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for network.dll.</td>
               </tr>
             </tbody>
           </table>
@@ -374,7 +374,7 @@ add_custom_command(TARGET MyTarget POST_BUILD
                 <a href="module-animation.html">animation.dll</a> &bull;
                 <a href="module-world.html">world.dll</a> &bull;
                 <a href="module-network.html">network.dll</a> &bull;
-                <a href="module-ai.html">LabAI.dll</a> &bull;
+                <a href="module-ai.html">ai.dll</a> &bull;
                 <a href="module-script.html">script.dll</a> &bull;
                 <a href="module-studio.html">studio.dll</a> &bull;
                 <a href="module-hud.html">hud.dll</a>

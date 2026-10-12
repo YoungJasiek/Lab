@@ -154,14 +154,14 @@ const WIKI_SEARCH_INDEX = [
   { title: "Troubleshooting Build Errors", url: "building.html#sec-troubleshooting", cat: "Compiling", snippet: "Solutions for missing OpenGL 4.5 DSA entry points, GLFW linking, and asset paths." },
 
   // modules.html & Source Subsystem DLLs
-  { title: "Engine Subsystem Modules (DLLs)", url: "modules.html", cat: "Architecture", snippet: "Source-style decoupled architecture: server.dll, client.dll, physics.dll, LabEngine.dll via pure virtual interfaces." },
+  { title: "Engine Subsystem Modules (DLLs)", url: "modules.html", cat: "Architecture", snippet: "Source-style decoupled architecture: server.dll, client.dll, physics.dll, Engine.dll via pure virtual interfaces." },
   { title: "server.dll: Authoritative Server Subsystem", url: "modules.html#sec-source-arch", cat: "Subsystems", snippet: "IServerSubsystem 64/128Hz fixed tick, authoritative ECS entity spawning, delta compression, headless runner." },
   { title: "client.dll: Client Presentation Subsystem", url: "modules.html#sec-source-arch", cat: "Subsystems", snippet: "IClientSubsystem presentation layer, circular snapshot history, state interpolation, prediction, zero GPU coupling." },
   { title: "physics.dll: Vehicles, Water & Ragdolls", url: "module-physics.html", cat: "Subsystems", snippet: "Raycast suspension vehicles, Archimedes fluid buoyancy, Gerstner waves, articulated ragdolls, and SAT 3D contact manifold." },
-  { title: "LabEngine.dll / LabCore: Kernel Subsystem", url: "module-core.html", cat: "Subsystems", snippet: "Engine kernel lifecycle, fixed timestep timing, input polling, Vec2/Vec3/Mat4 math, and camera transforms." },
-  { title: "LabRender.dll: DSA Rendering Subsystem", url: "module-render.html", cat: "Subsystems", snippet: "OpenGL 4.5+ DSA pipeline, CSG brush clipping, projective decals, PBR lighting, and skeletal skinning." },
-  { title: "LabAudio.dll: Spatial Audio Subsystem", url: "module-audio.html", cat: "Subsystems", snippet: "miniaudio hardware backend, 3D spatial listener attenuation, 26 procedural PCM sound synthesizers." },
-  { title: "LabNetwork.dll: UDP Network Subsystem", url: "module-network.html", cat: "Subsystems", snippet: "Ultra-low latency UDP client-server networking, client prediction, reconciliation, and LAN discovery." },
+  { title: "Engine.dll / Core: Kernel Subsystem", url: "module-core.html", cat: "Subsystems", snippet: "Engine kernel lifecycle, fixed timestep timing, input polling, Vec2/Vec3/Mat4 math, and camera transforms." },
+  { title: "render.dll: DSA Rendering Subsystem", url: "module-render.html", cat: "Subsystems", snippet: "OpenGL 4.5+ DSA pipeline, CSG brush clipping, projective decals, PBR lighting, and skeletal skinning." },
+  { title: "audio.dll: Spatial Audio Subsystem", url: "module-audio.html", cat: "Subsystems", snippet: "miniaudio hardware backend, 3D spatial listener attenuation, 26 procedural PCM sound synthesizers." },
+  { title: "network.dll: UDP Network Subsystem", url: "module-network.html", cat: "Subsystems", snippet: "Ultra-low latency UDP client-server networking, client prediction, reconciliation, and LAN discovery." },
 
   // multiplayer.html & Generic ECS Networking
   { title: "Generic ECS Networking & Replication", url: "multiplayer.html", cat: "Networking", snippet: "Data-driven binary state replication via NetworkIdentityComponent and NetworkTransformComponent." },
@@ -658,7 +658,7 @@ function initTalkDiscussionSystem() {
         if (act === 'bold') insertAtCursor(bodyTextarea, "'''", "'''", 'bold text');
         else if (act === 'italic') insertAtCursor(bodyTextarea, "''", "''", 'italic text');
         else if (act === 'link') insertAtCursor(bodyTextarea, '[[', ']]', 'modules.html|Lab SDK');
-        else if (act === 'code') insertAtCursor(bodyTextarea, '<code>', '</code>', 'LabRender.dll');
+        else if (act === 'code') insertAtCursor(bodyTextarea, '<code>', '</code>', 'render.dll');
         else if (act === 'pre') insertAtCursor(bodyTextarea, '<pre>\n', '\n</pre>', '// C++20 code');
         else if (act === 'sig') insertAtCursor(bodyTextarea, ' --~~~~', '', '');
       });
@@ -799,7 +799,7 @@ function initTalkDiscussionSystem() {
         if (act === 'bold') insertAtCursor(bodyInput, "'''", "'''", 'bold text');
         else if (act === 'italic') insertAtCursor(bodyInput, "''", "''", 'italic text');
         else if (act === 'link') insertAtCursor(bodyInput, '[[', ']]', 'modules.html|Lab SDK');
-        else if (act === 'code') insertAtCursor(bodyInput, '<code>', '</code>', 'LabCore.dll');
+        else if (act === 'code') insertAtCursor(bodyInput, '<code>', '</code>', 'Engine.dll');
         else if (act === 'pre') insertAtCursor(bodyInput, '<pre>\n', '\n</pre>', '// code block');
         else if (act === 'sig') insertAtCursor(bodyInput, ' --~~~~', '', '');
       });

@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Comprehensive world management module handling .labmap geometry parsing, 9-weapon arsenal mechanics, particle emitters, biometric retinal terminals, session state, and HUD diagnostics.">
-  <meta name="keywords" content="LabWorld.dll, Lab Engine, C++20, OpenGL 4.5, Game Engine Subsystem, Modular DLL, Frozen-Life">
+  <meta name="keywords" content="world.dll, Lab Engine, C++20, OpenGL 4.5, Game Engine Subsystem, Modular DLL, Frozen-Life">
   <meta name="author" content="YoungJasiek">
 
-  <title>LabWorld – Map Environment, Weapons & HUD – Lab Developer Community</title>
+  <title>world.dll – Map Environment, Weapons & HUD – Lab Developer Community</title>
 
     <!-- Complete Favicon Set -->
   <link rel="icon" type="image/x-icon" href="favicon.ico">
@@ -19,14 +19,14 @@
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Lab Developer Community">
-  <meta property="og:title" content="LabWorld – Map Environment, Weapons & HUD – Lab Developer Community">
+  <meta property="og:title" content="world.dll – Map Environment, Weapons & HUD – Lab Developer Community">
   <meta property="og:description" content="Comprehensive world management module handling .labmap geometry parsing, 9-weapon arsenal mechanics, particle emitters, biometric retinal terminals, session state, and HUD diagnostics.">
   <meta property="og:image" content="assets/img/og-preview.png">
   <meta property="og:url" content="https://youngjasiek.github.io/Lab/module-world.html">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="LabWorld – Map Environment, Weapons & HUD – Lab Developer Community">
+  <meta name="twitter:title" content="world.dll – Map Environment, Weapons & HUD – Lab Developer Community">
   <meta name="twitter:description" content="Comprehensive world management module handling .labmap geometry parsing, 9-weapon arsenal mechanics, particle emitters, biometric retinal terminals, session state, and HUD diagnostics.">
   <meta name="twitter:image" content="assets/img/og-preview.png">
 
@@ -99,7 +99,7 @@
           <li><a href="module-animation.html">animation.dll</a></li>
           <li><a href="module-world.html" class="active">world.dll</a></li>
           <li><a href="module-network.html">network.dll</a></li>
-          <li><a href="module-ai.html">LabAI.dll</a></li>
+          <li><a href="module-ai.html">ai.dll</a></li>
           <li><a href="module-script.html">script.dll</a></li>
           <li><a href="module-studio.html">studio.dll</a></li>
           <li><a href="module-hud.html">hud.dll</a></li>
@@ -150,20 +150,20 @@
       
 
       <!-- Article Header -->
-      <h1 class="firstHeading">LabWorld.dll (World Geometry & Session State)</h1>
+      <h1 class="firstHeading">world.dll (World Geometry & Session State)</h1>
       
 
       <!-- ================================================================
            RIGHT-FLOATING MEDIAWIKI INFOBOX (Featuring dll.png / dll.webp)
            ================================================================ -->
-      <aside class="infobox" aria-label="LabWorld.dll Technical Information">
+      <aside class="infobox" aria-label="world.dll Technical Information">
         <div class="infobox-title">
-          LabWorld.dll
+          world.dll
           <span class="infobox-subtitle">WORLD & GAMEPLAY SUBSYSTEM</span>
         </div>
         <div class="infobox-image">
-          <img src="assets/img/dll.webp" data-full="assets/img/dll.png" alt="LabWorld.dll Dynamic Link Library" style="max-height: 150px; object-fit: contain; padding: 10px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));">
-          <div class="infobox-caption">Modular C++20 Dynamic Link Library (LabWorld.dll)</div>
+          <img src="assets/img/dll.webp" data-full="assets/img/dll.png" alt="world.dll Dynamic Link Library" style="max-height: 150px; object-fit: contain; padding: 10px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));">
+          <div class="infobox-caption">Modular C++20 Dynamic Link Library (world.dll)</div>
         </div>
         <table class="infobox-table">
           <tbody>
@@ -208,7 +208,7 @@
         
         <div class="wiki-notice-content">
           <strong>Decoupled Subsystem Architecture:</strong>
-          <code>world.dll</code> is compiled as an independent, portable x64 dynamic link library (DLL) with clean C++20 interfaces. Consumers link against <code>LabWorld.lib</code> and runtime loads <code>world.dll</code>, ensuring zero build coupling between the engine modules and client games like <a href="frozen-life.html">Frozen-Life (FL)</a>.
+          <code>world.dll</code> is compiled as an independent, portable x64 dynamic link library (DLL) with clean C++20 interfaces. Consumers link against <code>world.lib</code> and runtime loads <code>world.dll</code>, ensuring zero build coupling between the engine modules and client games like <a href="frozen-life.html">Frozen-Life (FL)</a>.
         </div>
       </div>
 
@@ -231,8 +231,8 @@
       <div class="build-highlight-card">
         <div class="build-header-row">
           <div>
-            <h3 style="margin:0; font-size: 1.3rem;">LabWorld.dll Specifications</h3>
-            <div style="font-size:0.8rem; color:var(--wiki-text-muted); margin-top:2px;">Target: <code>bin/Release/LabWorld.dll</code> &bull; Platform: Windows x64 (MSVC 2022) &bull; Standard: ISO C++20</div>
+            <h3 style="margin:0; font-size: 1.3rem;">world.dll Specifications</h3>
+            <div style="font-size:0.8rem; color:var(--wiki-text-muted); margin-top:2px;">Target: <code>bin/Release/world.dll</code> &bull; Platform: Windows x64 (MSVC 2022) &bull; Standard: ISO C++20</div>
           </div>
           <span class="build-version-tag">SUBSYSTEM: WORLD & GAMEPLAY</span>
         </div>
@@ -285,7 +285,7 @@
       <section id="sec-cmake" class="wiki-section-container">
         <h2><span class="mw-headline">4. CMake Integration &amp; Compilation</span></h2>
         <p>To integrate <code>world.dll</code> into your game client, level editor, or standalone tool, link against its import library target in CMake:</p>
-        <div class="code-block"><pre><code># Link against LabWorld.dll in CMakeLists.txt
+        <div class="code-block"><pre><code># Link against world.dll in CMakeLists.txt
 find_package(LabEngine REQUIRED)
 
 target_include_directories(MyTarget PRIVATE
@@ -293,14 +293,14 @@ target_include_directories(MyTarget PRIVATE
 )
 
 target_link_libraries(MyTarget PRIVATE
-    LabWorld
+    world
 )
 
-# Automatically copy LabWorld.dll to the output directory on build
+# Automatically copy world.dll to the output directory on build
 add_custom_command(TARGET MyTarget POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${LAB_BIN_DIR}/LabWorld.dll"
-    "$&lt;TARGET_FILE_DIR:MyTarget&gt;/LabWorld.dll"
+    "${LAB_BIN_DIR}/world.dll"
+    "$&lt;TARGET_FILE_DIR:MyTarget&gt;/world.dll"
 )</code></pre></div>
       </section>
 
@@ -322,43 +322,43 @@ add_custom_command(TARGET MyTarget POST_BUILD
               <tr>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>include/LabMap.h</code></td>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-accent); font-family: var(--font-mono);">Lab::Map</td>
-                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for LabWorld.dll.</td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for world.dll.</td>
               </tr>
 
               <tr>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>include/LabPickups.h</code></td>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-accent); font-family: var(--font-mono);">Lab::Pickups</td>
-                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for LabWorld.dll.</td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for world.dll.</td>
               </tr>
 
               <tr>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>include/LabWeapon.h</code></td>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-accent); font-family: var(--font-mono);">Lab::Weapon</td>
-                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for LabWorld.dll.</td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for world.dll.</td>
               </tr>
 
               <tr>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>include/LabParticles.h</code></td>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-accent); font-family: var(--font-mono);">Lab::Particles</td>
-                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for LabWorld.dll.</td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for world.dll.</td>
               </tr>
 
               <tr>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>include/LabInteractive.h</code></td>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-accent); font-family: var(--font-mono);">Lab::Interactive</td>
-                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for LabWorld.dll.</td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for world.dll.</td>
               </tr>
 
               <tr>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>include/LabSession.h</code></td>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-accent); font-family: var(--font-mono);">Lab::Session</td>
-                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for LabWorld.dll.</td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for world.dll.</td>
               </tr>
 
               <tr>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>include/LabHUD.h</code></td>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-accent); font-family: var(--font-mono);">Lab::HUD</td>
-                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for LabWorld.dll.</td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle); color: var(--wiki-text-secondary);">Public export interface and API bindings for world.dll.</td>
               </tr>
             </tbody>
           </table>
@@ -404,7 +404,7 @@ add_custom_command(TARGET MyTarget POST_BUILD
                 <a href="module-animation.html">animation.dll</a> &bull;
                 <a href="module-world.html">world.dll</a> &bull;
                 <a href="module-network.html">network.dll</a> &bull;
-                <a href="module-ai.html">LabAI.dll</a> &bull;
+                <a href="module-ai.html">ai.dll</a> &bull;
                 <a href="module-script.html">script.dll</a> &bull;
                 <a href="module-studio.html">studio.dll</a> &bull;
                 <a href="module-hud.html">hud.dll</a>

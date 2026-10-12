@@ -84,7 +84,7 @@
           <li><a href="module-animation.html">animation.dll</a></li>
           <li><a href="module-world.html">world.dll</a></li>
           <li><a href="module-network.html">network.dll</a></li>
-          <li><a href="module-ai.html">LabAI.dll</a></li>
+          <li><a href="module-ai.html">ai.dll</a></li>
           <li><a href="module-script.html">script.dll</a></li>
           <li><a href="module-studio.html">studio.dll</a></li>
           <li><a href="module-hud.html">hud.dll</a></li>
@@ -314,7 +314,7 @@
         <div class="vdc-sdk-card">
           <div class="vdc-sdk-card-header">
             <svg class="vdc-sdk-card-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5a2 2 0 100 4 2 2 0 000-4zM4.5 6.5h7l-.5 3h-1.5v5h-3v-5H5l-.5-3z"/></svg>
-            <a href="module-ai.html" class="vdc-sdk-card-title">LabAI.dll</a>
+            <a href="module-ai.html" class="vdc-sdk-card-title">ai.dll</a>
           </div>
           <p class="vdc-sdk-card-desc">
             <a href="module-ai.html#sec-fsm">5-state combat FSM</a>, <a href="bot-ai.html">ray-AABB perception</a>, and <a href="module-ai.html#sec-fbx">FBX clip retargeting</a>.
@@ -423,8 +423,8 @@
         <h2>CMake Integration &amp; Consumer Linking</h2>
         <p>Executables such as <a href="frozen-life.html">Frozen-Life</a> and <a href="labeditor.html">LabEditor</a> link against the modular DLL targets via CMake:</p>
         <pre><code>target_link_libraries(FrozenLife PRIVATE
-    LabCore LabRender LabAudio LabPhysics LabAnimation
-    LabWorld LabNetwork LabAI LabScript LabStudioCore LabHUDEditorCore
+    Engine render audio physics animation
+    world network ai script studio hud
 )</code></pre>
       </section>
 
@@ -439,7 +439,7 @@
           <li><strong><a href="module-animation.html">animation.dll</a></strong>: Load glTF 2.0 humanoid rig, binary <code>.anim</code> cache, and FPP viewmodel arms.</li>
           <li><strong><a href="module-script.html">script.dll</a></strong>: Open Lua 5.4 virtual machine, load <code>game_mechanics.lua</code>, and scan <a href="plugins.html">drop-in plugins</a>.</li>
           <li><strong><a href="module-world.html">world.dll</a></strong>: Parse <code>.labmap</code> geometry, spawn weapon entities, and attach <a href="module-hud.html">hud.dll</a>.</li>
-          <li><strong><a href="module-ai.html">LabAI.dll</a> &amp; <a href="module-network.html">network.dll</a></strong>: Spawn tactical bots and bind authoritative UDP sockets.</li>
+          <li><strong><a href="module-ai.html">ai.dll</a> &amp; <a href="module-network.html">network.dll</a></strong>: Spawn tactical bots and bind authoritative UDP sockets.</li>
         </ol>
       </section>
 
@@ -481,7 +481,7 @@
                 <a href="module-animation.html">animation.dll</a> &bull;
                 <a href="module-world.html">world.dll</a> &bull;
                 <a href="module-network.html">network.dll</a> &bull;
-                <a href="module-ai.html">LabAI.dll</a> &bull;
+                <a href="module-ai.html">ai.dll</a> &bull;
                 <a href="module-script.html">script.dll</a> &bull;
                 <a href="module-studio.html">studio.dll</a> &bull;
                 <a href="module-hud.html">hud.dll</a>
