@@ -47,12 +47,22 @@ namespace Lab {
         // Math utilities for tests
         static Vec3 acesFilmicTonemap(const Vec3& color);
         static Vec3 reinhardTonemap(const Vec3& color);
+        static Vec3 applyColorGrading(const Vec3& color, float contrast = 1.04f, float saturation = 1.08f);
         static float calculateFrostVignette(float health, float maxHealth, bool isCryoSector);
+
+        void setColorGrading(float contrast, float saturation) {
+            _contrast = contrast;
+            _saturation = saturation;
+        }
+        float getContrast() const { return _contrast; }
+        float getSaturation() const { return _saturation; }
 
     private:
         int _width = 1280;
         int _height = 720;
         bool _initialized = false;
+        float _contrast = 1.04f;
+        float _saturation = 1.08f;
 
         // Primary HDR Framebuffer (GL_RGBA16F, MRT)
         unsigned int _hdrFbo = 0;

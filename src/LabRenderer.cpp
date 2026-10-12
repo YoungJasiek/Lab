@@ -1,5 +1,6 @@
 #include "LabRenderer.h"
 #include "LabCore.h"
+#include "LabVFS.h"
 #include "LabSkeletal.h"
 #include "LabFace.h"
 #include <glad/gl.h>
@@ -429,6 +430,21 @@ namespace Lab {
         static std::unordered_map<std::string, std::string> s_pathCache;
         auto it = s_pathCache.find(path);
         if (it != s_pathCache.end()) return it->second;
+
+        auto vfsResolved = VFS::get().resolve(path);
+        if (!vfsResolved.empty() && std::filesystem::exists(vfsResolved)) {
+            std::string resolvedStr = vfsResolved.string();
+            s_pathCache[path] = resolvedStr;
+            return resolvedStr;
+        }
+        if (path.find("://") == std::string::npos && path.find(":/") == std::string::npos) {
+            auto vfsAssets = VFS::get().resolve("assets://" + path);
+            if (!vfsAssets.empty() && std::filesystem::exists(vfsAssets)) {
+                std::string resolvedStr = vfsAssets.string();
+                s_pathCache[path] = resolvedStr;
+                return resolvedStr;
+            }
+        }
 
         if (std::filesystem::exists(path)) {
             s_pathCache[path] = path;

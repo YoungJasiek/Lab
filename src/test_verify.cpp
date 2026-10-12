@@ -3216,7 +3216,13 @@ int main() {
             std::cerr << "Assertion failed: Reinhard tonemapper must compress into [0.0, 1.0]!\n";
             return 1;
         }
-        std::cout << "  [PASS] ACES Filmic and Reinhard tonemapping mathematical compression verified!\n";
+        Lab::Vec3 rawSample(0.8f, 0.3f, 0.2f);
+        Lab::Vec3 graded = Lab::PostProcessPipeline::applyColorGrading(rawSample, 1.15f, 1.25f);
+        if (std::abs(graded.x - rawSample.x) < 1e-4f && std::abs(graded.y - rawSample.y) < 1e-4f) {
+            std::cerr << "Assertion failed: Color grading must actively adjust contrast and saturation!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] ACES Filmic, Reinhard tonemapping and configurable Color Grading verified!\n";
 
         // 3. Cryo Frost Vignette Calculation Verifications
         float fFullHealth = Lab::PostProcessPipeline::calculateFrostVignette(100.0f, 100.0f, false);

@@ -49,8 +49,8 @@ Ten plik zawiera twarde błędy techniczne, dziury pamięciowe, pozorne implemen
 - [ ] **Uproszczona fizyka 3D udająca OBB (`src/LabPhysics.cpp:343-460`):**
   - `resolveBodyVsBodyCollision` (L430–460) ignoruje orientację (`Quat`) i wymiary prostopadłościanu – bierze `ra = std::max({x, y, z})` i zderza pudełka jak sfery w pętli $O(N^2)$, bez impulsu obrotowego.
   - `resolveGroundCollision` (L343–386) ma na sztywno zaszytą podłogę na wysokości `c.y < 0.0f`.
-- [ ] **No-op w Color Gradingu (`src/LabPostProcess.cpp:169-170`):**
-  - Linia `mapped = mix(vec3(luma), mapped, 1.0);` nie robi nic (współczynnik mieszania jest zahardkodowany na `1.0`).
+- [x] **No-op w Color Gradingu (`src/LabPostProcess.cpp:169-170`):**
+  - Linia `mapped = mix(vec3(luma), mapped, 1.0);` nie robi nic (współczynnik mieszania jest zahardkodowany na `1.0`). *(Naprawione: wprowadzono konfigurowalne uniformy `uContrast` i `uSaturation` oraz metodę `PostProcessPipeline::applyColorGrading` zweryfikowaną w `Test 31`)*.
 
 ---
 
@@ -59,8 +59,8 @@ Ten plik zawiera twarde błędy techniczne, dziury pamięciowe, pozorne implemen
 - [x] **Brak cache'owania lokalizacji uniformów + alokacje `std::string` co draw call (`src/LabRenderer.cpp:356-380, 1054-1097`):**
   - Każde `setMat4` / `setVec3` / `setFloat` odpytuje sterownik przez `glGetUniformLocation`.
   - `applyLightingAndShadowUniforms` jest wołane przy **każdym pojedynczym `drawCube` / `drawMesh`** i w pętli po 16 światłach punktowych za każdym razem skleja na stercie `std::string prefix = "uPointLights[" + std::to_string(i) + "].";`. *(Naprawione: `Shader::_uniformCache` + statyczna tablica nazw uniformów świateł punktowych bez alokacji co draw call)*.
-- [ ] **Bruteforce 37 ścieżek przy szukaniu zasobów (`src/LabRenderer.cpp:401-459`):**
-  - Funkcja `resolveAssetPath` w `LabRenderer.cpp` omija `LabVFS` i sprawdza w pętli 37 zgadywanych ścieżek względnych (`../../assets/models/textures/`, `build/Release/` itd.).
+- [x] **Bruteforce 37 ścieżek przy szukaniu zasobów (`src/LabRenderer.cpp:401-459`):**
+  - Funkcja `resolveAssetPath` w `LabRenderer.cpp` omija `LabVFS` i sprawdza w pętli 37 zgadywanych ścieżek względnych (`../../assets/models/textures/`, `build/Release/` itd.). *(Naprawione: `resolveAssetPath` w pierwszej kolejności odpytuje `VFS::get().resolve()` przed fallbackiem do ścieżek lokalnych)*.
 - [ ] **Liniowe `dynamic_cast` w `Entity::GetComponent<T>()` (`include/LabEntity.h:46-57`):**
   - Każde pobranie komponentu (w tym szukanie kamery w `LabScene::GetMainCamera`) wykonuje liniowy przegląd wektora i `dynamic_cast`.
 - [ ] **Konfiguracja `CMakeLists.txt` (`CMakeLists.txt:9-21`):**

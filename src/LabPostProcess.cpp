@@ -86,6 +86,8 @@ namespace Lab {
         uniform float uFrostIntensity;
         uniform float uTime;
         uniform int uTonemapper; // 0 = ACES, 1 = Reinhard
+        uniform float uContrast;
+        uniform float uSaturation;
 
         // Procedural high-frequency organic ice crystallization
         float hash(vec2 p) {
@@ -163,11 +165,11 @@ namespace Lab {
 
             // --- Engine Neutral Cinematic Color Grading ---
             // 1. Balanced contrast curve
-            mapped = pow(clamp(mapped, 0.0, 1.0), vec3(1.02));
+            mapped = pow(clamp(mapped, 0.0, 1.0), vec3(max(uContrast, 0.01)));
 
             // 2. Natural saturation balance
             float luma = dot(mapped, vec3(0.299, 0.587, 0.114));
-            mapped = mix(vec3(luma), mapped, 1.0);
+            mapped = clamp(mix(vec3(luma), mapped, uSaturation), 0.0, 1.0);
 
             // 3. Subtle film grain
             float grain = (hash(vTexCoords * vec2(1280.0, 720.0) + vec2(uTime * 13.0, uTime * 37.0)) - 0.5) * 0.015;
@@ -470,6 +472,8 @@ namespace Lab {
         _compositeShader->setFloat("uFrostIntensity", frostIntensity);
         _compositeShader->setFloat("uTime", timeSeconds);
         _compositeShader->setInt("uTonemapper", (int)tonemapper);
+        _compositeShader->setFloat("uContrast", _contrast);
+        _compositeShader->setFloat("uSaturation", _saturation);
 
         glBindTextureUnit(0, _hdrColorTexture);
         glBindTextureUnit(1, _pingPongColor[0]); // blurred bloom result
@@ -497,6 +501,21 @@ namespace Lab {
             color.x / (color.x + 1.0f),
             color.y / (color.y + 1.0f),
             color.z / (color.z + 1.0f)
+        );
+    }
+
+    Vec3 PostProcessPipeline::applyColorGrading(const Vec3& color, float contrast, float saturation) {
+        float c = std::max(contrast, 0.01f);
+        Vec3 contrasted(
+            std::pow(std::clamp(color.x, 0.0f, 1.0f), c),
+            std::pow(std::clamp(color.y, 0.0f, 1.0f), c),
+            std::pow(std::clamp(color.z, 0.0f, 1.0f), c)
+        );
+        float luma = contrasted.x * 0.299f + contrasted.y * 0.587f + contrasted.z * 0.114f;
+        return Vec3(
+            std::clamp(luma + (contrasted.x - luma) * saturation, 0.0f, 1.0f),
+            std::clamp(luma + (contrasted.y - luma) * saturation, 0.0f, 1.0f),
+            std::clamp(luma + (contrasted.z - luma) * saturation, 0.0f, 1.0f)
         );
     }
 
