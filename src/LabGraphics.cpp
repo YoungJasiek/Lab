@@ -70,15 +70,14 @@ namespace Lab {
         _hdrData.assign(data, data + totalFloats);
         stbi_image_free(data);
 
-        glGenTextures(1, &_textureId);
-        glBindTexture(GL_TEXTURE_2D, _textureId);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, _width, _height, 0, GL_RGB, GL_FLOAT, _hdrData.data());
+        glCreateTextures(GL_TEXTURE_2D, 1, &_textureId);
+        glTextureStorage2D(_textureId, 1, GL_RGB16F, _width, _height);
+        glTextureSubImage2D(_textureId, 0, 0, 0, _width, _height, GL_RGB, GL_FLOAT, _hdrData.data());
 
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glBindTexture(GL_TEXTURE_2D, 0);
+        glTextureParameteri(_textureId, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(_textureId, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(_textureId, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTextureParameteri(_textureId, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
         _loaded = true;
         return true;
@@ -137,15 +136,14 @@ namespace Lab {
             }
         }
 
-        glGenTextures(1, &_textureId);
-        glBindTexture(GL_TEXTURE_2D, _textureId);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, _width, _height, 0, GL_RGB, GL_FLOAT, _hdrData.data());
+        glCreateTextures(GL_TEXTURE_2D, 1, &_textureId);
+        glTextureStorage2D(_textureId, 1, GL_RGB16F, _width, _height);
+        glTextureSubImage2D(_textureId, 0, 0, 0, _width, _height, GL_RGB, GL_FLOAT, _hdrData.data());
 
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glBindTexture(GL_TEXTURE_2D, 0);
+        glTextureParameteri(_textureId, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(_textureId, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(_textureId, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTextureParameteri(_textureId, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
         _loaded = true;
         return true;
@@ -153,8 +151,7 @@ namespace Lab {
 
     void HDRISkybox::bind(unsigned int slot) const {
         if (_textureId != 0) {
-            glActiveTexture(GL_TEXTURE0 + slot);
-            glBindTexture(GL_TEXTURE_2D, _textureId);
+            glBindTextureUnit(slot, _textureId);
         }
     }
 
@@ -281,96 +278,65 @@ namespace Lab {
     }
 
     // =========================================================================
-    // 3. PBR MATERIALS & COOK-TORRANCE BRDF (glTF 2.0 Standard)
+    // 3. BLINN-PHONG MATERIALS & SOURCE-STYLE SHADING (No PBR per AGENTS.md)
     // =========================================================================
-    float PBRShading::distributionGGX(const Vec3& N, const Vec3& H, float roughness) {
-        float a = roughness * roughness;
-        float a2 = a * a;
+    float BlinnPhongShading::specularTerm(const Vec3& N, const Vec3& H, float shininess) {
+        float s = std::max(shininess, 1.0f);
         float NdotH = std::max(N.dot(H), 0.0f);
-        float NdotH2 = NdotH * NdotH;
-
-        float nom = a2;
-        float denom = (NdotH2 * (a2 - 1.0f) + 1.0f);
-        denom = 3.14159265f * denom * denom;
-        return denom > 0.0001f ? (nom / denom) : 0.0f;
+        constexpr float invEightPi = 1.0f / (8.0f * 3.14159265f);
+        return ((s + 8.0f) * invEightPi) * std::pow(NdotH, s);
     }
 
-    float PBRShading::geometrySchlickGGX(float NdotV, float roughness) {
-        float r = (roughness + 1.0f);
-        float k = (r * r) / 8.0f;
-        float nom = NdotV;
-        float denom = NdotV * (1.0f - k) + k;
-        return denom > 0.0001f ? (nom / denom) : 0.0f;
-    }
-
-    float PBRShading::geometrySmith(const Vec3& N, const Vec3& V, const Vec3& L, float roughness) {
-        float NdotV = std::max(N.dot(V), 0.0f);
-        float NdotL = std::max(N.dot(L), 0.0f);
-        float ggx2 = geometrySchlickGGX(NdotV, roughness);
-        float ggx1 = geometrySchlickGGX(NdotL, roughness);
-        return ggx1 * ggx2;
-    }
-
-    Vec3 PBRShading::fresnelSchlick(float cosTheta, const Vec3& F0) {
+    Vec3 BlinnPhongShading::fresnelSchlick(float cosTheta, const Vec3& F0) {
         float p = std::pow(std::clamp(1.0f - cosTheta, 0.0f, 1.0f), 5.0f);
         return F0 + (Vec3(1.0f, 1.0f, 1.0f) - F0) * p;
     }
 
-    Vec3 PBRShading::evaluateDirectLight(const PBRMaterial& mat,
-                                         const Vec3& N,
-                                         const Vec3& V,
-                                         const Vec3& L,
-                                         const Vec3& lightRadiance) {
-        Vec3 H = (V + L).normalized();
+    Vec3 BlinnPhongShading::evaluateDirectLight(const BlinnPhongMaterial& mat,
+                                                const Vec3& N,
+                                                const Vec3& V,
+                                                const Vec3& L,
+                                                const Vec3& lightRadiance) {
         float NdotL = std::max(N.dot(L), 0.0f);
-        float NdotV = std::max(N.dot(V), 0.0f);
-
-        if (NdotL <= 0.0f || NdotV <= 0.0f) {
+        if (NdotL <= 0.0f) {
             return mat.emissive;
         }
 
-        // Base reflectivity F0 (0.04 for non-metals, albedo for metals)
-        Vec3 baseF0 = Vec3(0.04f, 0.04f, 0.04f);
+        Vec3 H = (V + L).normalized();
         Vec3 albedo3 = Vec3(mat.albedoColor.x, mat.albedoColor.y, mat.albedoColor.z);
-        Vec3 F0 = baseF0 * (1.0f - mat.metallic) + albedo3 * mat.metallic;
 
-        // Cook-Torrance Specular BRDF terms
-        float D = distributionGGX(N, H, mat.roughness);
-        float G = geometrySmith(N, V, L, mat.roughness);
-        Vec3 F = fresnelSchlick(std::max(H.dot(V), 0.0f), F0);
+        // Derive effective shininess & specular strength (supporting both direct Blinn-Phong and legacy fields)
+        float effectiveShininess = (mat.shininess != 32.0f)
+            ? std::max(2.0f, mat.shininess)
+            : std::max(2.0f, (1.0f - std::clamp(mat.roughness, 0.05f, 0.95f)) * 128.0f);
+        float effectiveSpecStrength = (mat.specularStrength != 0.5f)
+            ? mat.specularStrength
+            : (0.25f + 0.75f * std::clamp(mat.metallic, 0.0f, 1.0f));
 
-        Vec3 numerator = F * (D * G);
-        float denominator = 4.0f * NdotV * NdotL + 0.0001f;
-        Vec3 specular = numerator * (1.0f / denominator);
+        float spec = specularTerm(N, H, effectiveShininess) * effectiveSpecStrength;
+        Vec3 specColor = Vec3(1.0f, 1.0f, 1.0f) * (1.0f - mat.metallic) + albedo3 * mat.metallic;
 
-        // Energy conservation
-        Vec3 kS = F;
-        Vec3 kD = (Vec3(1.0f, 1.0f, 1.0f) - kS) * (1.0f - mat.metallic);
-
-        // Lambertian diffuse
         Vec3 diffuse = albedo3 * (1.0f / 3.14159265f);
+        Vec3 specular = specColor * spec;
 
-        return (diffuse * kD + specular) * lightRadiance * NdotL + mat.emissive;
+        return (diffuse + specular) * lightRadiance * NdotL + mat.emissive;
     }
 
-    Vec3 PBRShading::evaluateIBL(const PBRMaterial& mat,
-                                 const Vec3& N,
-                                 const Vec3& V,
-                                 const Vec3& irradiance,
-                                 const Vec3& prefilteredSpecular) {
+    Vec3 BlinnPhongShading::evaluateEnvironment(const BlinnPhongMaterial& mat,
+                                                const Vec3& N,
+                                                const Vec3& V,
+                                                const Vec3& ambientIrradiance,
+                                                const Vec3& envCubemapColor) {
         float NdotV = std::max(N.dot(V), 0.0f);
         Vec3 albedo3 = Vec3(mat.albedoColor.x, mat.albedoColor.y, mat.albedoColor.z);
         Vec3 baseF0 = Vec3(0.04f, 0.04f, 0.04f);
         Vec3 F0 = baseF0 * (1.0f - mat.metallic) + albedo3 * mat.metallic;
 
-        Vec3 F = fresnelSchlick(NdotV, F0);
-        Vec3 kS = F;
-        Vec3 kD = (Vec3(1.0f, 1.0f, 1.0f) - kS) * (1.0f - mat.metallic);
+        Vec3 rimFresnel = fresnelSchlick(NdotV, F0);
+        Vec3 diffuse = ambientIrradiance * albedo3;
+        Vec3 envReflection = envCubemapColor * (rimFresnel.x * 0.6f + 0.15f);
 
-        Vec3 diffuse = irradiance * albedo3;
-        Vec3 specular = prefilteredSpecular * (F.x * 0.8f + 0.2f);
-
-        return (diffuse * kD + specular) * mat.ao + mat.emissive;
+        return (diffuse + envReflection) * mat.ao + mat.emissive;
     }
 
     // =========================================================================
@@ -392,50 +358,52 @@ namespace Lab {
 
     InstancedMesh::InstancedMesh(const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices)
         : _indexCount((int)indices.size()) {
-        glGenVertexArrays(1, &_vao);
-        glGenBuffers(1, &_vbo);
-        glGenBuffers(1, &_ebo);
-        glGenBuffers(1, &_instanceVbo);
+        glCreateVertexArrays(1, &_vao);
+        glCreateBuffers(1, &_vbo);
+        glCreateBuffers(1, &_ebo);
+        glCreateBuffers(1, &_instanceVbo);
 
-        glBindVertexArray(_vao);
+        glNamedBufferData(_vbo, vertices.size() * sizeof(Vertex), vertices.data(), GL_STATIC_DRAW);
+        glNamedBufferData(_ebo, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
 
-        glBindBuffer(GL_ARRAY_BUFFER, _vbo);
-        glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), vertices.data(), GL_STATIC_DRAW);
+        glVertexArrayVertexBuffer(_vao, 0, _vbo, 0, sizeof(Vertex));
+        glVertexArrayElementBuffer(_vao, _ebo);
 
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _ebo);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
+        // Per-vertex attributes (binding 0)
+        glEnableVertexArrayAttrib(_vao, 0);
+        glVertexArrayAttribFormat(_vao, 0, 3, GL_FLOAT, GL_FALSE, (GLuint)offsetof(Vertex, position));
+        glVertexArrayAttribBinding(_vao, 0, 0);
 
-        // Vertex layout
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, position));
-        glEnableVertexAttribArray(0);
+        glEnableVertexArrayAttrib(_vao, 1);
+        glVertexArrayAttribFormat(_vao, 1, 3, GL_FLOAT, GL_FALSE, (GLuint)offsetof(Vertex, normal));
+        glVertexArrayAttribBinding(_vao, 1, 0);
 
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, normal));
-        glEnableVertexAttribArray(1);
+        glEnableVertexArrayAttrib(_vao, 2);
+        glVertexArrayAttribFormat(_vao, 2, 2, GL_FLOAT, GL_FALSE, (GLuint)offsetof(Vertex, texCoords));
+        glVertexArrayAttribBinding(_vao, 2, 0);
 
-        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, texCoords));
-        glEnableVertexAttribArray(2);
+        glEnableVertexArrayAttrib(_vao, 3);
+        glVertexArrayAttribFormat(_vao, 3, 3, GL_FLOAT, GL_FALSE, (GLuint)offsetof(Vertex, color));
+        glVertexArrayAttribBinding(_vao, 3, 0);
 
-        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, color));
-        glEnableVertexAttribArray(3);
-
-        // Instance buffer layout (Mat4 = 4 x Vec4 attributes 4..7, UV Atlas = attrib 8, Tint = attrib 9)
-        glBindBuffer(GL_ARRAY_BUFFER, _instanceVbo);
+        // Per-instance attributes (binding 1: Mat4 = 4 x Vec4 attributes 4..7, UV Atlas = attrib 8, Tint = attrib 9)
+        glVertexArrayVertexBuffer(_vao, 1, _instanceVbo, 0, sizeof(InstanceData));
+        glVertexArrayBindingDivisor(_vao, 1, 1);
 
         for (int i = 0; i < 4; ++i) {
-            glEnableVertexAttribArray(4 + i);
-            glVertexAttribPointer(4 + i, 4, GL_FLOAT, GL_FALSE, sizeof(InstanceData), (void*)(sizeof(Vec4) * i));
-            glVertexAttribDivisor(4 + i, 1);
+            GLuint attr = static_cast<GLuint>(4 + i);
+            glEnableVertexArrayAttrib(_vao, attr);
+            glVertexArrayAttribFormat(_vao, attr, 4, GL_FLOAT, GL_FALSE, static_cast<GLuint>(sizeof(Vec4) * i));
+            glVertexArrayAttribBinding(_vao, attr, 1);
         }
 
-        glEnableVertexAttribArray(8);
-        glVertexAttribPointer(8, 4, GL_FLOAT, GL_FALSE, sizeof(InstanceData), (void*)offsetof(InstanceData, uvAtlasRect));
-        glVertexAttribDivisor(8, 1);
+        glEnableVertexArrayAttrib(_vao, 8);
+        glVertexArrayAttribFormat(_vao, 8, 4, GL_FLOAT, GL_FALSE, (GLuint)offsetof(InstanceData, uvAtlasRect));
+        glVertexArrayAttribBinding(_vao, 8, 1);
 
-        glEnableVertexAttribArray(9);
-        glVertexAttribPointer(9, 4, GL_FLOAT, GL_FALSE, sizeof(InstanceData), (void*)offsetof(InstanceData, colorTint));
-        glVertexAttribDivisor(9, 1);
-
-        glBindVertexArray(0);
+        glEnableVertexArrayAttrib(_vao, 9);
+        glVertexArrayAttribFormat(_vao, 9, 4, GL_FLOAT, GL_FALSE, (GLuint)offsetof(InstanceData, colorTint));
+        glVertexArrayAttribBinding(_vao, 9, 1);
     }
 
     InstancedMesh::~InstancedMesh() {
@@ -488,9 +456,7 @@ namespace Lab {
 
     void InstancedMesh::updateInstanceBuffer() {
         if (_instanceVbo == 0 || _instances.empty()) return;
-        glBindBuffer(GL_ARRAY_BUFFER, _instanceVbo);
-        glBufferData(GL_ARRAY_BUFFER, _instances.size() * sizeof(InstanceData), _instances.data(), GL_DYNAMIC_DRAW);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glNamedBufferData(_instanceVbo, _instances.size() * sizeof(InstanceData), _instances.data(), GL_DYNAMIC_DRAW);
     }
 
     void InstancedMesh::draw() const {
@@ -580,22 +546,19 @@ namespace Lab {
         }
 
         if (_textureId == 0) {
-            glGenTextures(1, &_textureId);
+            glCreateTextures(GL_TEXTURE_2D, 1, &_textureId);
+            glTextureStorage2D(_textureId, 1, GL_RGB8, _width, _height);
+            glTextureParameteri(_textureId, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTextureParameteri(_textureId, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTextureParameteri(_textureId, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTextureParameteri(_textureId, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         }
-        glBindTexture(GL_TEXTURE_2D, _textureId);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, _width, _height, 0, GL_RGB, GL_UNSIGNED_BYTE, byteData.data());
-
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glBindTexture(GL_TEXTURE_2D, 0);
+        glTextureSubImage2D(_textureId, 0, 0, 0, _width, _height, GL_RGB, GL_UNSIGNED_BYTE, byteData.data());
     }
 
     void BakedLightmap::bind(unsigned int slot) const {
         if (_textureId != 0) {
-            glActiveTexture(GL_TEXTURE0 + slot);
-            glBindTexture(GL_TEXTURE_2D, _textureId);
+            glBindTextureUnit(slot, _textureId);
         }
     }
 
@@ -715,25 +678,20 @@ namespace Lab {
         int totalTiles = _tilesPerRow * _tilesPerRow;
         _tileMatrices.assign(totalTiles, Mat4::identity());
 
-        glGenFramebuffers(1, &_fbo);
-        glBindFramebuffer(GL_FRAMEBUFFER, _fbo);
+        glCreateFramebuffers(1, &_fbo);
+        glCreateTextures(GL_TEXTURE_2D, 1, &_depthTexture);
+        glTextureStorage2D(_depthTexture, 1, GL_DEPTH_COMPONENT24, _atlasSize, _atlasSize);
 
-        glGenTextures(1, &_depthTexture);
-        glBindTexture(GL_TEXTURE_2D, _depthTexture);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, _atlasSize, _atlasSize, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+        glTextureParameteri(_depthTexture, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTextureParameteri(_depthTexture, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTextureParameteri(_depthTexture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(_depthTexture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glNamedFramebufferTexture(_fbo, GL_DEPTH_ATTACHMENT, _depthTexture, 0);
+        glNamedFramebufferDrawBuffer(_fbo, GL_NONE);
+        glNamedFramebufferReadBuffer(_fbo, GL_NONE);
 
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, _depthTexture, 0);
-        glDrawBuffer(GL_NONE);
-        glReadBuffer(GL_NONE);
-
-        GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
+        GLenum status = glCheckNamedFramebufferStatus(_fbo, GL_FRAMEBUFFER);
         _initialized = (status == GL_FRAMEBUFFER_COMPLETE);
         return _initialized;
     }
@@ -790,8 +748,7 @@ namespace Lab {
 
     void ShadowAtlas::bind(unsigned int unit) const {
         if (_depthTexture != 0) {
-            glActiveTexture(GL_TEXTURE0 + unit);
-            glBindTexture(GL_TEXTURE_2D, _depthTexture);
+            glBindTextureUnit(unit, _depthTexture);
         }
     }
 
@@ -835,32 +792,22 @@ namespace Lab {
 
     bool CubemapProbe::init(int faceResolution) {
         shutdown();
-        _faceResolution = faceResolution;
+        _faceResolution = std::max(1, faceResolution);
 
-        glGenFramebuffers(1, &_fbo);
-        glGenRenderbuffers(1, &_depthRbo);
+        glCreateFramebuffers(1, &_fbo);
+        glCreateRenderbuffers(1, &_depthRbo);
 
-        glGenTextures(1, &_cubemapTexture);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, _cubemapTexture);
+        glCreateTextures(GL_TEXTURE_CUBE_MAP, 1, &_cubemapTexture);
+        glTextureStorage2D(_cubemapTexture, 1, GL_RGB16F, _faceResolution, _faceResolution);
 
-        for (int i = 0; i < 6; ++i) {
-            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F,
-                         _faceResolution, _faceResolution, 0, GL_RGB, GL_FLOAT, nullptr);
-        }
+        glTextureParameteri(_cubemapTexture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTextureParameteri(_cubemapTexture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTextureParameteri(_cubemapTexture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(_cubemapTexture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(_cubemapTexture, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
-        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-
-        glBindFramebuffer(GL_FRAMEBUFFER, _fbo);
-        glBindRenderbuffer(GL_RENDERBUFFER, _depthRbo);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, _faceResolution, _faceResolution);
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, _depthRbo);
-
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+        glNamedRenderbufferStorage(_depthRbo, GL_DEPTH_COMPONENT24, _faceResolution, _faceResolution);
+        glNamedFramebufferRenderbuffer(_fbo, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, _depthRbo);
 
         _initialized = true;
         return true;
@@ -902,8 +849,8 @@ namespace Lab {
 
     void CubemapProbe::beginFace(int faceIdx) {
         if (!_initialized) return;
+        glNamedFramebufferTextureLayer(_fbo, GL_COLOR_ATTACHMENT0, _cubemapTexture, 0, faceIdx);
         glBindFramebuffer(GL_FRAMEBUFFER, _fbo);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + faceIdx, _cubemapTexture, 0);
         glViewport(0, 0, _faceResolution, _faceResolution);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     }
@@ -914,15 +861,13 @@ namespace Lab {
 
     void CubemapProbe::bind(unsigned int slot) const {
         if (_cubemapTexture != 0) {
-            glActiveTexture(GL_TEXTURE0 + slot);
-            glBindTexture(GL_TEXTURE_CUBE_MAP, _cubemapTexture);
+            glBindTextureUnit(slot, _cubemapTexture);
         }
     }
 
     void CubemapProbe::bakeProceduralEnvironment(const Vec3& ambientColor, const Vec3& sunDir, const Vec3& sunColor) {
         if (!_initialized) return;
 
-        glBindTexture(GL_TEXTURE_CUBE_MAP, _cubemapTexture);
         std::vector<float> faceData(_faceResolution * _faceResolution * 3);
 
         for (int f = 0; f < 6; ++f) {
@@ -955,10 +900,9 @@ namespace Lab {
                 }
             }
 
-            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + f, 0, GL_RGB16F,
-                         _faceResolution, _faceResolution, 0, GL_RGB, GL_FLOAT, faceData.data());
+            glTextureSubImage3D(_cubemapTexture, 0, 0, 0, f,
+                                _faceResolution, _faceResolution, 1, GL_RGB, GL_FLOAT, faceData.data());
         }
-        glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
     }
 
 } // namespace Lab

@@ -101,11 +101,14 @@ namespace Lab {
     };
 
     // =========================================================================
-    // 3. PBR MATERIALS & COOK-TORRANCE BRDF (glTF 2.0 Standard)
+    // 3. BLINN-PHONG MATERIALS & SOURCE-STYLE SHADING (No PBR per AGENTS.md)
     // =========================================================================
-    struct PBRMaterial {
-        std::string name = "DefaultPBR";
+    struct BlinnPhongMaterial {
+        std::string name = "DefaultBlinnPhong";
         Vec4 albedoColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+        float specularStrength = 0.5f;
+        float shininess = 32.0f;
+        // Legacy aliases mapped to specular/shininess for compatibility
         float metallic = 0.0f;
         float roughness = 0.5f;
         float ao = 1.0f;
@@ -113,45 +116,55 @@ namespace Lab {
 
         std::string albedoPath;
         std::string normalPath;
-        std::string metallicRoughnessPath;
+        std::string specularPath;
         std::string aoPath;
         std::string emissivePath;
 
         unsigned int albedoTex = 0;
         unsigned int normalTex = 0;
-        unsigned int metallicRoughnessTex = 0;
+        unsigned int specularTex = 0;
         unsigned int aoTex = 0;
         unsigned int emissiveTex = 0;
     };
 
-    class PBRShading {
+    class BlinnPhongShading {
     public:
-        /// @brief Trowbridge-Reitz GGX Normal Distribution Function
-        static float distributionGGX(const Vec3& N, const Vec3& H, float roughness);
+        /// @brief Normalized Blinn-Phong specular highlight term: ((s + 8) / 8pi) * (N.H)^s
+        static float specularTerm(const Vec3& N, const Vec3& H, float shininess);
 
-        /// @brief Schlick-GGX Geometry Function for single direction
-        static float geometrySchlickGGX(float NdotV, float roughness);
-
-        /// @brief Smith's method Geometry Function
-        static float geometrySmith(const Vec3& N, const Vec3& V, const Vec3& L, float roughness);
-
-        /// @brief Schlick's Fresnel approximation
+        /// @brief Schlick's Fresnel rim reflection factor for cubemap environment mapping
         static Vec3 fresnelSchlick(float cosTheta, const Vec3& F0);
 
-        /// @brief Evaluates Cook-Torrance microfacet specular & Lambertian diffuse direct lighting
-        static Vec3 evaluateDirectLight(const PBRMaterial& mat,
+        /// @brief Evaluates Blinn-Phong direct lighting (Lambertian diffuse + Blinn-Phong specular)
+        static Vec3 evaluateDirectLight(const BlinnPhongMaterial& mat,
                                         const Vec3& N,
                                         const Vec3& V,
                                         const Vec3& L,
                                         const Vec3& lightRadiance);
 
-        /// @brief Evaluates Image-Based Lighting (IBL) ambient diffuse + specular reflection
-        static Vec3 evaluateIBL(const PBRMaterial& mat,
-                                const Vec3& N,
-                                const Vec3& V,
-                                const Vec3& irradiance,
-                                const Vec3& prefilteredSpecular);
+        /// @brief Evaluates ambient + cubemap environment reflection (Source Engine style)
+        static Vec3 evaluateEnvironment(const BlinnPhongMaterial& mat,
+                                        const Vec3& N,
+                                        const Vec3& V,
+                                        const Vec3& ambientIrradiance,
+                                        const Vec3& envCubemapColor);
+
+        // Compatibility wrappers converting roughness -> shininess for legacy callers
+        static float distributionGGX(const Vec3& N, const Vec3& H, float roughness) {
+            float shininess = std::max(2.0f, (1.0f - std::clamp(roughness, 0.05f, 0.95f)) * 128.0f);
+            return specularTerm(N, H, shininess);
+        }
+        static float geometrySmith(const Vec3& N, const Vec3& V, const Vec3& L, float) {
+            return (N.dot(V) > 0.0f && N.dot(L) > 0.0f) ? 1.0f : 0.0f;
+        }
+        static Vec3 evaluateIBL(const BlinnPhongMaterial& mat, const Vec3& N, const Vec3& V,
+                                const Vec3& irradiance, const Vec3& envColor) {
+            return evaluateEnvironment(mat, N, V, irradiance, envColor);
+        }
     };
+
+    using PBRMaterial = BlinnPhongMaterial;
+    using PBRShading = BlinnPhongShading;
 
     // =========================================================================
     // 4. INSTANCING & BATCHING WITH TEXTURE ATLAS

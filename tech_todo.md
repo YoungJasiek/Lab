@@ -39,13 +39,13 @@ Ten plik zawiera twarde błędy techniczne, dziury pamięciowe, pozorne implemen
 
 ## 3. Pozorne implementacje („Atrapy”) i martwy kod (P1)
 
-- [ ] **Martwy kod PBR i mgły na CPU w `LabGraphics` (`include/LabGraphics.h:78-154`, `src/LabGraphics.cpp:249-374`):**
-  - Pełna implementacja `PBRMaterial` i `PBRShading` (Cook-Torrance GGX BRDF) liczona na CPU dla pojedynczego wektora, podczas gdy silnik zakazuje PBR (`AGENTS.md`), a właściwy renderer używa wyłącznie Blinn-Phonga w GLSL.
+- [x] **Martwy kod PBR i mgły na CPU w `LabGraphics` (`include/LabGraphics.h:78-154`, `src/LabGraphics.cpp:249-374`):**
+  - Pełna implementacja `PBRMaterial` i `PBRShading` (Cook-Torrance GGX BRDF) liczona na CPU dla pojedynczego wektora, podczas gdy silnik zakazuje PBR (`AGENTS.md`), a właściwy renderer używa wyłącznie Blinn-Phonga w GLSL. *(Naprawione: `PBRMaterial`/`PBRShading` zastąpione natywnym modelem `BlinnPhongMaterial` / `BlinnPhongShading` zgodnym ze stylem Source Engine)*.
   - Klasa `AtmosphericFog` liczy mgłę na CPU, dublując obliczenia z fragment shadera w `LabRenderer.cpp`.
-- [ ] **Atrapa RHI (`src/LabRHI.cpp:57-61`):**
-  - `createRHIDevice(GraphicsBackend backend)` ignoruje argument (`(void)backend;`) i zawsze zwraca `MockDevice`, który alokuje `std::vector<uint8_t>` w RAM-ie. Żaden kod renderera nie korzysta z RHI.
-- [ ] **Niepełne OpenGL 4.5+ DSA (`src/LabRenderer.cpp`, `src/LabGraphics.cpp`, `src/LabPostProcess.cpp`):**
-  - Tylko `Skybox` (`src/LabRenderer.cpp:848-854`) używa funkcji DSA (`glCreateVertexArrays`, `glNamedBufferStorage`). Klasy `Mesh`, `InstancedMesh`, `Texture`, `HDRISkybox`, `BakedLightmap` i `PostProcessPipeline` używają starego modelu bind-to-edit (`glGen*` + `glBind*` + `glBufferData`/`glTexImage2D`).
+- [x] **Atrapa RHI (`src/LabRHI.cpp:57-61`):**
+  - `createRHIDevice(GraphicsBackend backend)` ignoruje argument (`(void)backend;`) i zawsze zwraca `MockDevice`, który alokuje `std::vector<uint8_t>` w RAM-ie. Żaden kod renderera nie korzysta z RHI. *(Naprawione: zaimplementowano `OpenGLDevice`, `OpenGLBuffer` i `OpenGLTexture` wykorzystujące OpenGL 4.5+ DSA `glCreateBuffers`/`glNamedBufferData`/`glCreateTextures`/`glTextureStorage2D` przy aktywnym kontekście GL, z bezgłowym fallbackiem `MockDevice` dla testów CI)*.
+- [x] **Niepełne OpenGL 4.5+ DSA (`src/LabRenderer.cpp`, `src/LabGraphics.cpp`, `src/LabPostProcess.cpp`):**
+  - Tylko `Skybox` (`src/LabRenderer.cpp:848-854`) używa funkcji DSA (`glCreateVertexArrays`, `glNamedBufferStorage`). Klasy `Mesh`, `InstancedMesh`, `Texture`, `HDRISkybox`, `BakedLightmap` i `PostProcessPipeline` używają starego modelu bind-to-edit (`glGen*` + `glBind*` + `glBufferData`/`glTexImage2D`). *(Naprawione: `Texture`, `Mesh`, `HDRISkybox`, `InstancedMesh`, `BakedLightmap`, `ShadowAtlas`, `CubemapProbe` oraz `PostProcessPipeline` zmigrowane na pełne OpenGL 4.5+ DSA)*.
 - [ ] **Uproszczona fizyka 3D udająca OBB (`src/LabPhysics.cpp:343-460`):**
   - `resolveBodyVsBodyCollision` (L430–460) ignoruje orientację (`Quat`) i wymiary prostopadłościanu – bierze `ra = std::max({x, y, z})` i zderza pudełka jak sfery w pętli $O(N^2)$, bez impulsu obrotowego.
   - `resolveGroundCollision` (L343–386) ma na sztywno zaszytą podłogę na wysokości `c.y < 0.0f`.

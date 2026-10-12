@@ -734,20 +734,26 @@ namespace Lab {
             data = procData;
         }
 
-        glGenTextures(1, &_id);
-        glBindTexture(GL_TEXTURE_2D, _id);
+        glCreateTextures(GL_TEXTURE_2D, 1, &_id);
         GLenum internalFormat = (_channels == 4) ? GL_RGBA8 : GL_RGB8;
         GLenum dataFormat = (_channels == 4) ? GL_RGBA : GL_RGB;
 
-        glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, _width, _height, 0, dataFormat, GL_UNSIGNED_BYTE, data);
-        glGenerateMipmap(GL_TEXTURE_2D);
+        int maxDim = std::max(1, std::max(_width, _height));
+        int mipLevels = 1;
+        while ((maxDim >>= 1) > 0) {
+            ++mipLevels;
+        }
+        glTextureStorage2D(_id, mipLevels, internalFormat, std::max(1, _width), std::max(1, _height));
+        if (data != nullptr) {
+            glTextureSubImage2D(_id, 0, 0, 0, _width, _height, dataFormat, GL_UNSIGNED_BYTE, data);
+        }
+        glGenerateTextureMipmap(_id);
 
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTextureParameteri(_id, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTextureParameteri(_id, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTextureParameteri(_id, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTextureParameteri(_id, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
-        glBindTexture(GL_TEXTURE_2D, 0);
         if (isStbi) {
             stbi_image_free(data);
         } else {
@@ -757,16 +763,17 @@ namespace Lab {
 
     Texture::Texture(const unsigned char* data, int width, int height, int channels)
         : _width(width), _height(height), _channels(channels) {
-        glGenTextures(1, &_id);
-        glBindTexture(GL_TEXTURE_2D, _id);
+        glCreateTextures(GL_TEXTURE_2D, 1, &_id);
         GLenum internalFormat = (_channels == 4) ? GL_RGBA8 : GL_RGB8;
         GLenum dataFormat = (_channels == 4) ? GL_RGBA : GL_RGB;
-        glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, _width, _height, 0, dataFormat, GL_UNSIGNED_BYTE, data);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glBindTexture(GL_TEXTURE_2D, 0);
+        glTextureStorage2D(_id, 1, internalFormat, std::max(1, _width), std::max(1, _height));
+        if (data != nullptr && _width > 0 && _height > 0) {
+            glTextureSubImage2D(_id, 0, 0, 0, _width, _height, dataFormat, GL_UNSIGNED_BYTE, data);
+        }
+        glTextureParameteri(_id, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTextureParameteri(_id, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTextureParameteri(_id, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(_id, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     }
 
     Texture::~Texture() {
@@ -802,29 +809,34 @@ namespace Lab {
     }
 
     void Texture::bind(unsigned int slot) const {
-        glActiveTexture(GL_TEXTURE0 + slot);
-        glBindTexture(GL_TEXTURE_2D, _id);
+        glBindTextureUnit(slot, _id);
     }
 
     void Texture::unbind() const {
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, 0);
+        glBindTextureUnit(0, 0);
     }
 
     void Texture::updateData(const unsigned char* data, int width, int height, int channels) {
         if (!_id) return;
-        glBindTexture(GL_TEXTURE_2D, _id);
         GLenum dataFormat = (channels == 4) ? GL_RGBA : GL_RGB;
         if (width == _width && height == _height && channels == _channels) {
-            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, dataFormat, GL_UNSIGNED_BYTE, data);
+            glTextureSubImage2D(_id, 0, 0, 0, width, height, dataFormat, GL_UNSIGNED_BYTE, data);
         } else {
+            glDeleteTextures(1, &_id);
             _width = width;
             _height = height;
             _channels = channels;
             GLenum internalFormat = (channels == 4) ? GL_RGBA8 : GL_RGB8;
-            glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, _width, _height, 0, dataFormat, GL_UNSIGNED_BYTE, data);
+            glCreateTextures(GL_TEXTURE_2D, 1, &_id);
+            glTextureStorage2D(_id, 1, internalFormat, std::max(1, _width), std::max(1, _height));
+            if (data != nullptr && _width > 0 && _height > 0) {
+                glTextureSubImage2D(_id, 0, 0, 0, _width, _height, dataFormat, GL_UNSIGNED_BYTE, data);
+            }
+            glTextureParameteri(_id, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTextureParameteri(_id, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTextureParameteri(_id, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTextureParameteri(_id, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         }
-        glBindTexture(GL_TEXTURE_2D, 0);
     }
 
     // --- Mesh Implementation ---
@@ -844,36 +856,35 @@ namespace Lab {
             }
         }
 
-        glGenVertexArrays(1, &_vao);
-        glGenBuffers(1, &_vbo);
-        glGenBuffers(1, &_ebo);
+        glCreateVertexArrays(1, &_vao);
+        glCreateBuffers(1, &_vbo);
+        glCreateBuffers(1, &_ebo);
 
-        glBindVertexArray(_vao);
+        glNamedBufferData(_vbo, vertices.size() * sizeof(Vertex), vertices.data(), GL_STATIC_DRAW);
+        glNamedBufferData(_ebo, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
 
-        glBindBuffer(GL_ARRAY_BUFFER, _vbo);
-        glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), vertices.data(), GL_STATIC_DRAW);
-
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _ebo);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
+        glVertexArrayVertexBuffer(_vao, 0, _vbo, 0, sizeof(Vertex));
+        glVertexArrayElementBuffer(_vao, _ebo);
 
         // Position (location = 0)
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, position));
+        glEnableVertexArrayAttrib(_vao, 0);
+        glVertexArrayAttribFormat(_vao, 0, 3, GL_FLOAT, GL_FALSE, (GLuint)offsetof(Vertex, position));
+        glVertexArrayAttribBinding(_vao, 0, 0);
 
         // Normal (location = 1)
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, normal));
+        glEnableVertexArrayAttrib(_vao, 1);
+        glVertexArrayAttribFormat(_vao, 1, 3, GL_FLOAT, GL_FALSE, (GLuint)offsetof(Vertex, normal));
+        glVertexArrayAttribBinding(_vao, 1, 0);
 
         // TexCoords (location = 2)
-        glEnableVertexAttribArray(2);
-        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, texCoords));
+        glEnableVertexArrayAttrib(_vao, 2);
+        glVertexArrayAttribFormat(_vao, 2, 2, GL_FLOAT, GL_FALSE, (GLuint)offsetof(Vertex, texCoords));
+        glVertexArrayAttribBinding(_vao, 2, 0);
 
         // Color (location = 3)
-        glEnableVertexAttribArray(3);
-        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, color));
-
-        glBindVertexArray(0);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glEnableVertexArrayAttrib(_vao, 3);
+        glVertexArrayAttribFormat(_vao, 3, 3, GL_FLOAT, GL_FALSE, (GLuint)offsetof(Vertex, color));
+        glVertexArrayAttribBinding(_vao, 3, 0);
     }
 
     Mesh::~Mesh() {
