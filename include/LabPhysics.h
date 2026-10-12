@@ -14,6 +14,7 @@ namespace Lab {
 
     enum class PropType {
         Static,
+        DynamicBox,      // Generic dynamic rigid body box
         Crate,           // Destructible wooden crate
         ExplosiveBarrel, // Red hazardous fuel barrel with radial blast
         DebrisChunk      // Physical shattered debris fragment with finite lifetime
@@ -29,7 +30,7 @@ namespace Lab {
 
     struct RigidBody {
         int id = 0;
-        PropType type = PropType::Crate;
+        PropType type = PropType::DynamicBox;
         Vec3 position{ 0.0f, 0.0f, 0.0f };
         Quat orientation = Quat::identity();
         Vec3 linearVelocity{ 0.0f, 0.0f, 0.0f };
@@ -85,6 +86,11 @@ namespace Lab {
     public:
         std::vector<std::unique_ptr<RigidBody>> bodies;
         Vec3 gravity{ 0.0f, -13.5f, 0.0f };
+        float groundPlaneY = 0.0f;
+        bool enableGroundPlane = true;
+
+        // Optional game-layer callback invoked when a destructible body breaks
+        std::function<void(const RigidBody& body, const Vec3& impactDir)> onBodyDestroyed;
 
         // Procedural textures for physics props
         std::unique_ptr<Texture> crateTexture;
@@ -97,6 +103,7 @@ namespace Lab {
         void init();
         void clear();
 
+        RigidBody* spawnDynamicBox(const Vec3& pos, const Vec3& halfExt = Vec3(0.5f, 0.5f, 0.5f), float mass = 20.0f);
         RigidBody* spawnCrate(const Vec3& pos, const Vec3& halfExt = Vec3(0.45f, 0.45f, 0.45f), float mass = 22.0f);
         RigidBody* spawnExplosiveBarrel(const Vec3& pos, const Vec3& halfExt = Vec3(0.32f, 0.48f, 0.32f), float mass = 30.0f);
         RigidBody* spawnDebris(const Vec3& pos, const Vec3& halfExt, const Vec3& vel, const Vec3& angVel, PropType parentType, float lifetime = 5.0f);

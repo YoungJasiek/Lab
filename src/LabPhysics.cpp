@@ -124,6 +124,25 @@ namespace Lab {
         _nextBodyId = 1;
     }
 
+    RigidBody* PhysicsWorld::spawnDynamicBox(const Vec3& pos, const Vec3& halfExt, float mass) {
+        init();
+        auto body = std::make_unique<RigidBody>();
+        body->id = _nextBodyId++;
+        body->type = PropType::DynamicBox;
+        body->position = pos;
+        body->orientation = Quat::identity();
+        body->health = 100.0f;
+        body->maxHealth = 100.0f;
+        body->color = Vec3(1.0f, 1.0f, 1.0f);
+        body->setBox(halfExt, mass);
+        body->material.restitution = 0.25f;
+        body->material.friction = 0.60f;
+
+        RigidBody* ptr = body.get();
+        bodies.push_back(std::move(body));
+        return ptr;
+    }
+
     RigidBody* PhysicsWorld::spawnCrate(const Vec3& pos, const Vec3& halfExt, float mass) {
         init();
         auto body = std::make_unique<RigidBody>();
@@ -252,12 +271,9 @@ namespace Lab {
     }
 
     bool PhysicsWorld::takeDamage(int propId, float damage, const Vec3& hitPoint, const Vec3& hitDir) {
-        Vec3 destroyPos;
-        Vec3 destroyHalfExt;
-        PropType destroyType = PropType::Static;
+        RigidBody destroyedSnapshot;
         bool shouldDestroy = false;
         Vec3 pushDir = (hitDir.lengthSq() > 0.01f) ? hitDir.normalized() : Vec3(0, 0, 1);
-        int destroyedId = -1;
 
         for (auto& body : bodies) {
             if (body->id == propId && !body->isDestroyed) {
@@ -267,21 +283,20 @@ namespace Lab {
                 if (body->health <= 0.0f) {
                     body->isDestroyed = true;
                     shouldDestroy = true;
-                    destroyPos = body->position;
-                    destroyHalfExt = body->halfExtents;
-                    destroyType = body->type;
-                    destroyedId = body->id;
+                    destroyedSnapshot = *body;
                 }
                 break;
             }
         }
 
         if (shouldDestroy) {
-            if (destroyType == PropType::Crate) {
-                spawnCrateDebris(destroyPos, destroyHalfExt, pushDir);
-            } else if (destroyType == PropType::ExplosiveBarrel) {
-                applyExplosionImpulse(destroyPos, 6.5f, 450.0f, 130.0f, destroyedId);
-                spawnBarrelDebris(destroyPos, destroyHalfExt, pushDir);
+            if (onBodyDestroyed) {
+                onBodyDestroyed(destroyedSnapshot, pushDir);
+            } else if (destroyedSnapshot.type == PropType::Crate) {
+                spawnCrateDebris(destroyedSnapshot.position, destroyedSnapshot.halfExtents, pushDir);
+            } else if (destroyedSnapshot.type == PropType::ExplosiveBarrel) {
+                applyExplosionImpulse(destroyedSnapshot.position, 6.5f, 450.0f, 130.0f, destroyedSnapshot.id);
+                spawnBarrelDebris(destroyedSnapshot.position, destroyedSnapshot.halfExtents, pushDir);
             }
             return true;
         }
@@ -341,13 +356,15 @@ namespace Lab {
     }
 
     void PhysicsWorld::resolveGroundCollision(RigidBody& body, float /*dt*/) {
+        if (!enableGroundPlane) return;
+
         auto corners = body.getCorners();
         float deepestPen = 0.0f;
         Vec3 deepestCorner = body.position;
 
         for (const auto& c : corners) {
-            if (c.y < 0.0f) {
-                float pen = -c.y;
+            if (c.y < groundPlaneY) {
+                float pen = groundPlaneY - c.y;
                 if (pen > deepestPen) {
                     deepestPen = pen;
                     deepestCorner = c;
@@ -428,34 +445,88 @@ namespace Lab {
     }
 
     void PhysicsWorld::resolveBodyVsBodyCollision(RigidBody& a, RigidBody& b, float /*dt*/) {
+        // Broad-phase AABB overlap rejection
+        Vec3 aMin, aMax, bMin, bMax;
+        a.getAABB(aMin, aMax);
+        b.getAABB(bMin, bMax);
+        if (aMax.x < bMin.x || aMin.x > bMax.x ||
+            aMax.y < bMin.y || aMin.y > bMax.y ||
+            aMax.z < bMin.z || aMin.z > bMax.z) {
+            return;
+        }
+
+        // Oriented Bounding Box (OBB) Separating Axis Theorem (SAT) along principal axes
+        const Vec3 uA[3] = {
+            a.orientation.rotateVector(Vec3(1, 0, 0)),
+            a.orientation.rotateVector(Vec3(0, 1, 0)),
+            a.orientation.rotateVector(Vec3(0, 0, 1))
+        };
+        const Vec3 uB[3] = {
+            b.orientation.rotateVector(Vec3(1, 0, 0)),
+            b.orientation.rotateVector(Vec3(0, 1, 0)),
+            b.orientation.rotateVector(Vec3(0, 0, 1))
+        };
+        const float eA[3] = { a.halfExtents.x, a.halfExtents.y, a.halfExtents.z };
+        const float eB[3] = { b.halfExtents.x, b.halfExtents.y, b.halfExtents.z };
+
         Vec3 delta = b.position - a.position;
-        float dSq = delta.lengthSq();
-        float ra = std::max({ a.halfExtents.x, a.halfExtents.y, a.halfExtents.z });
-        float rb = std::max({ b.halfExtents.x, b.halfExtents.y, b.halfExtents.z });
-        float minDist = ra + rb;
+        float minPen = 1e9f;
+        Vec3 bestNormal(0, 1, 0);
 
-        if (dSq < (minDist * minDist) && dSq > 0.0001f) {
-            float d = std::sqrt(dSq);
-            Vec3 n = delta / d;
-            float pen = minDist - d;
-
-            float totalMass = a.mass + b.mass;
-            if (totalMass > 0.001f) {
-                a.position -= n * (pen * (b.mass / totalMass));
-                b.position += n * (pen * (a.mass / totalMass));
-
-                Vec3 relVel = b.linearVelocity - a.linearVelocity;
-                float vn = Vec3::dot(relVel, n);
-                if (vn < 0.0f) {
-                    float e = std::min(a.material.restitution, b.material.restitution);
-                    float j = -(1.0f + e) * vn / (a.invMass + b.invMass);
-                    Vec3 imp = n * j;
-                    a.linearVelocity -= imp * a.invMass;
-                    b.linearVelocity += imp * b.invMass;
-                    a.isSleeping = false;
-                    b.isSleeping = false;
-                }
+        auto testAxis = [&](const Vec3& axisIn) -> bool {
+            float lenSq = axisIn.lengthSq();
+            if (lenSq < 1e-6f) return true;
+            Vec3 axis = axisIn / std::sqrt(lenSq);
+            float rA = eA[0] * std::abs(Vec3::dot(axis, uA[0])) +
+                       eA[1] * std::abs(Vec3::dot(axis, uA[1])) +
+                       eA[2] * std::abs(Vec3::dot(axis, uA[2]));
+            float rB = eB[0] * std::abs(Vec3::dot(axis, uB[0])) +
+                       eB[1] * std::abs(Vec3::dot(axis, uB[1])) +
+                       eB[2] * std::abs(Vec3::dot(axis, uB[2]));
+            float projDelta = Vec3::dot(delta, axis);
+            float pen = (rA + rB) - std::abs(projDelta);
+            if (pen <= 0.0f) return false;
+            if (pen < minPen) {
+                minPen = pen;
+                bestNormal = (projDelta >= 0.0f) ? axis : (axis * -1.0f);
             }
+            return true;
+        };
+
+        for (int i = 0; i < 3; ++i) {
+            if (!testAxis(uA[i])) return;
+            if (!testAxis(uB[i])) return;
+        }
+
+        float totalMass = a.mass + b.mass;
+        if (totalMass <= 0.001f || minPen >= 1e8f) return;
+
+        // Positional separation proportional to inverse mass
+        a.position -= bestNormal * (minPen * (b.mass / totalMass));
+        b.position += bestNormal * (minPen * (a.mass / totalMass));
+
+        // Estimate contact point on the separating plane between boxes
+        Vec3 contactPoint = a.position + bestNormal * (
+            eA[0] * std::abs(Vec3::dot(bestNormal, uA[0])) +
+            eA[1] * std::abs(Vec3::dot(bestNormal, uA[1])) +
+            eA[2] * std::abs(Vec3::dot(bestNormal, uA[2]))
+        );
+
+        Vec3 rA = contactPoint - a.position;
+        Vec3 rB = contactPoint - b.position;
+        Vec3 vA = a.linearVelocity + Vec3::cross(a.angularVelocity, rA);
+        Vec3 vB = b.linearVelocity + Vec3::cross(b.angularVelocity, rB);
+        Vec3 relVel = vB - vA;
+
+        float vn = Vec3::dot(relVel, bestNormal);
+        if (vn < 0.0f) {
+            float e = std::min(a.material.restitution, b.material.restitution);
+            float j = -(1.0f + e) * vn / (a.invMass + b.invMass);
+            Vec3 imp = bestNormal * j;
+            a.applyImpulse(imp * -1.0f, contactPoint);
+            b.applyImpulse(imp, contactPoint);
+            a.isSleeping = false;
+            b.isSleeping = false;
         }
     }
 
