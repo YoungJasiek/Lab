@@ -4,10 +4,10 @@
 
 Lab Engine is currently in active pre-release development (`0.1.x`). Only the latest commit on the `main` branch and the current `0.1.x` development line receive security fixes.
 
-| Version | Supported                     |
-| ------- | ------------------            |
-| 0.1.x   | (`main`) | :white_check_mark: |
-| < 0.1.0 |  (`x`)   | :x:                |
+| Version | Supported          |
+| ------- | ------------------ |
+| 0.1.x   | :white_check_mark: |
+| < 0.1.0 | :x:                |
 
 ## Scope
 
