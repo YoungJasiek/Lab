@@ -91,8 +91,8 @@ LabEditor organizes toolsets into top-level workspace categories accessible from
 | Shortcut | Context | Action |
 | :--- | :--- | :--- |
 | `Ctrl + N` | Global | New Map / Scene |
-| `Ctrl + O` | Global | Open Map (`.labmap`) |
-| `Ctrl + S` | Global | Save Map / Save Script Buffer |
+| `Ctrl + O` | Global | Open Scene / Map (`.labscene` / `.labmap`) |
+| `Ctrl + S` | Global | Save Scene / Save Script Buffer |
 | `Ctrl + Z` | Global | Undo Last Action |
 | `Ctrl + Y` | Global | Redo Undone Action |
 | `Ctrl + B` | Global | Open Build & Multi-Platform Export Modal |
@@ -119,12 +119,46 @@ LabEditor features integrated runtime simulation modes:
 
 ---
 
+## 🧭 Declarative Top Menu Bar & Unified UI Theme
+
+- **Declarative Layout Engine:** The top navigation bar is defined through structured `MenuBarItem` and `DropdownItem` containers with dynamic alignment, automatic padding computation, and bounding box hit synchronization.
+- **Unified Theme System (`ThemeColors`):** Centralized color palette governing sidebar panels, bevel borders, inputs, and active selections with runtime customization and immediate live preview.
+- **Multi-Language Engine Localization:** Built-in dictionary architecture supporting seamless switching between English and Polish language packs across all menus, tooltips, and inspector panels.
+
+---
+
+## 🎥 Camera Inspector & Object-Centered Gizmo
+
+- **Synchronized Hitbox Inspection:** Eliminates UI overlap in camera inspector panels, providing precise numeric controls for FOV, near/far clipping planes, perspective/orthographic toggle, and orbit target distances.
+- **Pivot Centering on Selection:** The 3D translation and rotation gizmo automatically aligns its pivot to the exact geometric center of the selected brush, entity, or actor cluster.
+- **Quick Grid Snapping:** `[` and `]` hotkeys dynamically step the grid snap interval ($0.125\text{ m}$, $0.25\text{ m}$, $0.5\text{ m}$, $1.0\text{ m}$, $2.0\text{ m}$).
+
+---
+
+## 🗺️ Modern `.labscene` Scene Loading & Legacy `.labmap` Converter
+
+- **Direct `.labscene` Loading:** Reads full JSON scene descriptions including entity component hierarchies, PBR materials, HDRI skybox settings, fog parameters, and directional sun properties.
+- **Legacy `.labmap` Migration:** Detects classic tokenized `.labmap` files automatically. When loaded:
+  - Presents an interactive modal confirming migration.
+  - Automatically creates a timestamped `.backup` file of the original geometry.
+  - Converts brushes into static meshes and actors into ECS entities with 100% roundtrip fidelity.
+
+---
+
+## 🛡️ VFS Script & Project Isolation
+
+- **Clean New Projects:** Creating a new project via Project Hub creates an isolated project workspace in `Documents/LabGames/` with a pristine `game://scripts/` directory containing zero engine script leakage.
+- **Virtual URIs:** Disambiguates `engine://` system resources from project-specific `game://` assets, preventing accidental modification of engine defaults.
+
+---
+
 ## 📦 Universal Build & Export Pipeline
 
 Accessed via `Build -> Export Game...` or `Ctrl + B`, the Export Pipeline compiles and cooks all necessary assets:
 - **Target Platforms:** Windows x64 (`.exe`), Linux x64 (ELF binary), WebAssembly (`.wasm` + `.html`), macOS ARM64.
+- **Retro CRT Toggle:** Option to bake or strip fullscreen Retro CRT and post-process scanline shaders in the target distribution.
 - **Configurations:**
   - `Debug`: Full symbols, asserts enabled, uncompressed assets.
   - `Release`: Full compiler optimizations, packaged assets.
   - `Shipping`: Stripped symbols, Lua bytecode protection (all `.lua` stripped of debug symbols and compiled to `.luac`), compressed `.labpak` virtual archives.
-- **Standalone Runner:** Ships with `LabPlayer.exe`, a lightweight client executable with zero editor dependencies that mounts `.labpak` packages and boots the target map instantly.
+- **Standalone Runner:** Ships with `LabPlayer.exe`, a lightweight client executable with zero editor dependencies that mounts `.labpak` packages and boots the target scene instantly.

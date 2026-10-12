@@ -2,39 +2,74 @@
 docid: LH01
 name: Authoritative Multiplayer Architecture
 related_docs: [LA01, LE01, LF01]
-tags: [network, multiplayer, udp, replication, dedicated-server]
+tags: [network, multiplayer, udp, replication, dedicated-server, ecs, source-architecture]
 ---
 
-# 🌐 Authoritative Multiplayer Architecture
+# 🌐 Authoritative Multiplayer Architecture & Generic ECS Networking
 
-The **Lab Engine Multiplayer Subsystem** (`LabNetwork`, `LabServer.exe`) implements a high-performance authoritative client-server architecture over connectionless **UDP sockets**, engineered for low-latency networked gameplay, client prediction, and state replication.
+The **Lab Engine Multiplayer Subsystem** (`LabNetwork`, `server.dll`, `client.dll`, `LabServer.exe`) implements a high-performance authoritative client-server architecture over connectionless **UDP sockets**, engineered for low-latency networked gameplay, client prediction, and data-driven generic ECS state replication.
 
 ---
 
-## 1. Network Topology & Protocol
+## 1. Network Topology & Source-Style Modular Architecture
 
-The network architecture is strictly authoritative:
+Following the architectural separation pioneered by Valve's Source Engine, gameplay networking is decomposed into discrete modular dynamic libraries:
 
 ```
-[ Client 1 ] ----( ClientInputPackets @ 64Hz )----> [ Dedicated Server ]
-[ Client 2 ] ----( ClientInputPackets @ 64Hz )----> [  LabServer.exe  ]
-                                                           |
-                                                  Tick Simulation (64Hz)
-                                                           |
-[ Client 1 ] <---( NetServerSnapshot @ 32-64Hz )<---------+
-[ Client 2 ] <---( NetServerSnapshot @ 32-64Hz )<---------+
+[ client.dll (Client Presentation) ]               [ server.dll (Authoritative Logic) ]
+  ├── Input Sampling & Prediction                     ├── 64-128Hz Fixed-Tick World Simulation
+  ├── Snapshot Buffer & Interpolation                 ├── Authoritative Entity Spawning / Despawning
+  └── Presentation Sync                               └── Delta Snapshot Broadcast
+          │                                                       │
+          └───────────── UDP Sockets (LabNetwork) ────────────────┘
 ```
 
-### Packet Protocol
-- **`ConnectRequest` / `ConnectAccept`:** Handshake exchanging player nickname, assigned `clientId`, and map verification.
-- **`ClientInputPacket`:** Sent every client frame containing tick number, view angles (Yaw, Pitch), input movement flags (`W`, `A`, `S`, `D`, `Jump`, `Crouch`, `Fire`), and weapon selection.
-- **`NetServerSnapshot`:** Compact delta snapshot broadcast to all connected clients containing server tick, player entities (position, velocity, health, armor, alive flag, weapon), active tracers, and combat events.
+- **`server.dll` (`IServerSubsystem`):** Encapsulates authoritative server simulation, physics ticking, game mode rules, client connection validation, and network entity management. Operates identically in headless mode (`LabServer.exe`) or when running embedded inside `Lab.exe`.
+- **`client.dll` (`IClientSubsystem`):** Encapsulates local prediction, client-side entity smoothing, interpolation buffers, and user input transmission without GPU context coupling.
+
+### Packet Protocol & Generic Message Types
+Alongside classic connection messages, the modern network layer utilizes generic ECS replication messages:
+- **`ConnectRequest` / `ConnectAccept`:** Handshake exchanging player nickname, assigned `clientId`, and map/scene hash verification.
+- **`NetMsgType::EntitySpawn`:** Instantiates an entity with `NetworkIdentityComponent` across all clients with initial transform, owner ID, and prefab name.
+- **`NetMsgType::EntityDestroy`:** Authoritatively despawns an entity by network ID across connected clients.
+- **`NetMsgType::EntitySync`:** Continuous binary transform replication (`position`, `rotation`, `velocity`) with sequence numbers and interpolation timestamps.
+- **`NetMsgType::ClientInput`:** Generic player input state packet transmitted at the client's framerate/tickrate.
+- **`NetMsgType::RPC`:** Remote procedure call targeting a specific entity ID, method index, and arbitrary payload buffer.
 - **`ChatMessagePacket`:** Text messages broadcast to the in-game chat log.
 - **`DisconnectPacket`:** Clean disconnection notification.
 
 ---
 
-## 2. Client-Side Prediction & Server Reconciliation
+## 2. Generic ECS Network Components (`LabComponents.h`)
+
+To eliminate hardcoded multiplayer game modes and specific player assumptions:
+
+### `NetworkIdentityComponent`
+```cpp
+struct NetworkIdentityComponent {
+    uint32_t netId{0};              // Unique cluster-wide network entity ID
+    uint32_t ownerClientId{0};      // ID of the client with input authority
+    std::string prefabName;        // Prefab asset path for client instantiation
+    bool isServerAuthoritative{true};
+};
+```
+
+### `NetworkTransformComponent`
+```cpp
+struct NetworkTransformComponent {
+    Vec3 targetPosition{0.0f, 0.0f, 0.0f};
+    Vec3 targetVelocity{0.0f, 0.0f, 0.0f};
+    Quat targetRotation{0.0f, 0.0f, 0.0f, 1.0f};
+    float interpolationSpeed{15.0f};
+    float teleportThreshold{5.0f}; // Snap instantly if discrepancy exceeds limit
+    uint32_t lastServerTick{0};
+};
+```
+The client continuously interpolates between incoming snapshots, eliminating jitter while preventing high-speed position desynchronization.
+
+---
+
+## 3. Client-Side Prediction & Server Reconciliation
 
 To eliminate perceived input latency on the local client without sacrificing server authority:
 
@@ -47,9 +82,7 @@ To eliminate perceived input latency on the local client without sacrificing ser
 
 ---
 
----
-
-## 3. Dedicated Server (`LabServer.exe` & Linux `LabServer`)
+## 4. Dedicated Server (`LabServer.exe` & Linux `LabServer`)
 
 The dedicated server runs completely headless without requiring an OpenGL context, audio drivers, or windowing system:
 - **Platform Parity:** Runs identically on Linux (Ubuntu, Debian, Arch) and Windows.
@@ -98,7 +131,7 @@ cmake --build build --target LabServer
 
 ---
 
-## 4. Hosting from `Lab.exe`: Dedicated vs. LAN / P2P
+## 5. Hosting from `Lab.exe`: Dedicated vs. LAN / P2P
 
 When configuring multiplayer in the `Lab.exe` GUI:
 1. **DEDICATED (`LabServer.exe`):**
@@ -113,7 +146,7 @@ When configuring multiplayer in the `Lab.exe` GUI:
 
 ---
 
-## 5. LAN Server Browser & Discovery
+## 6. LAN Server Browser & Discovery
 
 Clients discover local servers via UDP broadcast:
 - Client broadcasts a discovery query packet on the local subnet (`255.255.255.255`).

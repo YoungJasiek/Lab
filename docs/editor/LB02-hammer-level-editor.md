@@ -52,13 +52,61 @@ Beyond static geometry, designers place dynamic entities:
 - **Dynamic Doors & Portals (`door`):** Translating physical doors with opening axis, speed, sound, and linked trigger IDs.
 - **Interactive Terminals (`terminal` / `trigger`):** Interactive world triggers and state machines.
 - **Physics Props (`prop`):** Rigid body meshes subject to Newtonian physics and impulse response.
+- **Camera Scene Entities (`camera` / `cam_tpp` / `cam_fps`):** Camera entities with customizable FOV, follow target, over-the-shoulder follow offsets, and projection modes.
+- **Dynamic Doors & Brushes with Script Triggers:** Brushes and doors support the `SCRIPT` token (`SCRIPT "path/to/script.lua"`) for dynamic Lua-driven kinematics and quest interactions.
 - **2D World Sprites (`sprite_2d`):** 2D quad entities placed in 3D space with billboard and rotation support.
 
 ---
 
-## 4. Plain-Text `.labmap` Specification
+## 4. Modern Scene Specification (`.labscene`)
 
-Maps are serialized into human-readable plain-text files (`assets/maps/*.labmap`):
+The primary scene format in Lab Engine is now **`.labscene`** (structured JSON), which serializes the entire ECS hierarchy, static geometry, components, environment lighting, and post-processing:
+
+```json
+{
+  "scene_version": "2.0",
+  "name": "Advanced Graphics Arena",
+  "environment": {
+    "skybox": "assets/textures/skybox/industrial_sunset.hdr",
+    "exposure": 1.4,
+    "fog": {
+      "enabled": true,
+      "density": 0.015,
+      "color": [0.4, 0.45, 0.52]
+    },
+    "sun": {
+      "direction": [-0.577, -0.577, 0.577],
+      "color": [1.0, 0.95, 0.85],
+      "intensity": 2.5
+    }
+  },
+  "static_meshes": [
+    {
+      "name": "Concrete_Floor",
+      "position": [0.0, 0.0, 0.0],
+      "size": [40.0, 1.0, 40.0],
+      "material": "assets/materials/concrete_slab.mat",
+      "uv_scale": [4.0, 4.0]
+    }
+  ],
+  "entities": [
+    {
+      "name": "Main_Camera",
+      "components": {
+        "Transform": { "position": [0.6, 1.8, -3.5], "rotation": [0, 0, 0, 1] },
+        "Camera": { "fov": 75.0, "mode": "TPP", "target": "Player" },
+        "NetworkIdentity": { "netId": 100, "isServerAuthoritative": false }
+      }
+    }
+  ]
+}
+```
+
+---
+
+## 5. Legacy `.labmap` Specification & Migration Pipeline
+
+For backwards compatibility, legacy `.labmap` files are fully supported:
 
 ```
 MAP_VERSION 1.2
@@ -72,6 +120,7 @@ BRUSH
   SIZE 20.0 5.0 0.5
   TEXTURE "concrete_wall.bmp"
   UV_SCALE 1.0 1.0
+  SCRIPT "assets/scripts/wall_hazard.lua"
 END_BRUSH
 
 // Dynamic Door
@@ -83,6 +132,7 @@ DOOR
   MOVE_DIST 2.8
   SPEED 2.0
   LOCK_ID "Security_Gate"
+  SCRIPT "assets/scripts/airlock_door.lua"
 END_DOOR
 
 // Interactive Trigger
@@ -93,4 +143,9 @@ TRIGGER
   REQUIRED_KEY "Keycard_Red"
 END_TRIGGER
 ```
-Maps can be authored in LabEditor or directly modified in any text editor.
+
+### Automated Migration to `.labscene`:
+1. When opening a `.labmap` file, the engine detects legacy tokens and opens a non-destructive migration prompt.
+2. An automatic `.backup` file (e.g. `facility_alpha.labmap.backup`) is created before conversion.
+3. Brushes are converted to static meshes, entities and spawners map to ECS components, and weapon identifiers resolve to prefab references (`prefabRef`).
+4. The modernized `.labscene` is saved to disk and loaded directly with 100% geometric and gameplay fidelity.

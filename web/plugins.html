@@ -15,29 +15,32 @@
   <a href="#content" class="skip-link">Skip to main content</a>
 
   <!-- TOP HEADER -->
+  <!-- ====================================================================
+       1. TOP HEADER (2007/2009 VDC TOOLBAR)
+       ==================================================================== -->
   <header class="vdc-top-header" role="banner">
     <div class="vdc-header-left">
       <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
       <a href="index.html" class="vdc-brand">
-        <img src="assets/img/LabLogo.webp" alt="Lab Engine Logo" class="vdc-logo-img">
+        <span class="vdc-logo-stamp">LAB</span>
         <div class="vdc-brand-text">
-          <span class="vdc-brand-title"><span class="accent">Lab</span> Developer Community</span>
-          <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LABEDITOR</span>
+          <span class="vdc-brand-title">Developer Community</span>
+          <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LABHAMMER</span>
         </div>
       </a>
     </div>
 
     <div class="vdc-search-bar" role="search">
-      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search documentation..." aria-label="Search wiki documentation">
-      <span class="vdc-search-icon" aria-hidden="true">&#128269;</span>
+      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search Lab Developer Community" aria-label="Search wiki documentation">
+      <button id="search-go-btn" class="vdc-search-btn" aria-label="Search">Go</button>
     </div>
 
     <div class="vdc-header-right">
-      <button id="theme-toggle-btn" class="theme-toggle-btn" aria-label="Toggle theme">&#9728;&#65039; Light Mode</button>
-      <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="github-badge-btn" aria-label="GitHub repository">
-        <span>GitHub</span>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
-      </a>
+      <div class="vdc-user-tools">
+        <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="user-link">YoungJasiek</a>
+        <span class="pipe-sep">&bull;</span>
+        <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="user-link">Git Source</a>
+      </div>
     </div>
   </header>
 
@@ -45,56 +48,55 @@
   <div class="vdc-page-container">
 
     <!-- Sidebar Navigation -->
+    <!-- Left Sidebar Navigation (2007 MediaWiki Monobook) -->
     <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
       <div class="sidebar-block">
-        <div class="sidebar-title"><a href="modules.html" style="color:inherit; text-decoration:none;">Engine Modules (.dll)</a></div>
+        <div class="sidebar-title">Navigation</div>
         <ul class="sidebar-links">
-          <li><a href="module-core.html">LabCore.dll</a></li>
-          <li><a href="module-render.html">LabRender.dll</a></li>
-          <li><a href="module-audio.html">LabAudio.dll</a></li>
-          <li><a href="module-physics.html">LabPhysics.dll</a></li>
-          <li><a href="module-animation.html">LabAnimation.dll</a></li>
-          <li><a href="module-world.html">LabWorld.dll</a></li>
-          <li><a href="module-network.html">LabNetwork.dll</a></li>
-          <li><a href="module-ai.html">LabAI.dll</a></li>
-          <li><a href="module-script.html">LabScript.dll</a></li>
-          <li><a href="module-studio.html">LabStudioCore.dll</a></li>
+          <li><a href="index.html">Main Page</a></li>
+          <li><a href="modules.html">Lab SDK Index</a></li>
+          <li><a href="wiki-contents.html">Wiki Contents</a></li>
+          <li><a href="project-hub.html">Community &amp; Project Hub</a></li>
+          <li><a href="talk.html">Discussion (Talk)</a></li>
         </ul>
       </div>
 
       <div class="sidebar-block">
-        <div class="sidebar-title">Documentation</div>
+        <div class="sidebar-title"><a href="modules.html" style="color:inherit; text-decoration:none;">Modular Subsystems (.dll)</a></div>
         <ul class="sidebar-links">
-          <li><a href="index.html">Main Page (Portal)</a></li>
-          <li><a href="project-hub.html">Project Hub &amp; Main Menu</a></li>
-          <li><a href="plugins.html" class="active">Modular Drop-in Plugins</a></li>
-          <li><a href="labeditor.html">LabEditor Suite</a></li>
-          <li><a href="frozen-life.html">Frozen-Life (Demo FPS)</a></li>
-          <li><a href="labhammer.html">LabHammer (3D CAD)</a></li>
-          <li><a href="lighting.html">Dynamic Lighting &amp; Lamps</a></li>
-          <li><a href="character-studio.html">Character &amp; Weapon Studio</a></li>
-          <li><a href="skeletal-animations.html">Skeletal &amp; FBX Animations</a></li>
-          <li><a href="bot-ai.html">Combat Bot AI</a></li>
-          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></li>
-          <li><a href="multiplayer.html">UDP Multiplayer</a></li>
-          <li><a href="audio-synthesizer.html">3D Audio &amp; Synthesizer</a></li>
-          <li><a href="lua-scripting.html">Lua 5.4 Scripting &amp; IDE</a></li>
+          <li><a href="module-core.html">Engine.dll</a></li>
+          <li><a href="module-render.html">render.dll</a></li>
+          <li><a href="module-audio.html">audio.dll</a></li>
+          <li><a href="module-physics.html">physics.dll</a></li>
+          <li><a href="module-animation.html">animation.dll</a></li>
+          <li><a href="module-world.html">world.dll</a></li>
+          <li><a href="module-network.html">network.dll</a></li>
+          <li><a href="module-ai.html">LabAI.dll</a></li>
+          <li><a href="module-script.html">script.dll</a></li>
+          <li><a href="module-studio.html">studio.dll</a></li>
+          <li><a href="module-hud.html">hud.dll</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Engine &amp; Toolset</div>
+        <ul class="sidebar-links">
           <li><a href="architecture.html">Engine Architecture</a></li>
           <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+          <li><a href="lighting.html">Dynamic Lighting &amp; Lamps</a></li>
+          <li><a href="labeditor.html">LabEditor Suite</a></li>
+          <li><a href="labhammer.html">LabHammer (3D CSG)</a></li>
+          <li><a href="character-studio.html">LabStudio (3D Poser)</a></li>
+          <li><a href="labhud.html">LabHUD (2D Canvas)</a></li>
+          <li><a href="plugins.html" class="active">Native C++ Plugins</a></li>
+          <li><a href="lua-scripting.html">Lua 5.4 Scripting</a></li>
+          <li><a href="frozen-life.html">Frozen-Life (Alpha)</a></li>
+          <li><a href="skeletal-animations.html">Skeletal &amp; FBX Rigging</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></li>
+          <li><a href="bot-ai.html">Combat Bot AI</a></li>
+          <li><a href="multiplayer.html">UDP Multiplayer</a></li>
+          <li><a href="audio-synthesizer.html">3D Audio &amp; Synth</a></li>
           <li><a href="building.html">Building from Source</a></li>
-        </ul>
-      </div>
-
-      <div class="sidebar-block">
-        <div class="sidebar-title">Plugin Topics</div>
-        <ul class="sidebar-links">
-          <li><a href="#sec-philosophy">Decentralized Plugin Architecture</a></li>
-          <li><a href="#sec-discovery">Drop-in Auto-Discovery</a></li>
-          <li><a href="#sec-api">Plugin Lua API &amp; Life Cycle</a></li>
-          <li><a href="#sec-package-manager">In-Engine Package Manager</a></li>
-          <li><a href="#sec-showcase">9 Showcase Drop-in Plugins</a></li>
-          <li><a href="#sec-authoring">Authoring a Custom Plugin</a></li>
-          <li><a href="#sec-hotreload">Hot-Reload &amp; Sandboxing</a></li>
         </ul>
       </div>
     </aside>
@@ -102,50 +104,98 @@
     <!-- Main Content Area -->
     <main id="content" class="vdc-main-content" role="main">
 
+      <!-- Navigation Tabs (2007 MediaWiki Monobook) -->
       <nav class="vdc-page-tabs" aria-label="Namespace tabs">
         <div class="tabs-left">
-          <a href="plugins.html" class="wiki-tab active">Plugin Architecture</a>
-          <a href="lua-scripting.html" class="wiki-tab">Lua 5.4 Runtime</a>
-          <a href="project-hub.html" class="wiki-tab">Project Hub</a>
+          <a href="plugins.html" class="wiki-tab active">Page</a>
+          <a href="talk.html" class="wiki-tab">Discussion</a>
         </div>
         <div class="tabs-right">
           <a href="plugins.html" class="wiki-tab active">Read</a>
-          <a href="https://github.com/YoungJasiek/Lab/tree/main/plugins" target="_blank" class="wiki-tab">View Plugins on GitHub</a>
+          <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="wiki-tab">View source</a>
+          <a href="https://github.com/YoungJasiek/Lab/commits/main" target="_blank" rel="noopener noreferrer" class="wiki-tab">View history</a>
         </div>
       </nav>
 
-      <div class="wiki-breadcrumbs">
-        <a href="index.html">Main Page</a>
-        <span class="crumb-sep">&gt;</span>
-        <span>Extensibility</span>
-        <span class="crumb-sep">&gt;</span>
-        <span class="crumb-current">Modular Drop-in Plugins</span>
+      
+
+      <div class="vdc-flags-bar" aria-label="Target specifications">
+        <span class="flag-pill">plugins/*.dll</span>
+        <span class="flag-pill">Native C++20</span>
+        <span class="flag-pill">Win32 LoadLibraryA</span>
       </div>
 
-      <h1 class="firstHeading">
-        <span>Modular Drop-in Plugins &amp; Package Manager</span>
-        <span style="font-size: 0.85rem; font-weight: normal; font-family: var(--font-mono); color: var(--wiki-accent);">[plugins/*.lua]</span>
-      </h1>
-      <div class="siteSub">From Lab Developer Community &ndash; Decentralized Single-File Addon Ecosystem, Unity/Blender Plugin Model, Dynamic Hot-Reloading &amp; In-Engine Package Manager</div>
+      <h1 class="firstHeading">Category:Native C++ Dynamic Plugins (.dll)</h1>
+      <p>Extend <a href="index.html">Lab Engine</a> and <a href="labeditor.html">LabEditor</a> using high-performance compiled native dynamic libraries (<code>plugins/*.dll</code>) exporting <code>CreatePlugin()</code>:</p>
+
+      <!-- SCREENSHOT 2 TEMPLATE: 2-COLUMN DARK CATEGORY PANELS -->
+      <div class="vdc-category-grid">
+        <div class="vdc-category-col">
+          <div class="vdc-category-panel">
+            <h2>Plugin Architecture</h2>
+            <ul>
+              <li><a href="#sec-philosophy">Native C++ Dynamic Library Architecture (.dll)</a></li>
+              <li><a href="#sec-discovery">Automatic Filesystem Discovery (plugins/*.dll)</a></li>
+              <li><a href="#sec-hotreload">Dynamic Linking via LoadLibraryA &amp; FreeLibrary</a></li>
+            </ul>
+          </div>
+
+          <div class="vdc-category-panel">
+            <h2>Authoring &amp; API Reference</h2>
+            <ul>
+              <li><a href="#sec-api">ILabPlugin Lifecycle Hooks (onLoad, onUpdate, onRenderGUI, onUnload)</a></li>
+              <li><a href="#sec-authoring">CreatePlugin() Export Factory Contract</a></li>
+              <li><a href="#sec-package-manager">In-Engine Package Manager GUI</a></li>
+              <li><a href="lua-scripting.html">Lua 5.4 Gameplay Scripting Engine</a></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="vdc-category-col">
+          <div class="vdc-category-panel">
+            <h2>Official Native DLL Plugins (13 Included)</h2>
+            <h3>Gameplay, AI &amp; Simulation</h3>
+            <ul>
+              <li><a href="#sec-showcase">AI Navmesh &amp; Waypoint Patrol (ai_patrol.dll)</a></li>
+              <li><a href="#sec-showcase">Arcade Vehicle Suspension Dynamics (arcade_vehicle.dll)</a></li>
+              <li><a href="#sec-showcase">Cloth &amp; Soft Body Dynamics (cloth_physics.dll)</a></li>
+              <li><a href="#sec-showcase">Constraints &amp; Joint Physics (constraints_joints.dll)</a></li>
+              <li><a href="#sec-showcase">Fluid Dynamics &amp; Water Buoyancy (fluid_buoyancy.dll)</a></li>
+              <li><a href="#sec-showcase">Force Fields &amp; Shockwaves (force_fields.dll)</a></li>
+              <li><a href="#sec-showcase">Branching NPC Dialogue &amp; Quests (dialogue_quest.dll)</a></li>
+              <li><a href="#sec-showcase">Drop-in Plugin Template (dropin_example.dll)</a></li>
+            </ul>
+            <h3>Tools, 3D &amp; Rendering</h3>
+            <ul>
+              <li><a href="#sec-showcase">Procedural CSG Room Generator (procedural_level.dll)</a></li>
+              <li><a href="#sec-showcase">Dynamic Voxel Terrain Sculptor (voxel_terrain.dll)</a></li>
+              <li><a href="#sec-showcase">Retro CRT &amp; Scanline Post-Process (retro_shaders.dll)</a></li>
+              <li><a href="#sec-showcase">Speedrun Splits &amp; Telemetry Timer (speedrun_timer.dll)</a></li>
+              <li><a href="#sec-showcase">Discord Rich Presence Bridge (discord_rpc.dll)</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      
 
       <!-- Infobox -->
       <aside class="infobox" aria-label="Plugin System Infobox">
         <div class="infobox-title">
           Lab Plugins
-          <span class="infobox-subtitle">DROP-IN MODULAR ADDONS</span>
+          <span class="infobox-subtitle">NATIVE C++ DLL MODULES</span>
         </div>
         <div class="infobox-image">
           <img src="assets/img/LabLogo.webp" alt="Lab Plugins System" style="max-height:120px; object-fit:contain;">
-          <div class="infobox-caption">Decentralized single-file plugin system (Unity Package / Blender Addon model)</div>
+          <div class="infobox-caption">Compiled native C++ dynamic link libraries (plugins/*.dll)</div>
         </div>
         <table class="infobox-table">
-          <tr><th>Architecture</th><td>Single-File Drop-in Lua Addons</td></tr>
-          <tr><th>Plugin Directory</th><td><code>plugins/*.lua</code></td></tr>
-          <tr><th>Runtime VM</th><td>Lua 5.4.6 Sandboxed Runtime</td></tr>
-          <tr><th>Discovery</th><td>Automatic filesystem scan at startup</td></tr>
+          <tr><th>Architecture</th><td>Native C++ Dynamic Link Library (.dll)</td></tr>
+          <tr><th>Plugin Directory</th><td><code>plugins/*.dll</code></td></tr>
+          <tr><th>Export Contract</th><td><code>LAB_PLUGIN_EXPORT ILabPlugin* CreatePlugin()</code></td></tr>
+          <tr><th>Discovery</th><td>Automatic filesystem scan at startup (LoadLibraryA)</td></tr>
           <tr><th>GUI Tool</th><td><code>Plugins &gt; Package Manager</code></td></tr>
-          <tr><th>Built-in Plugins</th><td>9 Official Showcase Addons</td></tr>
-          <tr><th>Hot Reloading</th><td>Instant re-evaluation on disk change</td></tr>
+          <tr><th>Built-in Plugins</th><td>13 Native C++ Shared Libraries</td></tr>
+          <tr><th>Performance</th><td>Direct native machine code execution</td></tr>
           <tr><th>Verification</th><td>Automated Test Suite (Test 78)</td></tr>
         </table>
       </aside>
@@ -186,27 +236,31 @@
 
       <!-- Section 2: Discovery -->
       <section id="sec-discovery" class="wiki-section">
-        <h2>2. Drop-in Discovery &amp; Folder Structure</h2>
+        <h2>2. Dynamic Discovery &amp; Folder Structure</h2>
         <p>
-          Plugins are kept at the engine root level, cleanly separated from both game-specific assets and engine binaries:
+          Plugins are compiled as independent C++ dynamic shared libraries (<code>plugins/*.dll</code>), cleanly separated from engine core libraries and game logic:
         </p>
         <pre><code>Lab/
 ├── engine/              # Engine-internal shaders, fonts and fallbacks
 ├── games/               # Separated game projects (e.g. games/frozen_life/)
-├── plugins/             # Standalone Drop-in Lua Plugins (1 file = 1 plugin)
-│   ├── ai_patrol.lua          # Waypoint patrol &amp; bot sensory expansion
-│   ├── arcade_vehicle.lua     # Raycast suspension &amp; vehicle dynamics
-│   ├── dialogue_quest.lua     # NPC dialogue trees &amp; quest tracker
-│   ├── discord_rpc.lua        # Discord Rich Presence bridge
-│   ├── dropin_example.lua     # Minimal template for rapid prototyping
-│   ├── procedural_level.lua   # Procedural CSG room generator
-│   ├── retro_shaders.lua      # Retro CRT &amp; scanline post-processing
-│   ├── speedrun_timer.lua     # Speedrun splits &amp; HUD telemetry
-│   └── voxel_terrain.lua      # Dynamic voxel terrain &amp; volume sculptor
-├── scripts/             # Core engine utility scripts
+├── plugins/             # Standalone Compiled Native C++ DLL Plugins
+│   ├── ai_patrol.dll          # Waypoint patrol &amp; bot sensory perception
+│   ├── arcade_vehicle.dll     # Raycast suspension &amp; vehicle dynamics
+│   ├── cloth_physics.dll      # Verlet integration &amp; cloth physics
+│   ├── constraints_joints.dll # Constraints, hinges &amp; joint dynamics
+│   ├── dialogue_quest.dll     # NPC dialogue trees &amp; quest tracker
+│   ├── discord_rpc.dll        # Discord Rich Presence bridge
+│   ├── dropin_example.dll     # Minimal C++ plugin template (ILabPlugin)
+│   ├── fluid_buoyancy.dll     # Water simulation &amp; Archimedes buoyancy
+│   ├── force_fields.dll       # Blast shockwaves &amp; vortex force fields
+│   ├── procedural_level.dll   # Procedural CSG room generator
+│   ├── retro_shaders.dll      # Retro CRT &amp; scanline post-processing
+│   ├── speedrun_timer.dll     # Speedrun splits &amp; HUD telemetry
+│   └── voxel_terrain.dll      # Dynamic voxel terrain &amp; volume sculptor
+├── src/plugins/         # Native C++ source code for each plugin
 └── build/Release/       # Standalone executables (LabEditor.exe, LabPlayer.exe)</code></pre>
         <p>
-          When <code>LabPluginManager::scanDirectory("plugins")</code> executes, it enumerates all <code>*.lua</code> files, parses their metadata header, and instantiates a <code>LuaDropinPlugin</code> instance without touching the underlying C++ binaries.
+          When <code>Lab::PackageManager::scanPluginDirectory("plugins")</code> executes, it discovers all <code>*.dll</code> files, calls Win32 <code>LoadLibraryA</code> + <code>GetProcAddress("CreatePlugin")</code>, registers their <code>ILabPlugin</code> instances and manages their lifecycle with zero interpreter overhead.
         </p>
       </section>
 
@@ -287,7 +341,7 @@ return Plugin</code></pre>
           Accessing <strong>Plugins &gt; Package Manager</strong> in <code>LabEditor.exe</code> opens the visual management suite inspired by Unity's Package Manager and Blender's Preferences &gt; Add-ons modal:
         </p>
         <div class="build-highlight-card" style="margin: 15px 0;">
-          <h3 style="margin-top:0; color:var(--wiki-accent);">&#128230; Package Manager Capabilities</h3>
+          <h3 style="margin-top:0; color:var(--wiki-accent);"> Package Manager Capabilities</h3>
           <ul>
             <li><strong>Live Search &amp; Filter:</strong> Type to search by name, ID, author, or description. Filter by category pills (<code>All</code>, <code>Gameplay</code>, <code>Rendering</code>, <code>AI</code>, <code>Tools</code>, <code>Social</code>).</li>
             <li><strong>Instant Toggle Checkbox:</strong> Enable or disable any plugin on-the-fly. The engine immediately invokes <code>onUnload()</code> or <code>onLoad()</code> without requiring an editor restart.</li>
@@ -307,74 +361,74 @@ return Plugin</code></pre>
           
           <div class="portal-box">
             <div class="portal-header">
-              <span class="portal-icon">&#129302;</span>
+              
               <h3 class="portal-title">AI Navmesh &amp; Waypoint Patrol</h3>
             </div>
-            <p class="portal-desc"><code>ai_patrol.lua</code> (Category: AI)<br>Implements autonomous closed-circuit waypoint loops, sensory radius alerts, and patrol node interpolation for bot navigation.</p>
+            <p class="portal-desc"><code>ai_patrol.dll</code> (Category: Gameplay &amp; AI)<br>Implements autonomous closed-circuit waypoint loops, sensory radius alerts, and patrol node interpolation for bot navigation.</p>
           </div>
 
           <div class="portal-box">
             <div class="portal-header">
-              <span class="portal-icon">&#128663;</span>
+              
               <h3 class="portal-title">Arcade Vehicle Dynamics</h3>
             </div>
-            <p class="portal-desc"><code>arcade_vehicle.lua</code> (Category: Gameplay)<br>Raycast spring-damper suspension physics solver, tire friction curves, engine torque gears, and handbrake drifting.</p>
+            <p class="portal-desc"><code>arcade_vehicle.dll</code> (Category: Physics &amp; Vehicles)<br>Raycast spring-damper suspension physics solver, tire friction curves, engine torque gears, and handbrake drifting.</p>
           </div>
 
           <div class="portal-box">
             <div class="portal-header">
-              <span class="portal-icon">&#128172;</span>
+              
               <h3 class="portal-title">Dialogue &amp; Quest System</h3>
             </div>
-            <p class="portal-desc"><code>dialogue_quest.lua</code> (Category: Gameplay)<br>Branching NPC dialogue nodes, choice trees, inventory prerequisites, and quest progress tracking with HUD popups.</p>
+            <p class="portal-desc"><code>dialogue_quest.dll</code> (Category: Scripting &amp; Dev)<br>Branching NPC dialogue nodes, choice trees, inventory prerequisites, and quest progress tracking with HUD popups.</p>
           </div>
 
           <div class="portal-box">
             <div class="portal-header">
-              <span class="portal-icon">&#128172;</span>
+              
               <h3 class="portal-title">Discord Rich Presence</h3>
             </div>
-            <p class="portal-desc"><code>discord_rpc.lua</code> (Category: Tools)<br>Live Discord activity bridge broadcasting current map, game mode, player kill/death stats, and party size in real-time.</p>
+            <p class="portal-desc"><code>discord_rpc.dll</code> (Category: Tools &amp; Utilities)<br>Live Discord activity bridge broadcasting current map, game mode, player kill/death stats, and party size in real-time.</p>
           </div>
 
           <div class="portal-box">
             <div class="portal-header">
-              <span class="portal-icon">&#127959;</span>
+              
               <h3 class="portal-title">Procedural Level Generator</h3>
             </div>
-            <p class="portal-desc"><code>procedural_level.lua</code> (Category: Tools)<br>Generates modular dungeon rooms with floors, perimeter walls, entry doorways, and structural pillars using CSG brushes.</p>
+            <p class="portal-desc"><code>procedural_level.dll</code> (Category: 3D &amp; Geometry)<br>Generates modular dungeon rooms with floors, perimeter walls, entry doorways, and structural pillars using CSG brushes.</p>
           </div>
 
           <div class="portal-box">
             <div class="portal-header">
-              <span class="portal-icon">&#128250;</span>
+              
               <h3 class="portal-title">Retro CRT &amp; Post-Process FX</h3>
             </div>
-            <p class="portal-desc"><code>retro_shaders.lua</code> (Category: Rendering)<br>Full-screen viewport post-process applying vintage cathode-ray scanlines, chromatic aberration, vignette, and phosphor flicker.</p>
+            <p class="portal-desc"><code>retro_shaders.dll</code> (Category: Rendering &amp; VFX)<br>Full-screen viewport post-process applying vintage cathode-ray scanlines, chromatic aberration, vignette, and phosphor flicker.</p>
           </div>
 
           <div class="portal-box">
             <div class="portal-header">
-              <span class="portal-icon">&#9201;</span>
+              
               <h3 class="portal-title">Speedrun &amp; Telemetry Splits</h3>
             </div>
-            <p class="portal-desc"><code>speedrun_timer.lua</code> (Category: Tools)<br>Millisecond-precision run timer, automatic sector trigger splits, delta time comparison against personal bests, and HUD overlay.</p>
+            <p class="portal-desc"><code>speedrun_timer.dll</code> (Category: Gameplay &amp; HUD)<br>Millisecond-precision run timer, automatic sector trigger splits, delta time comparison against personal bests, and HUD overlay.</p>
           </div>
 
           <div class="portal-box">
             <div class="portal-header">
-              <span class="portal-icon">&#129521;</span>
+              
               <h3 class="portal-title">Voxel Terrain &amp; Sculptor</h3>
             </div>
-            <p class="portal-desc"><code>voxel_terrain.lua</code> (Category: Tools)<br>3D volume grid with spherical carve and deposit brushes, heightmap noise seeding, and dynamic block mesh synthesis.</p>
+            <p class="portal-desc"><code>voxel_terrain.dll</code> (Category: 3D &amp; Geometry)<br>3D volume grid with spherical carve and deposit brushes, heightmap noise seeding, and dynamic block mesh synthesis.</p>
           </div>
 
           <div class="portal-box">
             <div class="portal-header">
-              <span class="portal-icon">&#128161;</span>
-              <h3 class="portal-title">Drop-in Quickstart Example</h3>
+              
+              <h3 class="portal-title">Drop-in Plugin Example</h3>
             </div>
-            <p class="portal-desc"><code>dropin_example.lua</code> (Category: Gameplay)<br>Clean, minimal template demonstrating event hooks, state caching, and interactive logging for community developers.</p>
+            <p class="portal-desc"><code>dropin_example.dll</code> (Category: Scripting &amp; Dev)<br>Clean, minimal C++ DLL template demonstrating ILabPlugin export, lifecycle callbacks, and interactive logging.</p>
           </div>
 
         </div>
@@ -382,75 +436,165 @@ return Plugin</code></pre>
 
       <!-- Section 6: Authoring Guide -->
       <section id="sec-authoring" class="wiki-section">
-        <h2>6. Step-by-Step Plugin Authoring Guide</h2>
-        <p>Creating a new plugin requires only three simple steps:</p>
+        <h2>6. Step-by-Step Native Plugin Authoring Guide</h2>
+        <p>Creating a new compiled C++ DLL plugin requires only three simple steps:</p>
         <ol>
           <li>
-            <strong>Create a single <code>.lua</code> file</strong> inside the <code>plugins/</code> directory:
-            <pre><code>plugins/my_weather_system.lua</code></pre>
-          </li>
-          <li>
-            <strong>Declare metadata table</strong> at the top:
-            <pre><code class="language-lua">Plugin = {
-    name = "Dynamic Snow &amp; Blizzard",
-    id = "com.community.snow-fx",
-    version = "1.0.0",
-    author = "Modder",
-    category = "Rendering",
-    description = "Procedural snow particle drift with wind gusts."
+            <strong>Create a source file</strong> inside <code>src/plugins/</code> (e.g., <code>my_plugin.cpp</code>):
+            <pre><code class="language-cpp">#include "LabPlugin.h"
+
+namespace Lab {
+class MyPlugin : public ILabPlugin {
+public:
+    const char* getName() const override { return "My Plugin"; }
+    const char* getVersion() const override { return "1.0.0"; }
+    const char* getId() const override { return "com.community.my-plugin"; }
+    const char* getAuthor() const override { return "Developer"; }
+    const char* getCategory() const override { return "Tools & Utilities"; }
+    const char* getDescription() const override { return "Custom native plugin."; }
+
+    bool onLoad() override { return true; }
+    void onUpdate(float dt) override { (void)dt; }
+    void onUnload() override {}
+};
+}
+
+LAB_PLUGIN_EXPORT Lab::ILabPlugin* CreatePlugin() {
+    return new Lab::MyPlugin();
 }</code></pre>
           </li>
           <li>
-            <strong>Implement the life cycle functions:</strong>
-            <pre><code class="language-lua">local particleCount = 200
-
-function Plugin.onLoad()
-    print("[SnowFX] Loaded with " .. particleCount .. " snow particles.")
-end
-
-function Plugin.onUpdate(dt)
-    -- update wind direction and snowfall velocities
-end
-
-function Plugin.onUnload()
-    print("[SnowFX] Unloaded and particles cleared.")
-end
-
-return Plugin</code></pre>
+            <strong>Compile to a shared library</strong> producing <code>plugins/my_plugin.dll</code>.
           </li>
           <li>
-            <strong>Open LabEditor:</strong> Navigate to <code>Plugins &gt; Package Manager</code>. Your plugin will appear under the <code>Rendering</code> category with a toggle switch, version badge, and full description!
+          <li>
+            <strong>Open LabEditor:</strong> Navigate to <code>Plugins &gt; Package Manager</code>. Your plugin will appear with its category, version badge, and full description, and can be toggled or reloaded dynamically!
           </li>
         </ol>
       </section>
 
       <!-- Section 7: Hot-Reload & Sandboxing -->
       <section id="sec-hotreload" class="wiki-section">
-        <h2>7. Sandboxing, Hot-Reload &amp; Safety</h2>
+        <h2>7. Dynamic Linking, Memory Safety &amp; Lifecycle</h2>
         <p>
-          To ensure stability, the drop-in plugin engine incorporates robust fault-isolation mechanisms:
+          To ensure stability, the native plugin engine incorporates robust fault-isolation mechanisms:
         </p>
         <ul>
-          <li><strong>Protected Lua Calls (<code>lua_pcall</code>):</strong> Errors inside plugin callbacks are caught and printed to the in-engine console with full tracebacks without crashing the host engine.</li>
-          <li><strong>Sandbox Environments:</strong> Each plugin runs with its own table environment to prevent polluting the global Lua scope or overwriting variables of other plugins.</li>
-          <li><strong>Ordered Unloading:</strong> When shutting down or reloading, plugins are unloaded in strict reverse order of registration to guarantee clean teardowns of cross-dependent resources.</li>
-          <li><strong>Zero Native Recompilation:</strong> Modifying a plugin script updates the running editor or game instantly without invoking CMake or rebuilding C++ binaries.</li>
+          <li><strong>Direct C++ ABI:</strong> High-performance direct calls via <code>ILabPlugin</code> virtual table with zero marshaling or interpreted scripting overhead.</li>
+          <li><strong>Clean Memory Ownership:</strong> Modules allocate and free resources inside their own DLL runtime boundary, with virtual destructors ensuring no CRT cross-heap leaks.</li>
+          <li><strong>Ordered Unloading:</strong> When shutting down or reloading, plugins are unloaded in strict reverse order of registration via Win32 <code>FreeLibrary</code> to guarantee clean teardowns of cross-dependent resources.</li>
+          <li><strong>Decoupled Core:</strong> Engine executables (`LabEditor.exe`, `LabPlayer.exe`) link only against core interfaces and discover plugins dynamically at runtime.</li>
         </ul>
       </section>
+
+          <!-- ================================================================
+           MEDIAWIKI NAVBOX MATRIX & CATEGORIES
+           ================================================================ -->
+      <div class="vdc-navbox" role="navigation" aria-label="Lab Developer Community Navigation Box">
+        <div class="vdc-navbox-header">Lab Engine &amp; Frozen-Life Ecosystem</div>
+        <table class="vdc-navbox-table">
+          <tbody>
+            <tr>
+              <th class="vdc-navbox-group">Core Engine</th>
+              <td class="vdc-navbox-subgroup">Subsystems</td>
+              <td class="vdc-navbox-list">
+                <a href="architecture.html">Engine Architecture</a> &bull;
+                <a href="modules.html">11 Modular DLLs</a> &bull;
+                <a href="opengl-dsa.html">OpenGL 4.5+ DSA</a> &bull;
+                <a href="lighting.html">Forward Lighting</a> &bull;
+                <a href="skeletal-animations.html">glTF &amp; FBX Skinning</a> &bull;
+                <a href="audio-synthesizer.html">3D Spatial Audio</a> &bull;
+                <a href="multiplayer.html">UDP Networking</a> &bull;
+                <a href="lua-scripting.html">Lua 5.4 Runtime</a>
+              </td>
+              <td class="vdc-navbox-logo-cell" rowspan="5">
+                <div class="vdc-navbox-lab-stamp">
+                  <span class="stamp-text">LAB</span>
+                  <span class="stamp-sub">ENGINE SDK</span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <th class="vdc-navbox-group">DLL Modules</th>
+              <td class="vdc-navbox-subgroup">Binaries</td>
+              <td class="vdc-navbox-list">
+                <a href="module-core.html">Engine.dll</a> &bull;
+                <a href="module-render.html">render.dll</a> &bull;
+                <a href="module-audio.html">audio.dll</a> &bull;
+                <a href="module-physics.html">physics.dll</a> &bull;
+                <a href="module-animation.html">animation.dll</a> &bull;
+                <a href="module-world.html">world.dll</a> &bull;
+                <a href="module-network.html">network.dll</a> &bull;
+                <a href="module-ai.html">LabAI.dll</a> &bull;
+                <a href="module-script.html">script.dll</a> &bull;
+                <a href="module-studio.html">studio.dll</a> &bull;
+                <a href="module-hud.html">hud.dll</a>
+              </td>
+            </tr>
+            <tr>
+              <th class="vdc-navbox-group">Authoring Tools</th>
+              <td class="vdc-navbox-subgroup">LabSDK Suite</td>
+              <td class="vdc-navbox-list">
+                <a href="project-hub.html">Project Hub</a> &bull;
+                <a href="labeditor.html">LabEditor Suite</a> &bull;
+                <a href="labhammer.html">LabHammer (3D CSG)</a> &bull;
+                <a href="character-studio.html">LabStudio (Poser)</a> &bull;
+                <a href="labhud.html">LabHUD (2D Canvas)</a> &bull;
+                <a href="plugins.html">Package Manager (Plugins)</a>
+              </td>
+            </tr>
+            <tr>
+              <th class="vdc-navbox-group">Showcase Game</th>
+              <td class="vdc-navbox-subgroup">Frozen-Life</td>
+              <td class="vdc-navbox-list">
+                <a href="frozen-life.html">Playable Build (v0.1.0-alpha)</a> &bull;
+                <a href="weapons-viewmodel.html">9-Weapon Arsenal</a> &bull;
+                <a href="bot-ai.html">Combat Bot AI</a> &bull;
+                <a href="frozen-life.html#sec-maps">Official Maps (Cryo &amp; Alpha)</a>
+              </td>
+            </tr>
+            <tr>
+              <th class="vdc-navbox-group">Documentation</th>
+              <td class="vdc-navbox-subgroup">Community</td>
+              <td class="vdc-navbox-list">
+                <a href="index.html">Main Page</a> &bull;
+                <a href="wiki-contents.html">Wiki Contents</a> &bull;
+                <a href="talk.html">Talk:Main Page</a> &bull;
+                <a href="building.html">Building from Source</a> &bull;
+                <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer">GitHub Repository</a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="vdc-navbox-footer">
+          <div class="vdc-navbox-copyright">
+             Lab Developer Community &bull; Official C++20 &amp; OpenGL 4.5+ Technical Documentation.<br>
+            <a href="wiki-contents.html">About Lab Developer Community</a> &bull; <a href="building.html">Source Build Guide</a> &bull; <a href="#content">Back to top</a>
+          </div>
+          <div class="vdc-navbox-powered">
+            <div class="mw-88x31-btn" title="Powered by Lab Wiki">
+              <span class="mw-btn-top">POWERED BY</span>
+              <span class="mw-btn-bot">LabWiki</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="catlinks" class="catlinks">
+        <span class="catlinks-label">Categories:</span>
+        <ul class="catlinks-list">
+          <li><a href="index.html">Lab Developer Community</a></li>
+          <li><a href="modules.html">Lab SDK Documentation</a></li>
+          <li><a href="architecture.html">C++20 Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+        </ul>
+      </div>
 
     </main>
   </div>
 
   <!-- FOOTER -->
-  <footer class="vdc-footer" role="contentinfo">
-    <div class="footer-info">
-      <div>Official Technical Documentation &bull; Lab Engine, LabHammer &amp; Frozen-Life.</div>
-      <div>Modern C++20 and OpenGL 4.5+ Direct State Access specifications.</div>
-    </div>
-    <div>
-      <a href="#content" style="color: var(--wiki-accent);">Back to top &uarr;</a>
-    </div>
-  </footer>
+  
 
   <script src="js/app.js"></script>
 </body>

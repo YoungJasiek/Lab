@@ -97,7 +97,59 @@ LabEditor includes a full-viewport, distraction-free **Scripting IDE** (`View ->
 
 ---
 
-## 7. Bytecode Compilation & Protection (`.luac`)
+## 7. Camera & Scene ECS Lua Bindings
+
+The Lua runtime features symmetrical parity with the engine's C++ camera and ECS components:
+
+```lua
+-- Activate named camera entity
+Camera.setActive("cam_tpp")
+local activeCam = Camera.getActive()
+
+-- Raycasting and coordinate transformation
+local rayOrigin, rayDir = Camera.viewportPointToRay(mouseX, mouseY)
+local worldPos = Camera.screenToWorld(screenX, screenY, depth)
+local screenPos = Camera.worldToScreen(targetX, targetY, targetZ)
+
+-- Dynamic camera settings
+Camera.setFOV(75.0)
+Camera.setFollowOffset(0.6, 1.8, -3.5)
+```
+
+---
+
+## 8. Dynamic Weapons & Quest Rule Tables
+
+Game items, weapons, and quest objectives are defined purely in data-driven Lua tables:
+
+```lua
+-- assets/scripts/qa_rpg_rules.lua
+Weapons = {
+    [1] = { name = "KOSTUR WOZNEGO", damage = 25, cadence = 1.2 },
+    [2] = { name = "ROZDZKA TRENINGOWA", damage = 40, cadence = 0.8 },
+    [3] = { name = "ROZDZKA BURZY", damage = 85, cadence = 0.5 }
+}
+
+function OnQuestUpdate(questId, progress, target)
+    HUD.setText("QuestLabel", "ZWOJE " .. tostring(progress) .. "/" .. tostring(target))
+    if progress >= target then
+        Door.open("NorthDoor")
+    end
+end
+```
+
+---
+
+## 9. VFS Script Isolation (`game://scripts` vs `engine://scripts`)
+
+To prevent projects from contaminating engine defaults:
+- **`game://scripts/`:** Resolves strictly to the active game project directory (e.g., `Documents/LabGames/MyRPG/scripts/`).
+- **`engine://scripts/`:** Points to built-in engine runtime scripts.
+- **Zero-Leakage Guarantee:** `getProjectScripts()` returns only scripts residing in `game://scripts/`. Clean projects are initialized with 0 engine script files copied over.
+
+---
+
+## 10. Bytecode Compilation & Protection (`.luac`)
 
 For shipping titles, Lab provides an integrated ahead-of-time bytecode compiler:
 - **`compileLuaToBytecode(srcPath, dstPath, stripDebug)`:** Compiles `.lua` text files into standard Lua 5.4 binary chunks.

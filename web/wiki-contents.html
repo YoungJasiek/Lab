@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wiki Contents - Lab Developer Community</title>
+  <meta name="description" content="Central directory and help index for the Lab Developer Community.">
+  <link rel="icon" type="image/webp" href="assets/img/LabLogo.webp">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Accessibility Skip Link -->
+  <a href="#content" class="skip-link">Skip to main content</a>
+
+  <!-- ====================================================================
+       1. TOP HEADER (2007 VALVE DEVELOPER COMMUNITY TOOLBAR)
+       ==================================================================== -->
+  <!-- ====================================================================
+       1. TOP HEADER (2007/2009 VDC TOOLBAR)
+       ==================================================================== -->
+  <header class="vdc-top-header" role="banner">
+    <div class="vdc-header-left">
+      <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
+      <a href="index.html" class="vdc-brand">
+        <span class="vdc-logo-stamp">LAB</span>
+        <div class="vdc-brand-text">
+          <span class="vdc-brand-title">Developer Community</span>
+          <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LABHAMMER</span>
+        </div>
+      </a>
+    </div>
+
+    <div class="vdc-search-bar" role="search">
+      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search Lab Developer Community" aria-label="Search wiki documentation">
+      <button id="search-go-btn" class="vdc-search-btn" aria-label="Search">Go</button>
+    </div>
+
+    <div class="vdc-header-right">
+      <div class="vdc-user-tools">
+        <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="user-link">YoungJasiek</a>
+        <span class="pipe-sep">&bull;</span>
+        <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="user-link">Git Source</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ====================================================================
+       2. WIKI CONTAINER (SIDEBAR + MAIN CONTENT)
+       ==================================================================== -->
+  <div class="vdc-page-container">
+
+    <!-- Left Sidebar Navigation -->
+    <!-- Left Sidebar Navigation (2007 MediaWiki Monobook) -->
+    <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
+      <div class="sidebar-block">
+        <div class="sidebar-title">Navigation</div>
+        <ul class="sidebar-links">
+          <li><a href="index.html">Main Page</a></li>
+          <li><a href="modules.html">Lab SDK Index</a></li>
+          <li><a href="wiki-contents.html" class="active">Wiki Contents</a></li>
+          <li><a href="project-hub.html">Community &amp; Project Hub</a></li>
+          <li><a href="talk.html">Discussion (Talk)</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title"><a href="modules.html" style="color:inherit; text-decoration:none;">Modular Subsystems (.dll)</a></div>
+        <ul class="sidebar-links">
+          <li><a href="module-core.html">Engine.dll</a></li>
+          <li><a href="module-render.html">render.dll</a></li>
+          <li><a href="module-audio.html">audio.dll</a></li>
+          <li><a href="module-physics.html">physics.dll</a></li>
+          <li><a href="module-animation.html">animation.dll</a></li>
+          <li><a href="module-world.html">world.dll</a></li>
+          <li><a href="module-network.html">network.dll</a></li>
+          <li><a href="module-ai.html">LabAI.dll</a></li>
+          <li><a href="module-script.html">script.dll</a></li>
+          <li><a href="module-studio.html">studio.dll</a></li>
+          <li><a href="module-hud.html">hud.dll</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Engine &amp; Toolset</div>
+        <ul class="sidebar-links">
+          <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+          <li><a href="lighting.html">Dynamic Lighting &amp; Lamps</a></li>
+          <li><a href="labeditor.html">LabEditor Suite</a></li>
+          <li><a href="labhammer.html">LabHammer (3D CSG)</a></li>
+          <li><a href="character-studio.html">LabStudio (3D Poser)</a></li>
+          <li><a href="labhud.html">LabHUD (2D Canvas)</a></li>
+          <li><a href="plugins.html">Native C++ Plugins</a></li>
+          <li><a href="lua-scripting.html">Lua 5.4 Scripting</a></li>
+          <li><a href="frozen-life.html">Frozen-Life (Alpha)</a></li>
+          <li><a href="skeletal-animations.html">Skeletal &amp; FBX Rigging</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></li>
+          <li><a href="bot-ai.html">Combat Bot AI</a></li>
+          <li><a href="multiplayer.html">UDP Multiplayer</a></li>
+          <li><a href="audio-synthesizer.html">3D Audio &amp; Synth</a></li>
+          <li><a href="building.html">Building from Source</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main id="content" class="vdc-content" role="main">
+
+      <!-- MediaWiki Namespace Tabs -->
+      <!-- Navigation Tabs (2007 MediaWiki Monobook) -->
+      <nav class="vdc-page-tabs" aria-label="Namespace tabs">
+        <div class="tabs-left">
+          <a href="wiki-contents.html" class="wiki-tab active">Page</a>
+          <a href="talk.html" class="wiki-tab">Discussion</a>
+        </div>
+        <div class="tabs-right">
+          <a href="wiki-contents.html" class="wiki-tab active">Read</a>
+          <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="wiki-tab">View source</a>
+          <a href="https://github.com/YoungJasiek/Lab/commits/main" target="_blank" rel="noopener noreferrer" class="wiki-tab">View history</a>
+        </div>
+      </nav>
+
+      <!-- Breadcrumbs -->
+      <div class="wiki-breadcrumbs">
+        <a href="index.html">Main Page</a>
+        <span class="crumb-sep">&gt;</span>
+        <span class="crumb-current">Wiki Contents</span>
+      </div>
+
+      <!-- Language Bar -->
+      <div class="vdc-flags-bar" style="margin-bottom: 14px;">
+        <span class="flag-pill">English</span>
+        <span class="flag-pill">Polski</span>
+        <span class="flag-pill">Русский</span>
+        <span class="flag-pill">Français</span>
+        <span class="flag-pill">Deutsch</span>
+      </div>
+
+      <!-- Article Header -->
+      <div class="article-header" style="margin-bottom: 12px;">
+        <h1 class="article-title" style="margin-bottom: 2px;">Wiki Contents</h1>
+        <div style="font-size: 11px; color: var(--wiki-text-muted); font-style: italic; margin-bottom: 14px;">From Lab Developer Community</div>
+      </div>
+
+      <!-- Search in Contents Box -->
+      <div style="background:#171c22; border:1px solid #363e4b; border-left:4px solid #5c9fe6; padding:12px 18px; margin:14px 0 20px 0; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+        <label for="contents-search" style="font-weight:bold; color:#e2e8f0; font-size:12px;">Search Help &amp; Contents Directory:</label>
+        <input type="text" id="contents-search" class="vdc-search-input" style="max-width:320px; font-size:12px;" placeholder="Search articles, guides, tools...">
+        <a href="modules.html" class="vdc-hub-btn-blue" style="padding:4px 10px; font-size:11px; text-decoration:none;">Go &raquo;</a>
+      </div>
+
+      <!-- Table of Contents -->
+      <div class="toc" role="navigation" aria-labelledby="toctitle" style="margin: 16px 0 24px 0;">
+        <div class="toctitle" lang="en" dir="ltr">
+          <span id="toctitle">Contents</span>
+        </div>
+        <ul class="toc-list">
+          <li><a href="#Welcome"><span class="tocnumber">1</span> <span class="toctext">Welcome!</span></a></li>
+          <li><a href="#Wikipedia_and_MediaWiki_resources"><span class="tocnumber">2</span> <span class="toctext">Wikipedia and MediaWiki resources</span></a></li>
+          <li><a href="#Contributors_Quick_Links"><span class="tocnumber">3</span> <span class="toctext">Contributor's Quick Links</span></a></li>
+          <li><a href="#Related_Wikis"><span class="tocnumber">4</span> <span class="toctext">Related Wikis</span></a></li>
+          <li>
+            <a href="#Help_Reference_Manuals"><span class="tocnumber">5</span> <span class="toctext">Help Reference &amp; Guidelines</span></a>
+            <ul style="list-style:none; padding-left:14px;">
+              <li><a href="#help-etiquette"><span class="tocnumber">5.1</span> <span class="toctext">Etiquette</span></a></li>
+              <li><a href="#help-policies"><span class="tocnumber">5.2</span> <span class="toctext">Policies and Guidelines</span></a></li>
+              <li><a href="#help-style-guide"><span class="tocnumber">5.3</span> <span class="toctext">Style Guide</span></a></li>
+              <li><a href="#help-page-creation"><span class="tocnumber">5.4</span> <span class="toctext">Page Creation</span></a></li>
+              <li><a href="#help-linking"><span class="tocnumber">5.5</span> <span class="toctext">Linking</span></a></li>
+              <li><a href="#help-toc"><span class="tocnumber">5.6</span> <span class="toctext">Table of Contents</span></a></li>
+              <li><a href="#help-deletion"><span class="tocnumber">5.7</span> <span class="toctext">Deletion Process</span></a></li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+
+      <!-- 2-Column Portal Help Grid -->
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(clamp((100% / 2) - 1rem, 25rem, 100%), 1fr)); column-gap:1.5em; margin-bottom: 24px;">
+        
+        <!-- Left Column -->
+        <div>
+          <h2><span class="mw-headline" id="Welcome">Welcome!</span></h2>
+          <p style="color:var(--wiki-text-secondary); line-height:1.55; margin-bottom:12px;">
+            Welcome to the <strong>Lab Developer Community</strong>! If you are new here, you might want to consider the following pages:
+          </p>
+
+          <ul style="line-height:1.65; margin-bottom:16px; padding-left:20px;">
+            <li><strong><a href="architecture.html">About</a></strong>&ensp;&ndash;&ensp;A brief explanation of the Lab Engine project, architecture, and goals.</li>
+            <li><strong><a href="project-hub.html">Community Portal</a></strong>&ensp;&ndash;&ensp;A guide to the decoupled engine projects, workspaces, and mod packages.</li>
+            <li><strong><a href="#help-etiquette">Etiquette</a></strong>&ensp;&ndash;&ensp;You might want to check this before editing or participating in discussions.</li>
+            <li><strong><a href="#help-policies">Policies and Guidelines</a></strong>&ensp;&ndash;&ensp;The main rules and standards that should be followed when contributing.</li>
+            <li><strong><a href="#help-style-guide">Style Guide</a></strong>&ensp;&ndash;&ensp;How to format your articles, C++20 code, and media to keep content clean and consistent.</li>
+            <li><strong><a href="https://github.com/YoungJasiek/Lab/blob/main/LICENSE" target="_blank">Terms of Use</a></strong>&ensp;&ndash;&ensp;The open-source MIT legal agreements and terms to which you accept when contributing.</li>
+          </ul>
+
+          <hr style="opacity:30%; margin-block:.75em; border:0; border-top:1px solid #363c46;">
+
+          <ul style="line-height:1.65; margin-bottom:20px; padding-left:20px;">
+            <li><strong><a href="#help-page-creation">Page Creation</a></strong>&ensp;&ndash;&ensp;Information about creating technical documentation and subsystem articles.</li>
+            <li><strong><a href="talk.html#CSS_suggestions">Editing Toolbar</a></strong>&ensp;&ndash;&ensp;Details about code blocks, tables, and formatting features available when editing.</li>
+            <li><strong><a href="#help-linking">Linking</a></strong>&ensp;&ndash;&ensp;Help with creating internal wiki hyperlinks and cross-referencing subsystems.</li>
+            <li><strong><a href="#help-toc">Table of Contents</a></strong>&ensp;&ndash;&ensp;How to manipulate tables of contents, headings, and TOC numbering.</li>
+            <li><strong><a href="architecture.html#sec-decals-engine">Images</a></strong>&ensp;&ndash;&ensp;Information regarding in-engine captures, thumbnail galleries, and WebP format.</li>
+            <li><strong><a href="index.html#catlinks">Categories</a></strong>&ensp;&ndash;&ensp;Information on how categories work, and how to utilize them for indexing.</li>
+            <li><strong><a href="talk.html#Address_to_editors_about_paragraphs">Templates</a></strong>&ensp;&ndash;&ensp;Information related to creating, editing, and using wiki templates without extra paragraphs.</li>
+            <li><strong><a href="talk.html#Language_pages">Languages</a></strong>&ensp;&ndash;&ensp;Reference guide on how multiple languages and translation prefixes are used.</li>
+            <li><strong><a href="talk.html#Address_to_editors_about_paragraphs">Stubs</a></strong>&ensp;&ndash;&ensp;Incomplete and small subsystem pages that should be expanded on.</li>
+            <li><strong><a href="talk.html#Avoiding_clutter_on_the_main_page">Cleanup</a></strong>&ensp;&ndash;&ensp;Guidelines for avoiding icon clutter and maintaining encyclopedic clarity.</li>
+            <li><strong><a href="modules.html">Special Pages</a></strong>&ensp;&ndash;&ensp;Full catalog of dynamic link libraries (10 modular DLLs) and architecture specs.</li>
+            <li><strong><a href="architecture.html#sec-philosophy">Glossary</a></strong>&ensp;&ndash;&ensp;Index of terms used throughout Lab Engine (DSA, CSG, BRDF, ECS, NetTick).</li>
+            <li><strong><a href="building.html">Automation</a></strong>&ensp;&ndash;&ensp;Information on CMake target automation, build scripts, and test suites.</li>
+            <li><strong><a href="talk.html#Autoconfirmed_protection">Protected Pages</a></strong>&ensp;&ndash;&ensp;Information about core architectural specifications and edit privileges.</li>
+            <li><strong><a href="talk.html">Discussion</a></strong>&ensp;&ndash;&ensp;Explanation of talk pages, threaded discussions, and signature conventions.</li>
+            <li><strong><a href="#help-deletion">Deletion</a></strong>&ensp;&ndash;&ensp;Information concerning deprecated API cleanup and file pruning.</li>
+          </ul>
+
+          <h2><span class="mw-headline" id="Wikipedia_and_MediaWiki_resources">Wikipedia and MediaWiki resources</span></h2>
+          <ul style="line-height:1.65; margin-bottom:20px; padding-left:20px;">
+            <li><strong><a href="https://en.wikipedia.org/wiki/Help:Contents" target="_blank">Contents</a></strong>&ensp;&ndash;&ensp;Main Wikipedia help menu and directory.</li>
+            <li><strong><a href="https://en.wikipedia.org/wiki/Wikipedia:Tutorial" target="_blank">Tutorial</a></strong>&ensp;&ndash;&ensp;A series of introductory articles on wiki markup and features.</li>
+            <li><strong><a href="https://en.wikipedia.org/wiki/Help:Editing" target="_blank">Editing</a></strong>&ensp;&ndash;&ensp;Comprehensive guide on editing MediaWiki sites, including wikitext details.</li>
+            <li><strong><a href="https://en.wikipedia.org/wiki/Wikipedia:FAQ" target="_blank">FAQ</a></strong>&ensp;&ndash;&ensp;Answers questions commonly asked about Wikipedia and MediaWiki software.</li>
+            <li><strong><a href="https://en.wikipedia.org/wiki/Wikipedia:FAQ/Contributing" target="_blank">Contributing FAQ</a></strong>&ensp;&ndash;&ensp;Answers questions commonly asked by contributors to wiki encyclopedias.</li>
+            <li><strong><a href="https://en.wikipedia.org/wiki/Wikipedia:FAQ/Editing" target="_blank">Editing FAQ</a></strong>&ensp;&ndash;&ensp;Answers the most common questions about editing and formatting text.</li>
+          </ul>
+        </div>
+
+        <!-- Right Column -->
+        <div>
+          <h2><span class="mw-headline" id="Contributors_Quick_Links">Contributor's Quick Links</span></h2>
+          <p style="color:var(--wiki-text-secondary); margin-bottom:10px;">Direct access to development backlog, issue trackers, and ongoing documentation tasks:</p>
+          <ul style="line-height:1.65; margin-bottom:24px; padding-left:20px;">
+            <li><a href="https://github.com/YoungJasiek/Lab/issues" target="_blank">Project Issue Tracker &amp; Tasks</a></li>
+            <li><a href="modules.html">Necessary Subsystem Features &amp; Interfaces</a></li>
+            <li><a href="project-hub.html">Category: Administration &amp; Workspaces</a></li>
+            <li><a href="talk.html#Going_about_tidying_up_the_Main_Page">Category: Cleanup &amp; Refactoring</a></li>
+            <li><a href="talk.html#Address_to_editors_about_paragraphs">Category: Stubs &amp; Documentation Needs</a></li>
+            <li><a href="https://github.com/YoungJasiek/Lab/blob/main/TODO.md" target="_blank">Category: TODO &amp; Roadmaps</a></li>
+            <li><a href="talk.html#Language_pages">Category: To be translated</a></li>
+            <li><a href="labhammer.html">Category: Screenshots needed (LabHammer 3D)</a></li>
+            <li><a href="modules.html">Category: Articles to be merged (DLL Specs)</a></li>
+            <li><a href="modules.html">Special: Uncategorized Subsystems</a></li>
+            <li><a href="building.html">Special: Uncategorized Build Targets</a></li>
+            <li><a href="architecture.html">Special: Architectural Redirects</a></li>
+            <li><a href="project-hub.html">Special: Project Manifest Directory</a></li>
+          </ul>
+
+          <div style="background:#171c22; border:1px solid #363e4b; padding:14px; margin-bottom:20px;">
+            <div style="font-weight:bold; color:#e2e8f0; margin-bottom:6px; font-size:12px;">Active Documentation Focus</div>
+            <p style="font-size:11.5px; color:#8e99a8; line-height:1.5; margin:0;">
+              Documentation adheres to the strict 2007 Valve Developer Community aesthetic: zero emoji badges, dense 13px Arial typography, decoupled DLL subsystem boundaries, and complete technical reproducibility.
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Related Wikis Section -->
+      <h2><span class="mw-headline" id="Related_Wikis">Related Wikis</span></h2>
+      <p style="color:var(--wiki-text-secondary); line-height:1.55; margin-bottom:12px;">
+        The websites listed below provide valuable reference documentation on GoldSrc and Source game engine architecture, level design, entity standards, and gameplay mechanics:
+      </p>
+
+      <ul style="line-height:1.7; margin-bottom:30px; padding-left:20px;">
+        <li>
+          <strong><a href="https://wiki.teamfortress.com/" target="_blank">Team Fortress Wiki</a></strong>&ensp;&ndash;&ensp;
+          Comprehensive game mechanics, weapons, viewmodels, and class entity scripting reference.
+        </li>
+        <li>
+          <strong><a href="https://combineoverwiki.net/" target="_blank">Combine OverWiki</a></strong>&ensp;&ndash;&ensp;
+          Thorough archive of Half-Life and Portal series assets, level designs, model hierarchies, and lore.
+        </li>
+        <li>
+          <strong><a href="https://left4dead.fandom.com/" target="_blank">Left 4 Dead Wiki</a></strong>&ensp;&ndash;&ensp;
+          Technical documentation on director pacing, AI navigation meshes, and dynamic spawning.
+        </li>
+        <li>
+          <strong><a href="https://theportalwiki.com/" target="_blank">Portal Wiki</a></strong>&ensp;&ndash;&ensp;
+          Physics puzzle mechanics, test chamber geometry, triggers, and logical entity inputs/outputs.
+        </li>
+        <li>
+          <strong><a href="https://twhl.info/" target="_blank">TWHL (The Whole Half-Life)</a></strong>&ensp;&ndash;&ensp;
+          The premier community hub for GoldSrc and Source engine map authoring, CSG brushes, Hammer editor tools, and entity logic with over two decades of technical tutorials.
+        </li>
+      </ul>
+
+      <!-- In-Page Help Reference & Manuals (Zero Dead Links Guaranteed) -->
+      <h2><span class="mw-headline" id="Help_Reference_Manuals">Help Reference &amp; Guidelines</span></h2>
+      <p style="color:var(--wiki-text-secondary); line-height:1.55; margin-bottom:16px;">
+        This section provides detailed reference documentation for contributing to the wiki without dead links:
+      </p>
+
+      <div style="display:flex; flex-direction:column; gap:16px; margin-bottom:30px;">
+        
+        <div id="help-etiquette" style="background:#171c22; border:1px solid #363e4b; border-left:3px solid #5c9fe6; padding:12px 16px;">
+          <h3 style="margin:0 0 6px 0; font-size:13px; color:#e2e8f0;">Etiquette &amp; Contribution Standards</h3>
+          <p style="font-size:12px; color:#8e99a8; line-height:1.55; margin:0;">
+            Always assume good faith when collaborating on wiki articles. Avoid edit wars; if you disagree with an edit, take the discussion to the corresponding <a href="talk.html">Talk page</a>. When documenting engine subsystems, prioritize factual C++20 specifications, header declarations, and benchmarked metrics over subjective impressions.
+          </p>
+        </div>
+
+        <div id="help-policies" style="background:#171c22; border:1px solid #363e4b; border-left:3px solid #5c9fe6; padding:12px 16px;">
+          <h3 style="margin:0 0 6px 0; font-size:13px; color:#e2e8f0;">Policies and Guidelines</h3>
+          <p style="font-size:12px; color:#8e99a8; line-height:1.55; margin:0;">
+            All documentation must accurately describe working features in the active repository. Subsystems must be cross-linked to their respective header files in <code>include/</code>. Avoid modern SaaS clutter or emoji icons; maintain the crisp, technical 2007 encyclopedic style.
+          </p>
+        </div>
+
+        <div id="help-style-guide" style="background:#171c22; border:1px solid #363e4b; border-left:3px solid #5c9fe6; padding:12px 16px;">
+          <h3 style="margin:0 0 6px 0; font-size:13px; color:#e2e8f0;">Style Guide &amp; Code Formatting</h3>
+          <p style="font-size:12px; color:#8e99a8; line-height:1.55; margin:0;">
+            Format C++20 code blocks using <code>&lt;pre&gt;</code> tags with tab indentation. Highlight keywords in <code>#ff1f71</code>, classes in <code>#0082ff</code>, and constants in <code>#b5b5b5</code>. Use <code>&lt;code&gt;</code> for inline symbols such as <code>Vec3</code>, <code>IServerSubsystem</code>, or <code>.labscene</code>.
+          </p>
+        </div>
+
+        <div id="help-page-creation" style="background:#171c22; border:1px solid #363e4b; border-left:3px solid #5c9fe6; padding:12px 16px;">
+          <h3 style="margin:0 0 6px 0; font-size:13px; color:#e2e8f0;">Page Creation &amp; Naming Conventions</h3>
+          <p style="font-size:12px; color:#8e99a8; line-height:1.55; margin:0;">
+            Name module pages using lowercase hyphenated filenames (e.g., <code>module-physics.html</code>, <code>weapons-viewmodel.html</code>). Every new article should feature the top 2007 header, MediaWiki namespace tabs, left sidebar navigation, and bottom Navbox matrix.
+          </p>
+        </div>
+
+        <div id="help-linking" style="background:#171c22; border:1px solid #363e4b; border-left:3px solid #5c9fe6; padding:12px 16px;">
+          <h3 style="margin:0 0 6px 0; font-size:13px; color:#e2e8f0;">Linking &amp; Anchor Conventions</h3>
+          <p style="font-size:12px; color:#8e99a8; line-height:1.55; margin:0;">
+            Never use raw placeholder hashes (<code>#</code>) that cause dead jumps. Always pair internal section jumps with explicit IDs (e.g., <code>href="modules.html#sec-source-arch"</code>). When referencing external tools or repositories, specify <code>target="_blank"</code>.
+          </p>
+        </div>
+
+        <div id="help-toc" style="background:#171c22; border:1px solid #363e4b; border-left:3px solid #5c9fe6; padding:12px 16px;">
+          <h3 style="margin:0 0 6px 0; font-size:13px; color:#e2e8f0;">Table of Contents (TOC) Syntax</h3>
+          <p style="font-size:12px; color:#8e99a8; line-height:1.55; margin:0;">
+            The <code>__TOC__</code> magic word generates a structured table of contents. In static HTML, wrap the TOC in a <code>&lt;div class="toc"&gt;</code> with <code>&lt;span class="tocnumber"&gt;</code> and <code>&lt;span class="toctext"&gt;</code> for faithful 2007 MediaWiki numbering.
+          </p>
+        </div>
+
+        <div id="help-deletion" style="background:#171c22; border:1px solid #363e4b; border-left:3px solid #5c9fe6; padding:12px 16px;">
+          <h3 style="margin:0 0 6px 0; font-size:13px; color:#e2e8f0;">Deletion &amp; Deprecation Process</h3>
+          <p style="font-size:12px; color:#8e99a8; line-height:1.55; margin:0;">
+            When an API or subsystem is deprecated (e.g., migrating legacy <code>.labmap</code> to JSON <code>.labscene</code>), do not delete the page abruptly. Document the migration path, provide backward compatibility instructions, and add a warning banner directing readers to the updated specification.
+          </p>
+        </div>
+
+      </div>
+
+      <!-- Navbox Matrix Footer -->
+            <!-- ================================================================
+           MEDIAWIKI NAVBOX MATRIX & CATEGORIES
+           ================================================================ -->
+      <div class="vdc-navbox" role="navigation" aria-label="Lab Developer Community Navigation Box">
+        <div class="vdc-navbox-header">Lab Engine &amp; Frozen-Life Ecosystem</div>
+        <table class="vdc-navbox-table">
+          <tbody>
+            <tr>
+              <th class="vdc-navbox-group">Core Engine</th>
+              <td class="vdc-navbox-subgroup">Subsystems</td>
+              <td class="vdc-navbox-list">
+                <a href="architecture.html">Engine Architecture</a> &bull;
+                <a href="modules.html">11 Modular DLLs</a> &bull;
+                <a href="opengl-dsa.html">OpenGL 4.5+ DSA</a> &bull;
+                <a href="lighting.html">Forward Lighting</a> &bull;
+                <a href="skeletal-animations.html">glTF &amp; FBX Skinning</a> &bull;
+                <a href="audio-synthesizer.html">3D Spatial Audio</a> &bull;
+                <a href="multiplayer.html">UDP Networking</a> &bull;
+                <a href="lua-scripting.html">Lua 5.4 Runtime</a>
+              </td>
+              <td class="vdc-navbox-logo-cell" rowspan="5">
+                <div class="vdc-navbox-lab-stamp">
+                  <span class="stamp-text">LAB</span>
+                  <span class="stamp-sub">ENGINE SDK</span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <th class="vdc-navbox-group">DLL Modules</th>
+              <td class="vdc-navbox-subgroup">Binaries</td>
+              <td class="vdc-navbox-list">
+                <a href="module-core.html">Engine.dll</a> &bull;
+                <a href="module-render.html">render.dll</a> &bull;
+                <a href="module-audio.html">audio.dll</a> &bull;
+                <a href="module-physics.html">physics.dll</a> &bull;
+                <a href="module-animation.html">animation.dll</a> &bull;
+                <a href="module-world.html">world.dll</a> &bull;
+                <a href="module-network.html">network.dll</a> &bull;
+                <a href="module-ai.html">LabAI.dll</a> &bull;
+                <a href="module-script.html">script.dll</a> &bull;
+                <a href="module-studio.html">studio.dll</a> &bull;
+                <a href="module-hud.html">hud.dll</a>
+              </td>
+            </tr>
+            <tr>
+              <th class="vdc-navbox-group">Authoring Tools</th>
+              <td class="vdc-navbox-subgroup">LabSDK Suite</td>
+              <td class="vdc-navbox-list">
+                <a href="project-hub.html">Project Hub</a> &bull;
+                <a href="labeditor.html">LabEditor Suite</a> &bull;
+                <a href="labhammer.html">LabHammer (3D CSG)</a> &bull;
+                <a href="character-studio.html">LabStudio (Poser)</a> &bull;
+                <a href="labhud.html">LabHUD (2D Canvas)</a> &bull;
+                <a href="plugins.html">Package Manager (Plugins)</a>
+              </td>
+            </tr>
+            <tr>
+              <th class="vdc-navbox-group">Showcase Game</th>
+              <td class="vdc-navbox-subgroup">Frozen-Life</td>
+              <td class="vdc-navbox-list">
+                <a href="frozen-life.html">Playable Build (v0.1.0-alpha)</a> &bull;
+                <a href="weapons-viewmodel.html">9-Weapon Arsenal</a> &bull;
+                <a href="bot-ai.html">Combat Bot AI</a> &bull;
+                <a href="frozen-life.html#sec-maps">Official Maps (Cryo &amp; Alpha)</a>
+              </td>
+            </tr>
+            <tr>
+              <th class="vdc-navbox-group">Documentation</th>
+              <td class="vdc-navbox-subgroup">Community</td>
+              <td class="vdc-navbox-list">
+                <a href="index.html">Main Page</a> &bull;
+                <a href="wiki-contents.html">Wiki Contents</a> &bull;
+                <a href="talk.html">Talk:Main Page</a> &bull;
+                <a href="building.html">Building from Source</a> &bull;
+                <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer">GitHub Repository</a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="vdc-navbox-footer">
+          <div class="vdc-navbox-copyright">
+            Lab Developer Community &bull; Official C++20 &amp; OpenGL 4.5+ Technical Documentation.<br>
+            <a href="wiki-contents.html">About Lab Developer Community</a> &bull; <a href="building.html">Source Build Guide</a> &bull; <a href="#content">Back to top</a>
+          </div>
+          <div class="vdc-navbox-powered">
+            <div class="mw-88x31-btn" title="Powered by LabWiki">
+              <span class="mw-btn-top">POWERED BY</span>
+              <span class="mw-btn-bot">LabWiki</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="catlinks" class="catlinks" role="navigation" aria-label="Wiki categories">
+        <span class="catlinks-label">Categories:</span>
+        <ul class="catlinks-list">
+          <li><a href="wiki-contents.html">Help</a></li>
+          <li><a href="wiki-contents.html">Contents</a></li>
+          <li><a href="index.html">Main Page</a></li>
+          <li><a href="project-hub.html">Community Portal</a></li>
+        </ul>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

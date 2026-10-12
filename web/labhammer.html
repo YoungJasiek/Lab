@@ -23,31 +23,32 @@
   <!-- ====================================================================
        1. TOP HEADER
        ==================================================================== -->
+  <!-- ====================================================================
+       1. TOP HEADER (2007/2009 VDC TOOLBAR)
+       ==================================================================== -->
   <header class="vdc-top-header" role="banner">
     <div class="vdc-header-left">
       <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
       <a href="index.html" class="vdc-brand">
-        <img src="assets/img/LabLogo.webp" alt="Lab Engine Logo" class="vdc-logo-img">
+        <span class="vdc-logo-stamp">LAB</span>
         <div class="vdc-brand-text">
-          <span class="vdc-brand-title"><span class="accent">Lab</span> Developer Community</span>
+          <span class="vdc-brand-title">Developer Community</span>
           <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LABHAMMER</span>
         </div>
       </a>
     </div>
 
-    <!-- Search Bar -->
     <div class="vdc-search-bar" role="search">
-      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search documentation..." aria-label="Search wiki documentation">
-      <span class="vdc-search-icon" aria-hidden="true">&#128269;</span>
+      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search Lab Developer Community" aria-label="Search wiki documentation">
+      <button id="search-go-btn" class="vdc-search-btn" aria-label="Search">Go</button>
     </div>
 
-    <!-- Header Actions -->
     <div class="vdc-header-right">
-      <button id="theme-toggle-btn" class="theme-toggle-btn" aria-label="Toggle theme">&#9728;&#65039; Light Mode</button>
-      <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="github-badge-btn" aria-label="GitHub repository">
-        <span>GitHub</span>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
-      </a>
+      <div class="vdc-user-tools">
+        <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="user-link">YoungJasiek</a>
+        <span class="pipe-sep">&bull;</span>
+        <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="user-link">Git Source</a>
+      </div>
     </div>
   </header>
 
@@ -57,49 +58,55 @@
   <div class="vdc-page-container">
 
     <!-- Left Sidebar Navigation -->
+    <!-- Left Sidebar Navigation (2007 MediaWiki Monobook) -->
     <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
       <div class="sidebar-block">
-        <div class="sidebar-title">Documentation</div>
+        <div class="sidebar-title">Navigation</div>
         <ul class="sidebar-links">
-          <li><a href="index.html">Main Page (Portal)</a></li>
-          <li><a href="project-hub.html">Project Hub &amp; Main Menu</a></li>
-          <li><a href="plugins.html">Modular Drop-in Plugins</a></li>
-          <li><a href="labeditor.html">LabEditor Suite</a></li>
-          <li><a href="frozen-life.html">Frozen-Life (Demo FPS)</a></li>
-          <li><a href="labhammer.html" class="active">LabHammer (3D CAD)</a></li>
-          <li><a href="lighting.html">Dynamic Lighting &amp; Lamps</a></li>
-          <li><a href="character-studio.html">Character &amp; Weapon Studio</a></li>
-          <li><a href="skeletal-animations.html">Skeletal &amp; FBX Animations</a></li>
-          <li><a href="bot-ai.html">Combat Bot AI</a></li>
-          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></li>
-          <li><a href="multiplayer.html">UDP Multiplayer</a></li>
-          <li><a href="audio-synthesizer.html">3D Audio &amp; Synthesizer</a></li>
-          <li><a href="lua-scripting.html">Lua 5.4 Scripting</a></li>
+          <li><a href="index.html">Main Page</a></li>
+          <li><a href="modules.html">Lab SDK Index</a></li>
+          <li><a href="wiki-contents.html">Wiki Contents</a></li>
+          <li><a href="project-hub.html">Community &amp; Project Hub</a></li>
+          <li><a href="talk.html">Discussion (Talk)</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title"><a href="modules.html" style="color:inherit; text-decoration:none;">Modular Subsystems (.dll)</a></div>
+        <ul class="sidebar-links">
+          <li><a href="module-core.html">Engine.dll</a></li>
+          <li><a href="module-render.html">render.dll</a></li>
+          <li><a href="module-audio.html">audio.dll</a></li>
+          <li><a href="module-physics.html">physics.dll</a></li>
+          <li><a href="module-animation.html">animation.dll</a></li>
+          <li><a href="module-world.html">world.dll</a></li>
+          <li><a href="module-network.html">network.dll</a></li>
+          <li><a href="module-ai.html">LabAI.dll</a></li>
+          <li><a href="module-script.html">script.dll</a></li>
+          <li><a href="module-studio.html">studio.dll</a></li>
+          <li><a href="module-hud.html">hud.dll</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Engine &amp; Toolset</div>
+        <ul class="sidebar-links">
           <li><a href="architecture.html">Engine Architecture</a></li>
           <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+          <li><a href="lighting.html">Dynamic Lighting &amp; Lamps</a></li>
+          <li><a href="labeditor.html">LabEditor Suite</a></li>
+          <li><a href="labhammer.html" class="active">LabHammer (3D CSG)</a></li>
+          <li><a href="character-studio.html">LabStudio (3D Poser)</a></li>
+          <li><a href="labhud.html">LabHUD (2D Canvas)</a></li>
+          <li><a href="plugins.html">Native C++ Plugins</a></li>
+          <li><a href="lua-scripting.html">Lua 5.4 Scripting</a></li>
+          <li><a href="frozen-life.html">Frozen-Life (Alpha)</a></li>
+          <li><a href="skeletal-animations.html">Skeletal &amp; FBX Rigging</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></li>
+          <li><a href="bot-ai.html">Combat Bot AI</a></li>
+          <li><a href="multiplayer.html">UDP Multiplayer</a></li>
+          <li><a href="audio-synthesizer.html">3D Audio &amp; Synth</a></li>
           <li><a href="building.html">Building from Source</a></li>
-        </ul>
-      </div>
-
-      <div class="sidebar-block">
-        <div class="sidebar-title">LabHammer Sections</div>
-        <ul class="sidebar-links">
-          <li><a href="#sec-overview">Overview &amp; Architecture</a></li>
-          <li><a href="#sec-navigation">3D Fly Navigation</a></li>
-          <li><a href="#sec-tools">The 6 Core Tools</a></li>
-          <li><a href="#sec-properties">Properties Inspector</a></li>
-          <li><a href="#sec-labmap-format">.labmap File Format</a></li>
-          <li><a href="#sec-shortcuts">Shortcuts Reference</a></li>
-          <li><a href="#sec-gallery">Editor Gallery</a></li>
-        </ul>
-      </div>
-
-      <div class="sidebar-block">
-        <div class="sidebar-title">Project &amp; Source</div>
-        <ul class="sidebar-links">
-          <li><a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer">GitHub Repository</a></li>
-          <li><a href="https://github.com/YoungJasiek/Lab/issues" target="_blank" rel="noopener noreferrer">Issue Tracker</a></li>
-          <li><a href="building.html">Compilation Guide</a></li>
         </ul>
       </div>
     </aside>
@@ -108,33 +115,25 @@
     <main id="content" class="vdc-main-content" role="main">
 
       <!-- Navigation Tabs -->
+      <!-- Navigation Tabs (2007 MediaWiki Monobook) -->
       <nav class="vdc-page-tabs" aria-label="Namespace tabs">
         <div class="tabs-left">
           <a href="labhammer.html" class="wiki-tab active">Page</a>
-          <a href="index.html#welcome" class="wiki-tab">Main Portal</a>
+          <a href="talk.html" class="wiki-tab">Discussion</a>
         </div>
         <div class="tabs-right">
           <a href="labhammer.html" class="wiki-tab active">Read</a>
-          <a href="architecture.html#source-code" class="wiki-tab">View C++ Source</a>
-          <a href="frozen-life.html" class="wiki-tab">Test in Frozen-Life</a>
+          <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="wiki-tab">View source</a>
+          <a href="https://github.com/YoungJasiek/Lab/commits/main" target="_blank" rel="noopener noreferrer" class="wiki-tab">View history</a>
         </div>
       </nav>
 
       <!-- Breadcrumb Trail -->
-      <div class="wiki-breadcrumbs">
-        <a href="index.html">Main Page</a>
-        <span class="crumb-sep">&gt;</span>
-        <span>Tooling</span>
-        <span class="crumb-sep">&gt;</span>
-        <span class="crumb-current">LabHammer</span>
-      </div>
+      
 
       <!-- Article Header -->
-      <h1 class="firstHeading">
-        <span>LabHammer</span>
-        <span style="font-size: 0.85rem; font-weight: normal; font-family: var(--font-mono); color: var(--wiki-accent);">[3D Level Editor]</span>
-      </h1>
-      <div class="siteSub">From Lab Developer Community &ndash; Standalone 3D World Authoring Suite for Lab Engine</div>
+      <h1 class="firstHeading">LabHammer</h1>
+      
 
       <div style="background: rgba(0, 200, 255, 0.08); border-left: 4px solid var(--wiki-accent); padding: 12px 16px; margin: 15px 0 20px; border-radius: 4px; font-size: 0.95rem;">
         <strong>Notice:</strong> LabHammer has evolved into the unified <strong><a href="labeditor.html" style="color:var(--wiki-accent); font-weight:bold;">LabEditor Suite</a></strong>, integrating 3D Level Editing, 2D Tilemap authoring, Character Studio posing, Multi-Genre HUD Canvas, Lua Scripting IDE, and Play-In-Editor (PIE) simulation. This page serves as the reference guide for 3D CAD brush geometry and the <code>.labmap</code> format.
@@ -200,7 +199,7 @@
 
       <!-- Technical Notice Callout -->
       <div class="wiki-notice notice-note">
-        <span class="notice-icon">&#9432;</span>
+        
         <div class="wiki-notice-content">
           <strong>1:1 Visual Parity Architecture:</strong>
           <code>LabHammer.exe</code> links directly against the static <code>LabEngineLib</code> library. It utilizes the exact same OpenGL 4.5+ DSA shaders, material texture loaders, and spatial AABB mathematics as the game runtime <code>Lab.exe</code>. What you design in the editor renders with pixel-identical results in the game.
@@ -230,7 +229,7 @@
           <li><a href="#sec-properties"><span class="tocnumber">4</span> <span class="toctext">Entity Properties Inspector Panel</span></a></li>
           <li><a href="#sec-browsers"><span class="tocnumber">5</span> <span class="toctext">Asset Browsers (Textures &amp; 3D STL Models)</span></a></li>
           <li><a href="#sec-prebuilts"><span class="tocnumber">6</span> <span class="toctext">Quick Prebuilt Template Library</span></a></li>
-          <li><a href="#sec-labmap-format"><span class="tocnumber">7</span> <span class="toctext">Plain-Text .labmap File Specification</span></a></li>
+          <li><a href="#sec-labscene-format"><span class="tocnumber">7</span> <span class="toctext">Plain-Text .labmap File Specification</span></a></li>
           <li><a href="#sec-shortcuts"><span class="tocnumber">8</span> <span class="toctext">Keyboard &amp; Mouse Shortcuts Cheat-Sheet</span></a></li>
           <li><a href="#sec-gallery"><span class="tocnumber">9</span> <span class="toctext">Editor Screenshots Gallery</span></a></li>
         </ol>
@@ -447,15 +446,66 @@
       <!-- ================================================================
            SECTION 7: .LABMAP FILE SPECIFICATION
            ================================================================ -->
-      <section id="sec-labmap-format" class="wiki-section-container">
-        <h2><span class="mw-headline">7. Plain-Text .labmap File Specification</span></h2>
+      <!-- ================================================================
+           SECTION 7: SCENE FORMATS (.LABSCENE & .LABMAP)
+           ================================================================ -->
+      <section id="sec-labscene-format" class="wiki-section-container">
+        <h2><span class="mw-headline">7. Modern .labscene (JSON) &amp; Legacy .labmap Migration</span></h2>
         <p>
-          Levels are stored in clean, human-readable <code>.labmap</code> plain-text files. The parser in <code>src/LabMap.cpp</code> reads spatial metadata, scene cameras, light coordinates, brushes with pitch/yaw/roll rotations, dynamic doors, Lua entity scripts, and spawn entities without binary encoding:
+          LabHammer authoring is built around the modern <strong><code>.labscene</code> JSON format</strong>, providing a structured, hierarchical scene graph with nested entity components, camera nodes, transform trees, and PBR material bindings.
+        </p>
+
+        <!-- Modern .labscene JSON Snippet -->
+        <div class="code-container" style="margin-bottom: 24px;">
+          <div class="code-toolbar">
+            <span class="code-title">assets/scenes/cryo_outpost.labscene &ndash; Modern JSON Scene Graph</span>
+            <button class="btn-wiki-copy" data-target="code-labscene-snippet">Copy</button>
+          </div>
+          <pre><code id="code-labscene-snippet" class="code-pre">{
+  "version": 2,
+  "metadata": {
+    "name": "Cryo Wasteland Outpost",
+    "ambient": [0.15, 0.20, 0.30],
+    "sun_dir": [-0.6, -0.7, -0.2],
+    "sun_color": [0.85, 0.92, 1.0],
+    "fog_density": 0.008
+  },
+  "entities": [
+    {
+      "name": "player_camera_tpp",
+      "transform": { "pos": [0.0, 2.0, 12.0], "rot": [0.0, 180.0, 0.0], "scale": [1.0, 1.0, 1.0] },
+      "components": {
+        "camera": { "fov": 75.0, "near": 0.1, "far": 1000.0, "target": "player", "offset": [0.6, 1.8, -3.5] }
+      }
+    },
+    {
+      "name": "bunker_airlock_door",
+      "transform": { "pos": [0.0, 1.75, -3.0], "rot": [0.0, 0.0, 0.0], "scale": [3.0, 3.5, 0.5] },
+      "components": {
+        "door": { "slide_delta": [3.5, 0.0, 0.0], "speed": 2.0, "auto_close_delay": 4.5 },
+        "script": "assets/scripts/airlock_trigger.lua"
+      }
+    }
+  ]
+}</code></pre>
+        </div>
+
+        <!-- Automatic Migration Modal Notice -->
+        <div id="sec-migration" class="wiki-notice notice-note" style="margin-bottom: 24px;">
+          
+          <div class="wiki-notice-content">
+            <strong>Non-Destructive Automatic Migration:</strong>
+            When LabHammer detects an older plain-text <code>.labmap</code> file, an interactive modal dialog prompts: <em>"Upgrade to Modern .labscene format?"</em>. Upon confirmation, the engine generates an automatic safety copy <code>filename.labmap.backup</code> before writing out the clean, structured <code>.labscene</code>.
+          </div>
+        </div>
+
+        <p>
+          For backwards compatibility, legacy plain-text <code>.labmap</code> files remain fully supported by the parser in <code>src/LabMap.cpp</code>:
         </p>
 
         <div class="code-container">
           <div class="code-toolbar">
-            <span class="code-title">assets/maps/cryo_outpost.labmap &ndash; Plain-Text Spatial Specification</span>
+            <span class="code-title">assets/maps/cryo_outpost.labmap &ndash; Legacy Plain-Text Spatial Specification</span>
             <button class="btn-wiki-copy" data-target="code-labmap-snippet">Copy</button>
           </div>
           <pre><code id="code-labmap-snippet" class="code-pre">LABMAP_VERSION 1
@@ -619,7 +669,7 @@ END_ENTITIES</code></pre>
             <div class="thumbinner">
               <img src="assets/img/test_csg_clipping_and_hammer.webp" data-full="assets/img/test_csg_clipping_and_hammer.png" alt="CSG geometry clipping and physical props in Hammer" class="thumbimage">
               <div class="thumbcaption">
-                <span class="magnify-icon">&#128269;</span>
+                <span class="magnify-icon"></span>
                 CSG Geometry Clipping &amp; Physical Props: 3D Sutherland-Hodgman plane slicing, cap triangulation, and Havok wooden crates and explosive barrels.
               </div>
             </div>
@@ -629,7 +679,7 @@ END_ENTITIES</code></pre>
             <div class="thumbinner">
               <img src="assets/img/test_hammer_ui.webp" data-full="assets/img/test_hammer_ui.png" alt="LabHammer editor interface" class="thumbimage">
               <div class="thumbcaption">
-                <span class="magnify-icon">&#128269;</span>
+                <span class="magnify-icon"></span>
                 LabHammer Level Editor: 3D viewport, brush creation tools, and real-time map compiler.
               </div>
             </div>
@@ -639,7 +689,7 @@ END_ENTITIES</code></pre>
             <div class="thumbinner">
               <img src="assets/img/test_weapon_spawners.webp" data-full="assets/img/test_weapon_spawners.png" alt="Weapon and item spawners" class="thumbimage">
               <div class="thumbcaption">
-                <span class="magnify-icon">&#128269;</span>
+                <span class="magnify-icon"></span>
                 Weapon &amp; Item Spawners in LabHammer: 3D rotating pickup nodes with respawn timer inspectors.
               </div>
             </div>
@@ -649,7 +699,7 @@ END_ENTITIES</code></pre>
             <div class="thumbinner">
               <img src="assets/img/test_hammer_spawns.webp" data-full="assets/img/test_hammer_spawns.png" alt="Player spawns in LabHammer" class="thumbimage">
               <div class="thumbcaption">
-                <span class="magnify-icon">&#128269;</span>
+                <span class="magnify-icon"></span>
                 Visual Placement of info_player_deathmatch and team spawn entities in LabHammer.
               </div>
             </div>
@@ -659,15 +709,108 @@ END_ENTITIES</code></pre>
       </section>
 
       <!-- Wiki Category Tags -->
-      <div class="catlinks" role="navigation" aria-label="Wiki categories">
+      
+
+          <!-- ================================================================
+           MEDIAWIKI NAVBOX MATRIX & CATEGORIES
+           ================================================================ -->
+      <div class="vdc-navbox" role="navigation" aria-label="Lab Developer Community Navigation Box">
+        <div class="vdc-navbox-header">Lab Engine &amp; Frozen-Life Ecosystem</div>
+        <table class="vdc-navbox-table">
+          <tbody>
+            <tr>
+              <th class="vdc-navbox-group">Core Engine</th>
+              <td class="vdc-navbox-subgroup">Subsystems</td>
+              <td class="vdc-navbox-list">
+                <a href="architecture.html">Engine Architecture</a> &bull;
+                <a href="modules.html">11 Modular DLLs</a> &bull;
+                <a href="opengl-dsa.html">OpenGL 4.5+ DSA</a> &bull;
+                <a href="lighting.html">Forward Lighting</a> &bull;
+                <a href="skeletal-animations.html">glTF &amp; FBX Skinning</a> &bull;
+                <a href="audio-synthesizer.html">3D Spatial Audio</a> &bull;
+                <a href="multiplayer.html">UDP Networking</a> &bull;
+                <a href="lua-scripting.html">Lua 5.4 Runtime</a>
+              </td>
+              <td class="vdc-navbox-logo-cell" rowspan="5">
+                <div class="vdc-navbox-lab-stamp">
+                  <span class="stamp-text">LAB</span>
+                  <span class="stamp-sub">ENGINE SDK</span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <th class="vdc-navbox-group">DLL Modules</th>
+              <td class="vdc-navbox-subgroup">Binaries</td>
+              <td class="vdc-navbox-list">
+                <a href="module-core.html">Engine.dll</a> &bull;
+                <a href="module-render.html">render.dll</a> &bull;
+                <a href="module-audio.html">audio.dll</a> &bull;
+                <a href="module-physics.html">physics.dll</a> &bull;
+                <a href="module-animation.html">animation.dll</a> &bull;
+                <a href="module-world.html">world.dll</a> &bull;
+                <a href="module-network.html">network.dll</a> &bull;
+                <a href="module-ai.html">LabAI.dll</a> &bull;
+                <a href="module-script.html">script.dll</a> &bull;
+                <a href="module-studio.html">studio.dll</a> &bull;
+                <a href="module-hud.html">hud.dll</a>
+              </td>
+            </tr>
+            <tr>
+              <th class="vdc-navbox-group">Authoring Tools</th>
+              <td class="vdc-navbox-subgroup">LabSDK Suite</td>
+              <td class="vdc-navbox-list">
+                <a href="project-hub.html">Project Hub</a> &bull;
+                <a href="labeditor.html">LabEditor Suite</a> &bull;
+                <a href="labhammer.html">LabHammer (3D CSG)</a> &bull;
+                <a href="character-studio.html">LabStudio (Poser)</a> &bull;
+                <a href="labhud.html">LabHUD (2D Canvas)</a> &bull;
+                <a href="plugins.html">Package Manager (Plugins)</a>
+              </td>
+            </tr>
+            <tr>
+              <th class="vdc-navbox-group">Showcase Game</th>
+              <td class="vdc-navbox-subgroup">Frozen-Life</td>
+              <td class="vdc-navbox-list">
+                <a href="frozen-life.html">Playable Build (v0.1.0-alpha)</a> &bull;
+                <a href="weapons-viewmodel.html">9-Weapon Arsenal</a> &bull;
+                <a href="bot-ai.html">Combat Bot AI</a> &bull;
+                <a href="frozen-life.html#sec-maps">Official Maps (Cryo &amp; Alpha)</a>
+              </td>
+            </tr>
+            <tr>
+              <th class="vdc-navbox-group">Documentation</th>
+              <td class="vdc-navbox-subgroup">Community</td>
+              <td class="vdc-navbox-list">
+                <a href="index.html">Main Page</a> &bull;
+                <a href="wiki-contents.html">Wiki Contents</a> &bull;
+                <a href="talk.html">Talk:Main Page</a> &bull;
+                <a href="building.html">Building from Source</a> &bull;
+                <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer">GitHub Repository</a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="vdc-navbox-footer">
+          <div class="vdc-navbox-copyright">
+             Lab Developer Community &bull; Official C++20 &amp; OpenGL 4.5+ Technical Documentation.<br>
+            <a href="wiki-contents.html">About Lab Developer Community</a> &bull; <a href="building.html">Source Build Guide</a> &bull; <a href="#content">Back to top</a>
+          </div>
+          <div class="vdc-navbox-powered">
+            <div class="mw-88x31-btn" title="Powered by Lab Wiki">
+              <span class="mw-btn-top">POWERED BY</span>
+              <span class="mw-btn-bot">LabWiki</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="catlinks" class="catlinks">
         <span class="catlinks-label">Categories:</span>
         <ul class="catlinks-list">
-          <li><a href="labhammer.html">Tooling</a></li>
-          <li><a href="labhammer.html">Editors</a></li>
-          <li><a href="labhammer.html">Level Design</a></li>
-          <li><a href="labhammer.html">LabHammer</a></li>
-          <li><a href="architecture.html">C++20 Game Engines</a></li>
-          <li><a href="frozen-life.html">Frozen-Life Official</a></li>
+          <li><a href="index.html">Lab Developer Community</a></li>
+          <li><a href="modules.html">Lab SDK Documentation</a></li>
+          <li><a href="architecture.html">C++20 Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
         </ul>
       </div>
 
@@ -677,18 +820,7 @@ END_ENTITIES</code></pre>
   <!-- ====================================================================
        3. FOOTER
        ==================================================================== -->
-  <footer class="vdc-footer" role="contentinfo">
-    <div class="footer-info">
-      <div>Official Technical Documentation &bull; Lab Engine, LabHammer &amp; Frozen-Life.</div>
-      <div>Engineered according to modern C++20 and OpenGL 4.5+ Direct State Access specifications.</div>
-      <div class="footer-note">
-        Created by a software engineer with 15 years of industry experience in C++ systems programming and real-time graphics.
-      </div>
-    </div>
-    <div>
-      <a href="#content" style="color: var(--wiki-accent);">Back to top &uarr;</a>
-    </div>
-  </footer>
+  
 
   <!-- ====================================================================
        4. LIGHTBOX MODAL

@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Talk:Main Page - Lab Developer Community</title>
+  <meta name="description" content="Discussion page for the Main Page of Lab Developer Community (VDC).">
+  <link rel="icon" type="image/webp" href="assets/img/LabLogo.webp">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Accessibility Skip Link -->
+  <a href="#content" class="skip-link">Skip to main content</a>
+
+  <!-- ====================================================================
+       1. TOP HEADER (2007 VALVE DEVELOPER COMMUNITY TOOLBAR)
+       ==================================================================== -->
+  <!-- ====================================================================
+       1. TOP HEADER (2007/2009 VDC TOOLBAR)
+       ==================================================================== -->
+  <header class="vdc-top-header" role="banner">
+    <div class="vdc-header-left">
+      <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
+      <a href="index.html" class="vdc-brand">
+        <span class="vdc-logo-stamp">LAB</span>
+        <div class="vdc-brand-text">
+          <span class="vdc-brand-title">Developer Community</span>
+          <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LABHAMMER</span>
+        </div>
+      </a>
+    </div>
+
+    <div class="vdc-search-bar" role="search">
+      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search Lab Developer Community" aria-label="Search wiki documentation">
+      <button id="search-go-btn" class="vdc-search-btn" aria-label="Search">Go</button>
+    </div>
+
+    <div class="vdc-header-right">
+      <div class="vdc-user-tools">
+        <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="user-link">YoungJasiek</a>
+        <span class="pipe-sep">&bull;</span>
+        <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="user-link">Git Source</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ====================================================================
+       2. WIKI CONTAINER (SIDEBAR + MAIN CONTENT)
+       ==================================================================== -->
+  <div class="vdc-page-container">
+
+    <!-- Left Sidebar Navigation -->
+    <!-- Left Sidebar Navigation (2007 MediaWiki Monobook) -->
+    <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
+      <div class="sidebar-block">
+        <div class="sidebar-title">Navigation</div>
+        <ul class="sidebar-links">
+          <li><a href="index.html">Main Page</a></li>
+          <li><a href="modules.html">Lab SDK Index</a></li>
+          <li><a href="wiki-contents.html">Wiki Contents</a></li>
+          <li><a href="project-hub.html">Community &amp; Project Hub</a></li>
+          <li><a href="talk.html" class="active">Discussion (Talk)</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title"><a href="modules.html" style="color:inherit; text-decoration:none;">Modular Subsystems (.dll)</a></div>
+        <ul class="sidebar-links">
+          <li><a href="module-core.html">Engine.dll</a></li>
+          <li><a href="module-render.html">render.dll</a></li>
+          <li><a href="module-audio.html">audio.dll</a></li>
+          <li><a href="module-physics.html">physics.dll</a></li>
+          <li><a href="module-animation.html">animation.dll</a></li>
+          <li><a href="module-world.html">world.dll</a></li>
+          <li><a href="module-network.html">network.dll</a></li>
+          <li><a href="module-ai.html">LabAI.dll</a></li>
+          <li><a href="module-script.html">script.dll</a></li>
+          <li><a href="module-studio.html">studio.dll</a></li>
+          <li><a href="module-hud.html">hud.dll</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Engine &amp; Toolset</div>
+        <ul class="sidebar-links">
+          <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+          <li><a href="lighting.html">Dynamic Lighting &amp; Lamps</a></li>
+          <li><a href="labeditor.html">LabEditor Suite</a></li>
+          <li><a href="labhammer.html">LabHammer (3D CSG)</a></li>
+          <li><a href="character-studio.html">LabStudio (3D Poser)</a></li>
+          <li><a href="labhud.html">LabHUD (2D Canvas)</a></li>
+          <li><a href="plugins.html">Native C++ Plugins</a></li>
+          <li><a href="lua-scripting.html">Lua 5.4 Scripting</a></li>
+          <li><a href="frozen-life.html">Frozen-Life (Alpha)</a></li>
+          <li><a href="skeletal-animations.html">Skeletal &amp; FBX Rigging</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></li>
+          <li><a href="bot-ai.html">Combat Bot AI</a></li>
+          <li><a href="multiplayer.html">UDP Multiplayer</a></li>
+          <li><a href="audio-synthesizer.html">3D Audio &amp; Synth</a></li>
+          <li><a href="building.html">Building from Source</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Discussion Content Area -->
+    <main id="content" class="vdc-content" role="main">
+
+      <!-- MediaWiki Namespace Tabs -->
+      <!-- Navigation Tabs (2007 MediaWiki Monobook) -->
+      <nav class="vdc-page-tabs" aria-label="Namespace tabs">
+        <div class="tabs-left">
+          <a href="index.html" class="wiki-tab">Page</a>
+          <a href="talk.html" class="wiki-tab active">Discussion</a>
+        </div>
+        <div class="tabs-right">
+          <a href="talk.html" class="wiki-tab active">Read</a>
+          <a href="#new-topic" class="wiki-tab" style="font-weight:bold; color:#5c9fe6;">+ Add topic</a>
+          <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="wiki-tab">View source</a>
+          <a href="https://github.com/YoungJasiek/Lab/commits/main" target="_blank" rel="noopener noreferrer" class="wiki-tab">View history</a>
+        </div>
+      </nav>
+
+      <!-- Breadcrumbs -->
+      <div class="wiki-breadcrumbs">
+        <a href="index.html">Main Page</a>
+        <span class="crumb-sep">&gt;</span>
+        <span class="crumb-current">Talk:Main Page</span>
+      </div>
+
+      <!-- Language Bar -->
+      <div class="vdc-flags-bar" style="margin-bottom: 14px;">
+        <span class="flag-pill">English</span>
+        <span class="flag-pill">Polski</span>
+        <span class="flag-pill">Русский</span>
+        <span class="flag-pill">Français</span>
+        <span class="flag-pill">Deutsch</span>
+      </div>
+
+      <!-- Article Header -->
+      <div class="article-header" style="margin-bottom: 12px;">
+        <h1 class="article-title" style="margin-bottom: 2px;">Talk:Main Page</h1>
+        <div style="font-size: 11px; color: var(--wiki-text-muted); font-style: italic; margin-bottom: 14px;">From Lab Developer Community</div>
+      </div>
+
+      <!-- Talk Header Banners -->
+      <div class="talk-header-banner">
+        <strong>This is the talk page for discussing improvements to the <a href="index.html">Main Page</a>.</strong><br>
+        This is not a forum for general discussion of the topic. If your edit has nothing to do with talking about the main page, please look at the talk page again and find what you're looking for.
+      </div>
+
+      <div class="talk-notice-box">
+        This page is for discussing the <strong><a href="index.html" style="color: inherit; text-decoration: underline;">Lab Developer Community</a>'s <a href="index.html" style="color: inherit; text-decoration: underline;">Main Page</a></strong>. For discussion on VDC in general, see the <a href="project-hub.html" style="color: inherit; text-decoration: underline;">Main discussion page</a>. For questions about developing, please visit the <a href="building.html" style="color: inherit; text-decoration: underline;">New Help Desk</a>! <strong>This page is not for support questions!</strong>
+      </div>
+
+      <!-- Archives Box (Floating Right) -->
+      <div class="talk-archive-box">
+        <div class="talk-archive-title">Archives</div>
+        <ul class="talk-archive-list">
+          <li><a href="#arch-1">19:28, 28 Nov 2005 (PST)</a></li>
+          <li><a href="#arch-2">13:46, 10 Apr 2006 (PDT)</a></li>
+          <li><a href="#arch-3">22:23, 15 February 2009 (PDT)</a></li>
+          <li><a href="#arch-4">11:08, 11 May 2011</a></li>
+          <li><a href="#arch-5">00:29, 12 May, 2023</a></li>
+        </ul>
+      </div>
+
+      <p style="max-width: 65%; margin: 1em 0; line-height: 1.55; color: var(--wiki-text-secondary);">
+        Welcome to the discussion page for the <a href="index.html">Main Page</a>! To start a new section, click on the <a href="#new-topic"><strong>+</strong> (Add topic)</a> tab above. To respond in an existing section, click on the <code>[edit]</code> link to the right of the section title. Please don't forget to sign your comments, using either three tildes (<code>~~~</code>) for your name, or four tildes (<code>~~~~</code>) for your name and a timestamp.<br>
+        or (<strong>Recommended</strong>) you can click on the <a href="#new-topic" class="vdc-sdk-btn" style="display:inline-flex; padding:2px 10px; margin:0 4px;">+ Add Topic</a> button below, or click <code>[reply]</code> next to any section title to respond directly—your comments will be signed automatically.
+      </p>
+
+      <div style="clear: right;"></div>
+
+      <!-- ================================================================
+           MEDIAWIKI TABLE OF CONTENTS (TOC)
+           ================================================================ -->
+      <div class="toc" role="navigation" aria-labelledby="toctitle" style="margin: 16px 0 24px 0;">
+        <div class="toctitle" lang="en" dir="ltr">
+          <span id="toctitle">Contents</span>
+        </div>
+        <ul class="toc-list">
+          <li><a href="#Thank_you_Valve!"><span class="tocnumber">1</span> <span class="toctext">Thank you Valve!</span></a></li>
+          <li><a href="#Update_to_the_site!"><span class="tocnumber">2</span> <span class="toctext">Update to the site!</span></a></li>
+          <li><a href="#I_think_the_new_design_looks_good"><span class="tocnumber">3</span> <span class="toctext">I think the new design looks good.</span></a></li>
+          <li><a href="#Going_about_tidying_up_the_Main_Page"><span class="tocnumber">4</span> <span class="toctext">Going about tidying up the Main Page</span></a></li>
+          <li><a href="#Autoconfirmed_protection"><span class="tocnumber">5</span> <span class="toctext">Autoconfirmed protection</span></a></li>
+          <li><a href="#Avoiding_clutter_on_the_main_page"><span class="tocnumber">6</span> <span class="toctext">Avoiding clutter on the main page</span></a></li>
+          <li><a href="#Text_on_the_main_page"><span class="tocnumber">7</span> <span class="toctext">Text on the main page</span></a></li>
+          <li>
+            <a href="#Address_to_editors_about_paragraphs"><span class="tocnumber">8</span> <span class="toctext">Address to editors about paragraphs</span></a>
+            <ul style="list-style:none; padding-left:14px;">
+              <li><a href="#Lets_look_at_the_problem"><span class="tocnumber">8.1</span> <span class="toctext">Let's look at the problem</span></a></li>
+              <li><a href="#Lets_fix_this"><span class="tocnumber">8.2</span> <span class="toctext">Let's fix this</span></a></li>
+            </ul>
+          </li>
+          <li><a href="#Address_to_editors_about_tabulation"><span class="tocnumber">9</span> <span class="toctext">Address to editors about tabulation</span></a></li>
+          <li><a href="#Changes_to_New_to_the_wiki_section"><span class="tocnumber">10</span> <span class="toctext">Changes to "New to the wiki?" section</span></a></li>
+          <li><a href="#Main_Page_rework"><span class="tocnumber">11</span> <span class="toctext">Main Page rework?</span></a></li>
+          <li><a href="#Language_pages"><span class="tocnumber">12</span> <span class="toctext">Language pages</span></a></li>
+          <li>
+            <a href="#CSS_suggestions"><span class="tocnumber">13</span> <span class="toctext">CSS suggestions</span></a>
+            <ul style="list-style:none; padding-left:14px;">
+              <li><a href="#Fix_the_top_action_buttons"><span class="tocnumber">13.1</span> <span class="toctext">Fix the top action buttons</span></a></li>
+              <li><a href="#Adding_dark_pre_tag"><span class="tocnumber">13.2</span> <span class="toctext">Adding dark pre tag</span></a></li>
+              <li><a href="#Change_color_of_the_dark_blue_text"><span class="tocnumber">13.3</span> <span class="toctext">Change color of the dark blue text on dark background</span></a></li>
+              <li><a href="#Tables"><span class="tocnumber">13.4</span> <span class="toctext">Tables</span></a></li>
+            </ul>
+          </li>
+          <li><a href="#What_do_you_think"><span class="tocnumber">14</span> <span class="toctext">What do you think?</span></a></li>
+        </ul>
+      </div>
+
+      <!-- ================================================================
+           DISCUSSION THREADS (MEDIAWIKI FORMAT)
+           ================================================================ -->
+      <div class="talk-body">
+
+        <!-- Thread 1 -->
+        <h2>
+          <span class="mw-headline" id="Thank_you_Valve!">Thank you Valve!</span>
+          <span class="mw-editsection">[<a href="#editor-section">edit</a>]</span>
+        </h2>
+        <p>
+          For the first time in years, Valve came back! We can now edit the Main Page again. Thanks Valve. Now, please update the wiki so that it doesnt run on a horribly outdated mediawiki pls 
+          <a href="#editor-section" class="mw-userlink">Equalizer5118</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 4:04, 7 Jun 2023 (UTC)
+        </p>
+
+        <!-- Thread 2 -->
+        <h2>
+          <span class="mw-headline" id="Update_to_the_site!">Update to the site!</span>
+          <span class="mw-editsection">[<a href="#editor-section">edit</a>]</span>
+        </h2>
+        <p>
+          This site is updated from 1.31.10 to 1.39.7! (and other softwares), there is also a new tag <code>&lt;langconvert&gt;</code>. &mdash;<a href="#editor-section" class="mw-userlink">N0one</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 07:39, 28 November 2024 (PST)
+        </p>
+
+        <!-- Thread 3 -->
+        <h2>
+          <span class="mw-headline" id="I_think_the_new_design_looks_good">I think the new design looks good.</span>
+          <span class="mw-editsection">[<a href="#editor-section">edit</a>]</span>
+        </h2>
+        <p>
+          Maybe make the VDC Navbox template make it look like the main page, or maybe make a new one and keep the old one? Because i think the navbox maybe should be here 
+          <a href="#editor-section" class="mw-userlink">Mr. SystemError</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 8:45, 30 Apr 2024 (UTC)
+        </p>
+        <dl>
+          <dd>
+            Wow guys, the new front page looks great!, If you can make sure its been changed properly to your native languag 
+            <a href="#editor-section" class="mw-userlink">Seal Enthusiast</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 19:31, 3 May 2024 (UTC)
+            <dl>
+              <dd>
+                Took me 10 minutes to figure out how to make the rest of the main page fit with the Valve-Tech template, since i found the right colors, I went with it. I also made the colored boxes buttons.<br>
+                Also i ported other lang to /strings subpage and transcluded from English page, except on Hebrew which uses its own page (flipped the grid design and made the text to be read right to left) 
+                <a href="#editor-section" class="mw-userlink">N0one</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 20:53, 3 May 2024 (UTC)
+              </dd>
+            </dl>
+          </dd>
+        </dl>
+
+        <!-- Thread 4 -->
+        <h2>
+          <span class="mw-headline" id="Going_about_tidying_up_the_Main_Page">Going about tidying up the Main Page</span>
+          <span class="mw-editsection">[<a href="#editor-section">edit</a>]</span>
+        </h2>
+        <p>So I composed a version of the main page in my sandbox, <a href="#">here</a>.</p>
+        <p>I've changed certain element proportions, I moved the article count underneath the title (and got rid of other stats - the text on the page explains why). There's room for expansion underneath Source 2 section, for future games. I've replaced string lookups with simple text right in the page (with the exception of the navbox, as it's a template and I'd rather include it as template than replicate it).</p>
+        <p>Basically, it is tidier, more economical, easier to maintain.</p>
+        <p>The question is, how to go about using it?</p>
+        <p>I can replace the Main Page's code with it. The biggest con is it'll lose all the languages, as there don't exist translated versions of the Main <em>Page</em>, per se (the translations that currently exist aren't done that way, so they wouldn't show up as flags). They'll be lost until translated versions are reestablished. Which used to be the old way of doing it.</p>
+        <p>I can replace the Multipage's /en version with it. It'll be less intrusive, but some elements are declared on Multipage's base page, like copyright and legal section, they'll remain as string lookups, which I ideally didn't want. It'll also not change appearance to anyone using non-eng version.</p>
+        <p>I won't pretend I have the best solution, but I thought if anything I should start discussing this, here, now.</p>
+        <p><a href="#editor-section" class="mw-userlink">Cvoxalury</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 11:39, 19 June 2024 (PDT)</p>
+        <dl>
+          <dd>
+            This one's a bit of a weird one, because with the main page being a bit of a mess of inline CSS it's a tad harder to pick things out. Perhaps more common things could be put as classes in common.css to reduce overall noise for styled pages, but that has the downside of needing staff action each time something should be tweaked, as well as being yet another page to edit (which we're trying to avoid, but I think it's more justifiable than the other stuff in this case). &mdash;<a href="#editor-section" class="mw-userlink">DarkOK</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 17:37, 19 June 2024 (PDT)
+            <dl>
+              <dd>
+                Right, but I think in the meantime, the main page can still be edited to be less, well, messy, as it currently houses more elements than it needs. I don't want to impose my version without asking (and listening), however. <a href="#editor-section" class="mw-userlink">Cvoxalury</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 10:02, 20 June 2024 (PDT)
+                <dl>
+                  <dd>
+                    I took the leap of faith and tidied up the page. I did a soft version of what I proposed, not replacing strings with text and such (so it should be as adaptable as it was, just shorter now). If I really did wrong by users by doing that, revert it. <a href="#editor-section" class="mw-userlink">Cvoxalury</a> (<a href="#editor-section" class="mw-usertalk">talk</a>)
+                  </dd>
+                </dl>
+              </dd>
+            </dl>
+          </dd>
+        </dl>
+
+        <!-- Thread 5 -->
+        <h2>
+          <span class="mw-headline" id="Autoconfirmed_protection">Autoconfirmed protection</span>
+          <span class="mw-editsection">[<a href="#editor-section">edit</a>]</span>
+        </h2>
+        <p>I can't check for myself; can autoconfirmed people here still edit the Main Page? I'm not sure if autoconfirmed protection functions properly here. <a href="#editor-section" class="mw-userlink">PabloS</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 16:57, 19 June 2024 (PDT)</p>
+        <dl>
+          <dd>I was able to edit the main page <a href="#editor-section" class="mw-userlink">Darnias</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 17:22, 19 June 2024 (PDT)</dd>
+          <dd>Yes, i'm autoconfirmed and i can edit the Main Page and semi-protected pages. &mdash;<a href="#editor-section" class="mw-userlink">N0one</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 01:11, 20 June 2024 (PDT)</dd>
+          <dd>Yep, works for me! &mdash;<a href="#editor-section" class="mw-userlink">Seal Enthusiast</a> 07:43, 24 June 2024 (PDT)</dd>
+          <dd>Why shouldn't it be protected so only moderators (and above) can edit it? It and its individual elements (templates it's composed of) could use more elevated protection. <a href="#editor-section" class="mw-userlink">Cvoxalury</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 13:06, 24 June 2024 (PDT)</dd>
+        </dl>
+
+        <!-- Thread 6 -->
+        <h2>
+          <span class="mw-headline" id="Avoiding_clutter_on_the_main_page">Avoiding clutter on the main page</span>
+          <span class="mw-editsection">[<a href="#editor-section">edit</a>]</span>
+        </h2>
+        <p>I implore my fellow editors to not clutter the main page anymore. Sprinkling icon confetti, coloured text (not that someone did; this is saying preemptively) and things like that is purely cosmetic, style that doesn't improve the substance.</p>
+        <p>There's icons for the main branches of the wiki - Goldsrc, Source and Source 2 - its main three 'kingdoms' if you will - that's really enough.</p>
+        <p>We're climbing out of the dark times when it looked <a href="https://pbs.twimg.com/media/GMZ-pJDWwAAh97Z?format=jpg&name=large" target="_blank">this bad</a>, and we're currently at the point where it's pretty optimal. Reasons like 'looks nicer' is what led to looking like that pic in the first place.</p>
+        <p><a href="#editor-section" class="mw-userlink">Cvoxalury</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 08:14, 24 June 2024 (PDT)</p>
+        <dl>
+          <dd>
+            Yeah it's looks pretty clean and good enough, another thing about the icon, the CS2 workshop icon is unofficial anyway (Valve didn't made one like other Source 2 games, so I made them based off HL Alyx Workshop Tools), the only problem that it doesn't seem to look good sometime on smaller resolution (16px), and probably looks bit too similar to HLA, but it works. &mdash;<a href="#editor-section" class="mw-userlink">leonidakarlach</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 04:38, 25 June 2024 (PDT)
+          </dd>
+          <dd>
+            To the user <a href="#editor-section" class="mw-userlink">Seal Enthusiast</a> adding icons to the Source 2 games: they're useless clutter. It's not about bandwidth, it's about what's needed. Icons aren't needed, three of them are almost the same, everyone can read the text right next to them. Don't revert undos, as that becomes edit warring. <a href="#editor-section" class="mw-userlink">Cvoxalury</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 02:35, 3 July 2024 (PDT)
+            <dl>
+              <dd>
+                Why don't you discuss it with others before you undo the change yourself? You are the one starting the war of edits now. At this point, there is nothing stopping you from changing the minds of the majority (and there are at least 2 people who disagree with you, not counting me and others who just don't care), but you just undo even a minor change instead of waiting for a response to your complaint <br>
+                &mdash;<a href="#editor-section" class="mw-userlink">THE OWL</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 03:55, 3 July 2024 (PDT)
+                <dl>
+                  <dd>
+                    Apologies for any issues adding the icons may cause. I was not aware there was a "unspoken rule" of not updating the wiki to a more modern style. Once again sorry for any trouble I may have caused. &mdash;<a href="#editor-section" class="mw-userlink">Seal Enthusiast</a> 05:34, 3 July 2024 (PDT)
+                    <dl>
+                      <dd>
+                        This passive aggression isn't solving anything. I see that <a href="#editor-section" class="mw-userlink">PabloS</a> reverted the removal of the icons, as a final decision in my eyes. Alright. Whatever. Three of them are the same blue square, I still think they're without use, but it's not that essential. <a href="#editor-section" class="mw-userlink">Cvoxalury</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 02:26, 12 July 2024 (PDT)
+                      </dd>
+                    </dl>
+                  </dd>
+                </dl>
+              </dd>
+            </dl>
+          </dd>
+        </dl>
+
+        <!-- Thread 7 -->
+        <h2>
+          <span class="mw-headline" id="Text_on_the_main_page">Text on the main page</span>
+          <span class="mw-editsection">[<a href="#editor-section">edit</a>]</span>
+        </h2>
+        <p>What exactly is the practical reason right now behind keeping text (like the welcome text, or text on the buttons) as string lookups instead of just having it like normal text? It only appears once per every version of the page, and every version has its own text. <a href="#editor-section" class="mw-userlink">Cvoxalury</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 14:12, 13 July 2024 (PDT)</p>
+        <dl>
+          <dd>Added strings as parameters of Template:MainPage which should be less hassle free with ability for quick preview. <a href="#editor-section" class="mw-userlink">Nescius</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 04:02, 15 July 2024 (PDT)</dd>
+        </dl>
+
+        <!-- Thread 8 -->
+        <h2>
+          <span class="mw-headline" id="Address_to_editors_about_paragraphs">Address to editors about paragraphs</span>
+          <span class="mw-editsection">[<a href="#editor-section">edit</a>]</span>
+        </h2>
+        <p>When you create templates, pay attention to the paragraph problem. Seriously, a bunch of new templates break the formatting again, and the place to fix it people just put all the damn text on one line, making everything unreadable.</p>
+
+        <h3>
+          <span class="mw-headline" id="Lets_look_at_the_problem">Let's look at the problem</span>
+          <span class="mw-editsection">[<a href="#editor-section">edit</a>]</span>
+        </h3>
+        <p>I'll use part of the <code>Template:Infobox game</code> code for an example. This template is fixed now.</p>
+        <pre>&lt;includeonly&gt;&lt;onlyinclude&gt;
+{{sidebar
+| header = {{{title|}}}
+}}
+&lt;/onlyinclude&gt;&lt;/includeonly&gt;</pre>
+
+        <p>Consider the example above. We can see that after <code>&lt;includeonly&gt;&lt;onlyinclude&gt;</code> the editor has created a paragraph by moving the template code one line below, and also created a paragraph before the closing HTML tags. What is the consequence of this? When the editor writes code like this:</p>
+        <pre>{{LanguageBar}}
+
+{{Infobox game
+| title = Dota 2
+}}
+
+{{Stub}}</pre>
+
+        <p>The wiki engine will create this:</p>
+        <pre>{{LanguageBar}}
+&lt;p&gt;&lt;/p&gt;
+&lt;p&gt;&lt;/p&gt;
+Final view of the info box
+&lt;p&gt;&lt;/p&gt;
+&lt;p&gt;&lt;/p&gt;
+{{Stub}}</pre>
+
+        <h3>
+          <span class="mw-headline" id="Lets_fix_this">Let's fix this</span>
+          <span class="mw-editsection">[<a href="#editor-section">edit</a>]</span>
+        </h3>
+        <p><strong>Variant 1:</strong></p>
+        <pre>&lt;includeonly&gt;&lt;onlyinclude&gt;{{sidebar
+| header = {{{title|}}}
+}}&lt;/onlyinclude&gt;&lt;/includeonly&gt;</pre>
+
+        <p><strong>Variant 2:</strong></p>
+        <pre>&lt;includeonly&gt;
+Tip: You can write anything you want here, it won't be included in any page as &lt;includeonly&gt; hides everything.
+&lt;onlyinclude&gt;{{sidebar
+| header = {{{title|}}}
+}}&lt;/onlyinclude&gt;
+&lt;/includeonly&gt;</pre>
+
+        <p>To fix the problem, I just removed the extra paragraph after <code>&lt;onlyinclude&gt;</code> and before the HTML tag that closes it. As a result, the wiki engine simply doesn't create unnecessary <code>&lt;p&gt;&lt;/p&gt;</code>, which only makes life better for ordinary users and editors.</p>
+        <p>&mdash;<a href="#editor-section" class="mw-userlink">THE OWL</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 23:26, 13 July 2024 (PDT)</p>
+
+        <dl>
+          <dd>
+            Can you take a screenshot of what the 'broken' and the 'fixed' Infobox game looked like, side by side? Not its code, but side-by-side comparison of how the end result looked on pages. When I switch between versions before and after your edit, I literally can't see a difference, trying it in Firefox, Chrome or Brave. <a href="#editor-section" class="mw-userlink">Cvoxalury</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 01:08, 14 July 2024 (PDT)
+            <dl>
+              <dd>
+                I've attached the image below. You can check it yourself. To do this, save the old code Template:Infobox game and after that purge Dota 2.<br>
+                <em>[File: Example of a paragraph problem.jpg - 512px]</em><br>
+                &mdash;<a href="#editor-section" class="mw-userlink">THE OWL</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 01:44, 14 July 2024 (PDT)
+                <dl>
+                  <dd>
+                    Yes, I see it happen on the Dota 2 page, but I don't see the same happening on Half-Life's page. Well, the Dota 2 page also has the stub template. And it has not just newlines, but empty lines between its tags. Does that have anything to do with it? <a href="#editor-section" class="mw-userlink">Cvoxalury</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 01:48, 14 July 2024 (PDT)
+                    <dl>
+                      <dd>
+                        On the Half-Life page, this problem was not visible because the article elements were spaced too tightly together. As soon as I updated the article code, the extra paragraphs appeared.<br>
+                        &mdash;<a href="#editor-section" class="mw-userlink">THE OWL</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 01:59, 14 July 2024 (PDT)
+                        <dl>
+                          <dd>
+                            I'm still not seeing any difference between the tab I had open since yesterday and didn't update... Mediawiki treats single line breaks as a single line, it ignores the break and it just becomes one line. Does the same not happen with the code? <a href="#editor-section" class="mw-userlink">Cvoxalury</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 02:23, 14 July 2024 (PDT)
+                            <dl>
+                              <dd>
+                                The second variant creates an additional line break in the saved article, because the wiki engine counts a template line break in an article as two line breaks due to the position of the template code under &lt;onlyinclude&gt;. This is what can create extra paragraphs.<br>
+                                &mdash;<a href="#editor-section" class="mw-userlink">THE OWL</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 00:49, 17 July 2024 (PDT)
+                              </dd>
+                            </dl>
+                          </dd>
+                        </dl>
+                      </dd>
+                    </dl>
+                  </dd>
+                </dl>
+              </dd>
+            </dl>
+          </dd>
+        </dl>
+
+        <!-- Thread 9 -->
+        <h2>
+          <span class="mw-headline" id="Address_to_editors_about_tabulation">Address to editors about tabulation</span>
+          <span class="mw-editsection">[<a href="#editor-section">edit</a>]</span>
+        </h2>
+        <p>When you are trying to make your page or template code more readable by creating indents to the left for lines of code, don't use regular spaces, long spaces and other. You make the code very messy and overload the pages with increased character counts. Tabulation has been around for centuries, so please use it in combination with regular spaces, long spaces and other only when necessary.</p>
+        <p>An example of terrible code (note the space between the parameters and =):</p>
+        <pre>{{Infobox game
+| title         = Dota 2
+| image         = Software Cover - Dota 2.jpg
+| developer     = [[Valve Corporation]]
+| publisher     = Valve Corporation
+}}</pre>
+
+        <p>An example of good code (It looks the same in the source code wiki editor, but there are fewer characters):</p>
+        <pre>{{Infobox game
+| title		= Dota 2
+| image		= Software Cover - Dota 2.jpg
+| developer	= [[Valve Corporation]]
+| publisher	= Valve Corporation
+}}</pre>
+        <p>The source code wiki editor does not support tabulation, but you can simply go to Windows Notepad (or any other text editor), press Tab, copy the character, and paste it onto the page as many times as you want. Also, you can use third-party browser add-ons like VDCEditor.</p>
+        <p>&mdash;<a href="#editor-section" class="mw-userlink">THE OWL</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 23:45, 13 July 2024 (PDT)</p>
+
+        <!-- Thread 10 -->
+        <h2>
+          <span class="mw-headline" id="Changes_to_New_to_the_wiki_section">Changes to "New to the wiki?" section</span>
+          <span class="mw-editsection">[<a href="#editor-section">edit</a>]</span>
+        </h2>
+        <p>Recently I've been working on modernizing the Community Portal as part of an effort to centralize aspects of the community. For the final step, I've been hoping to edit the "New to the wiki?" section on the main page to link to the Community Portal. I created a mockup which adds two new buttons which you can see in my sandbox, in the bottom right corner of the page.</p>
+        <p>While I've been proactive with my other changes, I'm reluctant to change the Main Page due to the continuing activity and debate surrounding it, as well as the fact my changes would require new translations. I might go ahead and do this if I don't get a response here, but does anyone have any specific input on these changes, or any requests for me to hold off on them? &mdash;<a href="#editor-section" class="mw-userlink">Blixibon</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 11:36, 16 July 2024 (PDT)</p>
+        <dl>
+          <dd>
+            I think it looks fine and the portal itself does too (WIP notwithstanding). It is going to offset things a tiny bit because it's slightly taller, but if Valve releases Deadlock (<em>probably</em> will), it's going to make S2 plaque taller so that'll even that out. (Deadlock links are already in it but hidden). I kind of fell out of loop with the most recent changes to the MainPage template that had to do with strings/text parameters, though. I assume it needs to be patched through that now. <a href="#editor-section" class="mw-userlink">Nescius</a>, <a href="#editor-section" class="mw-userlink">N0one</a>, <a href="#editor-section" class="mw-userlink">SirYodaJedi</a>, thoughts? <a href="#editor-section" class="mw-userlink">Cvoxalury</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 04:14, 17 July 2024 (PDT)
+            <dl>
+              <dd>
+                My only objection would be that in the second mockup there are the links twice. First in the text and second in the form of a button and both link to same page but I don’t hold too strong opinion about this so don’t feel too obliged to address this. As for the MainPage template the way the template works now is you can provide the text as parameter and if you don’t it defaults to the strings in strings subpage. <a href="#editor-section" class="mw-userlink">Nescius</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 05:22, 17 July 2024 (PDT)
+              </dd>
+              <dd>
+                For me, the 2 links to the same page isn't ideal, the text could go <em>see Wiki contents</em> and <em>see Community Portal</em>, but not holding any opinions about it. For the MainPage, its identical to what Nescius said. But overall its fine for me. <a href="#editor-section" class="mw-userlink">N0one</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 09:28, 17 July 2024 (PDT)
+              </dd>
+            </dl>
+          </dd>
+        </dl>
+
+        <!-- Thread 11 -->
+        <h2>
+          <span class="mw-headline" id="Main_Page_rework">Main Page rework?</span>
+          <span class="mw-editsection">[<a href="#editor-section">edit</a>]</span>
+        </h2>
+        <p>Considering reworking Main Page to use the multi page style format i.e. based on interface language and transcluding translated main pages to the 1 true Main Page. The reason is that only 1 true main page exist where the tab next to the discussion says "Main Page" and the page display title is automatically removed along with that horizontal bar. Also another thing that would be good to do is recreating any templates used on the main page as subpages of Template:MainPage uniquely used on main page so that any missteps in editing templates won't be reflected on the main page and to avoid any extra checks related to how the language is handled. <a href="#editor-section" class="mw-userlink">Nescius</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 15:16, 20 July 2024 (PDT)</p>
+        <dl>
+          <dd>
+            Isn't that what we removed so that it's not such a mess to edit and to revert someone's bad edits... "so that any missteps in editing templates won't be reflected on the main page" - wait, how would that not make them reflect on the main page? I'd also like to address, since we're here, the many languages it has that are, for lack of a better term, "fake". Not as in the languages are fake. But half of them only have just 2-3 pages. There's no apparent demand for them yet they're included there as if there's more content for them, but there isn't. <a href="#editor-section" class="mw-userlink">Cvoxalury</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 15:44, 20 July 2024 (PDT)
+            <dl>
+              <dd>
+                The point is that there is only 1 Main Page. It has title removed along with the horizontal bar below the title and the tab next to discussion says "Main Page". Translated main pages aren't really main pages and no clue if that horizontal bar can even be removed there. What I mean about the templates is that all templates used on main page would be defined as Template:MainPage subpages and not used anywhere else on the site. For example <code>Template:hl2</code> would be separated as <code>Template:MainPage/hl2</code> and used exclusively on the Main Page and so any edits to the <code>Template:hl2</code> would therefore not in any way affect the Main Page. <a href="#editor-section" class="mw-userlink">Nescius</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 18:17, 20 July 2024 (PDT)
+                <dl>
+                  <dd>
+                    I see, I didn't understand the templates subpages part as I read it that changes to <em>those</em> templates would somehow not affect it. I see now what you meant. But if that's to be done, can it also be alleviated of some of these templates? "Half-Life 2" for example can't look different in any translated versions so it can just be text. <a href="#editor-section" class="mw-userlink">Cvoxalury</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 01:40, 21 July 2024 (PDT)
+                    <dl>
+                      <dd>
+                        In case of Half-Life 2 it would still remain a template that automatically makes the link based on language (ex. linking 'Ru/Half-Life 2' when Russian is chosen) but completely stripped of any unnecessary stuff that regular hl2 template has and is not used on the main page. <a href="#editor-section" class="mw-userlink">Nescius</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 09:21, 21 July 2024 (PDT)
+                        <dl>
+                          <dd>
+                            Ah damn I forgot about linking to languages. Yes, moot point in my post, then. About the translations - alright, it's your call. <a href="#editor-section" class="mw-userlink">Cvoxalury</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 02:27, 22 July 2024 (PDT)
+                          </dd>
+                        </dl>
+                      </dd>
+                    </dl>
+                  </dd>
+                </dl>
+              </dd>
+            </dl>
+          </dd>
+        </dl>
+
+        <!-- Thread 12 -->
+        <h2>
+          <span class="mw-headline" id="Language_pages">Language pages</span>
+          <span class="mw-editsection">[<a href="#editor-section">edit</a>]</span>
+        </h2>
+        <p>I feel like it would make more sense for language pages to be how they were previously (e.g. <code>Main Page/fr</code> instead of <code>Fr/Main Page</code>) since it's a bit odd to have every page as a subpage of one—just a thought. <a href="#editor-section" class="mw-userlink">PabloS</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 01:21, 26 July 2024 (PDT)</p>
+        <dl>
+          <dd>
+            There are several issues with suffixes for example let's say we are on page info_target. <code>{{SUBPAGENAME}}</code> gives us info_target but on info_target/ru it will just give us ru on every translated page which is not very useful. Clicking on backlinks on pages like <code>page1/subpage2/subpage3/ru</code> would always lead us to an english page while as <code>ru/subpage1/subpage2/subpage3</code> each backlink properly goes to ru/ pages. <a href="#editor-section" class="mw-userlink">Nescius</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 05:25, 26 July 2024 (PDT)
+            <dl>
+              <dd>
+                I want to add that the previous way of having language pages as suffixes was a nightmare for editing (and I'm sure others can vouch the same) and looking back on page history, and it also broke searches so I'm very happy its gone &mdash;<a href="#editor-section" class="mw-userlink">Ficool2</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 06:13, 26 July 2024 (PDT)
+                <dl>
+                  <dd>
+                    To add to this here are optimizations results that were possible or simpler because of prefixes. Using page CBaseAnimating as an example it took ~11s to render that page based on what 'show preview' shows at the bottom of the page. After moving to prefixes and editing uselang and other notices related optimizations it got to around ~6s. Further editing resulted in current ~1.3s. &mdash;<a href="#editor-section" class="mw-userlink">Nescius</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 09:47, 1 August 2024 (PDT)
+                  </dd>
+                </dl>
+              </dd>
+            </dl>
+          </dd>
+        </dl>
+
+        <!-- Thread 13 -->
+        <h2>
+          <span class="mw-headline" id="CSS_suggestions">CSS suggestions</span>
+          <span class="mw-editsection">[<a href="#editor-section">edit</a>]</span>
+        </h2>
+        <p>I'm doing a lot of stylesheet changes (most of which is trying to fix icons). Feel free to recommend stuff you have problems with or that I need to fix. <a href="#editor-section" class="mw-userlink">PabloS</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 17:11, 4 November 2024 (PST)</p>
+
+        <h3>
+          <span class="mw-headline" id="Fix_the_top_action_buttons">Fix the top action buttons</span>
+          <span class="mw-editsection">[<a href="#editor-section">edit</a>]</span>
+        </h3>
+        <p>Right now I only have a suggestion for changing the top action buttons. They should be turned into a gradient with a fully transparent top.</p>
+        <p><strong>Example:</strong></p>
+        <p>
+          <span style="background-image:linear-gradient(0deg, rgb(28 28 28), transparent); border:1px solid; border-top:0; border-image:linear-gradient(transparent, rgb(82 82 82)) 1; padding:.3em .6em; display:inline-block;">Hello, World!</span>
+        </p>
+        <p><strong>Code:</strong></p>
+        <pre>&lt;span style="background-image:linear-gradient(0deg, rgb(28 28 28), transparent); border:1px solid; border-top:0; border-image:linear-gradient(transparent, rgb(82 82 82)) 1; padding:.3em .6em;"&gt;Hello, World!&lt;/span&gt;</pre>
+        <p><a href="#editor-section" class="mw-userlink">THE OWL</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 02:03, 5 November 2024 (PST)</p>
+
+        <h3>
+          <span class="mw-headline" id="Adding_dark_pre_tag">Adding dark pre tag</span>
+          <span class="mw-editsection">[<a href="#editor-section">edit</a>]</span>
+        </h3>
+        <p>I was thinking, should pre tag be darker? Since there are lots of the pre tags on articles, tutorial pages, etc., which is just white and the current one doesn't fit with the VDC theme.</p>
+        <pre>/* Making the &lt;pre&gt; tag style fit with the VDC style */
+pre, .mw-code {
+    color: #d1d1d1;
+    background-color: #1f1f1f;
+    border-left: 6px solid #2f2f2f !important;
+    border: 6px solid #1c1c1c;
+}
+
+/* Some text are darker when its inside the &lt;pre&gt; tag */
+.mw-highlight .mi, 
+.mw-highlight .mf,
+.mw-highlight .mh,
+.mw-highlight .o {
+    color: #b5b5b5;
+}
+
+/* Transparency fix when the TOC minimizes the block */
+.mw-highlight {
+    background-color: #00000000 !important;
+}
+
+/* Making the red brighter */
+.mw-highlight .kt {
+    color: #ff1f71;
+}
+
+/* Making the blue brighter */
+.mw-highlight .nc,
+.mw-highlight .nn,
+.mw-highlight .nf {
+    color: #0082ff;
+}
+
+/* IMPORTANT! this makes the highlighting text readable inside the &lt;pre&gt; block */
+.mw-highlight .hll {
+    background-color: #41410e !important;
+}
+
+/* Made the red color brighter to be readable when theres highlighting */
+.mw-highlight .s2 {
+    color: #ff3535;
+}</pre>
+
+        <div style="font-family: monospace, sans-serif; padding: 1em; color: #d1d1d1; background-color: #1f1f1f; border-left: 6px solid #2f2f2f; border: 1px solid #1c1c1c; margin: 12px 0;">
+          <div>Example text</div>
+          li.<span style="color:#0082ff">selected</span><br>
+          .<span style="color:#0082ff">mw-something</span> {<br>&nbsp;&nbsp;color: #ff1f71;<br>&nbsp;&nbsp;height: 1<span style="color:#ff1f71">px</span>;<br>}<br>
+          <div style="background-color: #41410e; padding: 2px 4px; margin-top: 4px;">test highlight with <span style="color: #ff3535;">"red"</span> color</div>
+        </div>
+        <p><a href="#editor-section" class="mw-userlink">N0one</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 14:19, 5 November 2024 (PST)</p>
+
+        <h3>
+          <span class="mw-headline" id="Change_color_of_the_dark_blue_text">Change color of the dark blue text on dark background</span>
+          <span class="mw-editsection">[<a href="#editor-section">edit</a>]</span>
+        </h3>
+        <pre>%Whoever decided to make the dark blue text on dark background did not think this through at all.%
+%It would be nice if we could Change the colors back to something we can actually read without having to highlight all the text% %Thank you.%</pre>
+        <p>&mdash;<a href="#editor-section" class="mw-userlink">MrFunreal</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 08:48, 25 November 2024 (PST)</p>
+        <dl>
+          <dd>
+            This should fix it:
+            <pre>.mw-highlight .nv {
+    color: #4e4cd0;
+}</pre>
+            <div style="font-family: monospace, sans-serif; padding: 1em; color: #4e4cd0; background-color: #1f1f1f; border-radius: 2px; margin: 10px 0; border: 1px solid #363c46;">
+              %Whoever decided to make the dark blue text on dark background did not think this through at all.%<br>
+              %It would be nice if we could Change the colors back to something we can actually read without having to highlight all the text% %Thank you.%
+            </div>
+            &mdash;<a href="#editor-section" class="mw-userlink">N0one</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 12:46, 25 November 2024 (PST)
+            <dl>
+              <dd>
+                Seems to have been fixed with the recent maintenance.<br>
+                &mdash;<a href="#editor-section" class="mw-userlink">SirYodaJedi</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 09:16, 28 November 2024 (PST)
+                <dl>
+                  <dd>
+                    Thank you kindly. This is way nicer to look at. &mdash;<a href="#editor-section" class="mw-userlink">MrFunreal</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 11:25, 29 November 2024 (PST)
+                  </dd>
+                </dl>
+              </dd>
+            </dl>
+          </dd>
+        </dl>
+
+        <h3>
+          <span class="mw-headline" id="Tables">Tables</span>
+          <span class="mw-editsection">[<a href="#editor-section">edit</a>]</span>
+        </h3>
+        <p>The current state of the table classes <em>none</em>, <code>wikitable</code> and <code>standard-table</code> can be observed at Help:Editing Toolbar#Table.<br>
+        Seeing that I'd like to propose (only as quick-fix):</p>
+        <pre>.wikitable {
+  background-color: inherit;
+  color: inherit;
+}</pre>
+        <p>I was trying a transparent dark color for {{T|Yes}} etc. Currently, <code>class=wikitable</code> has a white background as base and a black caption text. When inspecting the CSS in my browser, I encountered conflicting definitions for <code>wikitable</code> intended for both light and dark mode. I guess many of them can be removed, which would make the quick and dirty fix above redundant.<br>
+        &mdash;<a href="#editor-section" class="mw-userlink">popcorn</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 21:17, 3 December 2024 (PST)</p>
+
+        <!-- Thread 14 -->
+        <h2>
+          <span class="mw-headline" id="What_do_you_think">What do you think?</span>
+          <span class="mw-editsection">[<a href="#editor-section">edit</a>]</span>
+        </h2>
+        <p>See <strong>Main Page (Revised)</strong> in my sandbox.</p>
+        <p>The work isn't quite finished yet, but it's unlikely that anything major will change here without feedback.</p>
+        <p>I removed some unnecessary text, duplicate links, and so on. The Valve Technologies template was also removed from the page, as it is mostly just a huge button that links to a specific page.</p>
+        <p>&mdash;<a href="#editor-section" class="mw-userlink">THE OWL</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 04:46, 13 June 2026 (PDT)</p>
+        <dl>
+          <dd>
+            For the Valve Technology template, it originally existed in order to promote the Source engine and Steam, and convinces third-party AAA or Indie devs to license &amp; use Source (basically promoting the engine) or publish their title running GoldSrc or Source on Steam. As of today, for the Steam distribution thing, pretty much any devs can do it with games on any engine, except GoldSrc, Source, which sometime can be tricky, and for the Source engine, pretty much nobody uses it nowadays aside from small Indie devs or mod teams, and rarely AAA companies like Respawn Entertainment (Titanfall &amp; Apex Legends), which they then heavily modified and rebuilt most of the engine... Anyway, for the redesign vs current Main Page, they both looked fine for now.<br>
+            &mdash;<a href="#editor-section" class="mw-userlink">leonidakarlach</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 06:10, 29 June 2026 (PDT)
+          </dd>
+          <dd>
+            I don't mind it, but I know people were very vocal last time someone tried to change the main page's layout, which is why any edits have been very conservative (ex: adding hlsdk).<br>
+            &mdash;<a href="#editor-section" class="mw-userlink">SirYodaJedi</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 10:37, 15 July 2026 (PDT)
+          </dd>
+          <dd>
+            For now I don't think it looks done, I do like the style of it. The cards on the left (Engine, Workshop Tools, Software-specific) do look good, just that I don't think it fits in right. Also i see lot of empty spaces.<br>
+            &mdash;<a href="#editor-section" class="mw-userlink">N0one</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) 12:25, 15 July 2026 (PDT)
+          </dd>
+        </dl>
+
+        <!-- Nested Box -->
+        <div class="talk-reply-box">
+          <div class="talk-reply-header">Replies from: User talk:THE OWL/Sandbox/Pages/Main Page Revised</div>
+          <div class="talk-reply-content">
+            <em>[No active external subpage transclusions found. Thread archived.]</em>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Navbox Matrix Footer -->
+      
+        
+      <hr style="border:none; border-top:1px solid #363c46; margin:24px 0 16px 0;">
+      <section id="new-topic" class="wiki-section">
+        <h2 id="editor-section"><span class="mw-headline">Start a New Discussion Topic (Add topic)</span></h2>
+        <p style="font-size:12px; color:#b5c0ce; margin-bottom:10px;">
+          Use the form below to post a new discussion section on <strong>Talk:Main Page</strong>, or click <code>[reply]</code> next to any existing section heading above to respond inline. Wikitext formatting (<code>'''bold'''</code>, <code>''italic''</code>, <code>[[page.html|Link]]</code>, <code>&lt;code&gt;</code>, <code>&lt;pre&gt;</code>) and automatic four-tilde signatures (<code>~~~~</code>) are supported.
+        </p>
+
+        <form id="talk-new-topic-form" class="mw-talk-editor" autocomplete="off">
+          <div class="mw-editor-row">
+            <div class="mw-editor-field" style="flex:2;">
+              <label for="talk-new-subject">Subject / headline:</label>
+              <input type="text" id="talk-new-subject" class="mw-input" placeholder="Enter section title (e.g. Feedback on LabRender.dll DSA documentation)" required>
+            </div>
+            <div class="mw-editor-field" style="flex:1; max-width:260px;">
+              <label for="talk-new-author">Username / Signature:</label>
+              <input type="text" id="talk-new-author" class="mw-input" value="YoungJasiek" placeholder="Your username">
+            </div>
+          </div>
+
+          <div class="mw-edit-toolbar" role="toolbar" aria-label="Wikitext formatting toolbar">
+            <button type="button" class="mw-tool-btn" data-act="bold" title="Bold text ('''text''')">B</button>
+            <button type="button" class="mw-tool-btn" data-act="italic" title="Italic text (''text'')"><em>I</em></button>
+            <button type="button" class="mw-tool-btn" data-act="link" title="Internal Wiki Link ([[page.html|Label]])">[[Link]]</button>
+            <button type="button" class="mw-tool-btn" data-act="code" title="Inline code (&lt;code&gt;)">&lt;code&gt;</button>
+            <button type="button" class="mw-tool-btn" data-act="pre" title="Preformatted code block (&lt;pre&gt;)">&lt;pre&gt;</button>
+            <button type="button" class="mw-tool-btn" data-act="sig" title="Insert signature with timestamp (--~~~~)">--~~~~</button>
+          </div>
+
+          <textarea id="talk-new-body" class="mw-textarea" rows="6" placeholder="Type your message here... (If you omit ~~~~, your signature and UTC timestamp will be appended automatically.)" required></textarea>
+
+          <div id="talk-new-preview-box" class="mw-preview-box">
+            <div class="mw-preview-title">Live Section Preview</div>
+            <div id="talk-new-preview-content"></div>
+          </div>
+
+          <div class="mw-editor-actions">
+            <button type="submit" class="mw-btn-save">Save page (Post Topic)</button>
+            <button type="button" id="btn-talk-preview" class="mw-btn-secondary">Show preview</button>
+            <button type="button" id="btn-talk-reset-local" class="mw-btn-secondary" style="margin-left:auto; font-size:11px; color:#9aa5b4;" title="Remove locally added topics and replies from browser storage">Reset local posts</button>
+          </div>
+        </form>
+
+        <h3 style="margin-top:20px;">Revision &amp; Discussion Archives</h3>
+        <table class="wikitable" style="margin-top:8px;">
+          <thead>
+            <tr>
+              <th>Archive ID</th>
+              <th>Timestamp</th>
+              <th>Summary of Archived Discussion</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr id="arch-1"><td><code>Revision 18078</code></td><td>19:28, 28 Nov 2005 (PST)</td><td>Initial LabWiki Monobook layout &amp; CSG brush documentation setup.</td></tr>
+            <tr id="arch-2"><td><code>Revision 32346</code></td><td>13:46, 10 Apr 2006 (PDT)</td><td>Subsystem DLL boundary proposals (<code>Engine.dll</code>, <code>render.dll</code>).</td></tr>
+            <tr id="arch-3"><td><code>Revision 113697</code></td><td>22:23, 15 Feb 2009 (PDT)</td><td>Dark slate 2007/2009 Developer Community theme standardization.</td></tr>
+            <tr id="arch-4"><td><code>Revision 150005</code></td><td>11:08, 11 May 2011 (UTC)</td><td>Transition to OpenGL 4.5+ Direct State Access (DSA) specifications.</td></tr>
+            <tr id="arch-5"><td><code>Revision 306033</code></td><td>00:29, 12 May 2023 (UTC)</td><td>11-DLL modular split, Frozen-Life alpha milestone, and drop-in Lua 5.4 plugins.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ================================================================
+           MEDIAWIKI NAVBOX MATRIX & CATEGORIES
+           ================================================================ -->
+      <div class="vdc-navbox" role="navigation" aria-label="Lab Developer Community Navigation Box">
+        <div class="vdc-navbox-header">Lab Engine &amp; Frozen-Life Ecosystem</div>
+        <table class="vdc-navbox-table">
+          <tbody>
+            <tr>
+              <th class="vdc-navbox-group">Core Engine</th>
+              <td class="vdc-navbox-subgroup">Subsystems</td>
+              <td class="vdc-navbox-list">
+                <a href="architecture.html">Engine Architecture</a> &bull;
+                <a href="modules.html">11 Modular DLLs</a> &bull;
+                <a href="opengl-dsa.html">OpenGL 4.5+ DSA</a> &bull;
+                <a href="lighting.html">Forward Lighting</a> &bull;
+                <a href="skeletal-animations.html">glTF &amp; FBX Skinning</a> &bull;
+                <a href="audio-synthesizer.html">3D Spatial Audio</a> &bull;
+                <a href="multiplayer.html">UDP Networking</a> &bull;
+                <a href="lua-scripting.html">Lua 5.4 Runtime</a>
+              </td>
+              <td class="vdc-navbox-logo-cell" rowspan="5">
+                <div class="vdc-navbox-lab-stamp">
+                  <span class="stamp-text">LAB</span>
+                  <span class="stamp-sub">ENGINE SDK</span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <th class="vdc-navbox-group">DLL Modules</th>
+              <td class="vdc-navbox-subgroup">Binaries</td>
+              <td class="vdc-navbox-list">
+                <a href="module-core.html">Engine.dll</a> &bull;
+                <a href="module-render.html">render.dll</a> &bull;
+                <a href="module-audio.html">audio.dll</a> &bull;
+                <a href="module-physics.html">physics.dll</a> &bull;
+                <a href="module-animation.html">animation.dll</a> &bull;
+                <a href="module-world.html">world.dll</a> &bull;
+                <a href="module-network.html">network.dll</a> &bull;
+                <a href="module-ai.html">LabAI.dll</a> &bull;
+                <a href="module-script.html">script.dll</a> &bull;
+                <a href="module-studio.html">studio.dll</a> &bull;
+                <a href="module-hud.html">hud.dll</a>
+              </td>
+            </tr>
+            <tr>
+              <th class="vdc-navbox-group">Authoring Tools</th>
+              <td class="vdc-navbox-subgroup">LabSDK Suite</td>
+              <td class="vdc-navbox-list">
+                <a href="project-hub.html">Project Hub</a> &bull;
+                <a href="labeditor.html">LabEditor Suite</a> &bull;
+                <a href="labhammer.html">LabHammer (3D CSG)</a> &bull;
+                <a href="character-studio.html">LabStudio (Poser)</a> &bull;
+                <a href="labhud.html">LabHUD (2D Canvas)</a> &bull;
+                <a href="plugins.html">Package Manager (Plugins)</a>
+              </td>
+            </tr>
+            <tr>
+              <th class="vdc-navbox-group">Showcase Game</th>
+              <td class="vdc-navbox-subgroup">Frozen-Life</td>
+              <td class="vdc-navbox-list">
+                <a href="frozen-life.html">Playable Build (v0.1.0-alpha)</a> &bull;
+                <a href="weapons-viewmodel.html">9-Weapon Arsenal</a> &bull;
+                <a href="bot-ai.html">Combat Bot AI</a> &bull;
+                <a href="frozen-life.html#sec-maps">Official Maps (Cryo &amp; Alpha)</a>
+              </td>
+            </tr>
+            <tr>
+              <th class="vdc-navbox-group">Documentation</th>
+              <td class="vdc-navbox-subgroup">Community</td>
+              <td class="vdc-navbox-list">
+                <a href="index.html">Main Page</a> &bull;
+                <a href="wiki-contents.html">Wiki Contents</a> &bull;
+                <a href="talk.html">Talk:Main Page</a> &bull;
+                <a href="building.html">Building from Source</a> &bull;
+                <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer">GitHub Repository</a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="vdc-navbox-footer">
+          <div class="vdc-navbox-copyright">
+            Lab Developer Community &bull; Official C++20 &amp; OpenGL 4.5+ Technical Documentation.<br>
+            <a href="wiki-contents.html">About Lab Developer Community</a> &bull; <a href="building.html">Source Build Guide</a> &bull; <a href="#content">Back to top</a>
+          </div>
+          <div class="vdc-navbox-powered">
+            <div class="mw-88x31-btn" title="Powered by LabWiki">
+              <span class="mw-btn-top">POWERED BY</span>
+              <span class="mw-btn-bot">LabWiki</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="catlinks" class="catlinks" role="navigation" aria-label="Wiki categories">
+        <span class="catlinks-label">Categories:</span>
+        <ul class="catlinks-list">
+          <li><a href="talk.html">Talk pages</a></li>
+          <li><a href="index.html">Main Page discussion</a></li>
+          <li><a href="project-hub.html">Community Portal</a></li>
+        </ul>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

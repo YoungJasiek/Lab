@@ -21,28 +21,32 @@
   <a href="#content" class="skip-link">Skip to main content</a>
 
   <!-- TOP HEADER -->
+  <!-- ====================================================================
+       1. TOP HEADER (2007/2009 VDC TOOLBAR)
+       ==================================================================== -->
   <header class="vdc-top-header" role="banner">
     <div class="vdc-header-left">
       <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
       <a href="index.html" class="vdc-brand">
-        <img src="assets/img/LabLogo.webp" alt="Lab Engine Logo" class="vdc-logo-img">
+        <span class="vdc-logo-stamp">LAB</span>
         <div class="vdc-brand-text">
-          <span class="vdc-brand-title"><span class="accent">Lab</span> Developer Community</span>
-          <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LABEDITOR</span>
+          <span class="vdc-brand-title">Developer Community</span>
+          <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LABHAMMER</span>
         </div>
       </a>
     </div>
 
     <div class="vdc-search-bar" role="search">
-      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search documentation..." aria-label="Search wiki documentation">
-      <span class="vdc-search-icon" aria-hidden="true">&#128269;</span>
+      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search Lab Developer Community" aria-label="Search wiki documentation">
+      <button id="search-go-btn" class="vdc-search-btn" aria-label="Search">Go</button>
     </div>
 
     <div class="vdc-header-right">
-      <button id="theme-toggle-btn" class="theme-toggle-btn" aria-label="Toggle theme">&#9728;&#65039; Light Mode</button>
-      <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="github-badge-btn" aria-label="GitHub repository">
-        <span>GitHub</span>
-      </a>
+      <div class="vdc-user-tools">
+        <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="user-link">YoungJasiek</a>
+        <span class="pipe-sep">&bull;</span>
+        <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="user-link">Git Source</a>
+      </div>
     </div>
   </header>
 
@@ -50,73 +54,78 @@
   <div class="vdc-page-container">
 
     <!-- Sidebar Navigation -->
+    <!-- Left Sidebar Navigation (2007 MediaWiki Monobook) -->
     <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
       <div class="sidebar-block">
-        <div class="sidebar-title">Documentation</div>
+        <div class="sidebar-title">Navigation</div>
         <ul class="sidebar-links">
-          <li><a href="index.html">Main Page (Portal)</a></li>
-          <li><a href="project-hub.html">Project Hub &amp; Main Menu</a></li>
-          <li><a href="plugins.html">Modular Drop-in Plugins</a></li>
-          <li><a href="labeditor.html" class="active">LabEditor Suite</a></li>
-          <li><a href="frozen-life.html">Frozen-Life (Demo FPS)</a></li>
-          <li><a href="labhammer.html">LabHammer (3D CAD)</a></li>
-          <li><a href="lighting.html">Dynamic Lighting &amp; Lamps</a></li>
-          <li><a href="character-studio.html">Character &amp; Weapon Studio</a></li>
-          <li><a href="skeletal-animations.html">Skeletal &amp; FBX Animations</a></li>
-          <li><a href="bot-ai.html">Combat Bot AI</a></li>
-          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></li>
-          <li><a href="multiplayer.html">UDP Multiplayer</a></li>
-          <li><a href="audio-synthesizer.html">3D Audio &amp; Synthesizer</a></li>
-          <li><a href="lua-scripting.html">Lua 5.4 Scripting &amp; IDE</a></li>
-          <li><a href="architecture.html">Engine Architecture</a></li>
-          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
-          <li><a href="building.html">Building from Source</a></li>
+          <li><a href="index.html">Main Page</a></li>
+          <li><a href="modules.html">Lab SDK Index</a></li>
+          <li><a href="wiki-contents.html">Wiki Contents</a></li>
+          <li><a href="project-hub.html">Community &amp; Project Hub</a></li>
+          <li><a href="talk.html">Discussion (Talk)</a></li>
         </ul>
       </div>
 
       <div class="sidebar-block">
-        <div class="sidebar-title">LabEditor Topics</div>
+        <div class="sidebar-title"><a href="modules.html" style="color:inherit; text-decoration:none;">Modular Subsystems (.dll)</a></div>
         <ul class="sidebar-links">
-          <li><a href="#sec-overview">Overview &amp; Architecture</a></li>
-          <li><a href="#sec-workspaces">5 Workspaces &amp; Project Hub</a></li>
-          <li><a href="#sec-pie">Play-In-Editor (PIE) Sim</a></li>
-          <li><a href="#sec-script-ide">Full-Viewport Script IDE</a></li>
-          <li><a href="#sec-hud-canvas">Multi-Genre HUD Canvas</a></li>
-          <li><a href="#sec-hierarchy">Hierarchy Search &amp; Undo/Redo</a></li>
-          <li><a href="#sec-plugins">Package Manager (Plugins)</a></li>
-          <li><a href="#sec-decoupling">Decoupled Assets (Virtual URIs)</a></li>
-          <li><a href="#sec-export">Standalone Game Exporter</a></li>
-          <li><a href="#sec-controls">Keyboard Shortcuts</a></li>
+          <li><a href="module-core.html">Engine.dll</a></li>
+          <li><a href="module-render.html">render.dll</a></li>
+          <li><a href="module-audio.html">audio.dll</a></li>
+          <li><a href="module-physics.html">physics.dll</a></li>
+          <li><a href="module-animation.html">animation.dll</a></li>
+          <li><a href="module-world.html">world.dll</a></li>
+          <li><a href="module-network.html">network.dll</a></li>
+          <li><a href="module-ai.html">LabAI.dll</a></li>
+          <li><a href="module-script.html">script.dll</a></li>
+          <li><a href="module-studio.html">studio.dll</a></li>
+          <li><a href="module-hud.html">hud.dll</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Engine &amp; Toolset</div>
+        <ul class="sidebar-links">
+          <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+          <li><a href="lighting.html">Dynamic Lighting &amp; Lamps</a></li>
+          <li><a href="labeditor.html" class="active">LabEditor Suite</a></li>
+          <li><a href="labhammer.html">LabHammer (3D CSG)</a></li>
+          <li><a href="character-studio.html">LabStudio (3D Poser)</a></li>
+          <li><a href="labhud.html">LabHUD (2D Canvas)</a></li>
+          <li><a href="plugins.html">Native C++ Plugins</a></li>
+          <li><a href="lua-scripting.html">Lua 5.4 Scripting</a></li>
+          <li><a href="frozen-life.html">Frozen-Life (Alpha)</a></li>
+          <li><a href="skeletal-animations.html">Skeletal &amp; FBX Rigging</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></li>
+          <li><a href="bot-ai.html">Combat Bot AI</a></li>
+          <li><a href="multiplayer.html">UDP Multiplayer</a></li>
+          <li><a href="audio-synthesizer.html">3D Audio &amp; Synth</a></li>
+          <li><a href="building.html">Building from Source</a></li>
         </ul>
       </div>
     </aside>
 
     <!-- Main Content -->
     <main id="content" class="vdc-main-content" role="main">
+      <!-- Navigation Tabs (2007 MediaWiki Monobook) -->
       <nav class="vdc-page-tabs" aria-label="Namespace tabs">
         <div class="tabs-left">
-          <a href="labeditor.html" class="wiki-tab active">LabEditor Article</a>
-          <a href="architecture.html" class="wiki-tab">Architecture</a>
+          <a href="labeditor.html" class="wiki-tab active">Page</a>
+          <a href="talk.html" class="wiki-tab">Discussion</a>
         </div>
         <div class="tabs-right">
           <a href="labeditor.html" class="wiki-tab active">Read</a>
-          <a href="https://github.com/YoungJasiek/Lab/blob/main/src/editor_main.cpp" target="_blank" class="wiki-tab">View C++ Source</a>
+          <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="wiki-tab">View source</a>
+          <a href="https://github.com/YoungJasiek/Lab/commits/main" target="_blank" rel="noopener noreferrer" class="wiki-tab">View history</a>
         </div>
       </nav>
 
-      <div class="wiki-breadcrumbs">
-        <a href="index.html">Main Page</a>
-        <span class="crumb-sep">&gt;</span>
-        <span>Developer Toolset</span>
-        <span class="crumb-sep">&gt;</span>
-        <span class="crumb-current">LabEditor Unified Suite</span>
-      </div>
+      
 
-      <h1 class="firstHeading">
-        <span>LabEditor &ndash; Unified Multi-Workspace Creation Suite</span>
-        <span style="font-size: 0.85rem; font-weight: normal; font-family: var(--font-mono); color: var(--wiki-accent);">[editor_main.cpp]</span>
-      </h1>
-      <div class="siteSub">From Lab Developer Community &ndash; 3D Level Authoring, 2D Tilemaps, Character Studio Posing, Multi-Genre HUD Canvas, Lua 5.4 Scripting IDE, and Play-In-Editor Simulation</div>
+      <h1 class="firstHeading">LabEditor &ndash; Unified Multi-Workspace Creation Suite</h1>
+      
 
       <!-- Infobox -->
       <aside class="infobox" aria-label="Editor Infobox">
@@ -153,7 +162,7 @@
         <p>Accessible directly via <code>View &gt; Workspaces</code>:</p>
         <div class="portal-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin: 15px 0;">
           <div class="portal-box" style="padding:15px; background:var(--wiki-surface);">
-            <h3>🏢 1. 3D Workspaces</h3>
+            <h3> 1. 3D Workspaces</h3>
             <ul>
               <li><strong>Level &amp; Geometry:</strong> CSG brush carving, plane slicing, lights, entity placements.</li>
               <li><strong>Animation 3D Timeline:</strong> Prop &amp; model keyframe scrubbers.</li>
@@ -161,7 +170,7 @@
             </ul>
           </div>
           <div class="portal-box" style="padding:15px; background:var(--wiki-surface);">
-            <h3>🦾 2. LabStudio Integration</h3>
+            <h3> 2. LabStudio Integration</h3>
             <ul>
               <li><strong>Weapon Grip Poser:</strong> Bone socket alignment for character rigs.</li>
               <li><strong>Reload Timeline:</strong> Multi-phase reload choreography curves.</li>
@@ -170,7 +179,7 @@
             </ul>
           </div>
           <div class="portal-box" style="padding:15px; background:var(--wiki-surface);">
-            <h3>🎨 3. 2D Workspaces</h3>
+            <h3> 3. 2D Workspaces</h3>
             <ul>
               <li><strong>Level &amp; Tilemap:</strong> Ortho grid, layered tile painting, Box2D physics.</li>
               <li><strong>2D Animation:</strong> Spritesheet slicing &amp; frame sequence player.</li>
@@ -178,14 +187,14 @@
             </ul>
           </div>
           <div class="portal-box" style="padding:15px; background:var(--wiki-surface);">
-            <h3>📜 4. Scripting Workspaces</h3>
+            <h3> 4. Scripting Workspaces</h3>
             <ul>
               <li><strong>Code Editor IDE:</strong> Full-viewport interactive buffer with syntax highlighting.</li>
               <li><strong>Interactive Console:</strong> Real-time Lua REPL and engine debug log.</li>
             </ul>
           </div>
           <div class="portal-box" style="padding:15px; background:var(--wiki-surface);">
-            <h3>🚀 5. Project Hub Workspace</h3>
+            <h3> 5. Project Hub Workspace</h3>
             <ul>
               <li><strong>Project Launcher:</strong> Discover, switch, and launch games without restarting.</li>
               <li><strong>New Game Wizard:</strong> Create isolated games in <code>Documents/LabGames/</code>.</li>
@@ -252,7 +261,7 @@
           LabEditor includes an integrated Package Manager modeled after Unity and Blender Add-ons:
         </p>
         <ul>
-          <li><strong>Drop-in Lua Plugins:</strong> Automatically detects any <code>.lua</code> file placed in <code>plugins/*.lua</code>.</li>
+          <li><strong>Native C++ Plugins:</strong> Automatically detects any compiled <code>.dll</code> placed in <code>plugins/*.dll</code>.</li>
           <li><strong>Live Search &amp; Categories:</strong> Instant filtering by category pills (<code>Gameplay</code>, <code>Rendering</code>, <code>AI</code>, <code>Tools</code>, <code>Audio</code>).</li>
           <li><strong>Real-Time Toggling:</strong> Checkbox switches enable or disable plugins instantly on-the-fly without restarting the editor.</li>
           <li><strong>Hot Reload:</strong> Reload modified scripts directly from disk into the running simulation.</li>
@@ -308,12 +317,113 @@
         </table>
       </section>
 
+          <!-- ================================================================
+           MEDIAWIKI NAVBOX MATRIX & CATEGORIES
+           ================================================================ -->
+      <div class="vdc-navbox" role="navigation" aria-label="Lab Developer Community Navigation Box">
+        <div class="vdc-navbox-header">Lab Engine &amp; Frozen-Life Ecosystem</div>
+        <table class="vdc-navbox-table">
+          <tbody>
+            <tr>
+              <th class="vdc-navbox-group">Core Engine</th>
+              <td class="vdc-navbox-subgroup">Subsystems</td>
+              <td class="vdc-navbox-list">
+                <a href="architecture.html">Engine Architecture</a> &bull;
+                <a href="modules.html">11 Modular DLLs</a> &bull;
+                <a href="opengl-dsa.html">OpenGL 4.5+ DSA</a> &bull;
+                <a href="lighting.html">Forward Lighting</a> &bull;
+                <a href="skeletal-animations.html">glTF &amp; FBX Skinning</a> &bull;
+                <a href="audio-synthesizer.html">3D Spatial Audio</a> &bull;
+                <a href="multiplayer.html">UDP Networking</a> &bull;
+                <a href="lua-scripting.html">Lua 5.4 Runtime</a>
+              </td>
+              <td class="vdc-navbox-logo-cell" rowspan="5">
+                <div class="vdc-navbox-lab-stamp">
+                  <span class="stamp-text">LAB</span>
+                  <span class="stamp-sub">ENGINE SDK</span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <th class="vdc-navbox-group">DLL Modules</th>
+              <td class="vdc-navbox-subgroup">Binaries</td>
+              <td class="vdc-navbox-list">
+                <a href="module-core.html">Engine.dll</a> &bull;
+                <a href="module-render.html">render.dll</a> &bull;
+                <a href="module-audio.html">audio.dll</a> &bull;
+                <a href="module-physics.html">physics.dll</a> &bull;
+                <a href="module-animation.html">animation.dll</a> &bull;
+                <a href="module-world.html">world.dll</a> &bull;
+                <a href="module-network.html">network.dll</a> &bull;
+                <a href="module-ai.html">LabAI.dll</a> &bull;
+                <a href="module-script.html">script.dll</a> &bull;
+                <a href="module-studio.html">studio.dll</a> &bull;
+                <a href="module-hud.html">hud.dll</a>
+              </td>
+            </tr>
+            <tr>
+              <th class="vdc-navbox-group">Authoring Tools</th>
+              <td class="vdc-navbox-subgroup">LabSDK Suite</td>
+              <td class="vdc-navbox-list">
+                <a href="project-hub.html">Project Hub</a> &bull;
+                <a href="labeditor.html">LabEditor Suite</a> &bull;
+                <a href="labhammer.html">LabHammer (3D CSG)</a> &bull;
+                <a href="character-studio.html">LabStudio (Poser)</a> &bull;
+                <a href="labhud.html">LabHUD (2D Canvas)</a> &bull;
+                <a href="plugins.html">Package Manager (Plugins)</a>
+              </td>
+            </tr>
+            <tr>
+              <th class="vdc-navbox-group">Showcase Game</th>
+              <td class="vdc-navbox-subgroup">Frozen-Life</td>
+              <td class="vdc-navbox-list">
+                <a href="frozen-life.html">Playable Build (v0.1.0-alpha)</a> &bull;
+                <a href="weapons-viewmodel.html">9-Weapon Arsenal</a> &bull;
+                <a href="bot-ai.html">Combat Bot AI</a> &bull;
+                <a href="frozen-life.html#sec-maps">Official Maps (Cryo &amp; Alpha)</a>
+              </td>
+            </tr>
+            <tr>
+              <th class="vdc-navbox-group">Documentation</th>
+              <td class="vdc-navbox-subgroup">Community</td>
+              <td class="vdc-navbox-list">
+                <a href="index.html">Main Page</a> &bull;
+                <a href="wiki-contents.html">Wiki Contents</a> &bull;
+                <a href="talk.html">Talk:Main Page</a> &bull;
+                <a href="building.html">Building from Source</a> &bull;
+                <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer">GitHub Repository</a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="vdc-navbox-footer">
+          <div class="vdc-navbox-copyright">
+             Lab Developer Community &bull; Official C++20 &amp; OpenGL 4.5+ Technical Documentation.<br>
+            <a href="wiki-contents.html">About Lab Developer Community</a> &bull; <a href="building.html">Source Build Guide</a> &bull; <a href="#content">Back to top</a>
+          </div>
+          <div class="vdc-navbox-powered">
+            <div class="mw-88x31-btn" title="Powered by Lab Wiki">
+              <span class="mw-btn-top">POWERED BY</span>
+              <span class="mw-btn-bot">LabWiki</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="catlinks" class="catlinks">
+        <span class="catlinks-label">Categories:</span>
+        <ul class="catlinks-list">
+          <li><a href="index.html">Lab Developer Community</a></li>
+          <li><a href="modules.html">Lab SDK Documentation</a></li>
+          <li><a href="architecture.html">C++20 Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+        </ul>
+      </div>
+
     </main>
   </div>
 
-  <footer class="vdc-footer">
-    <p>&copy; 2026 Lab Engine &bull; Developed by YoungJasiek &bull; Open Source C++20 / OpenGL 4.5+ DSA</p>
-  </footer>
+  
 
   <script src="js/app.js"></script>
 </body>
