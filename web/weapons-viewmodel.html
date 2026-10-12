@@ -134,31 +134,31 @@
 
       
 
-      <h1 class="firstHeading">9-Weapon Tactical Arsenal &amp; Viewmodel Kinematics</h1>
+      <h1 class="firstHeading">Frozen-Life: 9-Weapon Arsenal &amp; Engine Viewmodel Kinematics</h1>
       
 
       <aside class="infobox" aria-label="Weapon System Infobox">
         <div class="infobox-title">
-          LabWeapon
-          <span class="infobox-subtitle">TACTICAL ARSENAL &amp; VIEWMODEL</span>
+          Frozen-Life Arsenal
+          <span class="infobox-subtitle">GAME MODULE &amp; VIEWMODEL KINEMATICS</span>
         </div>
         <div class="infobox-image">
           <img src="assets/img/test_weapon_arsenal.webp" alt="Weapon Arsenal Lineup" style="max-height:180px; width:100%; object-fit:cover;">
-          <div class="infobox-caption">9-weapon tactical lineup showing tactical carbines, miniguns, and cryo weapons</div>
+          <div class="infobox-caption">Frozen-Life 9-weapon tactical lineup rendered via Lab Engine viewmodel pass</div>
         </div>
         <table class="infobox-table">
           <tbody>
             <tr>
-              <td class="infobox-label">Source Files</td>
-              <td class="infobox-data"><code>src/LabWeapon.cpp</code><br><code>include/LabWeapon.h</code></td>
+              <td class="infobox-label">Architecture Layer</td>
+              <td class="infobox-data"><strong>Game Layer:</strong> <a href="frozen-life.html">Frozen-Life</a><br><span style="font-size:11px; color:var(--wiki-text-muted);">(Legacy: <code>LabWeapon.h/.cpp</code>)</span></td>
             </tr>
             <tr>
               <td class="infobox-label">Total Weapons</td>
-              <td class="infobox-data">9 Unique Tactical Weapons</td>
+              <td class="infobox-data">9 Tactical Weapons (Frozen-Life)</td>
             </tr>
             <tr>
-              <td class="infobox-label">Viewmodel Dynamics</td>
-              <td class="infobox-data">Dual-Spring Damper + Walking Roll Sway (Roll: ~1.45&deg;)</td>
+              <td class="infobox-label">Engine Primitives</td>
+              <td class="infobox-data">Dual-Spring Damper + Camera Space Pass + Ray-AABB</td>
             </tr>
             <tr>
               <td class="infobox-label">Sights Mode</td>
@@ -166,15 +166,22 @@
             </tr>
             <tr>
               <td class="infobox-label">Custom Mesh</td>
-              <td class="infobox-data">ASCII &amp; Binary STL Loader with Bounding Box Auto-Scale</td>
+              <td class="infobox-data">ASCII &amp; Binary STL / glTF 2.0 Loader</td>
             </tr>
             <tr>
-              <td class="infobox-label">Textures</td>
-              <td class="infobox-data">Universal STBI Decoder (PNG, JPG, BMP up to 4096&times;4096)</td>
+              <td class="infobox-label">Shading Model</td>
+              <td class="infobox-data">Blinn-Phong + Normal Maps (No PBR)</td>
             </tr>
           </tbody>
         </table>
       </aside>
+
+      <div class="wiki-notice notice-note">
+        <div class="wiki-notice-content">
+          <strong>Engine vs. Game Layer Boundary:</strong>
+          In accordance with the <a href="architecture.html">Source-style Engine/Game separation</a>, the <strong>9 specific weapons, RPM/damage tables, and ADS presets</strong> belong strictly to the <strong><a href="frozen-life.html">Frozen-Life</a></strong> showcase game. <strong>Lab Engine</strong> itself remains genre-agnostic and provides only the underlying mathematical primitives: camera-space depth-isolated rendering, second-order spring-damper kinematics, and slab ray-AABB hit detection. (Currently tracked in <code>PLAN.md</code> Phase 3.5 for full extraction out of <code>world.dll</code>).
+        </div>
+      </div>
 
       <div class="toc" role="navigation" aria-labelledby="mw-toc-heading">
         <div class="toctitle">
@@ -182,24 +189,28 @@
           <span class="toctoggle">[<a href="javascript:void(0)" class="toggle-link">hide</a>]</span>
         </div>
         <ul>
-          <li class="toclevel-1"><a href="#sec-overview"><span class="tocnumber">1</span> <span class="toctext">Arsenal Architecture &amp; Rationale</span></a></li>
-          <li class="toclevel-1"><a href="#sec-table"><span class="tocnumber">2</span> <span class="toctext">Complete 9-Weapon Ballistics Table</span></a></li>
-          <li class="toclevel-1"><a href="#sec-spring"><span class="tocnumber">3</span> <span class="toctext">Dual-Spring Damper Viewmodel Physics</span></a></li>
+          <li class="toclevel-1"><a href="#sec-overview"><span class="tocnumber">1</span> <span class="toctext">Engine Viewmodel vs. Game Arsenal Architecture</span></a></li>
+          <li class="toclevel-1"><a href="#sec-table"><span class="tocnumber">2</span> <span class="toctext">Frozen-Life 9-Weapon Ballistics Table</span></a></li>
+          <li class="toclevel-1"><a href="#sec-spring"><span class="tocnumber">3</span> <span class="toctext">Dual-Spring Damper Viewmodel Physics (Engine)</span></a></li>
           <li class="toclevel-1"><a href="#sec-walk-sway"><span class="tocnumber">4</span> <span class="toctext">Tactical Walking Roll Sway &amp; Bobbing</span></a></li>
           <li class="toclevel-1"><a href="#sec-ads"><span class="tocnumber">5</span> <span class="toctext">Iron-Sights ADS Alignment &amp; Zoom</span></a></li>
-          <li class="toclevel-1"><a href="#sec-stl"><span class="tocnumber">6</span> <span class="toctext">Universal STL 3D Mesh Ingestion</span></a></li>
-          <li class="toclevel-1"><a href="#sec-pbr"><span class="tocnumber">7</span> <span class="toctext">PBR Skin Shading, Normalization &amp; Textures</span></a></li>
+          <li class="toclevel-1"><a href="#sec-stl"><span class="tocnumber">6</span> <span class="toctext">Universal STL 3D Mesh Ingestion (Engine)</span></a></li>
+          <li class="toclevel-1"><a href="#sec-shading"><span class="tocnumber">7</span> <span class="toctext">Blinn-Phong Skin Shading, Normalization &amp; Textures</span></a></li>
         </ul>
       </div>
 
-      <h2 id="sec-overview">1. Arsenal Architecture &amp; Rationale</h2>
+      <h2 id="sec-overview">1. Engine Viewmodel vs. Game Arsenal Architecture</h2>
       <p>
-        The weapon system in Lab Engine combines competitive hitscan precision with tactile physical feedback. Rather than rendering a static gun model glued to the camera, the viewmodel is treated as an articulated physical object suspended on high-frequency spring-dampers. When the player rotates their view, sprints across ice, or unleashes automatic fire, the weapon reacts with realistic mass, momentum, and angular lag.
+        Lab Engine separates generic first-person camera attachment math from game-specific combat mechanics:
       </p>
+      <ul>
+        <li><strong>Engine Layer (<code>render.dll</code> / <code>physics.dll</code>):</strong> Provides camera-local viewmodel rendering (isolated depth pass to prevent wall clipping), generic second-order spring-damper transforms, and 3D raycast / projectile collision queries.</li>
+        <li><strong>Game Layer (<code>Frozen-Life</code>):</strong> Defines the 9 tactical weapons, magazine capacities, recoil patterns, and damage falloff curves. Rather than rendering a static gun model glued to the camera, Frozen-Life suspends its viewmodels on Lab Engine's spring-dampers so the weapon reacts to mouse rotation, ice sprinting, and recoil.</li>
+      </ul>
 
-      <h2 id="sec-table">2. Complete 9-Weapon Ballistics Table</h2>
+      <h2 id="sec-table">2. Frozen-Life 9-Weapon Ballistics Table</h2>
       <p>
-        The table below details the full technical ballistics specification for all 9 weapons:
+        The table below details the ballistics specification implemented for the <strong>Frozen-Life</strong> showcase game:
       </p>
       <table class="wikitable">
         <thead>
@@ -291,14 +302,14 @@ float targetHeight = 0.28f; // ~28cm tactical viewmodel profile
 float autoScale = (height &gt; 0.001f) ? (targetHeight / height) : 1.0f;</code></pre>
       </div>
 
-      <h2 id="sec-pbr">7. PBR Skin Shading, Normalization &amp; Textures</h2>
+      <h2 id="sec-shading">7. Blinn-Phong Skin Shading, Normalization &amp; Textures</h2>
       <p>
-        Through the universal STBI texture loader, weapon skins support both standard BMP files and lossless 2048&times;2048 PNG textures. Surface appearance is evaluated via a PBR shader combining:
+        Through the universal STBI texture loader, weapon skins support standard BMP, JPG, and lossless 2048&times;2048 PNG textures. In keeping with Lab Engine's Source-inspired visual design (<strong>Blinn-Phong shading without PBR</strong>), surface appearance is evaluated via crisp specular highlights and normal mapping:
       </p>
       <ul>
-        <li><strong>Albedo Map &amp; Tint:</strong> Base diffuse texture modulated by artist-defined RGB tint.</li>
-        <li><strong>Metallic Slider:</strong> Drives specular reflection intensity for polished steel or titanium finishes.</li>
-        <li><strong>Roughness Slider:</strong> Modulates microfacet blur and environmental specular highlights.</li>
+        <li><strong>Diffuse Map &amp; Tint:</strong> Base diffuse texture modulated by artist-defined RGB tint.</li>
+        <li><strong>Specular &amp; Shininess:</strong> Classic Blinn-Phong half-vector specular reflection for steel, polymer, and brushed metal finishes.</li>
+        <li><strong>Normal Mapping &amp; Cubemap Reflections:</strong> Sharp surface detail and environment cubemap reflections without heavy microfacet BRDF overhead.</li>
         <li><strong>UV Tiling Scale:</strong> Real-time texture tiling adjustment for carbon fiber or hazard stripe materials.</li>
       </ul>
 

@@ -219,9 +219,9 @@
           <span id="toctogglelink" class="toctoggle">hide</span>
         </div>
         <ol id="toc-list" class="toc-list">
-          <li><a href="#sec-labmap"><span class="tocnumber">1</span> <span class="toctext">Plain-Text .labmap Format</span></a></li>
-<li><a href="#sec-weapons"><span class="tocnumber">2</span> <span class="toctext">9-Weapon Arsenal & Ballistics</span></a></li>
-<li><a href="#sec-interactive"><span class="tocnumber">3</span> <span class="toctext">Biometric Retinal Scanners</span></a></li>
+          <li><a href="#sec-labmap"><span class="tocnumber">1</span> <span class="toctext">Plain-Text .labmap &amp; .labscene Formats</span></a></li>
+<li><a href="#sec-weapons"><span class="tocnumber">2</span> <span class="toctext">Entity Triggers &amp; Game-Layer Weapon Bindings</span></a></li>
+<li><a href="#sec-interactive"><span class="tocnumber">3</span> <span class="toctext">Interactive Terminals &amp; Doors</span></a></li>
           <li><a href="#sec-cmake"><span class="tocnumber">4</span> <span class="toctext">CMake Integration &amp; Compilation</span></a></li>
           <li><a href="#sec-api"><span class="tocnumber">5</span> <span class="toctext">Exported API Headers &amp; Interfaces</span></a></li>
         </ol>
@@ -234,7 +234,7 @@
             <h3 style="margin:0; font-size: 1.3rem;">world.dll Specifications</h3>
             <div style="font-size:0.8rem; color:var(--wiki-text-muted); margin-top:2px;">Target: <code>bin/Release/world.dll</code> &bull; Platform: Windows x64 (MSVC 2022) &bull; Standard: ISO C++20</div>
           </div>
-          <span class="build-version-tag">SUBSYSTEM: WORLD & GAMEPLAY</span>
+          <span class="build-version-tag">SUBSYSTEM: WORLD &amp; SCENE</span>
         </div>
 
         <!-- Metrics Grid -->
@@ -244,12 +244,12 @@
             <span class="metric-label">Plain-Text CSG Format</span>
           </div>
           <div class="metric-card">
-            <span class="metric-val">9 Weapons</span>
-            <span class="metric-label">Ballistics & Viewmodels</span>
+            <span class="metric-val">.labscene</span>
+            <span class="metric-label">Entity &amp; Component Graph</span>
           </div>
           <div class="metric-card">
-            <span class="metric-val">Retinal</span>
-            <span class="metric-label">Biometric Animated Scanners</span>
+            <span class="metric-val">Triggers</span>
+            <span class="metric-label">Interactive World Entities</span>
           </div>
           <div class="metric-card">
             <span class="metric-val">64 Hz</span>
@@ -261,23 +261,23 @@
       <!-- Article Sections -->
       
       <section id="sec-labmap" class="wiki-section-container">
-        <h2><span class="mw-headline">1. Plain-Text .labmap Format</span></h2>
+        <h2><span class="mw-headline">1. Plain-Text .labmap &amp; .labscene Formats</span></h2>
         
-                <p>Human-readable declarative map specification containing brush geometry, texture coordinates, player spawns, weapon pickups, dynamic doors, and interactive terminals.</p>
+                <p>Human-readable declarative map and scene specifications containing CSG brush geometry, texture coordinates, entity hierarchies, dynamic doors, and interactive triggers.</p>
                 
       </section>
 
       <section id="sec-weapons" class="wiki-section-container">
-        <h2><span class="mw-headline">2. 9-Weapon Arsenal & Ballistics</span></h2>
+        <h2><span class="mw-headline">2. Entity Triggers &amp; Game-Layer Weapon Bindings</span></h2>
         
-                <p>Complete ballistics suite: Crowbar/Pipe, Tactical Pistol, Pump Shotgun, M4A4-S Carbine, SG553 Rifle, Minigun, Plasma Rifle, Railgun, and RPG.</p>
+                <p>Provides base item pickup volumes and viewmodel hooks. Note: The specific <a href="weapons-viewmodel.html">9-Weapon Arsenal</a> (Pipe, Pistol, Shotgun, M4A4-S, SG553, Minigun, Plasma, Railgun, RPG) belongs to the <strong><a href="frozen-life.html">Frozen-Life</a></strong> game layer and is scheduled for extraction out of <code>world.dll</code> in <code>PLAN.md</code> Phase 3.5.</p>
                 
       </section>
 
       <section id="sec-interactive" class="wiki-section-container">
-        <h2><span class="mw-headline">3. Biometric Retinal Scanners</span></h2>
+        <h2><span class="mw-headline">3. Interactive Terminals &amp; Doors</span></h2>
         
-                <p>Environmental terminals with animated procedural eye laser sweep, credential authentication, and physical airlock blast door synchronization.</p>
+                <p>Generic interactive trigger entities and sliding door controllers used by games (such as Frozen-Life's biometric airlock scanners) to synchronize door state and script events.</p>
                 
       </section>
 
