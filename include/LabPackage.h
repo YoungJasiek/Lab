@@ -140,7 +140,7 @@ namespace Lab {
         std::vector<PackageManifest> filterPackages(const std::string& query, const std::string& cat = "All", const std::string& stateFilter = "All") const {
             std::vector<PackageManifest> result;
             std::string q = query;
-            std::transform(q.begin(), q.end(), q.begin(), ::tolower);
+            std::transform(q.begin(), q.end(), q.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
             for (const auto& [id, pkg] : m_packages) {
                 // Category filter
@@ -160,10 +160,13 @@ namespace Lab {
                     std::string pid = pkg.id;
                     std::string auth = pkg.author;
                     std::string desc = pkg.description;
-                    std::transform(title.begin(), title.end(), title.begin(), ::tolower);
-                    std::transform(pid.begin(), pid.end(), pid.begin(), ::tolower);
-                    std::transform(auth.begin(), auth.end(), auth.begin(), ::tolower);
-                    std::transform(desc.begin(), desc.end(), desc.begin(), ::tolower);
+                    auto toLowerSafe = [](std::string& s) {
+                        std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                    };
+                    toLowerSafe(title);
+                    toLowerSafe(pid);
+                    toLowerSafe(auth);
+                    toLowerSafe(desc);
 
                     if (title.find(q) == std::string::npos &&
                         pid.find(q) == std::string::npos &&

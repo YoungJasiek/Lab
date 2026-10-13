@@ -3624,8 +3624,11 @@ int main() {
             const bool newErrorCmp = (static_cast<WinSocketT>(rawError) == kWinInvalidSocket);
             const bool oldSuccessCmp = (static_cast<WinSocketT>(static_cast<intptr_t>(rawSuccess)) == kWinInvalidSocket);
             const bool newSuccessCmp = (static_cast<WinSocketT>(rawSuccess) == kWinInvalidSocket);
-            if (!oldErrorCmp || !newErrorCmp || oldErrorCmp != newErrorCmp ||
-                oldSuccessCmp || newSuccessCmp || oldSuccessCmp != newSuccessCmp) {
+            volatile bool vOldError = oldErrorCmp;
+            volatile bool vNewError = newErrorCmp;
+            volatile bool vOldSucc = oldSuccessCmp;
+            volatile bool vNewSucc = newSuccessCmp;
+            if (!vOldError || !vNewError || (vOldError != vNewError) || vOldSucc || vNewSucc || (vOldSucc != vNewSucc)) {
                 std::cerr << "Assertion failed: SOCKET vs intptr_t INVALID_SOCKET comparison mismatch!\n";
                 return 1;
             }
@@ -5449,12 +5452,12 @@ int main() {
 
         // 1. In-game Hammer Editor API Verification
         Lab::LabHammerEditor hammer;
-        Lab::Camera cam(75.0f, 16.0f / 9.0f, 0.05f, 1000.0f);
-        cam.setPosition(Lab::Vec3(0.0f, 2.0f, 5.0f));
-        cam.setYaw(0.0f);
-        cam.setPitch(0.0f);
+        Lab::Camera hammerTestCam(75.0f, 16.0f / 9.0f, 0.05f, 1000.0f);
+        hammerTestCam.setPosition(Lab::Vec3(0.0f, 2.0f, 5.0f));
+        hammerTestCam.setYaw(0.0f);
+        hammerTestCam.setPitch(0.0f);
 
-        hammer.toggle(cam);
+        hammer.toggle(hammerTestCam);
         if (!hammer.active) {
             std::cerr << "Assertion failed: hammer.active expected true after toggle\n";
             return 1;
@@ -5601,12 +5604,12 @@ int main() {
 
         // Upload point lights to GPU
         std::vector<Lab::PointLight> scenePointLights;
-        for (const auto& l : testMap.lights) {
+        for (const auto& lightItem : testMap.lights) {
             scenePointLights.push_back(Lab::PointLight{
-                .position = l.position,
-                .color = l.color,
-                .intensity = l.intensity,
-                .radius = l.radius
+                .position = lightItem.position,
+                .color = lightItem.color,
+                .intensity = lightItem.intensity,
+                .radius = lightItem.radius
             });
         }
         Lab::Renderer::setPointLights(scenePointLights);
@@ -5926,6 +5929,7 @@ int main() {
             }
 
             void onUpdate(float dt) override {
+                (void)dt;
                 updateCallCount++;
             }
 
@@ -6021,8 +6025,10 @@ int main() {
         });
 
         auto subBlock = eb.subscribe<BlockPlacedEvent>([&](const BlockPlacedEvent& e) {
+            (void)e;
             blocksPlacedReceived++;
         });
+        (void)subBlock;
 
         if (eb.getSubscriptionCount() != 2) {
             std::cerr << "Assertion failed: Subscription count mismatch!\n";
@@ -6170,6 +6176,7 @@ int main() {
             }
 
             void onUpdate(float dt) override {
+                (void)dt;
                 updateFrames++;
             }
 
@@ -6370,9 +6377,9 @@ int main() {
             }
 
             // Raycast test: vertical ray from top to ground
-            Lab::RaycastHit2D hit;
-            bool hitDetected = world2D.raycast(Lab::Vec2(0.0f, 100.0f), Lab::Vec2(0.0f, -1.0f), 200.0f, hit);
-            if (!hitDetected || hit.point.y < -12.0f) {
+            Lab::RaycastHit2D hit2D;
+            bool hitDetected = world2D.raycast(Lab::Vec2(0.0f, 100.0f), Lab::Vec2(0.0f, -1.0f), 200.0f, hit2D);
+            if (!hitDetected || hit2D.point.y < -12.0f) {
                 std::cerr << "Assertion failed: 2D Raycast did not detect colliders!\n";
                 return 1;
             }
@@ -6380,8 +6387,8 @@ int main() {
             std::cout << "  [PASS] Sub-test C: PhysicsWorld2D simulated " << BODY_COUNT
                       << " rigid bodies over 60 steps in " << physDurationMs << " ms (avg "
                       << (double)physDurationMs / 60.0 << " ms/step, 0 NaN/Inf)!\n";
-            std::cout << "  [PASS] 2D Raycast hit collider at Y=" << hit.point.y
-                      << " with normal=(" << hit.normal.x << ", " << hit.normal.y << ")!\n";
+            std::cout << "  [PASS] 2D Raycast hit collider at Y=" << hit2D.point.y
+                      << " with normal=(" << hit2D.normal.x << ", " << hit2D.normal.y << ")!\n";
         }
 
         std::cout << "  [PASS] Test 57 Universal 2D Engine Stack passed 100%!\n";
@@ -6752,29 +6759,29 @@ int main() {
             Lab::Vec3 bulletEnd(50.0f, 0.0f, 0.0f);
             float bulletRadius = 0.05f;
 
-            Lab::CCDHit hit;
-            bool detected = Lab::CCDPhysics::sweepSphereVsAABB(bulletStart, bulletEnd, bulletRadius, wallMin, wallMax, hit);
+            Lab::CCDHit ccdHit;
+            bool detected = Lab::CCDPhysics::sweepSphereVsAABB(bulletStart, bulletEnd, bulletRadius, wallMin, wallMax, ccdHit);
 
-            if (!detected || !hit.hit) {
+            if (!detected || !ccdHit.hit) {
                 std::cerr << "Assertion failed: High-speed projectile tunneled through thin wall!\n";
                 return 1;
             }
 
             // Contact should be at X ~ 9.90m (wallMin.x - radius)
             float expectedContactX = wallMin.x - bulletRadius;
-            if (std::abs(hit.point.x - expectedContactX) > 0.02f) {
+            if (std::abs(ccdHit.point.x - expectedContactX) > 0.02f) {
                 std::cerr << "Assertion failed: Inaccurate CCD impact point! Expected X~" << expectedContactX
-                          << " got " << hit.point.x << "\n";
+                          << " got " << ccdHit.point.x << "\n";
                 return 1;
             }
 
-            if (hit.normal.x >= 0.0f) {
+            if (ccdHit.normal.x >= 0.0f) {
                 std::cerr << "Assertion failed: CCD impact normal must face incoming projectile (-X)!\n";
                 return 1;
             }
 
             std::cout << "  [PASS] Sub-test B: High-speed projectile (50m/step) anti-tunneling verified (Impact X="
-                      << hit.point.x << ", TOI=" << hit.timeOfImpact << ")!\n";
+                      << ccdHit.point.x << ", TOI=" << ccdHit.timeOfImpact << ")!\n";
         }
 
         // --- Sub-test C: CCD & SAT Benchmark (10 000 Sweeps) ---
@@ -6788,8 +6795,8 @@ int main() {
             for (size_t i = 0; i < SWEEPS_COUNT; ++i) {
                 Lab::Vec3 start(0.0f, (float)(i % 20) - 10.0f, 0.0f);
                 Lab::Vec3 end(20.0f, (float)(i % 20) - 10.0f, 0.0f);
-                Lab::CCDHit h;
-                if (Lab::CCDPhysics::sweepSphereVsAABB(start, end, 0.05f, wallMin, wallMax, h)) {
+                Lab::CCDHit sweepHit;
+                if (Lab::CCDPhysics::sweepSphereVsAABB(start, end, 0.05f, wallMin, wallMax, sweepHit)) {
                     hitsCount++;
                 }
             }
@@ -6823,6 +6830,7 @@ int main() {
             int armR   = ragdoll.addBone("ArmR", spine, Lab::Vec3(0.4f, 1.4f, 0.0f), 4.0f);
             int legL   = ragdoll.addBone("LegL", pelvis, Lab::Vec3(-0.2f, 0.5f, 0.0f), 10.0f);
             int legR   = ragdoll.addBone("LegR", pelvis, Lab::Vec3(0.2f, 0.5f, 0.0f), 10.0f);
+            (void)armL; (void)armR; (void)legL; (void)legR;
 
             if (ragdoll.getBones().size() != 7 || ragdoll.getJoints().size() != 6) {
                 std::cerr << "Assertion failed: Ragdoll bone or joint count mismatch!\n";
@@ -6871,9 +6879,9 @@ int main() {
             for (size_t i = 0; i < RAGDOLL_COUNT; ++i) {
                 float posX = (float)(i % 10) * 1.5f - 7.5f;
                 float posZ = (float)(i / 10) * 1.5f - 7.5f;
-                int b0 = crowd[i].addBone("Root", -1, Lab::Vec3(posX, 2.0f, posZ), 10.0f);
-                int b1 = crowd[i].addBone("Torso", b0, Lab::Vec3(posX, 2.5f, posZ), 10.0f);
-                crowd[i].addBone("Head", b1, Lab::Vec3(posX, 2.9f, posZ), 5.0f);
+                int crowdB0 = crowd[i].addBone("Root", -1, Lab::Vec3(posX, 2.0f, posZ), 10.0f);
+                int crowdB1 = crowd[i].addBone("Torso", crowdB0, Lab::Vec3(posX, 2.5f, posZ), 10.0f);
+                crowd[i].addBone("Head", crowdB1, Lab::Vec3(posX, 2.9f, posZ), 5.0f);
                 crowd[i].activateRagdoll(Lab::Vec3(0.0f, 1.0f, 0.0f));
             }
 
@@ -7029,8 +7037,8 @@ int main() {
             }
 
             // All 4 wheels must be grounded
-            for (const auto& w : car.getWheels()) {
-                if (!w.isGrounded || w.suspensionForce <= 0.0f) {
+            for (const auto& wheel : car.getWheels()) {
+                if (!wheel.isGrounded || wheel.suspensionForce <= 0.0f) {
                     std::cerr << "Assertion failed: Vehicle wheel not properly grounded!\n";
                     return 1;
                 }
@@ -8118,8 +8126,8 @@ int main() {
 
         // Sub-test D: LabMap 2D Sprite Integration (.labmap load/save)
         {
-            Lab::LabMap map;
-            map.metadata.name = "2D Showcase Map";
+            Lab::LabMap map2D;
+            map2D.metadata.name = "2D Showcase Map";
 
             Lab::MapSprite2D sp1;
             sp1.texturePath = "assets/textures/hero_idle.png";
@@ -8130,7 +8138,7 @@ int main() {
             sp1.color = { 1.0f, 0.9f, 0.8f, 1.0f };
             sp1.uvMin = { 0.0f, 0.0f };
             sp1.uvMax = { 0.5f, 0.5f };
-            map.sprites.push_back(sp1);
+            map2D.sprites.push_back(sp1);
 
             Lab::MapSprite2D sp2;
             sp2.texturePath = "assets/textures/tree_foliage.png";
@@ -8138,10 +8146,10 @@ int main() {
             sp2.size = { 3.0f, 4.0f };
             sp2.layer = 1;
             sp2.billboard = false;
-            map.sprites.push_back(sp2);
+            map2D.sprites.push_back(sp2);
 
             std::string mapPath = "build/test_2d_sprites.labmap";
-            bool saved = map.saveToFile(mapPath);
+            bool saved = map2D.saveToFile(mapPath);
             if (!saved) {
                 std::cerr << "Assertion failed: Failed to save map with 2D sprites!\n";
                 return 1;
@@ -8176,28 +8184,28 @@ int main() {
         std::cout << "\n[Test 75] Testing Lua Entity & HUD Scripting and Editor Workspaces...\n";
 
         // Sub-test A: Map Entity Naming and Resolution
-        Lab::LabMap map;
+        Lab::LabMap map75;
         Lab::MapBrush klocek;
         klocek.name = "Klocek1";
         klocek.position = { 0.0f, 2.0f, 0.0f };
         klocek.size = { 2.0f, 2.0f, 2.0f };
-        map.brushes.push_back(klocek);
+        map75.brushes.push_back(klocek);
 
         Lab::MapProp prop;
         prop.name = "Turret1";
         prop.position = { 10.0f, 0.0f, 5.0f };
-        map.props.push_back(prop);
+        map75.props.push_back(prop);
 
-        auto hKlocek = map.findEntityByName("Klocek1");
+        auto hKlocek = map75.findEntityByName("Klocek1");
         if (!hKlocek.isValid() || hKlocek.getPosition()->y != 2.0f) {
             std::cerr << "Assertion failed: findEntityByName('Klocek1') failed!\n";
             return 1;
         }
-        // Force vector reallocation on map.brushes and verify MapEntityHandle does not dangle
+        // Force vector reallocation on map75.brushes and verify MapEntityHandle does not dangle
         for (int r = 0; r < 64; ++r) {
             Lab::MapBrush extra;
             extra.name = "ExtraBrush_" + std::to_string(r);
-            map.brushes.push_back(extra);
+            map75.brushes.push_back(extra);
         }
         if (!hKlocek.isValid() || hKlocek.getPosition()->y != 2.0f) {
             std::cerr << "Assertion failed: MapEntityHandle dangled after vector reallocation!\n";
@@ -8211,7 +8219,7 @@ int main() {
             std::cerr << "Assertion failed: ScriptEngine::init() failed!\n";
             return 1;
         }
-        scriptEngine.setActiveMap(&map);
+        scriptEngine.setActiveMap(&map75);
 
         const char* testLua = R"(
             HUD.setText("TimerLabel", "TIME: 00:05")
@@ -8234,8 +8242,8 @@ int main() {
             std::cerr << "Assertion failed: HUD.setValue('Health') failed!\n";
             return 1;
         }
-        if (std::abs(map.brushes[0].position.y - 5.5f) > 0.001f) {
-            std::cerr << "Assertion failed: World.getEntity('Klocek1'):move() did not update brush position! Got Y=" << map.brushes[0].position.y << "\n";
+        if (std::abs(map75.brushes[0].position.y - 5.5f) > 0.001f) {
+            std::cerr << "Assertion failed: World.getEntity('Klocek1'):move() did not update brush position! Got Y=" << map75.brushes[0].position.y << "\n";
             return 1;
         }
         std::cout << "  [PASS] Sub-test B: Lua World.getEntity and HUD bindings verified.\n";
@@ -8267,8 +8275,8 @@ int main() {
             std::cerr << "Assertion failed: OnUpdate(dt) did not advance TimerLabel! Got: " << Lab::ScriptEngine::getHUDText("TimerLabel") << "\n";
             return 1;
         }
-        if (map.brushes[0].position.y < 6.9f) {
-            std::cerr << "Assertion failed: OnUpdate(dt) did not move Klocek1! Y=" << map.brushes[0].position.y << "\n";
+        if (map75.brushes[0].position.y < 6.9f) {
+            std::cerr << "Assertion failed: OnUpdate(dt) did not move Klocek1! Y=" << map75.brushes[0].position.y << "\n";
             return 1;
         }
         std::cout << "  [PASS] Sub-test C: In-Engine simulation loop OnUpdate(dt) tick verified.\n";
@@ -8420,8 +8428,8 @@ int main() {
             std::cerr << "Assertion failed: Multi-Genre HUD templates count mismatch!\n";
             return 1;
         }
-        for (const auto& w : hudWidgets) {
-            if (w.genre.empty() || w.bindingKey.empty()) {
+        for (const auto& widget : hudWidgets) {
+            if (widget.genre.empty() || widget.bindingKey.empty()) {
                 std::cerr << "Assertion failed: HUD widget missing genre or bindingKey!\n";
                 return 1;
             }
@@ -8443,10 +8451,10 @@ int main() {
         auto filterComponents = [&](const std::string& query) -> std::vector<std::string> {
             std::vector<std::string> res;
             std::string q = query;
-            std::transform(q.begin(), q.end(), q.begin(), ::tolower);
+            std::transform(q.begin(), q.end(), q.begin(), [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
             for (const auto& c : allComponents) {
                 std::string sLow = c;
-                std::transform(sLow.begin(), sLow.end(), sLow.begin(), ::tolower);
+                std::transform(sLow.begin(), sLow.end(), sLow.begin(), [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
                 if (q.empty() || sLow.find(q) != std::string::npos) {
                     res.push_back(c);
                 }
@@ -8633,10 +8641,10 @@ int main() {
                 std::cerr << "Assertion failed: Could not open saved test script!\n";
                 return 1;
             }
-            std::string l;
-            while (std::getline(in, l)) {
-                if (!l.empty() && l.back() == '\r') l.pop_back();
-                loadedLines.push_back(l);
+            std::string scriptLine;
+            while (std::getline(in, scriptLine)) {
+                if (!scriptLine.empty() && scriptLine.back() == '\r') scriptLine.pop_back();
+                loadedLines.push_back(scriptLine);
             }
         }
         std::filesystem::remove(scriptPath);
@@ -9063,17 +9071,17 @@ int main() {
             return 1;
         }
 
-        const auto& cam = map81->cameras[0];
-        if (cam.name != "cam_tpp" || cam.follow_target != "player" || std::abs(cam.fov - 75.0f) > 0.01f) {
-            std::cerr << "Assertion failed: Camera parameters mismatch! name=" << cam.name << " fov=" << cam.fov << " target=" << cam.follow_target << "\n";
+        const auto& tppCam = map81->cameras[0];
+        if (tppCam.name != "cam_tpp" || tppCam.follow_target != "player" || std::abs(tppCam.fov - 75.0f) > 0.01f) {
+            std::cerr << "Assertion failed: Camera parameters mismatch! name=" << tppCam.name << " fov=" << tppCam.fov << " target=" << tppCam.follow_target << "\n";
             return 1;
         }
-        if (std::abs(cam.tpp_offset.x - 0.6f) > 0.01f || std::abs(cam.tpp_offset.y - 1.8f) > 0.01f || std::abs(cam.tpp_offset.z - -3.5f) > 0.01f) {
-            std::cerr << "Assertion failed: Camera tpp_offset mismatch! Got: (" << cam.tpp_offset.x << ", " << cam.tpp_offset.y << ", " << cam.tpp_offset.z << ")\n";
+        if (std::abs(tppCam.tpp_offset.x - 0.6f) > 0.01f || std::abs(tppCam.tpp_offset.y - 1.8f) > 0.01f || std::abs(tppCam.tpp_offset.z - -3.5f) > 0.01f) {
+            std::cerr << "Assertion failed: Camera tpp_offset mismatch! Got: (" << tppCam.tpp_offset.x << ", " << tppCam.tpp_offset.y << ", " << tppCam.tpp_offset.z << ")\n";
             return 1;
         }
         std::cout << "  [PASS] Sub-test A: Camera entity 'cam_tpp' loaded with over-the-shoulder TPP follow offset ("
-                  << cam.tpp_offset.x << ", " << cam.tpp_offset.y << ", " << cam.tpp_offset.z << ") and 75 deg FOV.\n";
+                  << tppCam.tpp_offset.x << ", " << tppCam.tpp_offset.y << ", " << tppCam.tpp_offset.z << ") and 75 deg FOV.\n";
 
         // Sub-test B: Camera Fallback to FPS when no camera entity is present
         Lab::LabMap emptyCamMap;
@@ -9845,23 +9853,23 @@ int main() {
         Lab::Scene scene;
         auto mainEnt = scene.CreateEntity("MainCameraEntity");
         mainEnt->AddTag("MainCamera");
-        auto cam = mainEnt->AddComponent<Lab::Camera>();
+        auto ecsCam = mainEnt->AddComponent<Lab::Camera>();
 
-        cam->fieldOfView      = 60.0f;
-        cam->nearClipPlane    = 0.3f;
-        cam->farClipPlane     = 1000.0f;
-        cam->orthographic     = false;
-        cam->orthographicSize = 5.0f;
-        cam->backgroundColor  = Lab::Color(0, 0, 0, 1);
-        cam->clearFlags       = Lab::ClearFlags::SolidColor;
-        cam->cullingMask      = 0xFFFFFFFF;
-        cam->depth            = 0;
-        cam->rect             = Lab::Rect(0.0f, 0.0f, 1.0f, 1.0f);
-        cam->targetTexture    = 0;
-        cam->setViewport(1280.0f, 720.0f);
+        ecsCam->fieldOfView      = 60.0f;
+        ecsCam->nearClipPlane    = 0.3f;
+        ecsCam->farClipPlane     = 1000.0f;
+        ecsCam->orthographic     = false;
+        ecsCam->orthographicSize = 5.0f;
+        ecsCam->backgroundColor  = Lab::Color(0, 0, 0, 1);
+        ecsCam->clearFlags       = Lab::ClearFlags::SolidColor;
+        ecsCam->cullingMask      = 0xFFFFFFFF;
+        ecsCam->depth            = 0;
+        ecsCam->rect             = Lab::Rect(0.0f, 0.0f, 1.0f, 1.0f);
+        ecsCam->targetTexture    = 0;
+        ecsCam->setViewport(1280.0f, 720.0f);
 
-        if (cam->fieldOfView != 60.0f || cam->nearClipPlane != 0.3f || cam->farClipPlane != 1000.0f ||
-            cam->orthographic || cam->clearFlags != Lab::ClearFlags::SolidColor) {
+        if (ecsCam->fieldOfView != 60.0f || ecsCam->nearClipPlane != 0.3f || ecsCam->farClipPlane != 1000.0f ||
+            ecsCam->orthographic || ecsCam->clearFlags != Lab::ClearFlags::SolidColor) {
             std::cerr << "Assertion failed: Camera component properties mismatch!\n";
             return 1;
         }
@@ -9878,13 +9886,13 @@ int main() {
             std::cerr << "Assertion failed: scene.FindByTag('MainCamera') failed to locate main camera!\n";
             return 1;
         }
-        if (scene.GetMainCamera() != cam.get()) {
+        if (scene.GetMainCamera() != ecsCam.get()) {
             std::cerr << "Assertion failed: scene.GetMainCamera() returned incorrect camera component!\n";
             return 1;
         }
 
         auto sortedCams = scene.GetCamerasSortedByDepth();
-        if (sortedCams.size() != 2 || sortedCams[0] != cam.get() || sortedCams[1] != miniCam.get()) {
+        if (sortedCams.size() != 2 || sortedCams[0] != ecsCam.get() || sortedCams[1] != miniCam.get()) {
             std::cerr << "Assertion failed: Multi-camera depth sorting queue incorrect!\n";
             return 1;
         }
@@ -9895,8 +9903,8 @@ int main() {
         mainEnt->transform->rotation = Lab::Quat::Identity();
 
         Lab::Vec3 testScreenPt(640.0f, 360.0f, 10.0f);
-        Lab::Vec3 worldPt = cam->ScreenToWorldPoint(testScreenPt, 1280.0f, 720.0f);
-        Lab::Vec3 roundtripScreen = cam->WorldToScreenPoint(worldPt, 1280.0f, 720.0f);
+        Lab::Vec3 worldPt = ecsCam->ScreenToWorldPoint(testScreenPt, 1280.0f, 720.0f);
+        Lab::Vec3 roundtripScreen = ecsCam->WorldToScreenPoint(worldPt, 1280.0f, 720.0f);
 
         if (std::abs(roundtripScreen.x - testScreenPt.x) > 1.5f ||
             std::abs(roundtripScreen.y - testScreenPt.y) > 1.5f) {
@@ -9904,7 +9912,7 @@ int main() {
             return 1;
         }
 
-        Lab::Ray centerRay = cam->ViewportPointToRay(Lab::Vec3(0.5f, 0.5f, 0.0f));
+        Lab::Ray centerRay = ecsCam->ViewportPointToRay(Lab::Vec3(0.5f, 0.5f, 0.0f));
         if (std::abs(centerRay.origin.x - 0.0f) > 0.01f || std::abs(centerRay.origin.y - 0.0f) > 0.01f) {
             std::cerr << "Assertion failed: ViewportPointToRay origin does not match camera position!\n";
             return 1;
@@ -10034,9 +10042,9 @@ int main() {
         Lab::RenderViewState origState = Lab::Renderer::captureViewState();
         Lab::Mat4 testView = Lab::Mat4::translate(Lab::Vec3(10.0f, 20.0f, 30.0f));
         Lab::Mat4 testProj = Lab::Mat4::perspective(45.0f, 1.33f, 0.1f, 500.0f);
-        Lab::Vec3 testPos(10.0f, 20.0f, 30.0f);
+        Lab::Vec3 multiViewPos(10.0f, 20.0f, 30.0f);
 
-        Lab::Renderer::pushView(testView, testProj, testPos);
+        Lab::Renderer::pushView(testView, testProj, multiViewPos);
         Lab::RenderViewState pushedState = Lab::Renderer::captureViewState();
         if (pushedState.cameraPos.x != 10.0f || pushedState.cameraPos.y != 20.0f || pushedState.cameraPos.z != 30.0f) {
             std::cerr << "Assertion failed: Renderer::pushView failed to apply camera position!\n";
