@@ -129,6 +129,8 @@ namespace Lab {
         Mat4 viewMatrix;
         Mat4 projMatrix;
         Vec3 cameraPos;
+        int viewport[4]{0, 0, 0, 0};
+        unsigned int fbo{0};
     };
 
     class Renderer {

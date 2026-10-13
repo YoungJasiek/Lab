@@ -1533,13 +1533,29 @@ namespace Lab {
     }
 
     RenderViewState Renderer::captureViewState() {
-        return RenderViewState{ _viewMatrix, _projMatrix, _cameraPos };
+        RenderViewState state;
+        state.viewMatrix = _viewMatrix;
+        state.projMatrix = _projMatrix;
+        state.cameraPos = _cameraPos;
+        if (glad_glGetIntegerv) {
+            glGetIntegerv(GL_VIEWPORT, state.viewport);
+            GLint curFbo = 0;
+            glGetIntegerv(GL_FRAMEBUFFER_BINDING, &curFbo);
+            state.fbo = static_cast<unsigned int>(curFbo);
+        }
+        return state;
     }
 
     void Renderer::applyViewState(const RenderViewState& state) {
         _viewMatrix = state.viewMatrix;
         _projMatrix = state.projMatrix;
         _cameraPos = state.cameraPos;
+        if (glad_glViewport && (state.viewport[2] > 0 && state.viewport[3] > 0)) {
+            glViewport(state.viewport[0], state.viewport[1], state.viewport[2], state.viewport[3]);
+        }
+        if (glad_glBindFramebuffer) {
+            glBindFramebuffer(GL_FRAMEBUFFER, state.fbo);
+        }
     }
 
     void Renderer::pushViewState(const RenderViewState& state) {
@@ -1548,7 +1564,11 @@ namespace Lab {
     }
 
     void Renderer::pushView(const Mat4& view, const Mat4& proj, const Vec3& cameraPos) {
-        pushViewState(RenderViewState{ view, proj, cameraPos });
+        RenderViewState st = captureViewState();
+        st.viewMatrix = view;
+        st.projMatrix = proj;
+        st.cameraPos = cameraPos;
+        pushViewState(st);
     }
 
     void Renderer::popViewState() {
