@@ -3,6 +3,7 @@
 #include <vector>
 #include <memory>
 #include <functional>
+#include <unordered_map>
 #include "LabMath.h"
 
 // Forward declaration of Lua state
@@ -36,8 +37,25 @@ namespace Lab {
         float recoilKick = 0.04f;
     };
 
+    /// Per-engine mutable runtime state (HUD bridge, host callbacks, active camera).
+    /// Owned by each ScriptEngine instance so several engines never share Lua-visible state.
+    struct ScriptRuntimeState {
+        std::unordered_map<std::string, std::string> hudTexts;
+        std::unordered_map<std::string, float> hudValues;
+        std::unordered_map<std::string, bool> hudVisibles;
+        std::function<void(int)> doorUnlockCallback;
+        std::function<void(const std::string&, const std::string&)> serverChatCallback;
+        std::function<void(const std::string&)> cameraSwitchCallback;
+        std::string activeCameraName;
+    };
+
     class ScriptEngine {
     public:
+        /// Runtime state of this engine instance (created lazily).
+        ScriptRuntimeState& runtimeState() {
+            if (!_state) _state = std::make_shared<ScriptRuntimeState>();
+            return *_state;
+        }
         ScriptEngine();
         ~ScriptEngine();
 
@@ -114,6 +132,7 @@ namespace Lab {
 
     private:
         lua_State* _L = nullptr;
+        std::shared_ptr<ScriptRuntimeState> _state;
         std::string _currentScriptPath;
         LabMap* _activeMap = nullptr;
 

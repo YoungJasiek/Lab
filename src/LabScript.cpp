@@ -26,13 +26,17 @@ extern "C" {
 namespace Lab {
 
     static LabMap* s_activeMap = nullptr;
-    static std::unordered_map<std::string, std::string> s_hudTexts;
-    static std::unordered_map<std::string, float> s_hudValues;
-    static std::unordered_map<std::string, bool> s_hudVisibles;
-    static std::function<void(int)> s_doorUnlockCallback = nullptr;
-    static std::function<void(const std::string&, const std::string&)> s_serverChatCallback = nullptr;
-    static std::string s_activeCameraName = "";
-    static std::function<void(const std::string&)> s_cameraSwitchCallback = nullptr;
+
+    // Service-locator for the host-facing static API: points at the runtime state of the
+    // most recently initialised engine. Lua bindings never use it; they resolve their own engine.
+    static std::shared_ptr<ScriptRuntimeState>& currentRuntimeStatePtr() {
+        static std::shared_ptr<ScriptRuntimeState> s_current = std::make_shared<ScriptRuntimeState>();
+        return s_current;
+    }
+
+    static ScriptRuntimeState& currentRuntimeState() {
+        return *currentRuntimeStatePtr();
+    }
 
     static ScriptEngine* getEngineFromLua(lua_State* L) {
         if (!L) return nullptr;
@@ -40,6 +44,11 @@ namespace Lab {
         auto* eng = static_cast<ScriptEngine*>(lua_touserdata(L, -1));
         lua_pop(L, 1);
         return eng;
+    }
+
+    static ScriptRuntimeState& runtimeStateForLua(lua_State* L) {
+        if (ScriptEngine* eng = getEngineFromLua(L)) return eng->runtimeState();
+        return currentRuntimeState();
     }
 
     static LabMap* getActiveMapForLua(lua_State* L) {
@@ -50,24 +59,25 @@ namespace Lab {
     }
 
     void ScriptEngine::registerDoorUnlockCallback(std::function<void(int)> callback) {
-        s_doorUnlockCallback = callback;
+        currentRuntimeState().doorUnlockCallback = std::move(callback);
     }
 
     void ScriptEngine::registerServerChatCallback(std::function<void(const std::string&, const std::string&)> callback) {
-        s_serverChatCallback = callback;
+        currentRuntimeState().serverChatCallback = std::move(callback);
     }
 
     void ScriptEngine::registerCameraSwitchCallback(std::function<void(const std::string&)> callback) {
-        s_cameraSwitchCallback = callback;
+        currentRuntimeState().cameraSwitchCallback = std::move(callback);
     }
 
     void ScriptEngine::setActiveCameraName(const std::string& name) {
-        s_activeCameraName = name;
-        if (s_cameraSwitchCallback) s_cameraSwitchCallback(name);
+        auto& st = currentRuntimeState();
+        st.activeCameraName = name;
+        if (st.cameraSwitchCallback) st.cameraSwitchCallback(name);
     }
 
     const std::string& ScriptEngine::getActiveCameraName() {
-        return s_activeCameraName;
+        return currentRuntimeState().activeCameraName;
     }
 
     void ScriptEngine::setActiveMap(LabMap* map) {
@@ -106,30 +116,33 @@ namespace Lab {
     }
 
     void ScriptEngine::setHUDText(const std::string& id, const std::string& text) {
-        s_hudTexts[id] = text;
+        currentRuntimeState().hudTexts[id] = text;
     }
 
     std::string ScriptEngine::getHUDText(const std::string& id) {
-        auto it = s_hudTexts.find(id);
-        return it != s_hudTexts.end() ? it->second : "";
+        const auto& m = currentRuntimeState().hudTexts;
+        auto it = m.find(id);
+        return it != m.end() ? it->second : "";
     }
 
     void ScriptEngine::setHUDValue(const std::string& id, float val) {
-        s_hudValues[id] = val;
+        currentRuntimeState().hudValues[id] = val;
     }
 
     float ScriptEngine::getHUDValue(const std::string& id) {
-        auto it = s_hudValues.find(id);
-        return it != s_hudValues.end() ? it->second : 0.0f;
+        const auto& m = currentRuntimeState().hudValues;
+        auto it = m.find(id);
+        return it != m.end() ? it->second : 0.0f;
     }
 
     void ScriptEngine::setHUDVisible(const std::string& id, bool visible) {
-        s_hudVisibles[id] = visible;
+        currentRuntimeState().hudVisibles[id] = visible;
     }
 
     bool ScriptEngine::isHUDVisible(const std::string& id) {
-        auto it = s_hudVisibles.find(id);
-        return it != s_hudVisibles.end() ? it->second : true;
+        const auto& m = currentRuntimeState().hudVisibles;
+        auto it = m.find(id);
+        return it != m.end() ? it->second : true;
     }
 
     void ScriptEngine::update(float dt) {
@@ -152,14 +165,15 @@ namespace Lab {
         const char* id = luaL_checkstring(L, 1);
         const char* text = luaL_checkstring(L, 2);
         if (id && text) {
-            ScriptEngine::setHUDText(id, text);
+            runtimeStateForLua(L).hudTexts[id] = text;
         }
         return 0;
     }
 
     static int lua_HUDGetText(lua_State* L) {
         const char* id = luaL_checkstring(L, 1);
-        std::string res = id ? ScriptEngine::getHUDText(id) : "";
+        std::string res;
+        if (id) { const auto& m = runtimeStateForLua(L).hudTexts; auto it = m.find(id); if (it != m.end()) res = it->second; }
         lua_pushstring(L, res.c_str());
         return 1;
     }
@@ -168,14 +182,15 @@ namespace Lab {
         const char* id = luaL_checkstring(L, 1);
         float val = (float)luaL_checknumber(L, 2);
         if (id) {
-            ScriptEngine::setHUDValue(id, val);
+            runtimeStateForLua(L).hudValues[id] = val;
         }
         return 0;
     }
 
     static int lua_HUDGetValue(lua_State* L) {
         const char* id = luaL_checkstring(L, 1);
-        float val = id ? ScriptEngine::getHUDValue(id) : 0.0f;
+        float val = 0.0f;
+        if (id) { const auto& m = runtimeStateForLua(L).hudValues; auto it = m.find(id); if (it != m.end()) val = it->second; }
         lua_pushnumber(L, (lua_Number)val);
         return 1;
     }
@@ -184,14 +199,15 @@ namespace Lab {
         const char* id = luaL_checkstring(L, 1);
         bool vis = lua_toboolean(L, 2);
         if (id) {
-            ScriptEngine::setHUDVisible(id, vis);
+            runtimeStateForLua(L).hudVisibles[id] = vis;
         }
         return 0;
     }
 
     static int lua_HUDIsVisible(lua_State* L) {
         const char* id = luaL_checkstring(L, 1);
-        bool vis = id ? ScriptEngine::isHUDVisible(id) : true;
+        bool vis = true;
+        if (id) { const auto& m = runtimeStateForLua(L).hudVisibles; auto it = m.find(id); if (it != m.end()) vis = it->second; }
         lua_pushboolean(L, vis);
         return 1;
     }
@@ -376,7 +392,7 @@ namespace Lab {
     static int lua_CameraSetActive(lua_State* L) {
         const char* name = luaL_checkstring(L, 1);
         if (name) {
-            ScriptEngine::setActiveCameraName(name);
+            { auto& st = runtimeStateForLua(L); st.activeCameraName = name; if (st.cameraSwitchCallback) st.cameraSwitchCallback(name); }
             if (s_activeMap) {
                 for (auto& c : s_activeMap->cameras) {
                     c.active = (c.name == name);
@@ -387,7 +403,7 @@ namespace Lab {
     }
 
     static int lua_CameraGetActive(lua_State* L) {
-        lua_pushstring(L, ScriptEngine::getActiveCameraName().c_str());
+        lua_pushstring(L, runtimeStateForLua(L).activeCameraName.c_str());
         return 1;
     }
 
@@ -599,8 +615,8 @@ namespace Lab {
 
     static int lua_UnlockDoor(lua_State* L) {
         int doorIndex = (int)luaL_checkinteger(L, 1);
-        if (s_doorUnlockCallback) {
-            s_doorUnlockCallback(doorIndex);
+        if (auto& st = runtimeStateForLua(L); st.doorUnlockCallback) {
+            st.doorUnlockCallback(doorIndex);
         }
         return 0;
     }
@@ -608,8 +624,8 @@ namespace Lab {
     static int lua_AddChatMessage(lua_State* L) {
         const char* sender = luaL_checkstring(L, 1);
         const char* text = luaL_checkstring(L, 2);
-        if (s_serverChatCallback && sender && text) {
-            s_serverChatCallback(sender, text);
+        if (auto& st = runtimeStateForLua(L); st.serverChatCallback && sender && text) {
+            st.serverChatCallback(sender, text);
         }
         return 0;
     }
@@ -623,6 +639,7 @@ namespace Lab {
 
     ScriptEngine::ScriptEngine(ScriptEngine&& other) noexcept
         : _L(other._L),
+          _state(std::move(other._state)),
           _currentScriptPath(std::move(other._currentScriptPath)),
           _activeMap(other._activeMap),
           _maxHealth(other._maxHealth),
@@ -654,6 +671,7 @@ namespace Lab {
             shutdown();
             _L = other._L;
             other._L = nullptr;
+            _state = std::move(other._state);
             _currentScriptPath = std::move(other._currentScriptPath);
             _activeMap = other._activeMap;
             other._activeMap = nullptr;
@@ -1001,6 +1019,16 @@ namespace Lab {
 
         lua_pushlightuserdata(_L, this);
         lua_setfield(_L, LUA_REGISTRYINDEX, "__lab_script_engine");
+
+        if (!_state) {
+            // Fresh per-engine state; inherit host callbacks registered before init.
+            _state = std::make_shared<ScriptRuntimeState>();
+            const ScriptRuntimeState& prev = currentRuntimeState();
+            _state->doorUnlockCallback = prev.doorUnlockCallback;
+            _state->serverChatCallback = prev.serverChatCallback;
+            _state->cameraSwitchCallback = prev.cameraSwitchCallback;
+        }
+        currentRuntimeStatePtr() = _state;
 
         luaL_openlibs(_L);
 

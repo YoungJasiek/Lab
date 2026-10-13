@@ -33,7 +33,7 @@ Ten plik zawiera twarde błędy techniczne, dziury pamięciowe, pozorne implemen
   - `RigidBody` i `PhysicsWorld` (`include/LabPhysics.h:15-60`, `src/LabPhysics.cpp:192-289`) zawierają logikę `PropType::Crate`, `PropType::ExplosiveBarrel`, `health`, `maxHealth`, `isHeadshot`, a solver fizyczny bezpośrednio wywołuje `AudioEngine::playSound3D(SoundID::CrateBreak, ...)` oraz `Renderer::drawCube(...)` (przez co `LabPhysics.dll` musi linkować `LabRender` i `LabAudio`).
 - [ ] **Globalny, niereentrantny stan (`static`):**
   - `Renderer` (`include/LabRenderer.h:104-209`) składa się wyłącznie z pól i metod `static` – brak możliwości niezależnego renderowania wielu widoków bez ręcznego nadpisywania stanu globalnego.
-  - `ScriptEngine` (`src/LabScript.cpp:27-34`) przechowuje stan w zmiennych statycznych pliku (`s_activeMap`, `s_hudTexts`, callbacki) zamiast w polach instancji.
+  - `ScriptEngine` (`src/LabScript.cpp:27-34`) przechowuje stan w zmiennych statycznych pliku (`s_activeMap`, `s_hudTexts`, callbacki) zamiast w polach instancji. *(Naprawione dla `ScriptEngine`: stan HUD, callbacki i aktywna kamera są w `ScriptRuntimeState` należącym do instancji; bindingi Lua używają stanu własnego silnika. `Renderer` nadal w pełni `static`.)*
 
 ---
 
