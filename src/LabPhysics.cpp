@@ -493,9 +493,24 @@ namespace Lab {
             return true;
         };
 
+        // 1. Test 3 face normals of box A
         for (int i = 0; i < 3; ++i) {
             if (!testAxis(uA[i])) return;
+        }
+
+        // 2. Test 3 face normals of box B
+        for (int i = 0; i < 3; ++i) {
             if (!testAxis(uB[i])) return;
+        }
+
+        // 3. Test 9 edge-edge cross product axes: uA[i] x uB[j]
+        for (int i = 0; i < 3; ++i) {
+            for (int j = 0; j < 3; ++j) {
+                Vec3 edgeAxis = Vec3::cross(uA[i], uB[j]);
+                if (edgeAxis.lengthSq() > 1e-6f) {
+                    if (!testAxis(edgeAxis)) return;
+                }
+            }
         }
 
         float totalMass = a.mass + b.mass;
@@ -521,7 +536,30 @@ namespace Lab {
         float vn = Vec3::dot(relVel, bestNormal);
         if (vn < 0.0f) {
             float e = std::min(a.material.restitution, b.material.restitution);
-            float j = -(1.0f + e) * vn / (a.invMass + b.invMass);
+
+            // Compute rotational inertia resistance term:
+            // ((I_A^-1 (rA x n)) x rA + (I_B^-1 (rB x n)) x rB) . n
+            auto computeRotationalResistance = [](const RigidBody& body, const Vec3& r, const Vec3& n) -> float {
+                if (body.isStatic || body.invMass == 0.0f) return 0.0f;
+                Vec3 rxn = Vec3::cross(r, n);
+                // Rotate rxn to local space to multiply by diagonal invInertiaLocal
+                Vec3 localRxn = body.orientation.inverse().rotateVector(rxn);
+                Vec3 localInvRxn(
+                    localRxn.x * body.invInertiaLocal.x,
+                    localRxn.y * body.invInertiaLocal.y,
+                    localRxn.z * body.invInertiaLocal.z
+                );
+                Vec3 worldInvRxn = body.orientation.rotateVector(localInvRxn);
+                Vec3 term = Vec3::cross(worldInvRxn, r);
+                return Vec3::dot(term, n);
+            };
+
+            float rotA = computeRotationalResistance(a, rA, bestNormal);
+            float rotB = computeRotationalResistance(b, rB, bestNormal);
+            float denom = a.invMass + b.invMass + rotA + rotB;
+            if (denom < 1e-6f) denom = 1e-6f;
+
+            float j = -(1.0f + e) * vn / denom;
             Vec3 imp = bestNormal * j;
             a.applyImpulse(imp * -1.0f, contactPoint);
             b.applyImpulse(imp, contactPoint);
