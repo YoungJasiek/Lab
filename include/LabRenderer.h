@@ -125,6 +125,12 @@ namespace Lab {
         std::unique_ptr<Shader> _shader;
     };
 
+    struct RenderViewState {
+        Mat4 viewMatrix;
+        Mat4 projMatrix;
+        Vec3 cameraPos;
+    };
+
     class Renderer {
     public:
         static void init();
@@ -134,6 +140,13 @@ namespace Lab {
 
         static void beginViewModel();
         static void endViewModel(const Camera& camera);
+
+        // Reentrant View State Stack for multi-camera / probe / cubemap / split-screen rendering
+        static RenderViewState captureViewState();
+        static void applyViewState(const RenderViewState& state);
+        static void pushViewState(const RenderViewState& state);
+        static void pushView(const Mat4& view, const Mat4& proj, const Vec3& cameraPos);
+        static void popViewState();
 
         // Lighting & Shadows configuration
         static void setSunLight(const Vec3& direction, const Vec3& color, const Vec3& ambient);
@@ -230,5 +243,8 @@ namespace Lab {
         static bool _enableHeightFog;
         static float _heightFogBase;
         static float _heightFogDensity;
+
+        // View state stack for reentrant multi-view rendering
+        static std::vector<RenderViewState> _viewStateStack;
     };
 }

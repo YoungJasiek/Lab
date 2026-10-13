@@ -10029,6 +10029,29 @@ int main() {
         }
 
         std::cout << "  [PASS] Sub-test G: Exposed Cloth, WaterVolume, ForceField, Vehicle, Decal, PostProcess & Audio components verified.\n";
+
+        // --- Sub-test H: Reentrant Multi-View State Stack ---
+        Lab::RenderViewState origState = Lab::Renderer::captureViewState();
+        Lab::Mat4 testView = Lab::Mat4::translate(Lab::Vec3(10.0f, 20.0f, 30.0f));
+        Lab::Mat4 testProj = Lab::Mat4::perspective(45.0f, 1.33f, 0.1f, 500.0f);
+        Lab::Vec3 testPos(10.0f, 20.0f, 30.0f);
+
+        Lab::Renderer::pushView(testView, testProj, testPos);
+        Lab::RenderViewState pushedState = Lab::Renderer::captureViewState();
+        if (pushedState.cameraPos.x != 10.0f || pushedState.cameraPos.y != 20.0f || pushedState.cameraPos.z != 30.0f) {
+            std::cerr << "Assertion failed: Renderer::pushView failed to apply camera position!\n";
+            return 1;
+        }
+
+        Lab::Renderer::popViewState();
+        Lab::RenderViewState restoredState = Lab::Renderer::captureViewState();
+        if (restoredState.cameraPos.x != origState.cameraPos.x ||
+            restoredState.cameraPos.y != origState.cameraPos.y ||
+            restoredState.cameraPos.z != origState.cameraPos.z) {
+            std::cerr << "Assertion failed: Renderer::popViewState failed to restore original view state!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test H: Reentrant Renderer View State Stack (capture/push/pop) verified.\n";
         std::cout << "  [PASS] Test 86 Entity-Component Camera & Decoupled Engine Architecture passed 100%!\n";
     }
 

@@ -1206,6 +1206,7 @@ namespace Lab {
     bool Renderer::_enableHeightFog = false;
     float Renderer::_heightFogBase = 0.0f;
     float Renderer::_heightFogDensity = 0.04f;
+    std::vector<RenderViewState> Renderer::_viewStateStack;
 
     void Renderer::applyLightingAndShadowUniforms(Shader* shader) {
         shader->setVec3("viewPos", _cameraPos);
@@ -1379,6 +1380,7 @@ namespace Lab {
         if (_wireCubeEbo) { glDeleteBuffers(1, &_wireCubeEbo); _wireCubeEbo = 0; }
         if (_uiVao) { glDeleteVertexArrays(1, &_uiVao); _uiVao = 0; }
         if (_uiVbo) { glDeleteBuffers(1, &_uiVbo); _uiVbo = 0; }
+        _viewStateStack.clear();
     }
 
     void Renderer::setSunLight(const Vec3& direction, const Vec3& color, const Vec3& ambient) {
@@ -1528,6 +1530,32 @@ namespace Lab {
 
     void Renderer::endViewModel(const Camera& camera) {
         _viewMatrix = camera.getViewMatrix();
+    }
+
+    RenderViewState Renderer::captureViewState() {
+        return RenderViewState{ _viewMatrix, _projMatrix, _cameraPos };
+    }
+
+    void Renderer::applyViewState(const RenderViewState& state) {
+        _viewMatrix = state.viewMatrix;
+        _projMatrix = state.projMatrix;
+        _cameraPos = state.cameraPos;
+    }
+
+    void Renderer::pushViewState(const RenderViewState& state) {
+        _viewStateStack.push_back(captureViewState());
+        applyViewState(state);
+    }
+
+    void Renderer::pushView(const Mat4& view, const Mat4& proj, const Vec3& cameraPos) {
+        pushViewState(RenderViewState{ view, proj, cameraPos });
+    }
+
+    void Renderer::popViewState() {
+        if (!_viewStateStack.empty()) {
+            applyViewState(_viewStateStack.back());
+            _viewStateStack.pop_back();
+        }
     }
 
     Mat4 Renderer::getTransform(const Vec3& pos, const Vec3& rot, const Vec3& scale) {
