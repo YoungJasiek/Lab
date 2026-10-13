@@ -469,7 +469,8 @@ namespace Lab {
         _compositeShader->setInt("uBloom", 1);
         _compositeShader->setFloat("uBloomIntensity", 0.45f);
         _compositeShader->setFloat("uExposure", exposure);
-        _compositeShader->setFloat("uFrostIntensity", frostIntensity);
+        float effectiveOverlay = (frostIntensity > 0.0f) ? frostIntensity : _overlayIntensity;
+        _compositeShader->setFloat("uFrostIntensity", effectiveOverlay);
         _compositeShader->setFloat("uTime", timeSeconds);
         _compositeShader->setInt("uTonemapper", (int)tonemapper);
         _compositeShader->setFloat("uContrast", _contrast);

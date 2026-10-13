@@ -22,36 +22,46 @@ namespace Lab {
         return path;
     }
 
+    static std::unordered_map<int, std::string>& getItemPrefabRegistry() {
+        static std::unordered_map<int, std::string> s_registry = {
+            { 0, "weapon_pipe" },
+            { 1, "weapon_pistol" },
+            { 2, "weapon_shotgun" },
+            { 3, "weapon_m4a4s" },
+            { 4, "weapon_sg553" },
+            { 5, "weapon_minigun" },
+            { 6, "weapon_plasma" },
+            { 7, "weapon_railgun" },
+            { 8, "weapon_rpg" }
+        };
+        return s_registry;
+    }
+
+    void LabScene::registerItemPrefab(int itemId, const std::string& prefabRef) {
+        getItemPrefabRegistry()[itemId] = prefabRef;
+    }
+
     std::string LabScene::weaponIdToPrefab(int weaponId) {
-        switch (weaponId) {
-            case 0: return "weapon_pipe";
-            case 1: return "weapon_pistol";
-            case 2: return "weapon_shotgun";
-            case 3: return "weapon_m4a4s";
-            case 4: return "weapon_sg553";
-            case 5: return "weapon_minigun";
-            case 6: return "weapon_plasma";
-            case 7: return "weapon_railgun";
-            case 8: return "weapon_rpg";
-            default: return "weapon_" + std::to_string(weaponId);
+        const auto& reg = getItemPrefabRegistry();
+        auto it = reg.find(weaponId);
+        if (it != reg.end()) {
+            return it->second;
         }
+        return "item_" + std::to_string(weaponId);
     }
 
     int LabScene::prefabToWeaponId(const std::string& prefabRef) {
-        if (prefabRef == "weapon_pipe" || prefabRef == "pipe" || prefabRef == "prefabs/weapons/weapon_pipe.prefab") return 0;
-        if (prefabRef == "weapon_pistol" || prefabRef == "pistol" || prefabRef == "prefabs/weapons/weapon_pistol.prefab") return 1;
-        if (prefabRef == "weapon_shotgun" || prefabRef == "shotgun" || prefabRef == "prefabs/weapons/weapon_shotgun.prefab") return 2;
-        if (prefabRef == "weapon_m4a4s" || prefabRef == "m4a4s" || prefabRef == "prefabs/weapons/weapon_m4a4s.prefab") return 3;
-        if (prefabRef == "weapon_sg553" || prefabRef == "sg553" || prefabRef == "prefabs/weapons/weapon_sg553.prefab") return 4;
-        if (prefabRef == "weapon_minigun" || prefabRef == "minigun" || prefabRef == "prefabs/weapons/weapon_minigun.prefab") return 5;
-        if (prefabRef == "weapon_plasma" || prefabRef == "plasma" || prefabRef == "prefabs/weapons/weapon_plasma.prefab") return 6;
-        if (prefabRef == "weapon_railgun" || prefabRef == "railgun" || prefabRef == "prefabs/weapons/weapon_railgun.prefab") return 7;
-        if (prefabRef == "weapon_rpg" || prefabRef == "rpg" || prefabRef == "prefabs/weapons/weapon_rpg.prefab") return 8;
+        const auto& reg = getItemPrefabRegistry();
+        for (const auto& [id, name] : reg) {
+            if (name == prefabRef) return id;
+            if (("prefabs/weapons/" + name + ".prefab") == prefabRef) return id;
+            if (name.rfind("weapon_", 0) == 0 && name.substr(7) == prefabRef) return id;
+        }
 
         try {
             return std::stoi(prefabRef);
         } catch (...) {
-            return 2;
+            return 0;
         }
     }
 

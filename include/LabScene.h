@@ -137,10 +137,13 @@ namespace Lab {
         /// @brief Loads scene from .labscene file format
         static std::unique_ptr<LabScene> loadSceneFromFile(const std::string& filePath);
 
-        /// @brief Maps numeric weapon IDs (0..8) to prefab reference names
+        /// @brief Registers custom mapping between numeric item/weapon ID and prefab reference
+        static void registerItemPrefab(int itemId, const std::string& prefabRef);
+
+        /// @brief Maps numeric weapon/item IDs to prefab reference names (data-driven registry)
         static std::string weaponIdToPrefab(int weaponId);
 
-        /// @brief Maps prefab reference names back to legacy weapon IDs
+        /// @brief Maps prefab reference names back to item/weapon IDs
         static int prefabToWeaponId(const std::string& prefabRef);
     };
 

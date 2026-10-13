@@ -32,8 +32,12 @@ namespace Lab {
         // Ends rendering into HDR framebuffer
         void endScene();
 
-        // Performs bloom downsample/blur passes and composites to screen with tonemapping & cryo frost
+        // Performs bloom downsample/blur passes and composites to screen with tonemapping & screen overlay (frost/vignette)
         void render(float exposure = 1.0f, float frostIntensity = 0.0f, float timeSeconds = 0.0f, TonemapperType tonemapper = TonemapperType::ACESFilmic);
+
+        // Generic screen overlay / visor vignette intensity (alias for frostIntensity)
+        void setOverlayIntensity(float intensity) { _overlayIntensity = intensity; }
+        float getOverlayIntensity() const { return _overlayIntensity; }
 
         // Accessors for diagnostics & tests
         unsigned int getHDRTexture() const { return _hdrColorTexture; }
@@ -44,11 +48,14 @@ namespace Lab {
         int getWidth() const { return _width; }
         int getHeight() const { return _height; }
 
-        // Math utilities for tests
+        // Math utilities for tests & generic vignette
         static Vec3 acesFilmicTonemap(const Vec3& color);
         static Vec3 reinhardTonemap(const Vec3& color);
         static Vec3 applyColorGrading(const Vec3& color, float contrast = 1.04f, float saturation = 1.08f);
         static float calculateFrostVignette(float health, float maxHealth, bool isCryoSector);
+        static float calculateScreenVignette(float health, float maxHealth, bool isExtremeSector) {
+            return calculateFrostVignette(health, maxHealth, isExtremeSector);
+        }
 
         void setColorGrading(float contrast, float saturation) {
             _contrast = contrast;
@@ -63,6 +70,7 @@ namespace Lab {
         bool _initialized = false;
         float _contrast = 1.04f;
         float _saturation = 1.08f;
+        float _overlayIntensity = 0.0f;
 
         // Primary HDR Framebuffer (GL_RGBA16F, MRT)
         unsigned int _hdrFbo = 0;
