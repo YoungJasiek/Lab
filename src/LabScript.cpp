@@ -3,6 +3,7 @@
 #include "LabAudio.h"
 #include "LabInput.h"
 #include "LabMap.h"
+#include "LabScene.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -32,6 +33,21 @@ namespace Lab {
     static std::function<void(const std::string&, const std::string&)> s_serverChatCallback = nullptr;
     static std::string s_activeCameraName = "";
     static std::function<void(const std::string&)> s_cameraSwitchCallback = nullptr;
+
+    static ScriptEngine* getEngineFromLua(lua_State* L) {
+        if (!L) return nullptr;
+        lua_getfield(L, LUA_REGISTRYINDEX, "__lab_script_engine");
+        auto* eng = static_cast<ScriptEngine*>(lua_touserdata(L, -1));
+        lua_pop(L, 1);
+        return eng;
+    }
+
+    static LabMap* getActiveMapForLua(lua_State* L) {
+        if (ScriptEngine* eng = getEngineFromLua(L)) {
+            if (eng->getActiveMap()) return eng->getActiveMap();
+        }
+        return s_activeMap;
+    }
 
     void ScriptEngine::registerDoorUnlockCallback(std::function<void(int)> callback) {
         s_doorUnlockCallback = callback;
@@ -180,6 +196,19 @@ namespace Lab {
         return 1;
     }
 
+    static Vec3* resolveEntityPositionPtr(lua_State* L, const char* name) {
+        if (!name) return nullptr;
+        LabMap* map = getActiveMapForLua(L);
+        if (!map) return nullptr;
+        if (auto* scene = dynamic_cast<LabScene*>(map)) {
+            if (Entity* ent = scene->FindByName(name)) {
+                if (ent->transform) return &ent->transform->position;
+            }
+        }
+        auto h = map->findEntityByName(name);
+        return h.getPosition();
+    }
+
     // --- World & Entity Lua Callbacks ---
     static int lua_EntitySetPosition(lua_State* L) {
         const char* name = nullptr;
@@ -191,11 +220,8 @@ namespace Lab {
         float y = (float)luaL_checknumber(L, 3);
         float z = (float)luaL_checknumber(L, 4);
 
-        if (name && s_activeMap) {
-            auto h = s_activeMap->findEntityByName(name);
-            if (auto* pos = h.getPosition()) {
-                *pos = { x, y, z };
-            }
+        if (Vec3* pos = resolveEntityPositionPtr(L, name)) {
+            *pos = { x, y, z };
         }
         return 0;
     }
@@ -207,13 +233,10 @@ namespace Lab {
         lua_pop(L, 1);
 
         float x = 0.0f, y = 0.0f, z = 0.0f;
-        if (name && s_activeMap) {
-            auto h = s_activeMap->findEntityByName(name);
-            if (const auto* pos = h.getPosition()) {
-                x = pos->x;
-                y = pos->y;
-                z = pos->z;
-            }
+        if (const Vec3* pos = resolveEntityPositionPtr(L, name)) {
+            x = pos->x;
+            y = pos->y;
+            z = pos->z;
         }
         lua_pushnumber(L, x);
         lua_pushnumber(L, y);
@@ -231,13 +254,10 @@ namespace Lab {
         float dy = (float)luaL_checknumber(L, 3);
         float dz = (float)luaL_checknumber(L, 4);
 
-        if (name && s_activeMap) {
-            auto h = s_activeMap->findEntityByName(name);
-            if (auto* pos = h.getPosition()) {
-                pos->x += dx;
-                pos->y += dy;
-                pos->z += dz;
-            }
+        if (Vec3* pos = resolveEntityPositionPtr(L, name)) {
+            pos->x += dx;
+            pos->y += dy;
+            pos->z += dz;
         }
         return 0;
     }
@@ -248,10 +268,7 @@ namespace Lab {
         if (lua_isstring(L, -1)) name = lua_tostring(L, -1);
         lua_pop(L, 1);
         float x = 0.0f;
-        if (name && s_activeMap) {
-            auto h = s_activeMap->findEntityByName(name);
-            if (const auto* pos = h.getPosition()) x = pos->x;
-        }
+        if (const Vec3* pos = resolveEntityPositionPtr(L, name)) x = pos->x;
         lua_pushnumber(L, x);
         return 1;
     }
@@ -262,10 +279,7 @@ namespace Lab {
         if (lua_isstring(L, -1)) name = lua_tostring(L, -1);
         lua_pop(L, 1);
         float y = 0.0f;
-        if (name && s_activeMap) {
-            auto h = s_activeMap->findEntityByName(name);
-            if (const auto* pos = h.getPosition()) y = pos->y;
-        }
+        if (const Vec3* pos = resolveEntityPositionPtr(L, name)) y = pos->y;
         lua_pushnumber(L, y);
         return 1;
     }
@@ -276,10 +290,7 @@ namespace Lab {
         if (lua_isstring(L, -1)) name = lua_tostring(L, -1);
         lua_pop(L, 1);
         float z = 0.0f;
-        if (name && s_activeMap) {
-            auto h = s_activeMap->findEntityByName(name);
-            if (const auto* pos = h.getPosition()) z = pos->z;
-        }
+        if (const Vec3* pos = resolveEntityPositionPtr(L, name)) z = pos->z;
         lua_pushnumber(L, z);
         return 1;
     }
@@ -290,10 +301,7 @@ namespace Lab {
         if (lua_isstring(L, -1)) name = lua_tostring(L, -1);
         lua_pop(L, 1);
         float x = (float)luaL_checknumber(L, 2);
-        if (name && s_activeMap) {
-            auto h = s_activeMap->findEntityByName(name);
-            if (auto* pos = h.getPosition()) pos->x = x;
-        }
+        if (Vec3* pos = resolveEntityPositionPtr(L, name)) pos->x = x;
         return 0;
     }
 
@@ -303,10 +311,7 @@ namespace Lab {
         if (lua_isstring(L, -1)) name = lua_tostring(L, -1);
         lua_pop(L, 1);
         float y = (float)luaL_checknumber(L, 2);
-        if (name && s_activeMap) {
-            auto h = s_activeMap->findEntityByName(name);
-            if (auto* pos = h.getPosition()) pos->y = y;
-        }
+        if (Vec3* pos = resolveEntityPositionPtr(L, name)) pos->y = y;
         return 0;
     }
 
@@ -316,22 +321,13 @@ namespace Lab {
         if (lua_isstring(L, -1)) name = lua_tostring(L, -1);
         lua_pop(L, 1);
         float z = (float)luaL_checknumber(L, 2);
-        if (name && s_activeMap) {
-            auto h = s_activeMap->findEntityByName(name);
-            if (auto* pos = h.getPosition()) pos->z = z;
-        }
+        if (Vec3* pos = resolveEntityPositionPtr(L, name)) pos->z = z;
         return 0;
     }
 
     static int lua_WorldGetEntity(lua_State* L) {
         const char* name = luaL_checkstring(L, 1);
-        if (!name || !s_activeMap) {
-            lua_pushnil(L);
-            return 1;
-        }
-
-        auto handle = s_activeMap->findEntityByName(name);
-        if (!handle.isValid()) {
+        if (!name || !resolveEntityPositionPtr(L, name)) {
             lua_pushnil(L);
             return 1;
         }
@@ -368,13 +364,10 @@ namespace Lab {
         float dy = (float)luaL_checknumber(L, 3);
         float dz = (float)luaL_checknumber(L, 4);
 
-        if (name && s_activeMap) {
-            auto h = s_activeMap->findEntityByName(name);
-            if (auto* pos = h.getPosition()) {
-                pos->x += dx;
-                pos->y += dy;
-                pos->z += dz;
-            }
+        if (Vec3* pos = resolveEntityPositionPtr(L, name)) {
+            pos->x += dx;
+            pos->y += dy;
+            pos->z += dz;
         }
         return 0;
     }
@@ -631,6 +624,7 @@ namespace Lab {
     ScriptEngine::ScriptEngine(ScriptEngine&& other) noexcept
         : _L(other._L),
           _currentScriptPath(std::move(other._currentScriptPath)),
+          _activeMap(other._activeMap),
           _maxHealth(other._maxHealth),
           _startArmor(other._startArmor),
           _armorAbsorptionRatio(other._armorAbsorptionRatio),
@@ -648,6 +642,11 @@ namespace Lab {
           _missionName(std::move(other._missionName)),
           _missionStartText(std::move(other._missionStartText)) {
         other._L = nullptr;
+        other._activeMap = nullptr;
+        if (_L) {
+            lua_pushlightuserdata(_L, this);
+            lua_setfield(_L, LUA_REGISTRYINDEX, "__lab_script_engine");
+        }
     }
 
     ScriptEngine& ScriptEngine::operator=(ScriptEngine&& other) noexcept {
@@ -656,6 +655,8 @@ namespace Lab {
             _L = other._L;
             other._L = nullptr;
             _currentScriptPath = std::move(other._currentScriptPath);
+            _activeMap = other._activeMap;
+            other._activeMap = nullptr;
             _maxHealth = other._maxHealth;
             _startArmor = other._startArmor;
             _armorAbsorptionRatio = other._armorAbsorptionRatio;
@@ -672,6 +673,10 @@ namespace Lab {
             _missionTimeLimit = other._missionTimeLimit;
             _missionName = std::move(other._missionName);
             _missionStartText = std::move(other._missionStartText);
+            if (_L) {
+                lua_pushlightuserdata(_L, this);
+                lua_setfield(_L, LUA_REGISTRYINDEX, "__lab_script_engine");
+            }
         }
         return *this;
     }
@@ -993,6 +998,9 @@ namespace Lab {
             LabLog::error("Failed to allocate Lua state!");
             return false;
         }
+
+        lua_pushlightuserdata(_L, this);
+        lua_setfield(_L, LUA_REGISTRYINDEX, "__lab_script_engine");
 
         luaL_openlibs(_L);
 
@@ -1330,9 +1338,7 @@ namespace Lab {
     std::string ScriptEngine::getWeaponNameById(int id) const {
         const auto* def = getWeaponDefById(id);
         if (def && !def->name.empty()) return def->name;
-        const char* names[9] = { "Pipe", "Pistol", "Shotgun", "M4A4-S", "SG553", "Minigun", "Plasma Gun", "Railgun", "RPG" };
-        if (id >= 0 && id < 9) return names[id];
-        return "Weapon";
+        return "WEAPON_" + std::to_string(id);
     }
 
 } // namespace Lab
