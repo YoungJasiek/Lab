@@ -336,6 +336,29 @@ namespace Lab {
             return (q1 * w1 + q2 * w2).normalized();
         }
 
+        Vec3 toEuler() const {
+            // Standard Euler angles conversion from quaternion (XYZ order: pitch, yaw, roll)
+            Vec3 euler;
+            // Roll (x-axis rotation)
+            float sinr_cosp = 2.0f * (w * x + y * z);
+            float cosr_cosp = 1.0f - 2.0f * (x * x + y * y);
+            euler.x = std::atan2(sinr_cosp, cosr_cosp);
+
+            // Pitch (y-axis rotation)
+            float sinp = 2.0f * (w * y - z * x);
+            if (std::abs(sinp) >= 1.0f)
+                euler.y = std::copysign(3.14159265f / 2.0f, sinp); // Use 90 degrees if out of range
+            else
+                euler.y = std::asin(sinp);
+
+            // Yaw (z-axis rotation)
+            float siny_cosp = 2.0f * (w * z + x * y);
+            float cosy_cosp = 1.0f - 2.0f * (y * y + z * z);
+            euler.z = std::atan2(siny_cosp, cosy_cosp);
+
+            return euler;
+        }
+
         Mat4 toMat4() const {
             Quat q = normalized();
             Mat4 res;

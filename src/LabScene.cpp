@@ -341,6 +341,46 @@ namespace Lab {
             }
         }
 
+        // ECS Dynamic Entities not backed by legacy arrays
+        for (const auto& ent : entities) {
+            if (!ent) continue;
+            // Check if this entity already matches a prop/camera/light/door
+            bool isMapped = false;
+            for (const auto& p : props) { if (!p.name.empty() && p.name == ent->name) { isMapped = true; break; } }
+            if (!isMapped) { for (const auto& c : cameras) { if (!c.name.empty() && c.name == ent->name) { isMapped = true; break; } } }
+            if (!isMapped) { for (const auto& l : lights) { if (!l.name.empty() && l.name == ent->name) { isMapped = true; break; } } }
+            if (!isMapped) { for (const auto& d : doors) { if (!d.name.empty() && d.name == ent->name) { isMapped = true; break; } } }
+
+            if (!isMapped) {
+                Vec3 pPos = ent->transform ? ent->transform->position : Vec3(0, 0, 0);
+                Vec3 pScale = ent->transform ? ent->transform->scale : Vec3(1, 1, 1);
+                Vec3 pEuler = ent->transform ? ent->transform->rotation.toEuler() : Vec3(0, 0, 0);
+                // Convert radians to degrees
+                pEuler = pEuler * (180.0f / 3.14159265f);
+                std::string mPath = "";
+                std::string tPath = "";
+                Vec3 mColor(1, 1, 1);
+                auto mc = ent->GetComponent<MeshComponent>();
+                if (mc) {
+                    mPath = mc->modelPath;
+                    tPath = mc->texturePath;
+                    mColor = mc->color;
+                }
+                file << "    entity ecs_node " << (mPath.empty() ? "\"\"" : mPath) << " "
+                     << pPos.x << " " << pPos.y << " " << pPos.z << " "
+                     << pEuler.x << " " << pEuler.y << " " << pEuler.z << " "
+                     << pScale.x << " " << pScale.y << " " << pScale.z << " "
+                     << mColor.x << " " << mColor.y << " " << mColor.z << " "
+                     << (tPath.empty() ? "\"\"" : tPath) << "\n";
+                if (!ent->name.empty()) {
+                    file << "        name \"" << ent->name << "\"\n";
+                }
+                if (!ent->tag.empty()) {
+                    file << "        tag \"" << ent->tag << "\"\n";
+                }
+            }
+        }
+
         file << "END_ENTITIES\n";
         LabLog::info("Successfully saved .labscene to: " + filePath);
         return true;
@@ -620,6 +660,41 @@ namespace Lab {
                     if (sp.size.y <= 0.0f) sp.size.y = 1.0f;
                     scene->sprites.push_back(sp);
                     lastParsed = LastParsedEntity::Sprite;
+                } else if (token == "ecs_node") {
+                    std::string mPath, tPath;
+                    Vec3 pos, rotDeg, scl, col;
+                    ss >> mPath >> pos.x >> pos.y >> pos.z
+                       >> rotDeg.x >> rotDeg.y >> rotDeg.z
+                       >> scl.x >> scl.y >> scl.z
+                       >> col.x >> col.y >> col.z;
+                    if (ss >> tPath) {
+                        if (tPath == "\"\"") tPath = "";
+                    }
+                    if (mPath == "\"\"") mPath = "";
+                    auto ent = scene->CreateEntity("ecs_node", "Node");
+                    ent->transform->position = pos;
+                    ent->transform->rotation = Quat::fromEuler(
+                        rotDeg.x * (3.14159265f / 180.0f),
+                        rotDeg.y * (3.14159265f / 180.0f),
+                        rotDeg.z * (3.14159265f / 180.0f)
+                    );
+                    ent->transform->scale = scl;
+                    if (!mPath.empty() || !tPath.empty()) {
+                        auto mc = ent->AddComponent<MeshComponent>(mPath, tPath);
+                        mc->color = col;
+                    }
+                    ent->syncToSceneNode();
+                    lastParsed = LastParsedEntity::None;
+                } else if (token == "tag") {
+                    std::string rest;
+                    std::getline(ss, rest);
+                    size_t q1 = rest.find('"'), q2 = rest.rfind('"');
+                    std::string t;
+                    if (q1 != std::string::npos && q2 != std::string::npos && q2 > q1) t = rest.substr(q1 + 1, q2 - q1 - 1);
+                    else { std::stringstream tss(rest); tss >> t; }
+                    if (!t.empty() && !scene->entities.empty()) {
+                        scene->entities.back()->tag = t;
+                    }
                 } else if (token == "script") {
                     std::string sPath;
                     if (ss >> sPath) {
@@ -641,6 +716,7 @@ namespace Lab {
                         else if (lastParsed == LastParsedEntity::Door && !scene->doors.empty()) scene->doors.back().name = n;
                         else if (lastParsed == LastParsedEntity::Camera && !scene->cameras.empty()) scene->cameras.back().name = n;
                         else if (lastParsed == LastParsedEntity::Sprite && !scene->sprites.empty()) scene->sprites.back().name = n;
+                        else if (!scene->entities.empty()) scene->entities.back()->name = n;
                     }
                 } else if (token == "rot" || token == "rotation") {
                     Vec3 r(0, 0, 0);
@@ -690,6 +766,8 @@ namespace Lab {
                     p.rotation.z * (3.14159265f / 180.0f)
                 );
                 ent->transform->scale = p.scale;
+                auto meshComp = ent->AddComponent<MeshComponent>(p.modelPath, p.texturePath);
+                meshComp->color = p.color;
                 if (p.hasCloth) ent->AddComponent<ClothComponent>();
                 if (p.hasWaterVolume) ent->AddComponent<WaterVolumeComponent>();
                 if (p.hasForceField) ent->AddComponent<ForceFieldComponent>();

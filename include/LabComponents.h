@@ -205,4 +205,20 @@ namespace Lab {
         PostProcessComponent() = default;
     };
 
+    // =========================================================================
+    // 9. Static / Dynamic Mesh Renderer Component
+    // =========================================================================
+    class MeshComponent : public Component {
+    public:
+        std::string modelPath{""};
+        std::string texturePath{""};
+        Vec3 color{1.0f, 1.0f, 1.0f};
+        bool castShadows{true};
+        bool receiveShadows{true};
+
+        MeshComponent() = default;
+        explicit MeshComponent(const std::string& model, const std::string& tex = "")
+            : modelPath(model), texturePath(tex) {}
+    };
+
 } // namespace Lab
