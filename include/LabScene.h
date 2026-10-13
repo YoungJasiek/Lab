@@ -3,6 +3,7 @@
 #include "LabMap.h"
 #include "LabEntity.h"
 #include "LabCamera.h"
+#include "LabSceneNode.h"
 #include <string>
 #include <vector>
 #include <memory>
@@ -44,6 +45,51 @@ namespace Lab {
             entities.push_back(ent);
             return ent;
         }
+
+        std::shared_ptr<SceneNode> getRootNode() {
+            if (!m_rootNode) {
+                m_rootNode = std::make_shared<SceneNode>("SceneRoot");
+            }
+            return m_rootNode;
+        }
+
+        std::shared_ptr<Entity> CreateEntityFromNode(std::shared_ptr<SceneNode> node) {
+            if (!node) return nullptr;
+            auto ent = CreateEntity(node->getName());
+            ent->setSceneNode(node);
+            node->setEntity(ent.get());
+            for (const auto& childNode : node->getChildren()) {
+                if (childNode) {
+                    auto childEnt = CreateEntityFromNode(childNode);
+                    if (childEnt) {
+                        childEnt->setParent(ent);
+                    }
+                }
+            }
+            return ent;
+        }
+
+        std::shared_ptr<Entity> InstantiatePrefab(const Prefab& prefab, const std::string& name = "") {
+            auto node = prefab.instantiate();
+            if (!node) return nullptr;
+            if (!name.empty()) node->setName(name);
+            return CreateEntityFromNode(node);
+        }
+
+        void syncSceneGraph() {
+            auto root = getRootNode();
+            for (auto& ent : entities) {
+                if (!ent) continue;
+                ent->syncToSceneNode();
+                auto node = ent->getSceneNode();
+                if (node && !node->getParent()) {
+                    root->addChild(node);
+                }
+            }
+        }
+
+        void synchronizeMapToEntities();
+        void synchronizeEntitiesToMap();
 
         Entity* FindByTag(const std::string& tag) const {
             for (const auto& ent : entities) {
@@ -145,6 +191,9 @@ namespace Lab {
 
         /// @brief Maps prefab reference names back to item/weapon IDs
         static int prefabToWeaponId(const std::string& prefabRef);
+
+    private:
+        std::shared_ptr<SceneNode> m_rootNode;
     };
 
     using Scene = LabScene;

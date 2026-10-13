@@ -4,6 +4,7 @@
 #include "LabInput.h"
 #include "LabMap.h"
 #include "LabScene.h"
+#include "LabComponents.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -78,6 +79,14 @@ namespace Lab {
 
     const std::string& ScriptEngine::getActiveCameraName() {
         return currentRuntimeState().activeCameraName;
+    }
+
+    void ScriptEngine::setActiveScene(LabScene* scene) {
+        _activeScene = scene;
+        if (scene) {
+            scene->synchronizeMapToEntities();
+        }
+        setActiveMap(scene);
     }
 
     void ScriptEngine::setActiveMap(LabMap* map) {
@@ -225,6 +234,16 @@ namespace Lab {
         return h.getPosition();
     }
 
+    static Entity* resolveEntityPtr(lua_State* L, const char* name) {
+        if (!name) return nullptr;
+        LabMap* map = getActiveMapForLua(L);
+        if (!map) return nullptr;
+        if (auto* scene = dynamic_cast<LabScene*>(map)) {
+            return scene->FindByName(name);
+        }
+        return nullptr;
+    }
+
     // --- World & Entity Lua Callbacks ---
     static int lua_EntitySetPosition(lua_State* L) {
         const char* name = nullptr;
@@ -341,9 +360,156 @@ namespace Lab {
         return 0;
     }
 
+    static int lua_EntityGetTag(lua_State* L) {
+        const char* name = nullptr;
+        lua_getfield(L, 1, "__name");
+        if (lua_isstring(L, -1)) name = lua_tostring(L, -1);
+        lua_pop(L, 1);
+        std::string tag = "";
+        if (Entity* ent = resolveEntityPtr(L, name)) tag = ent->tag;
+        lua_pushstring(L, tag.c_str());
+        return 1;
+    }
+
+    static int lua_EntitySetTag(lua_State* L) {
+        const char* name = nullptr;
+        lua_getfield(L, 1, "__name");
+        if (lua_isstring(L, -1)) name = lua_tostring(L, -1);
+        lua_pop(L, 1);
+        const char* tag = luaL_checkstring(L, 2);
+        if (Entity* ent = resolveEntityPtr(L, name)) {
+            if (tag) ent->tag = tag;
+        }
+        return 0;
+    }
+
+    static int lua_EntityIsActive(lua_State* L) {
+        const char* name = nullptr;
+        lua_getfield(L, 1, "__name");
+        if (lua_isstring(L, -1)) name = lua_tostring(L, -1);
+        lua_pop(L, 1);
+        bool act = true;
+        if (Entity* ent = resolveEntityPtr(L, name)) act = ent->active;
+        lua_pushboolean(L, act);
+        return 1;
+    }
+
+    static int lua_EntitySetActive(lua_State* L) {
+        const char* name = nullptr;
+        lua_getfield(L, 1, "__name");
+        if (lua_isstring(L, -1)) name = lua_tostring(L, -1);
+        lua_pop(L, 1);
+        bool act = lua_toboolean(L, 2);
+        if (Entity* ent = resolveEntityPtr(L, name)) ent->active = act;
+        return 0;
+    }
+
+    static int lua_EntityHasComponent(lua_State* L) {
+        const char* name = nullptr;
+        lua_getfield(L, 1, "__name");
+        if (lua_isstring(L, -1)) name = lua_tostring(L, -1);
+        lua_pop(L, 1);
+        const char* compName = luaL_checkstring(L, 2);
+        bool has = false;
+        if (Entity* ent = resolveEntityPtr(L, name)) {
+            if (compName) {
+                if (_stricmp(compName, "Camera") == 0) has = ent->HasComponent<Camera>();
+                else if (_stricmp(compName, "Light") == 0) has = ent->HasComponent<LightComponent>();
+                else if (_stricmp(compName, "AudioSource") == 0) has = ent->HasComponent<AudioSourceComponent>();
+                else if (_stricmp(compName, "Cloth") == 0) has = ent->HasComponent<ClothComponent>();
+                else if (_stricmp(compName, "WaterVolume") == 0) has = ent->HasComponent<WaterVolumeComponent>();
+                else if (_stricmp(compName, "ForceField") == 0) has = ent->HasComponent<ForceFieldComponent>();
+                else if (_stricmp(compName, "Vehicle") == 0) has = ent->HasComponent<VehicleComponent>();
+                else if (_stricmp(compName, "Decal") == 0) has = ent->HasComponent<DecalComponent>();
+                else if (_stricmp(compName, "PostProcess") == 0) has = ent->HasComponent<PostProcessComponent>();
+                else if (_stricmp(compName, "Transform") == 0) has = (ent->transform != nullptr);
+            }
+        }
+        lua_pushboolean(L, has);
+        return 1;
+    }
+
+    static int lua_EntityGetParent(lua_State* L) {
+        const char* name = nullptr;
+        lua_getfield(L, 1, "__name");
+        if (lua_isstring(L, -1)) name = lua_tostring(L, -1);
+        lua_pop(L, 1);
+        std::string parentName = "";
+        if (Entity* ent = resolveEntityPtr(L, name)) {
+            if (ent->transform && ent->transform->parent && ent->transform->parent->entity) {
+                parentName = ent->transform->parent->entity->name;
+            }
+        }
+        if (parentName.empty()) {
+            lua_pushnil(L);
+        } else {
+            lua_pushstring(L, parentName.c_str());
+        }
+        return 1;
+    }
+
+    static int lua_EntitySetParent(lua_State* L) {
+        const char* name = nullptr;
+        lua_getfield(L, 1, "__name");
+        if (lua_isstring(L, -1)) name = lua_tostring(L, -1);
+        lua_pop(L, 1);
+        const char* parentName = lua_isstring(L, 2) ? lua_tostring(L, 2) : nullptr;
+        if (Entity* ent = resolveEntityPtr(L, name)) {
+            if (parentName) {
+                if (Entity* parentEnt = resolveEntityPtr(L, parentName)) {
+                    if (ent->transform && parentEnt->transform) {
+                        ent->transform->setParent(parentEnt->transform.get());
+                    }
+                    if (ent->getSceneNode() && parentEnt->getSceneNode()) {
+                        ent->getSceneNode()->setParent(parentEnt->getSceneNode());
+                    }
+                }
+            } else {
+                if (ent->transform) ent->transform->setParent(nullptr);
+                if (ent->sceneNode) ent->sceneNode->setParent(nullptr);
+            }
+        }
+        return 0;
+    }
+
+    static int lua_WorldGetSceneNode(lua_State* L) {
+        const char* name = luaL_checkstring(L, 1);
+        if (!name) { lua_pushnil(L); return 1; }
+        Entity* ent = resolveEntityPtr(L, name);
+        if (!ent) { lua_pushnil(L); return 1; }
+        auto node = ent->getSceneNode();
+        if (!node) { lua_pushnil(L); return 1; }
+
+        lua_newtable(L);
+        lua_pushstring(L, name);
+        lua_setfield(L, -2, "__name");
+        lua_pushstring(L, node->getName().c_str());
+        lua_setfield(L, -2, "name");
+
+        Vec3 wp = node->getWorldPosition();
+        lua_pushnumber(L, wp.x); lua_setfield(L, -2, "worldX");
+        lua_pushnumber(L, wp.y); lua_setfield(L, -2, "worldY");
+        lua_pushnumber(L, wp.z); lua_setfield(L, -2, "worldZ");
+
+        return 1;
+    }
+
+    static int lua_WorldCreateEntity(lua_State* L) {
+        const char* name = luaL_checkstring(L, 1);
+        const char* tag = luaL_optstring(L, 2, "");
+        LabMap* map = getActiveMapForLua(L);
+        if (auto* scene = dynamic_cast<LabScene*>(map)) {
+            auto ent = scene->CreateEntity(name ? name : "Entity", tag ? tag : "");
+            lua_pushboolean(L, true);
+            return 1;
+        }
+        lua_pushboolean(L, false);
+        return 1;
+    }
+
     static int lua_WorldGetEntity(lua_State* L) {
         const char* name = luaL_checkstring(L, 1);
-        if (!name || !resolveEntityPositionPtr(L, name)) {
+        if (!name || (!resolveEntityPositionPtr(L, name) && !resolveEntityPtr(L, name))) {
             lua_pushnil(L);
             return 1;
         }
@@ -370,6 +536,20 @@ namespace Lab {
         lua_setfield(L, -2, "setY");
         lua_pushcfunction(L, lua_EntitySetZ);
         lua_setfield(L, -2, "setZ");
+        lua_pushcfunction(L, lua_EntityGetTag);
+        lua_setfield(L, -2, "getTag");
+        lua_pushcfunction(L, lua_EntitySetTag);
+        lua_setfield(L, -2, "setTag");
+        lua_pushcfunction(L, lua_EntityIsActive);
+        lua_setfield(L, -2, "isActive");
+        lua_pushcfunction(L, lua_EntitySetActive);
+        lua_setfield(L, -2, "setActive");
+        lua_pushcfunction(L, lua_EntityHasComponent);
+        lua_setfield(L, -2, "hasComponent");
+        lua_pushcfunction(L, lua_EntityGetParent);
+        lua_setfield(L, -2, "getParent");
+        lua_pushcfunction(L, lua_EntitySetParent);
+        lua_setfield(L, -2, "setParent");
 
         return 1;
     }
@@ -767,6 +947,10 @@ namespace Lab {
         lua_setfield(_L, -2, "getEntity");
         lua_pushcfunction(_L, lua_WorldMoveEntity);
         lua_setfield(_L, -2, "moveEntity");
+        lua_pushcfunction(_L, lua_WorldGetSceneNode);
+        lua_setfield(_L, -2, "getSceneNode");
+        lua_pushcfunction(_L, lua_WorldCreateEntity);
+        lua_setfield(_L, -2, "createEntity");
         lua_setglobal(_L, "World");
 
         // Register table 'Camera'
@@ -929,6 +1113,18 @@ namespace Lab {
 
             function scene.findByName(selfOrName, maybeName)
                 local name = maybeName or selfOrName
+                if World and World.getEntity then
+                    local we = World.getEntity(name)
+                    if we then
+                        if not _entitiesByName[name] then
+                            _entitiesByName[name] = _createEntityTable(name, we:getTag() or "")
+                        end
+                        local e = _entitiesByName[name]
+                        local x, y, z = we:getPosition()
+                        e.transform.position = { x, y, z }
+                        return e
+                    end
+                end
                 if not _entitiesByName[name] then
                     _entitiesByName[name] = _createEntityTable(name, "")
                 end

@@ -1,6 +1,7 @@
 #pragma once
 #include "LabComponent.h"
 #include "LabTransform.h"
+#include "LabSceneNode.h"
 #include <string>
 #include <vector>
 #include <memory>
@@ -18,11 +19,54 @@ namespace Lab {
         std::string tag{""};
         bool active{true};
         std::shared_ptr<Transform> transform;
+        std::shared_ptr<SceneNode> sceneNode;
 
         Entity(const std::string& name = "Entity", const std::string& tag = "")
             : name(name), tag(tag) {
             transform = std::make_shared<Transform>();
             transform->entity = this;
+        }
+
+        std::shared_ptr<SceneNode> getSceneNode() {
+            if (!sceneNode) {
+                sceneNode = std::make_shared<SceneNode>(name);
+                sceneNode->setEntity(this);
+                syncToSceneNode();
+            }
+            return sceneNode;
+        }
+
+        void setSceneNode(std::shared_ptr<SceneNode> node) {
+            sceneNode = node;
+            if (node) {
+                node->setEntity(this);
+                syncFromSceneNode();
+            }
+        }
+
+        void syncToSceneNode() {
+            if (sceneNode && transform) {
+                sceneNode->syncFromTransform(*transform);
+            }
+        }
+
+        void syncFromSceneNode() {
+            if (sceneNode && transform) {
+                sceneNode->syncToTransform(*transform);
+            }
+        }
+
+        void setParent(std::shared_ptr<Entity> parentEntity) {
+            if (transform && parentEntity && parentEntity->transform) {
+                transform->setParent(parentEntity->transform.get());
+            } else if (transform && !parentEntity) {
+                transform->setParent(nullptr);
+            }
+            if (parentEntity) {
+                getSceneNode()->setParent(parentEntity->getSceneNode());
+            } else if (sceneNode) {
+                sceneNode->setParent(nullptr);
+            }
         }
 
         void AddTag(const std::string& t) { tag = t; }

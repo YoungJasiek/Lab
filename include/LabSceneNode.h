@@ -8,6 +8,9 @@
 
 namespace Lab {
 
+class Entity;
+class Transform;
+
 class LAB_CORE_API SceneNode : public std::enable_shared_from_this<SceneNode> {
 public:
     SceneNode(const std::string& name = "Entity");
@@ -15,6 +18,14 @@ public:
 
     const std::string& getName() const { return m_name; }
     void setName(const std::string& name) { m_name = name; }
+
+    // Entity link
+    void setEntity(Entity* entity) { m_entity = entity; }
+    Entity* getEntity() const { return m_entity; }
+
+    // Bidirectional Transform synchronization
+    void syncFromTransform(const Transform& transform);
+    void syncToTransform(Transform& transform) const;
 
     // Hierarchy management
     void setParent(std::shared_ptr<SceneNode> parent);
@@ -44,6 +55,7 @@ public:
 
 protected:
     std::string m_name;
+    Entity* m_entity = nullptr;
     std::weak_ptr<SceneNode> m_parent;
     std::vector<std::shared_ptr<SceneNode>> m_children;
 

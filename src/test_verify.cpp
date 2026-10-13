@@ -10052,6 +10052,76 @@ int main() {
             return 1;
         }
         std::cout << "  [PASS] Sub-test H: Reentrant Renderer View State Stack (capture/push/pop) verified.\n";
+
+        // --- Sub-test I: Unified Scene Systems (LabMap, LabScene, SceneNode, Prefabs & ScriptEngine) ---
+        // 1. SceneNode <-> Entity connection & bidirectional sync
+        auto parentEnt = scene.CreateEntity("ParentNodeEntity");
+        parentEnt->transform->position = Lab::Vec3(5.0f, 10.0f, 15.0f);
+        parentEnt->syncToSceneNode();
+        auto pNode = parentEnt->getSceneNode();
+        if (!pNode || pNode->getLocalPosition().x != 5.0f || pNode->getEntity() != parentEnt.get()) {
+            std::cerr << "Assertion failed: SceneNode <-> Entity linkage or transform sync failed!\n";
+            return 1;
+        }
+
+        auto childEnt = scene.CreateEntity("ChildNodeEntity");
+        childEnt->transform->position = Lab::Vec3(1.0f, 0.0f, 0.0f);
+        childEnt->setParent(parentEnt);
+        if (childEnt->transform->parent != parentEnt->transform.get() ||
+            childEnt->getSceneNode()->getParent() != pNode) {
+            std::cerr << "Assertion failed: Entity::setParent hierarchy propagation failed!\n";
+            return 1;
+        }
+
+        // 2. Prefab template instantiation into Scene
+        auto prefabTemplate = std::make_shared<Lab::SceneNode>("GunTurret");
+        prefabTemplate->setLocalPosition(Lab::Vec3(0.0f, 2.0f, 0.0f));
+        auto barrelNode = std::make_shared<Lab::SceneNode>("TurretBarrel");
+        barrelNode->setLocalPosition(Lab::Vec3(0.0f, 0.0f, 1.5f));
+        prefabTemplate->addChild(barrelNode);
+        Lab::Prefab turretPrefab(prefabTemplate);
+
+        auto instantiatedTurret = scene.InstantiatePrefab(turretPrefab, "SpawnedTurret");
+        if (!instantiatedTurret || instantiatedTurret->name != "SpawnedTurret" ||
+            instantiatedTurret->transform->position.y != 2.0f) {
+            std::cerr << "Assertion failed: LabScene::InstantiatePrefab failed!\n";
+            return 1;
+        }
+
+        // 3. Flat LabMap <-> LabScene Entity Synchronization
+        Lab::MapProp testProp;
+        testProp.name = "SyncTestProp";
+        testProp.position = Lab::Vec3(12.0f, 3.0f, -4.0f);
+        testProp.hasAudio = true;
+        testProp.hasCloth = true;
+        scene.props.push_back(testProp);
+        scene.synchronizeMapToEntities();
+
+        auto syncedPropEnt = scene.FindByName("SyncTestProp");
+        if (!syncedPropEnt || !syncedPropEnt->HasComponent<Lab::ClothComponent>() ||
+            !syncedPropEnt->HasComponent<Lab::AudioSourceComponent>()) {
+            std::cerr << "Assertion failed: synchronizeMapToEntities failed to bridge MapProp to Entity!\n";
+            return 1;
+        }
+
+        // 4. ScriptEngine scene integration
+        Lab::ScriptEngine scriptEngine;
+        scriptEngine.init();
+        scriptEngine.setActiveScene(&scene);
+        const char* scriptSceneLua = R"(
+            local pe = World.getEntity("ParentNodeEntity")
+            if not pe then error("World.getEntity('ParentNodeEntity') returned nil") end
+            if not pe:hasComponent("Transform") then error("ParentNodeEntity missing Transform") end
+            local node = World.getSceneNode("ParentNodeEntity")
+            if not node or node.worldX ~= 5.0 then error("World.getSceneNode failed") end
+            local se = World.getEntity("SyncTestProp")
+            if not se or not se:hasComponent("Cloth") then error("SyncTestProp missing Cloth component") end
+        )";
+        if (!scriptEngine.executeString(scriptSceneLua)) {
+            std::cerr << "Assertion failed: ScriptEngine scene & scene graph Lua execution failed!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test I: Unified Scene systems (LabMap, LabScene, SceneNode, Prefabs & ScriptEngine) verified 100%.\n";
         std::cout << "  [PASS] Test 86 Entity-Component Camera & Decoupled Engine Architecture passed 100%!\n";
     }
 

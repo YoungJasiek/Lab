@@ -12,6 +12,7 @@ struct lua_State;
 namespace Lab {
 
     class LabMap;
+    class LabScene;
 
     struct DamageResult {
         float finalDamage = 0.0f;
@@ -108,6 +109,9 @@ namespace Lab {
         void setActiveMap(LabMap* map);
         LabMap* getActiveMap() const { return _activeMap; }
 
+        void setActiveScene(LabScene* scene);
+        LabScene* getActiveScene() const { return _activeScene; }
+
         // Per-frame script tick (invokes OnUpdate(dt) in Lua)
         void update(float dt);
 
@@ -135,6 +139,7 @@ namespace Lab {
         std::shared_ptr<ScriptRuntimeState> _state;
         std::string _currentScriptPath;
         LabMap* _activeMap = nullptr;
+        LabScene* _activeScene = nullptr;
 
         // Cached Lua game parameters
         float _maxHealth = 150.0f;

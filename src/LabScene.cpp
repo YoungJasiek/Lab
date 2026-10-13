@@ -1,6 +1,7 @@
 #include "LabScene.h"
 #include "LabCore.h"
 #include "LabRenderer.h"
+#include "LabComponents.h"
 #include <fstream>
 #include <sstream>
 #include <filesystem>
@@ -135,6 +136,7 @@ namespace Lab {
             }
         }
 
+        scene->synchronizeMapToEntities();
         return scene;
     }
 
@@ -662,6 +664,8 @@ namespace Lab {
             scene->spawn.yaw = scene->spawnPoints[0].yaw;
         }
 
+        scene->synchronizeMapToEntities();
+
         LabLog::info("Loaded .LABSCENE: " + scene->metadata.name + " (" +
                      std::to_string(scene->spawnPoints.size()) + " spawns, " +
                      std::to_string(scene->weaponSpawners.size()) + " weapon spawners, " +
@@ -670,6 +674,87 @@ namespace Lab {
                      std::to_string(scene->props.size()) + " props, " +
                      std::to_string(scene->doors.size()) + " doors)");
         return scene;
+    }
+
+    void LabScene::synchronizeMapToEntities() {
+        // 1. Props -> Entities
+        for (size_t i = 0; i < props.size(); ++i) {
+            const auto& p = props[i];
+            std::string eName = p.name.empty() ? ("prop_" + std::to_string(i)) : p.name;
+            if (!FindByName(eName)) {
+                auto ent = CreateEntity(eName, "Prop");
+                ent->transform->position = p.position;
+                ent->transform->rotation = Quat::fromEuler(
+                    p.rotation.x * (3.14159265f / 180.0f),
+                    p.rotation.y * (3.14159265f / 180.0f),
+                    p.rotation.z * (3.14159265f / 180.0f)
+                );
+                ent->transform->scale = p.scale;
+                if (p.hasCloth) ent->AddComponent<ClothComponent>();
+                if (p.hasWaterVolume) ent->AddComponent<WaterVolumeComponent>();
+                if (p.hasForceField) ent->AddComponent<ForceFieldComponent>();
+                if (p.hasVehicle) ent->AddComponent<VehicleComponent>();
+                if (p.hasDecal) ent->AddComponent<DecalComponent>();
+                if (p.hasPostProcess) ent->AddComponent<PostProcessComponent>();
+                if (p.hasAudio) ent->AddComponent<AudioSourceComponent>();
+                ent->syncToSceneNode();
+            }
+        }
+
+        // 2. Cameras -> Entities
+        for (size_t i = 0; i < cameras.size(); ++i) {
+            const auto& c = cameras[i];
+            std::string eName = c.name.empty() ? ("camera_" + std::to_string(i)) : c.name;
+            if (!FindByName(eName)) {
+                auto ent = CreateEntity(eName, c.active ? "MainCamera" : "Camera");
+                ent->transform->position = c.position;
+                auto camComp = ent->AddComponent<Camera>();
+                camComp->fieldOfView = c.fov;
+                camComp->enabled = c.active;
+                ent->syncToSceneNode();
+            }
+        }
+
+        // 3. Lights -> Entities
+        for (size_t i = 0; i < lights.size(); ++i) {
+            const auto& l = lights[i];
+            std::string eName = l.name.empty() ? ("light_" + std::to_string(i)) : l.name;
+            if (!FindByName(eName)) {
+                auto ent = CreateEntity(eName, "Light");
+                ent->transform->position = l.position;
+                auto lComp = ent->AddComponent<LightComponent>();
+                lComp->color = l.color;
+                lComp->intensity = l.intensity;
+                lComp->radius = l.radius;
+                lComp->type = (l.type == MapLightType::Spot) ? LightType::Spot : LightType::Point;
+                ent->syncToSceneNode();
+            }
+        }
+
+        // 4. Doors -> Entities
+        for (size_t i = 0; i < doors.size(); ++i) {
+            const auto& d = doors[i];
+            std::string eName = d.name.empty() ? ("door_" + std::to_string(i)) : d.name;
+            if (!FindByName(eName)) {
+                auto ent = CreateEntity(eName, "Door");
+                ent->transform->position = d.position;
+                ent->transform->scale = d.size;
+                ent->syncToSceneNode();
+            }
+        }
+
+        syncSceneGraph();
+    }
+
+    void LabScene::synchronizeEntitiesToMap() {
+        for (auto& ent : entities) {
+            if (!ent || !ent->transform) continue;
+            ent->syncFromSceneNode();
+            auto handle = findEntityByName(ent->name);
+            if (handle.isValid()) {
+                if (Vec3* p = handle.getPosition()) *p = ent->transform->position;
+            }
+        }
     }
 
 } // namespace Lab

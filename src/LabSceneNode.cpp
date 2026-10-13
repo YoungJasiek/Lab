@@ -1,10 +1,25 @@
 #include "LabSceneNode.h"
+#include "LabTransform.h"
 #include <algorithm>
 
 namespace Lab {
 
 SceneNode::SceneNode(const std::string& name)
     : m_name(name) {
+}
+
+void SceneNode::syncFromTransform(const Transform& transform) {
+    m_localPosition = transform.position;
+    m_localRotation = transform.rotation;
+    m_localScale = transform.scale;
+    setDirty();
+}
+
+void SceneNode::syncToTransform(Transform& transform) const {
+    transform.position = m_localPosition;
+    transform.rotation = m_localRotation;
+    transform.localRotation = m_localRotation;
+    transform.scale = m_localScale;
 }
 
 void SceneNode::setParent(std::shared_ptr<SceneNode> parent) {
