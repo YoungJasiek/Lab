@@ -141,24 +141,24 @@ namespace Lab {
         LabMap* _activeMap = nullptr;
         LabScene* _activeScene = nullptr;
 
-        // Cached Lua game parameters
-        float _maxHealth = 150.0f;
-        float _startArmor = 50.0f;
-        float _armorAbsorptionRatio = 0.70f;
-        float _respawnTime = 4.0f;
-        float _barrelDamageMultiplier = 0.75f;
+        // Cached Lua game parameters (default neutral values before Lua script is loaded)
+        float _maxHealth = 100.0f;
+        float _startArmor = 0.0f;
+        float _armorAbsorptionRatio = 0.50f;
+        float _respawnTime = 3.0f;
+        float _barrelDamageMultiplier = 1.0f;
 
-        float _retinalScanDuration = 1.25f;
-        std::string _retinalAuthorizedUser = "DR. VANCE";
-        int _retinalClearanceLevel = 3;
+        float _retinalScanDuration = 1.0f;
+        std::string _retinalAuthorizedUser = "";
+        int _retinalClearanceLevel = 1;
 
-        float _medkitHeal = 50.0f;
-        int _ammoBoxAmount = 36;
-        float _weaponPadRespawnTime = 60.0f;
+        float _medkitHeal = 25.0f;
+        int _ammoBoxAmount = 30;
+        float _weaponPadRespawnTime = 30.0f;
 
         std::vector<WeaponScriptDef> _weaponDefs;
-        int _missionCardCount = 3;
-        float _missionTimeLimit = 300.0f;
+        int _missionCardCount = 0;
+        float _missionTimeLimit = 0.0f;
         std::string _missionName = "";
         std::string _missionStartText = "";
 
