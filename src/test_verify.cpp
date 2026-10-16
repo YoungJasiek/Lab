@@ -10085,14 +10085,16 @@ int main() {
         console.execute("phys_friction 4.2");
         console.execute("phys_air_accel 120.0");
         console.execute("phys_bhop_window 150"); // 150ms -> 0.15s
+        console.execute("phys_max_bhop_speed 11.5");
         console.execute("cam_fov 105");
         if (console.wrd_timescale != 0.5f || !console.wrd_wireframe || console.phys_friction != 4.2f ||
             console.phys_air_accel != 120.0f || std::abs(console.phys_bhop_window - 0.15f) > 1e-4f ||
+            std::abs(console.phys_max_bhop_speed - 11.5f) > 1e-4f ||
             console.cam_fov != 105.0f) {
             std::cerr << "Assertion failed: World, Physics and Camera CVars parsing incorrect!\n";
             return 1;
         }
-        std::cout << "  [PASS] Sub-test D: World, Physics & Camera tuning (phys_bhop_window, phys_friction, wrd_timescale) verified.\n";
+        std::cout << "  [PASS] Sub-test D: World, Physics & Camera tuning (phys_bhop_window, phys_friction, phys_max_bhop_speed) verified.\n";
 
         // Sub-test E: Game Callbacks
         int healedAmt = 0;
@@ -10143,7 +10145,7 @@ int main() {
             return 1;
         }
 
-        // Sub-test G: Rendering overlay test
+        // Sub-test G: Rendering & Interactive Window (Dragging & Close button)
         Lab::DevTelemetryData t;
         t.currentSpeed = 350.0f;
         t.horizontalSpeed = 320.0f;
@@ -10152,7 +10154,36 @@ int main() {
         console.renderOverlay(1280, 720, t);
         console.render(1280, 720);
 
-        std::cout << "  [PASS] Sub-test F: Character typing, Enter dispatch and History recall verified.\n";
+        // Interactive mouse dragging test
+        console.open();
+        console.windowX = 100.0f;
+        console.windowY = 100.0f;
+        console.onMouseButton(0, 1, 150.0f, 110.0f); // Click title bar
+        if (!console.isDragging) {
+            std::cerr << "Assertion failed: Title bar click should initiate dragging!\n";
+            return 1;
+        }
+        console.onMouseMove(250.0f, 160.0f);
+        if (std::abs(console.windowX - 200.0f) > 1.0f || std::abs(console.windowY - 150.0f) > 1.0f) {
+            std::cerr << "Assertion failed: Console window drag position not updated!\n";
+            return 1;
+        }
+        console.onMouseButton(0, 0, 250.0f, 160.0f); // Mouse release
+        if (console.isDragging) {
+            std::cerr << "Assertion failed: Mouse button release should end dragging!\n";
+            return 1;
+        }
+
+        // Close button click test
+        float closeBtnX = console.windowX + console.windowW - 22.0f + 6.0f;
+        float closeBtnY = console.windowY + 5.0f + 6.0f;
+        console.onMouseButton(0, 1, closeBtnX, closeBtnY);
+        if (console.isOpen) {
+            std::cerr << "Assertion failed: Clicking close button [X] should close console!\n";
+            return 1;
+        }
+
+        std::cout << "  [PASS] Sub-test G: VGUI Floating Window dragging, close button and rendering verified.\n";
         std::cout << "  [PASS] Test 87 Developer Console, Command Dispatcher & Source-style Momentum / Bunny Hop passed 100%!\n";
     }
 

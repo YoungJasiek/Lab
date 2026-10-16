@@ -47,11 +47,25 @@ namespace Lab {
         // Input Processing
         bool onKey(int key, int action);
         void onChar(unsigned int codepoint);
+        bool onMouseButton(int button, int action, float mx, float my);
+        void onMouseMove(float mx, float my);
+        void onMouseScroll(float yoffset);
         void update(float dt);
 
         // Rendering
         void render(int screenW, int screenH);
         void renderOverlay(int screenW, int screenH, const DevTelemetryData& telemetry);
+
+        // =====================================================================
+        // Source Engine VGUI Floating Window Dimensions & Dragging
+        // =====================================================================
+        float windowX = 220.0f;
+        float windowY = 70.0f;
+        float windowW = 840.0f;
+        float windowH = 540.0f;
+        bool isDragging = false;
+        float dragOffsetX = 0.0f;
+        float dragOffsetY = 0.0f;
 
         // =====================================================================
         // Console Variables (CVars) & Toggles from dev_console.md
@@ -84,11 +98,12 @@ namespace Lab {
         float wrd_fog_density = 0.02f;
         bool wrd_postprocess = true;
 
-        // phys_ (Physics & Bhop tuning)
+        // phys_ (Physics & Balanced Bhop tuning)
         float phys_gravity = 12.0f;
         float phys_friction = 5.5f;
-        float phys_air_accel = 100.0f;
-        float phys_bhop_window = 0.12f; // seconds
+        float phys_air_accel = 12.0f;        // Source Engine default air acceleration
+        float phys_bhop_window = 0.08f;      // 80ms landing timing window
+        float phys_max_bhop_speed = 11.5f;   // Maximum horizontal speed ceiling to prevent runaway momentum
 
         // cam_ (Camera)
         float cam_fov = 75.0f;
@@ -121,7 +136,8 @@ namespace Lab {
         std::function<void()> onQuit;
 
     private:
-        void registerDefaultCommands();
+        void registerKnownCommands();
+        void updateAutocomplete();
         void dispatchCommand(const std::string& prefix, const std::string& name, const std::string& args);
 
         std::string _currentInput;
@@ -132,7 +148,9 @@ namespace Lab {
 
         std::deque<DevConsoleEntry> _entries;
         std::vector<std::string> _commandHistory;
-        std::unordered_map<std::string, std::function<void(const std::string&)>> _customCommands;
+        std::vector<std::string> _knownCommands;
+        std::vector<std::string> _activeSuggestions;
+        int _selectedSuggestion = -1;
     };
 
 } // namespace Lab

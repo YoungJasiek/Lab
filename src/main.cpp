@@ -771,6 +771,16 @@ public:
             }
         }
 
+        // Clamp horizontal bunnyhop / strafe momentum to prevent infinite / overpowered acceleration
+        if (_devConsole.phys_max_bhop_speed > 0.0f) {
+            float horizSpeed = std::sqrt(_velocity.x * _velocity.x + _velocity.z * _velocity.z);
+            if (horizSpeed > _devConsole.phys_max_bhop_speed) {
+                float scale = _devConsole.phys_max_bhop_speed / horizSpeed;
+                _velocity.x *= scale;
+                _velocity.z *= scale;
+            }
+        }
+
         // Gravity
         _velocity.y -= _devConsole.phys_gravity * fixedDelta;
 
@@ -848,6 +858,91 @@ public:
             }
             return;
         }
+
+        // =====================================================================
+        // Developer Console Toggle & Interactive VGUI Window Input Handling
+        // =====================================================================
+        bool gravePressed = Input::isKeyPressed(96);
+        bool f10Pressed = Input::isKeyPressed(299);
+        if ((gravePressed && !_gravePressedLast) || (f10Pressed && !_f10PressedLast)) {
+            _devConsole.toggle();
+        }
+        _gravePressedLast = gravePressed;
+        _f10PressedLast = f10Pressed;
+
+        // Synchronize mouse cursor capture when console opens or closes
+        if (_devConsoleWasOpen && !_devConsole.isOpen) {
+            if (!_inMenu && !_isPlayerDead) {
+                setCursorCaptured(true);
+            }
+        } else if (!_devConsoleWasOpen && _devConsole.isOpen) {
+            setCursorCaptured(false);
+        }
+        _devConsoleWasOpen = _devConsole.isOpen;
+
+        // If console is active, capture all keyboard and mouse interactions
+        if (_devConsole.isOpen) {
+            double curX = 0.0, curY = 0.0;
+            getCursorPos(curX, curY);
+            if (curX == 0.0 && curY == 0.0) {
+                curX = static_cast<double>(Input::getMouseX());
+                curY = static_cast<double>(Input::getMouseY());
+            }
+
+            _devConsole.onMouseMove(static_cast<float>(curX), static_cast<float>(curY));
+
+            if (Input::isMouseButtonJustPressed(0)) {
+                _devConsole.onMouseButton(0, 1, static_cast<float>(curX), static_cast<float>(curY));
+            } else if (Input::isMouseButtonJustReleased(0)) {
+                _devConsole.onMouseButton(0, 0, static_cast<float>(curX), static_cast<float>(curY));
+            }
+
+            if (Input::scrollDelta != 0.0f) {
+                _devConsole.onMouseScroll(Input::scrollDelta);
+            }
+
+            bool enterPressed = Input::isKeyPressed(257);
+            bool escPressed = Input::isKeyPressed(256);
+            bool tabPressed = Input::isKeyPressed(258);
+            bool backspacePressed = Input::isKeyPressed(259);
+            bool delPressed = Input::isKeyPressed(261);
+            bool upPressed = Input::isKeyPressed(265);
+            bool downPressed = Input::isKeyPressed(264);
+            bool leftPressed = Input::isKeyPressed(263);
+            bool rightPressed = Input::isKeyPressed(262);
+            bool pgUpPressed = Input::isKeyPressed(266);
+            bool pgDnPressed = Input::isKeyPressed(267);
+
+            if (enterPressed && !_enterPressedLast) _devConsole.onKey(257, 1);
+            if (escPressed && !_escPressedLast) _devConsole.onKey(256, 1);
+            if (tabPressed && !_tabPressedLast) _devConsole.onKey(258, 1);
+            if (backspacePressed && !_backspacePressedLast) _devConsole.onKey(259, 1);
+            if (delPressed && !_delPressedLast) _devConsole.onKey(261, 1);
+            if (upPressed && !_upPressedLast) _devConsole.onKey(265, 1);
+            if (downPressed && !_downPressedLast) _devConsole.onKey(264, 1);
+            if (leftPressed && !_leftPressedLast) _devConsole.onKey(263, 1);
+            if (rightPressed && !_rightPressedLast) _devConsole.onKey(262, 1);
+            if (pgUpPressed && !_pgUpPressedLast) _devConsole.onKey(266, 1);
+            if (pgDnPressed && !_pgDnPressedLast) _devConsole.onKey(267, 1);
+
+            _enterPressedLast = enterPressed;
+            _escPressedLast = escPressed;
+            _tabPressedLast = tabPressed;
+            _backspacePressedLast = backspacePressed;
+            _delPressedLast = delPressed;
+            _upPressedLast = upPressed;
+            _downPressedLast = downPressed;
+            _leftPressedLast = leftPressed;
+            _rightPressedLast = rightPressed;
+            _pgUpPressedLast = pgUpPressed;
+            _pgDnPressedLast = pgDnPressed;
+
+            _devConsole.update(time.delta);
+            return; // Lock player and menu inputs while in developer console
+        }
+
+        // Camera FOV from console
+        _camera.fieldOfView = _devConsole.cam_fov;
 
         if (_inMenu) {
             int winW = 1280, winH = 720;
@@ -980,55 +1075,7 @@ public:
             return;
         }
 
-        // Developer Console toggle & input handling (`~` / Grave Accent = 96, F10 = 299)
-        bool gravePressed = Input::isKeyPressed(96);
-        bool f10Pressed = Input::isKeyPressed(299);
-        if ((gravePressed && !_gravePressedLast) || (f10Pressed && !_f10PressedLast)) {
-            _devConsole.toggle();
-        }
-        _gravePressedLast = gravePressed;
-        _f10PressedLast = f10Pressed;
 
-        if (_devConsole.isOpen) {
-            bool enterPressed = Input::isKeyPressed(257);
-            bool escPressed = Input::isKeyPressed(256);
-            bool backspacePressed = Input::isKeyPressed(259);
-            bool delPressed = Input::isKeyPressed(261);
-            bool upPressed = Input::isKeyPressed(265);
-            bool downPressed = Input::isKeyPressed(264);
-            bool leftPressed = Input::isKeyPressed(263);
-            bool rightPressed = Input::isKeyPressed(262);
-            bool pgUpPressed = Input::isKeyPressed(266);
-            bool pgDnPressed = Input::isKeyPressed(267);
-
-            if (enterPressed && !_enterPressedLast) _devConsole.onKey(257, 1);
-            if (escPressed && !_escPressedLast) _devConsole.onKey(256, 1);
-            if (backspacePressed && !_backspacePressedLast) _devConsole.onKey(259, 1);
-            if (delPressed && !_delPressedLast) _devConsole.onKey(261, 1);
-            if (upPressed && !_upPressedLast) _devConsole.onKey(265, 1);
-            if (downPressed && !_downPressedLast) _devConsole.onKey(264, 1);
-            if (leftPressed && !_leftPressedLast) _devConsole.onKey(263, 1);
-            if (rightPressed && !_rightPressedLast) _devConsole.onKey(262, 1);
-            if (pgUpPressed && !_pgUpPressedLast) _devConsole.onKey(266, 1);
-            if (pgDnPressed && !_pgDnPressedLast) _devConsole.onKey(267, 1);
-
-            _enterPressedLast = enterPressed;
-            _escPressedLast = escPressed;
-            _backspacePressedLast = backspacePressed;
-            _delPressedLast = delPressed;
-            _upPressedLast = upPressed;
-            _downPressedLast = downPressed;
-            _leftPressedLast = leftPressed;
-            _rightPressedLast = rightPressed;
-            _pgUpPressedLast = pgUpPressed;
-            _pgDnPressedLast = pgDnPressed;
-
-            _devConsole.update(time.delta);
-            return; // Lock player input and shooting while in developer console
-        }
-
-        // Camera FOV from console
-        _camera.fieldOfView = _devConsole.cam_fov;
 
         // Chat toggle & input handling
         bool enterPressed = Input::isKeyPressed(257);
@@ -3072,7 +3119,9 @@ public:
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             drawMenu();
             if (_devConsole.isOpen) {
-                _devConsole.render(1280, 720);
+                int w = 1280, h = 720;
+                getWindowSize(w, h);
+                _devConsole.render(w, h);
             }
             return;
         }
@@ -3452,6 +3501,8 @@ private:
     LabDevConsole _devConsole;
     bool _gravePressedLast = false;
     bool _f10PressedLast = false;
+    bool _tabPressedLast = false;
+    bool _devConsoleWasOpen = false;
     bool _delPressedLast = false;
     bool _upPressedLast = false;
     bool _downPressedLast = false;
