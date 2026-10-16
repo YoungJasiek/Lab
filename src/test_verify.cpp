@@ -10146,6 +10146,59 @@ int main() {
             return 1;
         }
 
+        // Test automatic '_' enforcement when pressing '-' (key 45) WITHOUT shift
+        console.onKey('S', 1, false, false); // 's'
+        console.onKey('P', 1, false, false); // 'p'
+        console.onKey(45, 1, false, false);  // '-' without Shift -> auto-enforced '_'!
+        console.onKey('B', 1, false, false); // 'b'
+        console.onKey('H', 1, false, false); // 'h'
+        console.onKey('O', 1, false, false); // 'o'
+        console.onKey('P', 1, false, false); // 'p'
+        console.onKey(257, 1); // Enter: executes "sp_bhop"
+        if (console.sp_bhop) {
+            std::cerr << "Assertion failed: Key 45 '-' without Shift failed to auto-enforce '_'!\n";
+            return 1;
+        }
+
+        // Test automatic '_' enforcement when pressing Space (key 32) after prefix
+        console.onKey('S', 1, false, false); // 's'
+        console.onKey('P', 1, false, false); // 'p'
+        console.onKey(32, 1, false, false);  // Space -> auto-converted to '_' after 'sp' prefix!
+        console.onKey('B', 1, false, false); // 'b'
+        console.onKey('H', 1, false, false); // 'h'
+        console.onKey('O', 1, false, false); // 'o'
+        console.onKey('P', 1, false, false); // 'p'
+        console.onKey(257, 1); // Enter: executes "sp_bhop"
+        if (!console.sp_bhop) {
+            std::cerr << "Assertion failed: Space after prefix failed to auto-enforce '_'!\n";
+            return 1;
+        }
+
+        // Test automatic '_' normalization in execute() for spaced and dashed commands
+        console.execute("sp cheats 1");
+        if (!console.sp_cheats) {
+            std::cerr << "Assertion failed: execute(\"sp cheats 1\") failed to auto-normalize to sp_cheats!\n";
+            return 1;
+        }
+        console.execute("sp-cheats 0");
+        if (console.sp_cheats) {
+            std::cerr << "Assertion failed: execute(\"sp-cheats 0\") failed to auto-normalize to sp_cheats!\n";
+            return 1;
+        }
+        console.execute("sp_cheats 1"); // re-enable for multi-token tests
+
+        console.execute("phys air accel 24.5");
+        if (std::abs(console.phys_air_accel - 24.5f) > 0.01f) {
+            std::cerr << "Assertion failed: execute(\"phys air accel 24.5\") failed to auto-normalize to phys_air_accel!\n";
+            return 1;
+        }
+        console.execute("phys-air-accel 14.0");
+        if (std::abs(console.phys_air_accel - 14.0f) > 0.01f) {
+            std::cerr << "Assertion failed: execute(\"phys-air-accel 14.0\") failed to auto-normalize to phys_air_accel!\n";
+            return 1;
+        }
+        console.execute("phys_air_accel 12.0"); // restore default
+
         // Test onChar programmatic / character callback input
         console.onChar('s');
         console.onChar('p');

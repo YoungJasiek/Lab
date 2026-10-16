@@ -183,6 +183,67 @@ namespace Lab {
         std::string line = rawLine.substr(start, end - start + 1);
         if (line.empty()) return;
 
+        // Auto-enforce '_' on known prefixes separated by space or dash (e.g. "sp cheats 1" -> "sp_cheats 1")
+        static const char* const knownPrefixes[] = {
+            "sp", "sv", "log", "wrd", "cam", "r", "phys", "ai", "snd", "ui", "dcl", "mp", "net", "sys"
+        };
+        for (const auto& pfx : knownPrefixes) {
+            size_t plen = strlen(pfx);
+            if (line.size() > plen && (line[plen] == ' ' || line[plen] == '-')) {
+                std::string cand = line.substr(0, plen);
+                std::transform(cand.begin(), cand.end(), cand.begin(), [](unsigned char c){ return (char)std::tolower(c); });
+                if (cand == pfx) {
+                    line[plen] = '_';
+                    break;
+                }
+            }
+        }
+
+        // Convert any dashes in the command token (before the first space) to '_' (e.g. "sp-cheats 1" -> "sp_cheats 1")
+        size_t firstSpace = line.find(' ');
+        size_t cmdTokenEnd = (firstSpace != std::string::npos) ? firstSpace : line.size();
+        for (size_t i = 0; i < cmdTokenEnd; ++i) {
+            if (line[i] == '-') {
+                line[i] = '_';
+            }
+        }
+
+        // Multi-word resolution: match word combinations against known commands (e.g. "phys air accel 10" -> "phys_air_accel 10")
+        std::vector<std::string> words;
+        {
+            std::istringstream wiss(line);
+            std::string w;
+            while (wiss >> w) words.push_back(w);
+        }
+        if (words.size() > 1) {
+            for (int count = (int)words.size(); count >= 2; --count) {
+                std::string candCmd;
+                for (int i = 0; i < count; ++i) {
+                    if (i > 0) candCmd += "_";
+                    candCmd += words[i];
+                }
+                std::string candLower = candCmd;
+                std::transform(candLower.begin(), candLower.end(), candLower.begin(), [](unsigned char c){ return (char)std::tolower(c); });
+
+                bool found = false;
+                for (const auto& kc : _knownCommands) {
+                    if (kc == candLower) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (found) {
+                    std::string remArgs;
+                    for (size_t i = count; i < words.size(); ++i) {
+                        if (!remArgs.empty()) remArgs += " ";
+                        remArgs += words[i];
+                    }
+                    line = remArgs.empty() ? candCmd : (candCmd + " " + remArgs);
+                    break;
+                }
+            }
+        }
+
         // Add to history
         _commandHistory.push_back(line);
         _historyIndex = -1;
@@ -1142,11 +1203,42 @@ namespace Lab {
         } else if (key >= 320 && key <= 329) { // Keypad 0-9
             c = static_cast<char>('0' + (key - 320));
         } else if (key == 32) { // Space
-            c = ' ';
+            // Check if current word before cursor is a known prefix -> auto-convert to '_'
+            size_t wordStart = _cursorPos;
+            while (wordStart > 0 && _currentInput[wordStart - 1] != ' ') {
+                wordStart--;
+            }
+            std::string word = _currentInput.substr(wordStart, _cursorPos - wordStart);
+            std::transform(word.begin(), word.end(), word.begin(), [](unsigned char ch) { return (char)std::tolower(ch); });
+            static const char* const knownPrefixes[] = {
+                "sp", "sv", "log", "wrd", "cam", "r", "phys", "ai", "snd", "ui", "dcl", "mp", "net", "sys"
+            };
+            bool isPrefix = false;
+            for (const auto& p : knownPrefixes) {
+                if (word == p) {
+                    isPrefix = true;
+                    break;
+                }
+            }
+            c = isPrefix ? '_' : ' ';
         } else if (key == 45) { // Minus / Underscore
-            c = shift ? '_' : '-';
+            if (shift) {
+                c = '_';
+            } else {
+                char prev = (_cursorPos > 0) ? _currentInput[_cursorPos - 1] : ' ';
+                if (prev == ' ' || prev == '\t' || prev == '=') {
+                    c = '-'; // Negative argument or flag
+                } else {
+                    c = '_'; // Automatically enforce '_' for command names and prefixes!
+                }
+            }
         } else if (key == 333) { // Keypad Minus
-            c = '-';
+            char prev = (_cursorPos > 0) ? _currentInput[_cursorPos - 1] : ' ';
+            if (prev == ' ' || prev == '\t' || prev == '=') {
+                c = '-';
+            } else {
+                c = '_';
+            }
         } else if (key == 61) { // Equal / Plus
             c = shift ? '+' : '=';
         } else if (key == 334) { // Keypad Plus
@@ -1185,15 +1277,37 @@ namespace Lab {
         if (!isOpen) return;
         if (codepoint == '`' || codepoint == '~') return;
 
-        // Prevent double typing if onKey already processed this character
-        if (_lastCharHandledKey == static_cast<int>(codepoint)) {
+        // Prevent double typing if onKey already processed this character (or converted '-' to '_')
+        if (_lastCharHandledKey == static_cast<int>(codepoint) ||
+            (_lastCharHandledKey == '_' && (codepoint == '-' || codepoint == '_'))) {
             _lastCharHandledKey = -1;
             return;
         }
         _lastCharHandledKey = -1;
 
         if (codepoint >= 32 && codepoint < 127) {
-            _currentInput.insert(_currentInput.begin() + _cursorPos, static_cast<char>(codepoint));
+            char ch = static_cast<char>(codepoint);
+            if (ch == '-') {
+                char prev = (_cursorPos > 0) ? _currentInput[_cursorPos - 1] : ' ';
+                if (prev != ' ' && prev != '\t' && prev != '=') {
+                    ch = '_';
+                }
+            } else if (ch == ' ') {
+                size_t wordStart = _cursorPos;
+                while (wordStart > 0 && _currentInput[wordStart - 1] != ' ') wordStart--;
+                std::string word = _currentInput.substr(wordStart, _cursorPos - wordStart);
+                std::transform(word.begin(), word.end(), word.begin(), [](unsigned char c) { return (char)std::tolower(c); });
+                static const char* const knownPrefixes[] = {
+                    "sp", "sv", "log", "wrd", "cam", "r", "phys", "ai", "snd", "ui", "dcl", "mp", "net", "sys"
+                };
+                for (const auto& p : knownPrefixes) {
+                    if (word == p) {
+                        ch = '_';
+                        break;
+                    }
+                }
+            }
+            _currentInput.insert(_currentInput.begin() + _cursorPos, ch);
             _cursorPos++;
             _selectedSuggestion = -1;
             updateAutocomplete();
@@ -1236,7 +1350,7 @@ namespace Lab {
 
         // 2. Title Bar
         Renderer::drawRect(windowX + 2.0f, windowY + 2.0f, windowW - 4.0f, titleH, titleBg);
-        LabFont::drawText(windowX + 12.0f, windowY + 7.0f, "Console", 2.0f, Vec3(0.92f, 0.95f, 0.92f), LabFontType::GeoSans);
+        LabFont::drawText(windowX + 12.0f, windowY + 7.0f, "Console", 1.8f, Vec3(0.92f, 0.95f, 0.92f), LabFontType::System);
 
         // Close Button [X] on top right
         float closeBtnX = windowX + windowW - 26.0f;
@@ -1244,7 +1358,7 @@ namespace Lab {
         Renderer::drawRect(closeBtnX, closeBtnY, 20.0f, 20.0f, Vec3(0.32f, 0.37f, 0.30f));
         Renderer::drawRect(closeBtnX, closeBtnY, 20.0f, 1.0f, borderLight);
         Renderer::drawRect(closeBtnX, closeBtnY + 19.0f, 20.0f, 1.0f, borderDark);
-        LabFont::drawText(closeBtnX + 5.0f, closeBtnY + 2.0f, "x", 1.5f, Vec3(0.85f, 0.9f, 0.85f), LabFontType::GeoSans);
+        LabFont::drawText(closeBtnX + 5.0f, closeBtnY + 2.0f, "x", 1.5f, Vec3(0.85f, 0.9f, 0.85f), LabFontType::System);
 
         // Clear Button [Clear] next to [X]
         float clearBtnX = closeBtnX - 58.0f;
@@ -1252,7 +1366,7 @@ namespace Lab {
         Renderer::drawRect(clearBtnX, clearBtnY, 52.0f, 20.0f, Vec3(0.28f, 0.32f, 0.26f));
         Renderer::drawRect(clearBtnX, clearBtnY, 52.0f, 1.0f, borderLight);
         Renderer::drawRect(clearBtnX, clearBtnY + 19.0f, 52.0f, 1.0f, borderDark);
-        LabFont::drawText(clearBtnX + 8.0f, clearBtnY + 2.0f, "Clear", 1.4f, Vec3(0.85f, 0.9f, 0.85f), LabFontType::GeoSans);
+        LabFont::drawText(clearBtnX + 8.0f, clearBtnY + 2.0f, "Clear", 1.4f, Vec3(0.85f, 0.9f, 0.85f), LabFontType::System);
 
         // Copy Log Button [Copy Log] next to [Clear]
         float copyBtnX = clearBtnX - 86.0f;
@@ -1260,7 +1374,7 @@ namespace Lab {
         Renderer::drawRect(copyBtnX, copyBtnY, 80.0f, 20.0f, Vec3(0.24f, 0.38f, 0.28f));
         Renderer::drawRect(copyBtnX, copyBtnY, 80.0f, 1.0f, borderLight);
         Renderer::drawRect(copyBtnX, copyBtnY + 19.0f, 80.0f, 1.0f, borderDark);
-        LabFont::drawText(copyBtnX + 7.0f, copyBtnY + 2.0f, "Copy Log", 1.4f, Vec3(0.88f, 0.98f, 0.88f), LabFontType::GeoSans);
+        LabFont::drawText(copyBtnX + 7.0f, copyBtnY + 2.0f, "Copy Log", 1.4f, Vec3(0.88f, 0.98f, 0.88f), LabFontType::System);
 
         // 3. Inner Log Text Area (Sunken)
         float textX = windowX + 8.0f;
@@ -1285,7 +1399,7 @@ namespace Lab {
         float curY = textY + 6.0f;
         for (int i = startIdx; i < endIdx && i < total; ++i) {
             const auto& entry = _entries[i];
-            LabFont::drawText(textX + 8.0f, curY, entry.text, 1.85f, entry.color, LabFontType::GeoSans);
+            LabFont::drawText(textX + 8.0f, curY, entry.text, 1.85f, entry.color, LabFontType::Monospace);
             curY += lineH;
         }
 
@@ -1319,13 +1433,23 @@ namespace Lab {
         Renderer::drawRect(textX, inputY + 33.0f, inputW, 1.0f, borderLight);
         Renderer::drawRect(textX + inputW - 1.0f, inputY, 1.0f, 34.0f, borderLight);
 
-        // Text & blinking cursor in input
-        std::string dispInput = _currentInput;
+        // Prompt "] " in clean accent green
+        LabFont::drawText(textX + 8.0f, inputY + 7.0f, "] ", 1.9f, Vec3(0.45f, 0.95f, 0.45f), LabFontType::Monospace);
+        float promptW = LabFont::getTextWidth("] ", 1.9f, LabFontType::Monospace);
+
+        // User typed command text in clear monospace
+        LabFont::drawText(textX + 8.0f + promptW, inputY + 7.0f, _currentInput, 1.9f, Vec3(0.95f, 0.98f, 0.95f), LabFontType::Monospace);
+
+        // Prominent blinking underscore cursor
         bool blink = (std::fmod(_cursorBlink, 2.0f) < 1.0f);
         if (blink) {
-            dispInput.insert(_cursorPos, "_");
+            float cursorXOffset = LabFont::getTextWidth(_currentInput.substr(0, _cursorPos), 1.9f, LabFontType::Monospace);
+            float curDrawX = textX + 8.0f + promptW + cursorXOffset;
+            // Draw thick solid underscore cursor bar
+            Renderer::drawRect(curDrawX, inputY + 27.0f, 10.0f, 3.0f, Vec3(0.35f, 1.0f, 0.45f));
+            // Also draw monospace '_' glyph at baseline for maximum clarity
+            LabFont::drawText(curDrawX, inputY + 7.0f, "_", 1.9f, Vec3(0.35f, 1.0f, 0.45f), LabFontType::Monospace);
         }
-        LabFont::drawText(textX + 8.0f, inputY + 7.0f, dispInput, 1.9f, Vec3(0.95f, 0.98f, 0.95f), LabFontType::GeoSans);
 
         // 5. Submit Button (Raised Bevel)
         float submitX = textX + inputW + 8.0f;
@@ -1334,7 +1458,7 @@ namespace Lab {
         Renderer::drawRect(submitX, inputY, 1.0f, 34.0f, borderLight);
         Renderer::drawRect(submitX, inputY + 33.0f, submitW, 1.0f, borderDark);
         Renderer::drawRect(submitX + submitW - 1.0f, inputY, 1.0f, 34.0f, borderDark);
-        LabFont::drawText(submitX + 16.0f, inputY + 7.0f, "Submit", 1.85f, Vec3(0.92f, 0.95f, 0.92f), LabFontType::GeoSans);
+        LabFont::drawText(submitX + 16.0f, inputY + 7.0f, "Submit", 1.6f, Vec3(0.92f, 0.95f, 0.92f), LabFontType::System);
 
         // 6. Autocomplete Suggestion Popup (Rendered right below input)
         if (!_activeSuggestions.empty()) {
@@ -1356,7 +1480,7 @@ namespace Lab {
                     Renderer::drawRect(textX + 2.0f, curSugY - 1.0f, popW - 4.0f, popItemH, Vec3(0.24f, 0.32f, 0.22f));
                 }
                 LabFont::drawText(textX + 8.0f, curSugY + 4.0f, _activeSuggestions[s], 1.8f,
-                                  isSel ? Vec3(1.0f, 0.95f, 0.3f) : Vec3(0.85f, 0.9f, 0.85f), LabFontType::GeoSans);
+                                  isSel ? Vec3(1.0f, 0.95f, 0.3f) : Vec3(0.85f, 0.9f, 0.85f), LabFontType::Monospace);
                 curSugY += popItemH;
             }
         }
@@ -1385,11 +1509,11 @@ namespace Lab {
             std::ostringstream ss;
             ss << std::fixed << std::setprecision(1);
             ss << "SPEED: " << t.horizontalSpeed << " u/s (Cap: " << phys_max_bhop_speed << ")";
-            LabFont::drawText(startX + 12.0f, curY + 6.0f, ss.str(), 1.7f, Vec3(0.3f, 1.0f, 0.5f), LabFontType::GeoSans);
+            LabFont::drawText(startX + 12.0f, curY + 6.0f, ss.str(), 1.7f, Vec3(0.3f, 1.0f, 0.5f), LabFontType::Monospace);
 
             std::string bhopStatus = t.isBhopActive ? "BHOPPING: ACCELERATING" : (t.isGrounded ? "GROUND: FRICTION ACTIVE" : "AIR STRAFE ACTIVE");
             Vec3 bhopCol = t.isBhopActive ? Vec3(1.0f, 0.85f, 0.2f) : (t.isGrounded ? Vec3(0.7f, 0.7f, 0.7f) : Vec3(0.3f, 0.85f, 1.0f));
-            LabFont::drawText(startX + 12.0f, curY + 30.0f, bhopStatus, 1.5f, bhopCol, LabFontType::GeoSans);
+            LabFont::drawText(startX + 12.0f, curY + 30.0f, bhopStatus, 1.5f, bhopCol, LabFontType::Monospace);
 
             curY += 66.0f;
         }
@@ -1402,12 +1526,12 @@ namespace Lab {
             std::ostringstream ss;
             ss << std::fixed << std::setprecision(2);
             ss << "POS: (" << t.playerPos.x << ", " << t.playerPos.y << ", " << t.playerPos.z << ")";
-            LabFont::drawText(startX + 12.0f, curY + 6.0f, ss.str(), 1.6f, Vec3(0.85f, 0.9f, 0.95f), LabFontType::GeoSans);
+            LabFont::drawText(startX + 12.0f, curY + 6.0f, ss.str(), 1.6f, Vec3(0.85f, 0.9f, 0.95f), LabFontType::Monospace);
 
             std::ostringstream ss2;
             ss2 << std::fixed << std::setprecision(1);
             ss2 << "ANG: PITCH " << t.pitch << " deg | YAW " << t.yaw << " deg";
-            LabFont::drawText(startX + 12.0f, curY + 30.0f, ss2.str(), 1.5f, Vec3(0.6f, 0.8f, 1.0f), LabFontType::GeoSans);
+            LabFont::drawText(startX + 12.0f, curY + 30.0f, ss2.str(), 1.5f, Vec3(0.6f, 0.8f, 1.0f), LabFontType::Monospace);
 
             curY += 66.0f;
         }
@@ -1420,7 +1544,7 @@ namespace Lab {
             std::ostringstream ss;
             ss << std::fixed << std::setprecision(1);
             ss << (int)t.fps << " FPS (" << t.frametimeMs << " ms)";
-            LabFont::drawText(startX + 12.0f, curY + 6.0f, ss.str(), 1.65f, Vec3(1.0f, 0.85f, 0.2f), LabFontType::GeoSans);
+            LabFont::drawText(startX + 12.0f, curY + 6.0f, ss.str(), 1.65f, Vec3(1.0f, 0.85f, 0.2f), LabFontType::Monospace);
 
             curY += 42.0f;
         }
@@ -1431,7 +1555,7 @@ namespace Lab {
             Renderer::drawRect(startX, curY, 3.0f, 34.0f, Vec3(0.2f, 0.8f, 1.0f));
 
             std::string pingStr = "PING: " + std::to_string(t.pingMs) + " ms";
-            LabFont::drawText(startX + 12.0f, curY + 6.0f, pingStr, 1.65f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::GeoSans);
+            LabFont::drawText(startX + 12.0f, curY + 6.0f, pingStr, 1.65f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::Monospace);
 
             curY += 42.0f;
         }
