@@ -1,21 +1,34 @@
-FL
-FIX:
-- [x] displaying 'labscene' instead of 'labmap'
-- [x] preventing the execution of any file via 'OPEN FROM DISK'
-- [x] fixed configuration for the positioning of the viewmodel and other LabStudio elements
-MAKE:
-- [x] test scene for Chapter 1 (assets/maps/site14_chapter1.labscene)
-RESTORE:
-- [x] LabStudio.exe
+# FL (Frozen-Life)
+TODO:
+- [ ] Visual Benchmark: "Site 14 Dirty Corridor" (wzorcowy korytarz definiujący styl graficzny: materiały, cubemap, normal mapy, oświetlenie)
+- [ ] Props & 3D Models: modele otoczenia (drzwi laboratoryjne, szafki, lampy, rury, zacieki/decale)
+- [ ] First AI Bot:
+  - [ ] Model 3D + animacje bazowe (Idle, Walk, Talk, Attack/Death)
+  - [ ] Test Lip-Sync z plikiem audio i blendshapes/visemes
+  - [ ] Dźwięki kroków i głosu bota (z pozycjonowaniem 3D)
+- [ ] Story Event w korytarzu: wejście w Trigger Volume odpala dialog i ruch bota
 
-LAB
-DELETE:
-- [x] plugin system
-FIX:
-- [x] CMake Assets Shipping to not ship all assets like inwork or idk
-- [x] only dll, delete .lib and exp
-ADD:
-- [x] real facesync with audiofiles & Dialogs
-- [x] strongest GPU detection, scoring & enforcement (Lab::GpuSelector via DXGI + OS UserGpuPreferences)
-- [x] pre-shading (OpenGL Program Binary Disk Cache + PSO/uniform pre-warming)
-- [x] native FXAA 3.11 in post-processing pipeline
+# LAB (Engine & Studio)
+TODO:
+- [x] Momentum & Bunny Hop (fizyka ruchu w stylu Source Engine):
+  - [x] Zachowanie pędu poziomego przy skoku (brak natychmiastowego zerowania wektora prędkości)
+  - [x] Przyspieszenie w powietrzu (Air Acceleration & Air Strafing z ruchem myszy)
+  - [x] Tarcie podłoża (Ground Friction) z oknem czasowym na continuous bhop
+- [x] Developer Console & Overlay (na podstawie dev_console.md):
+  - [x] Okno konsoli deweloperskiej pod tyldą (`~`) lub klawiszem funkcyjnym
+  - [x] Parser komend z modularnymi prefiksami (`sp_`, `log_`, `wrd_`, `cam_`, `r_`, `phys_`, `ai_`, `snd_`, `ui_`, `dcl_`, `mp_`, `net_`, `sys_`)
+  - [x] System stałego overlayu telemetrycznego 2D na ekranie (`log_momentum`, `log_fps`, `log_pos`, itd.)
+  - [x] Obsługa cheatów (`sp_cheats 1`, `sp_god`, `sp_noclip`, `sp_speed`, `sp_get`)
+- [ ] Dynamic Scene Collisions & Triggers (usunięcie kolizji na sztywno z kodu):
+  - [ ] Kolizje gracza generowane dynamicznie z obiektów/ścian sceny (.labscene / brushes)
+  - [ ] Trigger Volumes: niewidzialne strefy w scenie wyzwalające zdarzenia (np. dialog, skrypt)
+- [ ] 2D Screen & UI Editor (przekształcenie HUD Editora w uniwersalny edytor 2D Canvas):
+  - [ ] Tworzenie i edycja całych ekranów: Menu Główne, Menu Pauzy, Opcje/Ustawienia oraz HUD
+  - [ ] Komponenty interaktywne: przyciski (Button), panele (Panel), grafiki tła (Image), teksty (Label)
+  - [ ] Zapis i odczyt layoutów do plików .labui
+- [ ] Bot Pathing (Story Mode) w edytorze:
+  - [ ] Stawianie punktów trasy (Waypoints / Path Nodes) w scenie 3D
+  - [ ] Wizualizacja linii ścieżki i przypisanie trasy do bota
+- [x] Editor Ergonomics & Comfort (QoL):
+  - [x] 3D Grid Snapping (przyciąganie modułów korytarza do siatki)
+  - [x] Skróty klawiszowe: Ctrl+D (duplikacja), Del (usuwanie), F (focus kamery)

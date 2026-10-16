@@ -166,6 +166,7 @@ add_library(LabRender SHARED
     src/LabFace.cpp
     src/LabSkeletal.cpp
     src/LabGraphics.cpp
+    src/LabDevConsole.cpp
     include/LabRenderer.h
     include/LabTheme.h
     include/LabAsset2D.h
@@ -178,6 +179,7 @@ add_library(LabRender SHARED
     include/LabFace.h
     include/LabSkeletal.h
     include/LabGraphics.h
+    include/LabDevConsole.h
 )
 target_include_directories(LabRender PUBLIC ${LAB_INCLUDES})
 target_compile_options(LabRender PRIVATE ${COMPILER_FLAGS})

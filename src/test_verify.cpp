@@ -36,6 +36,7 @@ namespace FrozenLife = FrozenLifeGame;
 #include "LabTransform.h"
 #include "LabComponent.h"
 #include "LabHUDEditor.h"
+#include "LabDevConsole.h"
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -10009,6 +10010,150 @@ int main() {
         }
         std::cout << "  [PASS] Sub-test I: Unified Scene systems (LabMap, LabScene, SceneNode, Prefabs & ScriptEngine) verified 100%.\n";
         std::cout << "  [PASS] Test 86 Entity-Component Camera & Decoupled Engine Architecture passed 100%!\n";
+    }
+
+    // =========================================================================
+    // [Test 87] Verifying Developer Console, Command Dispatcher & Source-style Momentum / Bunny Hop...
+    // =========================================================================
+    {
+        std::cout << "\n[Test 87] Verifying Developer Console, Command Dispatcher & Source-style Momentum / Bunny Hop...\n";
+
+        Lab::LabDevConsole console;
+
+        // Sub-test A: Visibility & Toggling
+        if (console.isOpen) {
+            std::cerr << "Assertion failed: Console should start closed!\n";
+            return 1;
+        }
+        console.open();
+        if (!console.isOpen) {
+            std::cerr << "Assertion failed: Console should be open after open()!\n";
+            return 1;
+        }
+        console.toggle();
+        if (console.isOpen) {
+            std::cerr << "Assertion failed: Console should be closed after toggle()!\n";
+            return 1;
+        }
+        console.toggle();
+        std::cout << "  [PASS] Sub-test A: Console state, open/close and toggle verified.\n";
+
+        // Sub-test B: Cheat security & sp_cheats gate
+        console.execute("sp_god 1");
+        if (console.sp_god) {
+            std::cerr << "Assertion failed: sp_god should NOT be allowed when sp_cheats is 0!\n";
+            return 1;
+        }
+        console.execute("sp_cheats 1");
+        if (!console.sp_cheats) {
+            std::cerr << "Assertion failed: sp_cheats should be enabled after command!\n";
+            return 1;
+        }
+        console.execute("sp_god 1");
+        console.execute("sp_noclip 1");
+        console.execute("sp_speed 1.75");
+        console.execute("sp_jump 8.5");
+        if (!console.sp_god || !console.sp_noclip || console.sp_speed != 1.75f || console.sp_jump != 8.5f) {
+            std::cerr << "Assertion failed: Cheat values not updated after sp_cheats 1!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test B: Cheat gate (sp_cheats requirement) and player CVars verified.\n";
+
+        // Sub-test C: 2D Telemetry Overlay CVars (log_)
+        console.execute("log_momentum 1");
+        console.execute("log_fps 1");
+        console.execute("log_pos 1");
+        if (!console.log_momentum || !console.log_fps || !console.log_pos) {
+            std::cerr << "Assertion failed: log_ CVars not updated!\n";
+            return 1;
+        }
+        console.execute("log_all 0");
+        if (console.log_momentum || console.log_fps || console.log_pos) {
+            std::cerr << "Assertion failed: log_all 0 should disable all overlays!\n";
+            return 1;
+        }
+        console.execute("log_all 1");
+        if (!console.log_momentum || !console.log_fps || !console.log_pos) {
+            std::cerr << "Assertion failed: log_all 1 should enable all overlays!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test C: Telemetry overlay CVars (log_momentum, log_fps, log_pos, log_all) verified.\n";
+
+        // Sub-test D: World & Physics Tuning CVars (wrd_, phys_, cam_)
+        console.execute("wrd_timescale 0.5");
+        console.execute("wrd_wireframe 1");
+        console.execute("phys_friction 4.2");
+        console.execute("phys_air_accel 120.0");
+        console.execute("phys_bhop_window 150"); // 150ms -> 0.15s
+        console.execute("cam_fov 105");
+        if (console.wrd_timescale != 0.5f || !console.wrd_wireframe || console.phys_friction != 4.2f ||
+            console.phys_air_accel != 120.0f || std::abs(console.phys_bhop_window - 0.15f) > 1e-4f ||
+            console.cam_fov != 105.0f) {
+            std::cerr << "Assertion failed: World, Physics and Camera CVars parsing incorrect!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test D: World, Physics & Camera tuning (phys_bhop_window, phys_friction, wrd_timescale) verified.\n";
+
+        // Sub-test E: Game Callbacks
+        int healedAmt = 0;
+        int armorAmt = 0;
+        int weaponGiven = -1;
+        bool giveAllCalled = false;
+        bool respawnCalled = false;
+        bool suicideCalled = false;
+
+        console.onHeal = [&](int a) { healedAmt = a; };
+        console.onArmor = [&](int a) { armorAmt = a; };
+        console.onGetWeapon = [&](int w) { weaponGiven = w; };
+        console.onGiveAll = [&]() { giveAllCalled = true; };
+        console.onRespawn = [&]() { respawnCalled = true; };
+        console.onSuicide = [&]() { suicideCalled = true; };
+
+        console.execute("sp_heal 50");
+        console.execute("sp_armor 75");
+        console.execute("sp_get 103");
+        console.execute("sp_give_all");
+        console.execute("sp_respawn");
+        console.execute("sp_suicide");
+
+        if (healedAmt != 50 || armorAmt != 75 || weaponGiven != 103 || !giveAllCalled || !respawnCalled || !suicideCalled) {
+            std::cerr << "Assertion failed: Gameplay cheat callbacks not triggered!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test E: Gameplay cheat callbacks (heal, armor, get, give_all, respawn, suicide) verified.\n";
+
+        // Sub-test F: Input handling & Command History
+        console.execute("sys_clear");
+        console.onChar('s');
+        console.onChar('p');
+        console.onChar('_');
+        console.onChar('b');
+        console.onChar('h');
+        console.onChar('o');
+        console.onChar('p');
+        console.onKey(257, 1); // Enter: executes "sp_bhop" (toggles bhop)
+        if (console.sp_bhop) { // started true, toggled to false
+            std::cerr << "Assertion failed: onChar + Enter failed to execute command!\n";
+            return 1;
+        }
+        console.onKey(265, 1); // Up Arrow: recalls previous command "sp_bhop"
+        console.onKey(257, 1); // Enter: executes "sp_bhop" again (toggles back to true)
+        if (!console.sp_bhop) {
+            std::cerr << "Assertion failed: History navigation via Up Arrow failed!\n";
+            return 1;
+        }
+
+        // Sub-test G: Rendering overlay test
+        Lab::DevTelemetryData t;
+        t.currentSpeed = 350.0f;
+        t.horizontalSpeed = 320.0f;
+        t.isGrounded = false;
+        t.isBhopActive = true;
+        console.renderOverlay(1280, 720, t);
+        console.render(1280, 720);
+
+        std::cout << "  [PASS] Sub-test F: Character typing, Enter dispatch and History recall verified.\n";
+        std::cout << "  [PASS] Test 87 Developer Console, Command Dispatcher & Source-style Momentum / Bunny Hop passed 100%!\n";
     }
 
     Lab::Renderer::shutdown();

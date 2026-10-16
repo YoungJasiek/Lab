@@ -3,6 +3,7 @@
 #include "LabDialogs.h"
 #include "LabScene.h"
 #include "LabGpuPreference.h"
+#include "LabDevConsole.h"
 #include "../games/frozen_life/include/FrozenLifeAnim.h"
 #include <iostream>
 #include <algorithm>
@@ -74,10 +75,98 @@ public:
 
         s_instance = this;
         glfwSetCharCallback(getWindow(), [](GLFWwindow* /*w*/, unsigned int codepoint) {
-            if (s_instance && s_instance->_chat.isOpen) {
-                s_instance->_chat.onChar(codepoint);
+            if (s_instance) {
+                if (s_instance->_devConsole.isOpen) {
+                    s_instance->_devConsole.onChar(codepoint);
+                } else if (s_instance->_chat.isOpen) {
+                    s_instance->_chat.onChar(codepoint);
+                }
             }
         });
+
+        // Setup Developer Console Callbacks
+        _devConsole.onHeal = [this](int amt) {
+            _hud.health = std::min(_hud.maxHealth, _hud.health + static_cast<float>(amt));
+        };
+        _devConsole.onArmor = [this](int amt) {
+            _hud.suitArmor = std::min(100.0f, _hud.suitArmor + static_cast<float>(amt));
+        };
+        _devConsole.onAmmo = [this](int amt) {
+            for (int i = 0; i < 9; ++i) {
+                auto& w = _weaponSystem.getWeapon(static_cast<WeaponID>(i));
+                w.currentReserve = std::min(w.def.maxReserve, w.currentReserve + amt);
+            }
+            syncHudWeapon();
+        };
+        _devConsole.onGetWeapon = [this](int id) {
+            int idx = id;
+            if (idx >= 100 && idx <= 108) idx -= 100;
+            else if (idx >= 1 && idx <= 9) idx -= 1;
+            if (idx >= 0 && idx < 9) {
+                _weaponSystem.unlockWeapon(static_cast<WeaponID>(idx), true);
+                auto& w = _weaponSystem.getWeapon(static_cast<WeaponID>(idx));
+                w.currentClip = w.def.clipSize;
+                w.currentReserve = w.def.maxReserve;
+                syncHudWeapon();
+            }
+        };
+        _devConsole.onGiveAll = [this]() {
+            _weaponSystem.unlockAll();
+            for (int i = 0; i < 9; ++i) {
+                auto& w = _weaponSystem.getWeapon(static_cast<WeaponID>(i));
+                w.currentClip = w.def.clipSize;
+                w.currentReserve = w.def.maxReserve;
+            }
+            syncHudWeapon();
+        };
+        _devConsole.onRespawn = [this]() {
+            _hud.health = _scriptEngine.getPlayerMaxHealth();
+            _hud.suitArmor = 100.0f;
+            _isPlayerDead = false;
+            _velocity = { 0, 0, 0 };
+            if (_currentMap && !_currentMap->spawnPoints.empty()) {
+                _camera.setPosition(_currentMap->spawnPoints[0].position + Vec3(0, 1.8f, 0));
+            }
+        };
+        _devConsole.onSuicide = [this]() {
+            applyDamageToPlayer(999.0f, "Console Suicide");
+        };
+        _devConsole.onLoadMap = [this](const std::string& mapName) {
+            std::string path = mapName;
+            if (path.find('/') == std::string::npos && path.find('\\') == std::string::npos) {
+                path = "assets/maps/" + path;
+            }
+            if (path.find('.') == std::string::npos) {
+                path += ".labscene";
+            }
+            _sessionConfig.mapPath = path;
+            loadSelectedMap(path);
+        };
+        _devConsole.onRestartMap = [this]() {
+            if (!_sessionConfig.mapPath.empty()) loadSelectedMap(_sessionConfig.mapPath);
+        };
+        _devConsole.onReloadShaders = []() {
+            Renderer::prewarmShaders();
+        };
+        _devConsole.onSetBotsA = [this](int count) {
+            _sessionConfig.botCount = count;
+            if (_currentMap) _aiManager.spawnBotsForMap(_currentMap.get(), count, _sessionConfig.mode);
+        };
+        _devConsole.onSetBotsB = [this](int count) {
+            _sessionConfig.botCount = count;
+            if (_currentMap) _aiManager.spawnBotsForMap(_currentMap.get(), count, _sessionConfig.mode);
+        };
+        _devConsole.onKickBots = [this]() {
+            _aiManager.bots.clear();
+        };
+        _devConsole.onFreezeBots = [this](bool freeze) {
+            for (auto& bot : _aiManager.bots) {
+                if (freeze) bot.state = AIState::Patrol;
+            }
+        };
+        _devConsole.onQuit = [this]() {
+            glfwSetWindowShouldClose(getWindow(), 1);
+        };
 
         // Discover available maps in assets/maps/
         scanMapFiles();
@@ -437,7 +526,7 @@ public:
     }
 
     void applyDamageToPlayer(float rawDamage, const std::string& sourceName) {
-        if (_isPlayerDead || rawDamage <= 0.0f) return;
+        if (_devConsole.sp_god || _isPlayerDead || rawDamage <= 0.0f) return;
 
         AudioEngine::playSound(SoundID::PlayerHurt);
         _hud.triggerDamageFlash();
@@ -534,12 +623,15 @@ public:
     void onFixedUpdate(float fixedDelta) override {
         if (_inMenu) return;
 
-        // Freeze movement if player is dead or typing in chat
+        // Apply World Timescale from console
+        fixedDelta *= _devConsole.wrd_timescale;
+
+        // Freeze movement if player is dead or typing in chat / console
         if (_isPlayerDead) {
             _velocity = { 0, 0, 0 };
             return;
         }
-        if (_chat.isOpen) {
+        if (_chat.isOpen || _devConsole.isOpen) {
             _velocity.x *= 0.8f;
             _velocity.z *= 0.8f;
             return;
@@ -547,21 +639,36 @@ public:
 
         // Physics tick rate (64 ticks per second)
         bool isSprinting = Input::isKeyPressed(340); // Left Shift
-        float speed = isSprinting ? 8.5f : 4.5f;
+        float speed = (isSprinting ? 8.5f : 4.5f) * _devConsole.sp_speed;
         Vec3 inputDir = { 0, 0, 0 };
 
         Vec3 front = _camera.getFront();
         front.y = 0;
-        front = front.normalized();
+        if (front.lengthSq() > 1e-4f) front = front.normalized();
 
         Vec3 right = _camera.getRight();
         right.y = 0;
-        right = right.normalized();
+        if (right.lengthSq() > 1e-4f) right = right.normalized();
 
         if (Input::isKeyPressed('W') || Input::isKeyPressed('w')) inputDir += front;
         if (Input::isKeyPressed('S') || Input::isKeyPressed('s')) inputDir -= front;
         if (Input::isKeyPressed('A') || Input::isKeyPressed('a')) inputDir -= right;
         if (Input::isKeyPressed('D') || Input::isKeyPressed('d')) inputDir += right;
+
+        // Developer Ghost Noclip Mode (sp_noclip)
+        if (_devConsole.sp_noclip) {
+            Vec3 camPos = _camera.getPosition();
+            float flySpeed = isSprinting ? 24.0f : 12.0f;
+            if (Input::isKeyPressed('W') || Input::isKeyPressed('w')) camPos += _camera.getFront() * flySpeed * fixedDelta;
+            if (Input::isKeyPressed('S') || Input::isKeyPressed('s')) camPos -= _camera.getFront() * flySpeed * fixedDelta;
+            if (Input::isKeyPressed('A') || Input::isKeyPressed('a')) camPos -= _camera.getRight() * flySpeed * fixedDelta;
+            if (Input::isKeyPressed('D') || Input::isKeyPressed('d')) camPos += _camera.getRight() * flySpeed * fixedDelta;
+            if (Input::isKeyPressed(32)) camPos.y += flySpeed * fixedDelta; // Space = Up
+            if (Input::isKeyPressed(341)) camPos.y -= flySpeed * fixedDelta; // Left Ctrl = Down
+            _camera.setPosition(camPos);
+            _velocity = { 0, 0, 0 };
+            return;
+        }
 
         // Free-cam Noclip flying in Hammer Editor mode
         if (_hammerEditor.active) {
@@ -593,40 +700,82 @@ public:
             }
         }
 
-        if (inputDir.lengthSq() > 0) {
-            inputDir = inputDir.normalized();
-            if (isIceSurface) {
-                // Tactical Ice Inertia: smooth acceleration drift
-                _velocity.x += inputDir.x * speed * fixedDelta * 3.5f;
-                _velocity.z += inputDir.z * speed * fixedDelta * 3.5f;
-                float curHorizSpeed = std::sqrt(_velocity.x * _velocity.x + _velocity.z * _velocity.z);
-                if (curHorizSpeed > speed * 1.15f) {
-                    _velocity.x = (_velocity.x / curHorizSpeed) * (speed * 1.15f);
-                    _velocity.z = (_velocity.z / curHorizSpeed) * (speed * 1.15f);
-                }
-            } else {
-                _velocity.x = inputDir.x * speed;
-                _velocity.z = inputDir.z * speed;
-            }
-            _bobTime += fixedDelta * (speed * 2.0f);
-        } else {
-            float friction = isIceSurface ? 0.985f : 0.80f;
-            _velocity.x *= friction;
-            _velocity.z *= friction;
-            if (std::abs(_velocity.x) < 0.05f) _velocity.x = 0.0f;
-            if (std::abs(_velocity.z) < 0.05f) _velocity.z = 0.0f;
+        // ==================== SOURCE MOMENTUM & BUNNY HOP PHYSICS ====================
+        Vec3 wishDir = inputDir;
+        float wishSpeed = 0.0f;
+        if (wishDir.lengthSq() > 1e-4f) {
+            wishDir = wishDir.normalized();
+            wishSpeed = speed;
         }
 
-        // Jump physics (Spacebar = 32)
-        if (Input::isKeyPressed(32) && _isGrounded) {
-            _velocity.y = 5.0f;
-            _isGrounded = false;
+        // Bhop Grace Timer (buffer window for landing jump)
+        if (_bhopGraceTimer > 0.0f) {
+            _bhopGraceTimer -= fixedDelta;
+            if (_bhopGraceTimer < 0.0f) _bhopGraceTimer = 0.0f;
+        }
+
+        bool jumpPressed = Input::isKeyPressed(32); // Spacebar
+
+        if (_isGrounded) {
+            // Check if jumping (immediate jump or continuous bhop jump buffer)
+            if (jumpPressed) {
+                _velocity.y = _devConsole.sp_jump;
+                _isGrounded = false;
+                _bhopGraceTimer = 0.0f;
+                // Ground friction is bypassed! Full horizontal momentum preserved!
+            } else {
+                // Apply Ground Friction
+                float curHorizSpeed = std::sqrt(_velocity.x * _velocity.x + _velocity.z * _velocity.z);
+                if (curHorizSpeed > 0.001f) {
+                    if (isIceSurface) {
+                        _velocity.x *= 0.985f;
+                        _velocity.z *= 0.985f;
+                    } else {
+                        float friction = _devConsole.phys_friction;
+                        float drop = curHorizSpeed * friction * fixedDelta;
+                        float newSpeed = std::max(0.0f, curHorizSpeed - drop);
+                        _velocity.x = (_velocity.x / curHorizSpeed) * newSpeed;
+                        _velocity.z = (_velocity.z / curHorizSpeed) * newSpeed;
+                    }
+                    if (std::abs(_velocity.x) < 0.02f) _velocity.x = 0.0f;
+                    if (std::abs(_velocity.z) < 0.02f) _velocity.z = 0.0f;
+                }
+
+                // Ground Acceleration
+                if (wishSpeed > 0.0f) {
+                    float curSpeedInWish = _velocity.x * wishDir.x + _velocity.z * wishDir.z;
+                    float addSpeed = wishSpeed - curSpeedInWish;
+                    if (addSpeed > 0.0f) {
+                        float groundAccel = isIceSurface ? 3.5f : 12.0f;
+                        float accelSpeed = groundAccel * wishSpeed * fixedDelta;
+                        if (accelSpeed > addSpeed) accelSpeed = addSpeed;
+                        _velocity.x += wishDir.x * accelSpeed;
+                        _velocity.z += wishDir.z * accelSpeed;
+                    }
+                    _bobTime += fixedDelta * (speed * 2.0f);
+                }
+            }
+        } else {
+            // IN AIR: Air strafing & air acceleration (Source Engine PM_AirAccelerate)
+            if (_devConsole.sp_bhop && wishSpeed > 0.0f) {
+                float maxAirWishSpeed = 30.0f; // Source Engine air wishspeed clamp
+                float curSpeedInWish = _velocity.x * wishDir.x + _velocity.z * wishDir.z;
+                float addSpeed = std::min(wishSpeed, maxAirWishSpeed) - curSpeedInWish;
+                if (addSpeed > 0.0f) {
+                    float airAccel = _devConsole.phys_air_accel;
+                    float accelSpeed = airAccel * wishSpeed * fixedDelta;
+                    if (accelSpeed > addSpeed) accelSpeed = addSpeed;
+                    _velocity.x += wishDir.x * accelSpeed;
+                    _velocity.z += wishDir.z * accelSpeed;
+                }
+            }
         }
 
         // Gravity
-        _velocity.y -= 12.0f * fixedDelta;
+        _velocity.y -= _devConsole.phys_gravity * fixedDelta;
 
         // ==================== AABB MOVE & SLIDE WALL COLLISION ====================
+        bool wasGrounded = _isGrounded;
         Vec3 pos = _camera.getPosition();
         if (_currentMap) {
             auto obstacles = LabCollision::getMapSolidBoxes(*_currentMap);
@@ -640,6 +789,11 @@ public:
             }
         }
         _camera.setPosition(pos);
+
+        // Landing transition detection: start bhop grace window
+        if (!wasGrounded && _isGrounded) {
+            _bhopGraceTimer = _devConsole.phys_bhop_window;
+        }
 
         // Network command generation synchronized with fixed physics rate (64 Hz)
         if (_netClient.isConnected()) {
@@ -825,6 +979,56 @@ public:
             }
             return;
         }
+
+        // Developer Console toggle & input handling (`~` / Grave Accent = 96, F10 = 299)
+        bool gravePressed = Input::isKeyPressed(96);
+        bool f10Pressed = Input::isKeyPressed(299);
+        if ((gravePressed && !_gravePressedLast) || (f10Pressed && !_f10PressedLast)) {
+            _devConsole.toggle();
+        }
+        _gravePressedLast = gravePressed;
+        _f10PressedLast = f10Pressed;
+
+        if (_devConsole.isOpen) {
+            bool enterPressed = Input::isKeyPressed(257);
+            bool escPressed = Input::isKeyPressed(256);
+            bool backspacePressed = Input::isKeyPressed(259);
+            bool delPressed = Input::isKeyPressed(261);
+            bool upPressed = Input::isKeyPressed(265);
+            bool downPressed = Input::isKeyPressed(264);
+            bool leftPressed = Input::isKeyPressed(263);
+            bool rightPressed = Input::isKeyPressed(262);
+            bool pgUpPressed = Input::isKeyPressed(266);
+            bool pgDnPressed = Input::isKeyPressed(267);
+
+            if (enterPressed && !_enterPressedLast) _devConsole.onKey(257, 1);
+            if (escPressed && !_escPressedLast) _devConsole.onKey(256, 1);
+            if (backspacePressed && !_backspacePressedLast) _devConsole.onKey(259, 1);
+            if (delPressed && !_delPressedLast) _devConsole.onKey(261, 1);
+            if (upPressed && !_upPressedLast) _devConsole.onKey(265, 1);
+            if (downPressed && !_downPressedLast) _devConsole.onKey(264, 1);
+            if (leftPressed && !_leftPressedLast) _devConsole.onKey(263, 1);
+            if (rightPressed && !_rightPressedLast) _devConsole.onKey(262, 1);
+            if (pgUpPressed && !_pgUpPressedLast) _devConsole.onKey(266, 1);
+            if (pgDnPressed && !_pgDnPressedLast) _devConsole.onKey(267, 1);
+
+            _enterPressedLast = enterPressed;
+            _escPressedLast = escPressed;
+            _backspacePressedLast = backspacePressed;
+            _delPressedLast = delPressed;
+            _upPressedLast = upPressed;
+            _downPressedLast = downPressed;
+            _leftPressedLast = leftPressed;
+            _rightPressedLast = rightPressed;
+            _pgUpPressedLast = pgUpPressed;
+            _pgDnPressedLast = pgDnPressed;
+
+            _devConsole.update(time.delta);
+            return; // Lock player input and shooting while in developer console
+        }
+
+        // Camera FOV from console
+        _camera.fieldOfView = _devConsole.cam_fov;
 
         // Chat toggle & input handling
         bool enterPressed = Input::isKeyPressed(257);
@@ -2733,6 +2937,26 @@ public:
             LabFont::drawText(20.0f, 25.0f, dbgBots, 1.5f, Vec3(1, 1, 1), LabFontType::System);
             Renderer::endUI();
         }
+
+        // 2D Telemetry overlays & Developer Console
+        DevTelemetryData tData;
+        tData.currentSpeed = _velocity.length();
+        tData.horizontalSpeed = std::sqrt(_velocity.x * _velocity.x + _velocity.z * _velocity.z);
+        tData.velocity = _velocity;
+        tData.playerPos = _camera.getPosition();
+        tData.pitch = _camera.getPitch();
+        tData.yaw = _camera.getYaw();
+        tData.fps = 60.0f;
+        tData.frametimeMs = 16.6f;
+        tData.pingMs = _netClient.isConnected() ? 25 : 0;
+        tData.activeBots = (int)_aiManager.bots.size();
+        tData.isGrounded = _isGrounded;
+        tData.isBhopActive = (!_isGrounded && tData.horizontalSpeed > 5.2f);
+
+        _devConsole.renderOverlay(w, h, tData);
+        if (_devConsole.isOpen) {
+            _devConsole.render(w, h);
+        }
     }
 
     void renderSplashScreen() {
@@ -2847,6 +3071,9 @@ public:
         if (_inMenu) {
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             drawMenu();
+            if (_devConsole.isOpen) {
+                _devConsole.render(1280, 720);
+            }
             return;
         }
 
@@ -3219,6 +3446,19 @@ private:
     bool _isGrounded;
     bool _isJumping;
     float _bobTime;
+    float _bhopGraceTimer = 0.0f;
+
+    // Developer Console & Telemetry
+    LabDevConsole _devConsole;
+    bool _gravePressedLast = false;
+    bool _f10PressedLast = false;
+    bool _delPressedLast = false;
+    bool _upPressedLast = false;
+    bool _downPressedLast = false;
+    bool _leftPressedLast = false;
+    bool _rightPressedLast = false;
+    bool _pgUpPressedLast = false;
+    bool _pgDnPressedLast = false;
 
     // Combat & Respawn stats
     int _playerKills = 0;
