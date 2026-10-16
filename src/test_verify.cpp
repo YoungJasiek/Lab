@@ -10190,6 +10190,26 @@ int main() {
             return 1;
         }
 
+        // Test fast drag and mouse release OUTSIDE window bounds
+        console.onMouseButton(0, 1, console.windowX + 50.0f, console.windowY + 15.0f); // Re-grab title bar
+        if (!console.isDragging) {
+            std::cerr << "Assertion failed: Title bar re-grab failed!\n";
+            return 1;
+        }
+        console.onMouseMove(1200.0f, 700.0f); // Move far away
+        console.onMouseButton(0, 0, 1200.0f, 700.0f); // Release far outside window
+        if (console.isDragging) {
+            std::cerr << "Assertion failed: Mouse button release outside window must cleanly end dragging!\n";
+            return 1;
+        }
+        float savedX = console.windowX;
+        float savedY = console.windowY;
+        console.onMouseMove(500.0f, 400.0f); // Move mouse without button pressed
+        if (console.windowX != savedX || console.windowY != savedY) {
+            std::cerr << "Assertion failed: Console window moved after drag was released!\n";
+            return 1;
+        }
+
         // Close button click test
         float closeBtnX = console.windowX + console.windowW - 22.0f + 6.0f;
         float closeBtnY = console.windowY + 5.0f + 6.0f;

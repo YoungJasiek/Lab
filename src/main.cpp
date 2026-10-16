@@ -893,6 +893,10 @@ public:
 
             _devConsole.onMouseMove(static_cast<float>(curX), static_cast<float>(curY));
 
+            if (_devConsole.isDragging && !Input::isMouseButtonPressed(0)) {
+                _devConsole.isDragging = false;
+            }
+
             if (Input::isMouseButtonJustPressed(0)) {
                 _devConsole.onMouseButton(0, 1, static_cast<float>(curX), static_cast<float>(curY));
             } else if (Input::isMouseButtonJustReleased(0)) {
@@ -2979,9 +2983,14 @@ public:
         tData.isGrounded = _isGrounded;
         tData.isBhopActive = (!_isGrounded && tData.horizontalSpeed > 5.2f);
 
-        _devConsole.renderOverlay(w, h, tData);
+        int winW = w, winH = h;
+        getWindowSize(winW, winH);
+        if (winW <= 0) winW = w;
+        if (winH <= 0) winH = h;
+
+        _devConsole.renderOverlay(winW, winH, tData);
         if (_devConsole.isOpen) {
-            _devConsole.render(w, h);
+            _devConsole.render(winW, winH);
         }
     }
 

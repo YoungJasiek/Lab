@@ -59,13 +59,15 @@ namespace Lab {
         // =====================================================================
         // Floating Window Dimensions & Dragging
         // =====================================================================
-        float windowX = 220.0f;
-        float windowY = 70.0f;
-        float windowW = 840.0f;
-        float windowH = 540.0f;
+        float windowX = 180.0f;
+        float windowY = 60.0f;
+        float windowW = 920.0f;
+        float windowH = 580.0f;
         bool isDragging = false;
         float dragOffsetX = 0.0f;
         float dragOffsetY = 0.0f;
+        int lastScreenW = 1280;
+        int lastScreenH = 720;
 
         // =====================================================================
         // Console Variables (CVars) & Toggles from dev_console.md
@@ -101,7 +103,7 @@ namespace Lab {
         // phys_ (Physics & Balanced Bhop tuning)
         float phys_gravity = 12.0f;
         float phys_friction = 5.5f;
-        float phys_air_accel = 12.0f;        // Source Engine default air acceleration
+        float phys_air_accel = 12.0f;        // Default air acceleration for strafe momentum
         float phys_bhop_window = 0.08f;      // 80ms landing timing window
         float phys_max_bhop_speed = 11.5f;   // Maximum horizontal speed ceiling to prevent runaway momentum
 

@@ -436,18 +436,23 @@ namespace Lab {
     bool LabDevConsole::onMouseButton(int button, int action, float mx, float my) {
         if (!isOpen) return false;
 
-        float titleH = 26.0f;
-        float inputAreaH = 34.0f;
+        // If mouse button is released, always cancel dragging unconditionally
+        if (button == 0 && action == 0) {
+            isDragging = false;
+        }
+
+        float titleH = 34.0f;
+        float inputAreaH = 46.0f;
         float textX = windowX + 8.0f;
-        float inputY = windowY + windowH - inputAreaH + 2.0f;
-        float submitW = 76.0f;
+        float inputY = windowY + windowH - inputAreaH + 4.0f;
+        float submitW = 90.0f;
         float inputW = windowW - submitW - 24.0f;
         float submitX = textX + inputW + 8.0f;
 
-        float popW = 340.0f;
-        float popItemH = 19.0f;
-        float popH = (float)_activeSuggestions.size() * popItemH + 6.0f;
-        float popY = inputY + 27.0f;
+        float popW = 380.0f;
+        float popItemH = 26.0f;
+        float popH = (float)_activeSuggestions.size() * popItemH + 8.0f;
+        float popY = inputY + 36.0f;
 
         // Check if click is inside the console window
         bool insideWindow = (mx >= windowX && mx <= windowX + windowW &&
@@ -455,7 +460,7 @@ namespace Lab {
 
         // Check suggestion popup click (if rendered below input)
         bool insidePopup = (!_activeSuggestions.empty() &&
-                            mx >= windowX + 8.0f && mx <= windowX + 8.0f + popW &&
+                            mx >= textX && mx <= textX + popW &&
                             my >= popY && my <= popY + popH);
 
         if (!insideWindow && !insidePopup) {
@@ -468,15 +473,15 @@ namespace Lab {
         if (button == 0) { // Left Mouse Button
             if (action == 1) { // Pressed
                 // 1. Close button [X]
-                float closeBtnX = windowX + windowW - 22.0f;
-                float closeBtnY = windowY + 5.0f;
-                if (mx >= closeBtnX && mx <= closeBtnX + 16.0f && my >= closeBtnY && my <= closeBtnY + 16.0f) {
+                float closeBtnX = windowX + windowW - 26.0f;
+                float closeBtnY = windowY + 6.0f;
+                if (mx >= closeBtnX && mx <= closeBtnX + 22.0f && my >= closeBtnY && my <= closeBtnY + 22.0f) {
                     close();
                     return true;
                 }
 
                 // 2. Submit Button
-                if (mx >= submitX && mx <= submitX + submitW && my >= inputY && my <= inputY + 24.0f) {
+                if (mx >= submitX && mx <= submitX + submitW && my >= inputY && my <= inputY + 34.0f) {
                     if (!_currentInput.empty()) {
                         execute(_currentInput);
                         _currentInput.clear();
@@ -486,7 +491,7 @@ namespace Lab {
                 }
 
                 // 2b. Input Box Click (Focus & place cursor at end)
-                if (mx >= textX && mx <= textX + inputW && my >= inputY && my <= inputY + 24.0f) {
+                if (mx >= textX && mx <= textX + inputW && my >= inputY && my <= inputY + 34.0f) {
                     _cursorPos = static_cast<int>(_currentInput.size());
                     return true;
                 }
@@ -515,14 +520,14 @@ namespace Lab {
                 float textW = windowW - 16.0f;
                 float textH = windowH - titleH - inputAreaH - 14.0f;
                 float textY = windowY + titleH + 6.0f;
-                float sbW = 14.0f;
+                float sbW = 16.0f;
                 float sbX = textX + textW - sbW - 2.0f;
                 float sbY = textY + 2.0f;
                 float sbH = textH - 4.0f;
                 if (mx >= sbX && mx <= sbX + sbW && my >= sbY && my <= sbY + sbH) {
                     float clickRatio = (my - sbY) / sbH;
                     int total = static_cast<int>(_entries.size());
-                    float lineH = 17.0f;
+                    float lineH = 26.0f;
                     int maxLines = static_cast<int>(textH / lineH) - 1;
                     int maxScroll = std::max(0, total - maxLines);
                     _scrollOffset = static_cast<int>((1.0f - clickRatio) * static_cast<float>(maxScroll));
@@ -542,8 +547,11 @@ namespace Lab {
         if (isDragging) {
             windowX = mx - dragOffsetX;
             windowY = my - dragOffsetY;
-            windowX = std::clamp(windowX, 0.0f, 1920.0f - windowW);
-            windowY = std::clamp(windowY, 0.0f, 1080.0f - windowH);
+            float maxW = (lastScreenW > 0) ? (float)lastScreenW : 1920.0f;
+            float maxH = (lastScreenH > 0) ? (float)lastScreenH : 1080.0f;
+            float titleH = 34.0f;
+            windowX = std::clamp(windowX, 0.0f, std::max(0.0f, maxW - 80.0f));
+            windowY = std::clamp(windowY, 0.0f, std::max(0.0f, maxH - titleH));
         }
     }
 
@@ -791,14 +799,17 @@ namespace Lab {
     void LabDevConsole::render(int screenW, int screenH) {
         if (!isOpen) return;
 
+        lastScreenW = screenW;
+        lastScreenH = screenH;
+
         Renderer::beginUI(screenW, screenH);
 
-        // Clamp window within screen viewport
-        windowX = std::clamp(windowX, 10.0f, (float)screenW - windowW - 10.0f);
-        windowY = std::clamp(windowY, 10.0f, (float)screenH - windowH - 10.0f);
+        float titleH = 34.0f;
+        float inputAreaH = 46.0f;
 
-        float titleH = 26.0f;
-        float inputAreaH = 34.0f;
+        // Ensure title bar remains visible within screen viewport
+        windowX = std::clamp(windowX, 0.0f, std::max(0.0f, (float)screenW - 80.0f));
+        windowY = std::clamp(windowY, 0.0f, std::max(0.0f, (float)screenH - titleH));
 
         // ==================== CONSOLE THEME COLOR PALETTE ====================
         Vec3 frameBg(0.28f, 0.33f, 0.27f);      // #475445 (Muted olive-green frame)
@@ -817,15 +828,15 @@ namespace Lab {
 
         // 2. Title Bar
         Renderer::drawRect(windowX + 2.0f, windowY + 2.0f, windowW - 4.0f, titleH, titleBg);
-        LabFont::drawText(windowX + 10.0f, windowY + 6.0f, "Console", 1.25f, Vec3(0.92f, 0.95f, 0.92f), LabFontType::GeoSans);
+        LabFont::drawText(windowX + 12.0f, windowY + 7.0f, "Console", 2.0f, Vec3(0.92f, 0.95f, 0.92f), LabFontType::GeoSans);
 
         // Close Button [X] on top right
-        float closeBtnX = windowX + windowW - 22.0f;
-        float closeBtnY = windowY + 5.0f;
-        Renderer::drawRect(closeBtnX, closeBtnY, 16.0f, 16.0f, Vec3(0.32f, 0.37f, 0.30f));
-        Renderer::drawRect(closeBtnX, closeBtnY, 16.0f, 1.0f, borderLight);
-        Renderer::drawRect(closeBtnX, closeBtnY + 15.0f, 16.0f, 1.0f, borderDark);
-        LabFont::drawText(closeBtnX + 4.0f, closeBtnY + 2.0f, "x", 1.1f, Vec3(0.85f, 0.9f, 0.85f), LabFontType::GeoSans);
+        float closeBtnX = windowX + windowW - 26.0f;
+        float closeBtnY = windowY + 6.0f;
+        Renderer::drawRect(closeBtnX, closeBtnY, 20.0f, 20.0f, Vec3(0.32f, 0.37f, 0.30f));
+        Renderer::drawRect(closeBtnX, closeBtnY, 20.0f, 1.0f, borderLight);
+        Renderer::drawRect(closeBtnX, closeBtnY + 19.0f, 20.0f, 1.0f, borderDark);
+        LabFont::drawText(closeBtnX + 5.0f, closeBtnY + 2.0f, "x", 1.5f, Vec3(0.85f, 0.9f, 0.85f), LabFontType::GeoSans);
 
         // 3. Inner Log Text Area (Sunken)
         float textX = windowX + 8.0f;
@@ -841,7 +852,7 @@ namespace Lab {
         Renderer::drawRect(textX + textW - 1.0f, textY, 1.0f, textH, borderLight);
 
         // Render visible text lines with clipping
-        float lineH = 17.0f;
+        float lineH = 26.0f;
         int maxLines = (int)(textH / lineH) - 1;
         int total = (int)_entries.size();
         int endIdx = total - _scrollOffset;
@@ -850,12 +861,12 @@ namespace Lab {
         float curY = textY + 6.0f;
         for (int i = startIdx; i < endIdx && i < total; ++i) {
             const auto& entry = _entries[i];
-            LabFont::drawText(textX + 8.0f, curY, entry.text, 1.08f, entry.color, LabFontType::GeoSans);
+            LabFont::drawText(textX + 8.0f, curY, entry.text, 1.85f, entry.color, LabFontType::GeoSans);
             curY += lineH;
         }
 
         // Vertical Scrollbar on the right of text area
-        float sbW = 14.0f;
+        float sbW = 16.0f;
         float sbX = textX + textW - sbW - 2.0f;
         float sbY = textY + 2.0f;
         float sbH = textH - 4.0f;
@@ -874,15 +885,15 @@ namespace Lab {
         }
 
         // 4. Command Input Field (Sunken)
-        float inputY = windowY + windowH - inputAreaH + 2.0f;
-        float submitW = 76.0f;
+        float inputY = windowY + windowH - inputAreaH + 4.0f;
+        float submitW = 90.0f;
         float inputW = windowW - submitW - 24.0f;
 
-        Renderer::drawRect(textX, inputY, inputW, 24.0f, inputBg);
+        Renderer::drawRect(textX, inputY, inputW, 34.0f, inputBg);
         Renderer::drawRect(textX, inputY, inputW, 1.0f, borderDark);
-        Renderer::drawRect(textX, inputY, 1.0f, 24.0f, borderDark);
-        Renderer::drawRect(textX, inputY + 23.0f, inputW, 1.0f, borderLight);
-        Renderer::drawRect(textX + inputW - 1.0f, inputY, 1.0f, 24.0f, borderLight);
+        Renderer::drawRect(textX, inputY, 1.0f, 34.0f, borderDark);
+        Renderer::drawRect(textX, inputY + 33.0f, inputW, 1.0f, borderLight);
+        Renderer::drawRect(textX + inputW - 1.0f, inputY, 1.0f, 34.0f, borderLight);
 
         // Text & blinking cursor in input
         std::string dispInput = _currentInput;
@@ -890,23 +901,23 @@ namespace Lab {
         if (blink) {
             dispInput.insert(_cursorPos, "_");
         }
-        LabFont::drawText(textX + 6.0f, inputY + 4.0f, dispInput, 1.15f, Vec3(0.95f, 0.98f, 0.95f), LabFontType::GeoSans);
+        LabFont::drawText(textX + 8.0f, inputY + 7.0f, dispInput, 1.9f, Vec3(0.95f, 0.98f, 0.95f), LabFontType::GeoSans);
 
         // 5. Submit Button (Raised Bevel)
         float submitX = textX + inputW + 8.0f;
-        Renderer::drawRect(submitX, inputY, submitW, 24.0f, Vec3(0.32f, 0.38f, 0.30f));
+        Renderer::drawRect(submitX, inputY, submitW, 34.0f, Vec3(0.32f, 0.38f, 0.30f));
         Renderer::drawRect(submitX, inputY, submitW, 1.0f, borderLight);
-        Renderer::drawRect(submitX, inputY, 1.0f, 24.0f, borderLight);
-        Renderer::drawRect(submitX, inputY + 23.0f, submitW, 1.0f, borderDark);
-        Renderer::drawRect(submitX + submitW - 1.0f, inputY, 1.0f, 24.0f, borderDark);
-        LabFont::drawText(submitX + 16.0f, inputY + 4.0f, "Submit", 1.15f, Vec3(0.92f, 0.95f, 0.92f), LabFontType::GeoSans);
+        Renderer::drawRect(submitX, inputY, 1.0f, 34.0f, borderLight);
+        Renderer::drawRect(submitX, inputY + 33.0f, submitW, 1.0f, borderDark);
+        Renderer::drawRect(submitX + submitW - 1.0f, inputY, 1.0f, 34.0f, borderDark);
+        LabFont::drawText(submitX + 16.0f, inputY + 7.0f, "Submit", 1.85f, Vec3(0.92f, 0.95f, 0.92f), LabFontType::GeoSans);
 
-        // 6. Autocomplete Suggestion Popup (Rendered right below input like in screenshot!)
+        // 6. Autocomplete Suggestion Popup (Rendered right below input)
         if (!_activeSuggestions.empty()) {
-            float popW = 340.0f;
-            float popItemH = 19.0f;
-            float popH = (float)_activeSuggestions.size() * popItemH + 6.0f;
-            float popY = inputY + 27.0f;
+            float popW = 380.0f;
+            float popItemH = 26.0f;
+            float popH = (float)_activeSuggestions.size() * popItemH + 8.0f;
+            float popY = inputY + 36.0f;
 
             Renderer::drawRect(textX, popY, popW, popH, Vec3(0.14f, 0.17f, 0.13f));
             Renderer::drawRect(textX, popY, popW, 1.0f, borderLight);
@@ -920,7 +931,7 @@ namespace Lab {
                 if (isSel) {
                     Renderer::drawRect(textX + 2.0f, curSugY - 1.0f, popW - 4.0f, popItemH, Vec3(0.24f, 0.32f, 0.22f));
                 }
-                LabFont::drawText(textX + 8.0f, curSugY + 2.0f, _activeSuggestions[s], 1.1f,
+                LabFont::drawText(textX + 8.0f, curSugY + 4.0f, _activeSuggestions[s], 1.8f,
                                   isSel ? Vec3(1.0f, 0.95f, 0.3f) : Vec3(0.85f, 0.9f, 0.85f), LabFontType::GeoSans);
                 curSugY += popItemH;
             }
@@ -933,69 +944,72 @@ namespace Lab {
         bool showAny = log_momentum || log_fps || log_ping || log_pos || log_all;
         if (!showAny) return;
 
+        lastScreenW = screenW;
+        lastScreenH = screenH;
+
         Renderer::beginUI(screenW, screenH);
 
         float startX = 20.0f;
         float curY = 20.0f;
-        float boxW = 340.0f;
+        float boxW = 420.0f;
 
-        // 1. Momentum & Speed Overlay (cl_showpos style)
+        // 1. Momentum & Speed Telemetry Overlay
         if (log_momentum || log_all) {
-            Renderer::drawRect(startX, curY, boxW, 46.0f, Vec3(0.06f, 0.08f, 0.12f));
-            Renderer::drawRect(startX, curY, 3.0f, 46.0f, Vec3(0.2f, 0.85f, 0.4f));
+            Renderer::drawRect(startX, curY, boxW, 58.0f, Vec3(0.06f, 0.08f, 0.12f));
+            Renderer::drawRect(startX, curY, 3.0f, 58.0f, Vec3(0.2f, 0.85f, 0.4f));
 
             std::ostringstream ss;
             ss << std::fixed << std::setprecision(1);
             ss << "SPEED: " << t.horizontalSpeed << " u/s (Cap: " << phys_max_bhop_speed << ")";
-            LabFont::drawText(startX + 10.0f, curY + 6.0f, ss.str(), 1.25f, Vec3(0.3f, 1.0f, 0.5f), LabFontType::GeoSans);
+            LabFont::drawText(startX + 12.0f, curY + 6.0f, ss.str(), 1.7f, Vec3(0.3f, 1.0f, 0.5f), LabFontType::GeoSans);
 
             std::string bhopStatus = t.isBhopActive ? "BHOPPING: ACCELERATING" : (t.isGrounded ? "GROUND: FRICTION ACTIVE" : "AIR STRAFE ACTIVE");
             Vec3 bhopCol = t.isBhopActive ? Vec3(1.0f, 0.85f, 0.2f) : (t.isGrounded ? Vec3(0.7f, 0.7f, 0.7f) : Vec3(0.3f, 0.85f, 1.0f));
-            LabFont::drawText(startX + 10.0f, curY + 24.0f, bhopStatus, 1.1f, bhopCol, LabFontType::GeoSans);
+            LabFont::drawText(startX + 12.0f, curY + 30.0f, bhopStatus, 1.5f, bhopCol, LabFontType::GeoSans);
 
-            curY += 52.0f;
+            curY += 66.0f;
         }
 
         // 2. Position & Angles Overlay
         if (log_pos || log_all) {
-            Renderer::drawRect(startX, curY, boxW, 46.0f, Vec3(0.06f, 0.08f, 0.12f));
-            Renderer::drawRect(startX, curY, 3.0f, 46.0f, Vec3(0.3f, 0.7f, 1.0f));
+            Renderer::drawRect(startX, curY, boxW, 58.0f, Vec3(0.06f, 0.08f, 0.12f));
+            Renderer::drawRect(startX, curY, 3.0f, 58.0f, Vec3(0.3f, 0.7f, 1.0f));
 
             std::ostringstream ss;
             ss << std::fixed << std::setprecision(2);
             ss << "POS: (" << t.playerPos.x << ", " << t.playerPos.y << ", " << t.playerPos.z << ")";
-            LabFont::drawText(startX + 10.0f, curY + 6.0f, ss.str(), 1.15f, Vec3(0.85f, 0.9f, 0.95f), LabFontType::GeoSans);
+            LabFont::drawText(startX + 12.0f, curY + 6.0f, ss.str(), 1.6f, Vec3(0.85f, 0.9f, 0.95f), LabFontType::GeoSans);
 
             std::ostringstream ss2;
             ss2 << std::fixed << std::setprecision(1);
             ss2 << "ANG: PITCH " << t.pitch << " deg | YAW " << t.yaw << " deg";
-            LabFont::drawText(startX + 10.0f, curY + 24.0f, ss2.str(), 1.1f, Vec3(0.6f, 0.8f, 1.0f), LabFontType::GeoSans);
+            LabFont::drawText(startX + 12.0f, curY + 30.0f, ss2.str(), 1.5f, Vec3(0.6f, 0.8f, 1.0f), LabFontType::GeoSans);
 
-            curY += 52.0f;
+            curY += 66.0f;
         }
 
         // 3. FPS & Performance Overlay
         if (log_fps || log_all) {
-            Renderer::drawRect(startX, curY, 210.0f, 26.0f, Vec3(0.06f, 0.08f, 0.12f));
-            Renderer::drawRect(startX, curY, 3.0f, 26.0f, Vec3(1.0f, 0.85f, 0.2f));
+            Renderer::drawRect(startX, curY, 260.0f, 34.0f, Vec3(0.06f, 0.08f, 0.12f));
+            Renderer::drawRect(startX, curY, 3.0f, 34.0f, Vec3(1.0f, 0.85f, 0.2f));
 
             std::ostringstream ss;
             ss << std::fixed << std::setprecision(1);
             ss << (int)t.fps << " FPS (" << t.frametimeMs << " ms)";
-            LabFont::drawText(startX + 10.0f, curY + 5.0f, ss.str(), 1.25f, Vec3(1.0f, 0.85f, 0.2f), LabFontType::GeoSans);
+            LabFont::drawText(startX + 12.0f, curY + 6.0f, ss.str(), 1.65f, Vec3(1.0f, 0.85f, 0.2f), LabFontType::GeoSans);
 
-            curY += 32.0f;
+            curY += 42.0f;
         }
 
         // 4. Ping Overlay
         if (log_ping || log_all) {
-            Renderer::drawRect(startX, curY, 140.0f, 26.0f, Vec3(0.06f, 0.08f, 0.12f));
-            Renderer::drawRect(startX, curY, 3.0f, 26.0f, Vec3(0.2f, 0.8f, 1.0f));
+            Renderer::drawRect(startX, curY, 180.0f, 34.0f, Vec3(0.06f, 0.08f, 0.12f));
+            Renderer::drawRect(startX, curY, 3.0f, 34.0f, Vec3(0.2f, 0.8f, 1.0f));
 
             std::string pingStr = "PING: " + std::to_string(t.pingMs) + " ms";
-            LabFont::drawText(startX + 10.0f, curY + 5.0f, pingStr, 1.25f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::GeoSans);
+            LabFont::drawText(startX + 12.0f, curY + 6.0f, pingStr, 1.65f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::GeoSans);
 
-            curY += 32.0f;
+            curY += 42.0f;
         }
 
         Renderer::endUI();
