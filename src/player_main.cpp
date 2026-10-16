@@ -4,7 +4,6 @@
 #include "LabHUDEditor.h"
 #include "LabScript.h"
 #include "LabProject.h"
-#include "LabPackage.h"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
@@ -151,11 +150,6 @@ public:
 
         // Load custom HUD Project (.labhud) if configured
         initCustomHUD();
-
-        // Auto-enable retro effects if plugin is active
-        if (!_retroFX && PackageManager::instance().isPackageEnabled("com.lab.retro-fx")) {
-            _retroFX = true;
-        }
 
         // Camera setup based on dimension (2D pixel/canvas vs 3D perspective)
         if (_dimension == "2D" || _splashActive) {
@@ -1253,11 +1247,6 @@ static GameLaunchConfig loadGameConfig(const std::string& specificConfig = "") {
 int main(int argc, char* argv[]) {
     LabLog::info("Starting Lab Universal Player (LabPlayer Standalone)...");
 
-    // Discover and load drop-in modular plugins
-    if (std::filesystem::exists("plugins") || std::filesystem::exists("engine/assets/plugins")) {
-        PackageManager::instance().registerBuiltinPackages();
-    }
-
     std::string customConfigFile = "";
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -1343,11 +1332,6 @@ int main(int argc, char* argv[]) {
             if (std::filesystem::exists(r1)) config.rules = r1;
             else if (sceneStem.find("labrunner") != std::string::npos && std::filesystem::exists(r2)) config.rules = r2;
         }
-    }
-
-    // Auto-enable retro effects if Retro Post-Process Plugin is active
-    if (!config.retroFX && PackageManager::instance().isPackageEnabled("com.lab.retro-fx")) {
-        config.retroFX = true;
     }
 
     LabLog::info("Game: '" + config.title + "' | Dimension: '" + config.dimension + "' | Scene: '" + config.scene + "' | HUD: '" + config.hud + "' | Rules: '" + config.rules + "' | RetroFX: " + (config.retroFX ? "ON" : "OFF"));

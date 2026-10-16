@@ -1,7 +1,11 @@
 #include "LabCore.h"
 #include "LabInput.h"
 #include "LabApplication.h"
-#include "LabPackage.h"
+#include "LabCamera.h"
+#include "LabCameraScripts.h"
+#include "LabComponents.h"
+#include "LabFont.h"
+#include "LabDialogs.h"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
@@ -41,13 +45,7 @@ namespace Lab {
     void Engine::onDrop(int count, const char** paths) {
         for (int i = 0; i < count; ++i) {
             std::string src = paths[i] ? paths[i] : "";
-            if (src.size() >= 4 && src.substr(src.size() - 4) == ".lua") {
-                std::string id = PackageManager::instance().importDropinFile(src);
-                if (!id.empty()) LabLog::info("Drag&drop plugin installed: " + id);
-                else LabLog::error("Drag&drop plugin failed: " + src);
-            } else {
-                LabLog::warn("Drop ignored: " + src);
-            }
+            LabLog::info("Drop received: " + src);
         }
     }
 

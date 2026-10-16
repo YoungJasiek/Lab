@@ -1,6 +1,7 @@
 #include "Lab.h"
 #include "LabFont.h"
 #include "LabDialogs.h"
+#include "LabScene.h"
 #include "LabGpuPreference.h"
 #include "../games/frozen_life/include/FrozenLifeAnim.h"
 #include <iostream>
@@ -284,27 +285,60 @@ public:
         return nullptr;
     }
 
+    static std::string toSceneDisplayPath(const std::string& rawPath) {
+        if (rawPath.empty()) return rawPath;
+        std::filesystem::path p(rawPath);
+        std::string ext = p.extension().string();
+        for (char& c : ext) c = static_cast<char>(::tolower(static_cast<unsigned char>(c)));
+        if (ext == ".labmap") {
+            p.replace_extension(".labscene");
+        }
+        std::string s = p.generic_string();
+        return s;
+    }
+
     void scanMapFiles() {
         _availableMaps.clear();
         std::vector<std::string> searchDirs = { "assets/maps", "../assets/maps", "../../assets/maps" };
         for (const auto& dir : searchDirs) {
             if (std::filesystem::exists(dir)) {
+                // First auto-convert any legacy .labmap that does not yet have a .labscene companion
                 for (const auto& entry : std::filesystem::directory_iterator(dir)) {
                     if (entry.path().extension() == ".labmap") {
-                        _availableMaps.push_back(entry.path().string());
+                        std::filesystem::path sceneCounterpart = entry.path();
+                        sceneCounterpart.replace_extension(".labscene");
+                        if (!std::filesystem::exists(sceneCounterpart)) {
+                            LabScene::convertLegacyMapToScene(entry.path().string());
+                        }
                     }
                 }
-                if (!_availableMaps.empty()) break;
+                // Collect .labscene files (and fallback to converted display path if needed)
+                for (const auto& entry : std::filesystem::directory_iterator(dir)) {
+                    if (entry.path().extension() == ".labscene") {
+                        _availableMaps.push_back(entry.path().generic_string());
+                    }
+                }
+                if (!_availableMaps.empty()) {
+                    std::sort(_availableMaps.begin(), _availableMaps.end());
+                    break;
+                }
             }
         }
         if (_availableMaps.empty()) {
-            _availableMaps.push_back("assets/maps/facility_alpha.labmap");
-            _availableMaps.push_back("assets/maps/cryo_outpost.labmap");
+            _availableMaps.push_back("assets/maps/site14_chapter1.labscene");
+            _availableMaps.push_back("assets/maps/facility_alpha.labscene");
+            _availableMaps.push_back("assets/maps/cryo_outpost.labscene");
         }
+        _sessionConfig.mapPath = toSceneDisplayPath(_sessionConfig.mapPath);
     }
 
-    void loadSelectedMap(const std::string& mapPath) {
-        LabLog::info("Loading Map: " + mapPath);
+    bool loadSelectedMap(const std::string& mapPath) {
+        if (!LabDialogs::isAllowedSceneFile(mapPath)) {
+            LabLog::error("Rejected invalid scene file path: " + mapPath);
+            return false;
+        }
+        std::string displayPath = toSceneDisplayPath(mapPath);
+        LabLog::info("Loading Scene: " + displayPath);
         auto loaded = LabMap::loadFromFile(mapPath);
 
         if (loaded) {
@@ -377,26 +411,28 @@ public:
                 _physicsWorld.spawnExplosiveBarrel(Vec3(0.0f, 0.48f, -16.0f)); // Central corridor explosive barrel!
             }
 
-            // Ensure map is registered in list and selected
+            // Ensure map is registered in list and selected (always formatted as .labscene)
             bool found = false;
             for (int i = 0; i < (int)_availableMaps.size(); ++i) {
-                if (_availableMaps[i] == mapPath) {
+                if (_availableMaps[i] == displayPath) {
                     _selectedMapIndex = i;
                     found = true;
                     break;
                 }
             }
             if (!found) {
-                _availableMaps.push_back(mapPath);
+                _availableMaps.push_back(displayPath);
                 _selectedMapIndex = (int)_availableMaps.size() - 1;
             }
 
             // Switch to gameplay mode and lock cursor
             _inMenu = false;
             setCursorCaptured(true);
-            LabLog::info("Map successfully loaded and entered: " + mapPath);
+            LabLog::info("Scene successfully loaded and entered: " + displayPath);
+            return true;
         } else {
-            LabLog::error("Failed to load map: " + mapPath);
+            LabLog::error("Failed to load scene: " + mapPath);
+            return false;
         }
     }
 
@@ -425,7 +461,11 @@ public:
 
     void startSession(const GameSessionConfig& config) {
         _sessionConfig = config;
-        loadSelectedMap(_sessionConfig.mapPath);
+        _sessionConfig.mapPath = toSceneDisplayPath(_sessionConfig.mapPath);
+        if (!loadSelectedMap(_sessionConfig.mapPath)) {
+            LabLog::error("[FrozenLife] Aborting session start: failed to load scene " + _sessionConfig.mapPath);
+            return;
+        }
 
         _hud.mapName = _currentMap ? _currentMap->metadata.name : "Sector";
         _hud.gameModeName = _sessionConfig.getModeString();
@@ -1812,12 +1852,12 @@ public:
                 }
             }
 
-            // O key: Open native Windows File Dialog for map
+            // O key: Open native Windows File Dialog for scene
             if (Input::isKeyPressed('O') || Input::isKeyPressed('o')) {
                 if (!_oPressedLast) {
-                    std::string picked = LabDialogs::openFileDialog(getWindow(), "Lab Map Files (*.labmap)\0*.labmap\0All Files (*.*)\0*.*\0", "assets\\maps");
-                    if (!picked.empty()) {
-                        _sessionConfig.mapPath = picked;
+                    std::string picked = LabDialogs::openFileDialog(getWindow(), "Lab Scene Files (*.labscene)\0*.labscene\0Lab Map Files (*.labmap)\0*.labmap\0", "assets\\maps");
+                    if (!picked.empty() && LabDialogs::isAllowedSceneFile(picked)) {
+                        _sessionConfig.mapPath = toSceneDisplayPath(picked);
                     }
                     _oPressedLast = true;
                 }
@@ -1839,10 +1879,10 @@ public:
 
                 // Open from disk button (x: 115..525, y: 485..527)
                 if (mx >= 115.0f && mx <= 525.0f && my >= 485.0f && my <= 527.0f) {
-                    std::string picked = LabDialogs::openFileDialog(getWindow(), "Lab Map Files (*.labmap)\0*.labmap\0All Files (*.*)\0*.*\0", "assets\\maps");
-                    if (!picked.empty()) {
-                        _sessionConfig.mapPath = picked;
-                        LabLog::info("[FrozenLife] HostGame: Picked disk map " + picked);
+                    std::string picked = LabDialogs::openFileDialog(getWindow(), "Lab Scene Files (*.labscene)\0*.labscene\0Lab Map Files (*.labmap)\0*.labmap\0", "assets\\maps");
+                    if (!picked.empty() && LabDialogs::isAllowedSceneFile(picked)) {
+                        _sessionConfig.mapPath = toSceneDisplayPath(picked);
+                        LabLog::info("[FrozenLife] HostGame: Picked disk scene " + _sessionConfig.mapPath);
                     }
                     return;
                 }
@@ -2166,9 +2206,9 @@ public:
                 }
                 // Open from disk (x: 390..660, y: 560..608)
                 if (mx >= 390.0f && mx <= 660.0f && my >= 560.0f && my <= 608.0f) {
-                    std::string picked = LabDialogs::openFileDialog(getWindow(), "Lab Map Files (*.labmap)\0*.labmap\0All Files (*.*)\0*.*\0", "assets\\maps");
-                    if (!picked.empty()) {
-                        _sessionConfig.mapPath = picked;
+                    std::string picked = LabDialogs::openFileDialog(getWindow(), "Lab Scene Files (*.labscene)\0*.labscene\0Lab Map Files (*.labmap)\0*.labmap\0", "assets\\maps");
+                    if (!picked.empty() && LabDialogs::isAllowedSceneFile(picked)) {
+                        _sessionConfig.mapPath = toSceneDisplayPath(picked);
                         _sessionConfig.enableBots = false;
                         startSession(_sessionConfig);
                     }
@@ -2344,11 +2384,11 @@ public:
                 bool isSel = (_sessionConfig.mapPath == _availableMaps[i]);
                 Renderer::drawRect(115.0f, iy, 410.0f, 42.0f, isSel ? Vec3(0.18f, 0.45f, 0.75f) : Vec3(0.12f, 0.15f, 0.20f));
                 if (isSel) Renderer::drawRect(115.0f, iy, 5.0f, 42.0f, Vec3(0.98f, 0.78f, 0.08f));
-                LabFont::drawText(130.0f, iy + 12.0f, _availableMaps[i], 1.7f, isSel ? Vec3(1, 1, 1) : Vec3(0.7f, 0.75f, 0.8f), LabFontType::GeoSans);
+                LabFont::drawText(130.0f, iy + 12.0f, toSceneDisplayPath(_availableMaps[i]), 1.7f, isSel ? Vec3(1, 1, 1) : Vec3(0.7f, 0.75f, 0.8f), LabFontType::GeoSans);
             }
 
             Renderer::drawRect(115.0f, 485.0f, 410.0f, 42.0f, Vec3(0.20f, 0.32f, 0.48f));
-            LabFont::drawText(170.0f, 498.0f, "OPEN MAP FROM DISK... [O]", 1.6f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            LabFont::drawText(170.0f, 498.0f, "OPEN SCENE FROM DISK... [O]", 1.6f, Vec3(1, 1, 1), LabFontType::GeoSans);
 
             // Right Column: Rules & Bot Settings Box
             Renderer::drawRect(560.0f, 120.0f, 620.0f, 425.0f, Vec3(0.08f, 0.10f, 0.14f));
@@ -2533,7 +2573,7 @@ public:
                     }
 
                     LabFont::drawText(130.0f, rowY + 12.0f, s.name, 1.8f, isSelected ? Vec3(1, 1, 1) : Vec3(0.9f, 0.95f, 1.0f), LabFontType::GeoSans);
-                    LabFont::drawText(500.0f, rowY + 12.0f, s.map, 1.8f, Vec3(0.75f, 0.85f, 0.95f), LabFontType::GeoSans);
+                    LabFont::drawText(500.0f, rowY + 12.0f, toSceneDisplayPath(s.map), 1.8f, Vec3(0.75f, 0.85f, 0.95f), LabFontType::GeoSans);
                     LabFont::drawText(720.0f, rowY + 12.0f, s.mode, 1.8f, Vec3(0.95f, 0.85f, 0.2f), LabFontType::GeoSans);
                     std::string plStr = std::to_string(s.playerCount) + " / " + std::to_string(s.maxPlayers);
                     LabFont::drawText(880.0f, rowY + 12.0f, plStr, 1.8f, Vec3(0.9f, 0.95f, 1.0f), LabFontType::GeoSans);
@@ -2603,7 +2643,7 @@ public:
                 Renderer::drawRect(140.0f, itemY, 800.0f, 45.0f, barColor);
                 if (isSelected) Renderer::drawRect(140.0f, itemY, 6.0f, 45.0f, Vec3(0.98f, 0.78f, 0.08f));
 
-                std::string mapDisplay = _availableMaps[i];
+                std::string mapDisplay = toSceneDisplayPath(_availableMaps[i]);
                 LabFont::drawText(160.0f, itemY + 14.0f, mapDisplay, 2.0f, isSelected ? Vec3(1, 1, 1) : Vec3(0.7f, 0.75f, 0.8f), LabFontType::GeoSans);
             }
 

@@ -88,6 +88,8 @@ namespace Lab {
         uniform int uTonemapper; // 0 = ACES, 1 = Reinhard
         uniform float uContrast;
         uniform float uSaturation;
+        uniform int uEnableFXAA;
+        uniform vec2 uInvScreenSize;
 
         // Procedural high-frequency organic ice crystallization
         float hash(vec2 p) {
@@ -124,8 +126,55 @@ namespace Lab {
             return x / (x + vec3(1.0));
         }
 
+        vec3 sampleSceneFXAA(vec2 uv) {
+            vec3 rgbM = texture(uScene, uv).rgb;
+            if (uEnableFXAA == 0) return rgbM;
+
+            vec3 rgbNW = texture(uScene, uv + vec2(-1.0, -1.0) * uInvScreenSize).rgb;
+            vec3 rgbNE = texture(uScene, uv + vec2( 1.0, -1.0) * uInvScreenSize).rgb;
+            vec3 rgbSW = texture(uScene, uv + vec2(-1.0,  1.0) * uInvScreenSize).rgb;
+            vec3 rgbSE = texture(uScene, uv + vec2( 1.0,  1.0) * uInvScreenSize).rgb;
+
+            const vec3 lumaWeights = vec3(0.299, 0.587, 0.114);
+            float lumaNW = dot(rgbNW, lumaWeights);
+            float lumaNE = dot(rgbNE, lumaWeights);
+            float lumaSW = dot(rgbSW, lumaWeights);
+            float lumaSE = dot(rgbSE, lumaWeights);
+            float lumaM  = dot(rgbM,  lumaWeights);
+
+            float lumaMin = min(lumaM, min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));
+            float lumaMax = max(lumaM, max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));
+            float lumaRange = lumaMax - lumaMin;
+
+            // Early exit on flat / low-contrast regions to preserve razor-sharp textures
+            if (lumaRange < max(0.0312, lumaMax * 0.125)) {
+                return rgbM;
+            }
+
+            vec2 dir;
+            dir.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));
+            dir.y =  ((lumaNW + lumaSW) - (lumaNE + lumaSE));
+
+            float dirReduce = max((lumaNW + lumaNE + lumaSW + lumaSE) * (0.25 * 0.125), 1.0 / 128.0);
+            float rcpDirMin = 1.0 / (min(abs(dir.x), abs(dir.y)) + dirReduce);
+            dir = clamp(dir * rcpDirMin, vec2(-8.0), vec2(8.0)) * uInvScreenSize;
+
+            vec3 rgbA = 0.5 * (
+                texture(uScene, uv + dir * (1.0 / 3.0 - 0.5)).rgb +
+                texture(uScene, uv + dir * (2.0 / 3.0 - 0.5)).rgb);
+            vec3 rgbB = rgbA * 0.5 + 0.25 * (
+                texture(uScene, uv + dir * -0.5).rgb +
+                texture(uScene, uv + dir *  0.5).rgb);
+
+            float lumaB = dot(rgbB, lumaWeights);
+            if ((lumaB < lumaMin) || (lumaB > lumaMax)) {
+                return rgbA;
+            }
+            return rgbB;
+        }
+
         void main() {
-            vec3 hdrColor = texture(uScene, vTexCoords).rgb;
+            vec3 hdrColor = sampleSceneFXAA(vTexCoords);
             vec3 bloomColor = texture(uBloom, vTexCoords).rgb;
 
             // Additive Screen-Space Bloom
@@ -329,6 +378,21 @@ namespace Lab {
         _extractShader = std::make_unique<Shader>(s_quadVertexShader, s_extractBrightFragmentShader);
         _blurShader = std::make_unique<Shader>(s_quadVertexShader, s_blurFragmentShader);
         _compositeShader = std::make_unique<Shader>(s_quadVertexShader, s_compositeFragmentShader);
+
+        // Prewarm uniform locations for zero runtime overhead
+        _extractShader->getUniformLocation("uHDRScene");
+        _extractShader->getUniformLocation("uThreshold");
+        _blurShader->getUniformLocation("uImage");
+        _blurShader->getUniformLocation("uHorizontal");
+
+        const char* compUniforms[] = {
+            "uScene", "uBloom", "uBloomIntensity", "uExposure",
+            "uFrostIntensity", "uTime", "uTonemapper", "uContrast",
+            "uSaturation", "uEnableFXAA", "uInvScreenSize"
+        };
+        for (const char* uName : compUniforms) {
+            _compositeShader->getUniformLocation(uName);
+        }
     }
 
     void PostProcessPipeline::initFramebuffers() {
@@ -475,6 +539,8 @@ namespace Lab {
         _compositeShader->setInt("uTonemapper", (int)tonemapper);
         _compositeShader->setFloat("uContrast", _contrast);
         _compositeShader->setFloat("uSaturation", _saturation);
+        _compositeShader->setInt("uEnableFXAA", _fxaaEnabled ? 1 : 0);
+        _compositeShader->setVec2("uInvScreenSize", Vec2(1.0f / std::max(1, _width), 1.0f / std::max(1, _height)));
 
         glBindTextureUnit(0, _hdrColorTexture);
         glBindTextureUnit(1, _pingPongColor[0]); // blurred bloom result
@@ -518,6 +584,35 @@ namespace Lab {
             std::clamp(luma + (contrasted.y - luma) * saturation, 0.0f, 1.0f),
             std::clamp(luma + (contrasted.z - luma) * saturation, 0.0f, 1.0f)
         );
+    }
+
+    Vec3 PostProcessPipeline::evaluateFXAA3x3(const Vec3& center, const Vec3& nw, const Vec3& ne, const Vec3& sw, const Vec3& se) {
+        auto calcLuma = [](const Vec3& c) -> float {
+            return c.x * 0.299f + c.y * 0.587f + c.z * 0.114f;
+        };
+        float lumaM  = calcLuma(center);
+        float lumaNW = calcLuma(nw);
+        float lumaNE = calcLuma(ne);
+        float lumaSW = calcLuma(sw);
+        float lumaSE = calcLuma(se);
+
+        float lumaMin = std::min({lumaM, lumaNW, lumaNE, lumaSW, lumaSE});
+        float lumaMax = std::max({lumaM, lumaNW, lumaNE, lumaSW, lumaSE});
+        float lumaRange = lumaMax - lumaMin;
+
+        // Early exit on flat / low-contrast regions (no texture blurring!)
+        if (lumaRange < std::max(0.0312f, lumaMax * 0.125f)) {
+            return center;
+        }
+
+        // Edge-detected directional blend
+        Vec3 avgDiagonal = (nw + ne + sw + se) * 0.25f;
+        Vec3 blended = center * 0.5f + avgDiagonal * 0.5f;
+        float lumaB = calcLuma(blended);
+        if (lumaB < lumaMin || lumaB > lumaMax) {
+            return (center * 0.65f + avgDiagonal * 0.35f);
+        }
+        return blended;
     }
 
     float PostProcessPipeline::calculateFrostVignette(float health, float maxHealth, bool isCryoSector) {

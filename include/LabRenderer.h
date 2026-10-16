@@ -34,6 +34,11 @@ namespace Lab {
         Shader& operator=(Shader&& other) noexcept;
 
         void use() const;
+        unsigned int getId() const { return _id; }
+        bool isLoadedFromBinaryCache() const { return _loadedFromCache; }
+        static size_t getBinaryCacheHitCount();
+        static size_t getBinaryCacheSaveCount();
+
         int getUniformLocation(const std::string& name) const;
         void setMat4(const std::string& name, const Mat4& mat) const;
         void setMat4Array(const std::string& name, const Mat4* mats, int count) const;
@@ -44,6 +49,7 @@ namespace Lab {
 
     private:
         unsigned int _id{0};
+        bool _loadedFromCache{false};
         mutable std::unordered_map<std::string, int> _uniformCache;
         void checkCompileErrors(unsigned int shader, std::string type);
     };
@@ -137,6 +143,8 @@ namespace Lab {
     public:
         static void init();
         static void shutdown();
+        static void prewarmShaders();
+        static bool isPrewarmed();
         static void beginFrame(const Camera& camera);
         static void endFrame();
 

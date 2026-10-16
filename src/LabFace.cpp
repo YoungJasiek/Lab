@@ -3,6 +3,8 @@
 #include <cmath>
 #include <algorithm>
 #include <iostream>
+#include <fstream>
+#include <cstring>
 
 namespace Lab {
 
@@ -360,6 +362,131 @@ namespace Lab {
     }
 
     // =========================================================================
+    // DialogAudioClip WAV Loader / Writer
+    // =========================================================================
+
+    bool DialogAudioClip::loadWavFile(const std::string& path) {
+        std::ifstream f(path, std::ios::binary);
+        if (!f.is_open()) return false;
+
+        char riffHeader[12] = {};
+        if (!f.read(riffHeader, 12)) return false;
+        if (std::memcmp(riffHeader, "RIFF", 4) != 0 || std::memcmp(riffHeader + 8, "WAVE", 4) != 0) {
+            return false;
+        }
+
+        uint16_t audioFormat = 0;
+        uint16_t numChannels = 0;
+        uint32_t rate = 0;
+        uint16_t bitsPerSample = 0;
+        std::vector<uint8_t> rawData;
+
+        while (f && f.peek() != EOF) {
+            char chunkId[4] = {};
+            uint32_t chunkSize = 0;
+            if (!f.read(chunkId, 4)) break;
+            if (!f.read(reinterpret_cast<char*>(&chunkSize), sizeof(uint32_t))) break;
+
+            if (std::memcmp(chunkId, "fmt ", 4) == 0) {
+                if (chunkSize < 16) return false;
+                f.read(reinterpret_cast<char*>(&audioFormat), sizeof(uint16_t));
+                f.read(reinterpret_cast<char*>(&numChannels), sizeof(uint16_t));
+                f.read(reinterpret_cast<char*>(&rate), sizeof(uint32_t));
+                uint32_t byteRate = 0;
+                uint16_t blockAlign = 0;
+                f.read(reinterpret_cast<char*>(&byteRate), sizeof(uint32_t));
+                f.read(reinterpret_cast<char*>(&blockAlign), sizeof(uint16_t));
+                f.read(reinterpret_cast<char*>(&bitsPerSample), sizeof(uint16_t));
+                if (chunkSize > 16) {
+                    f.seekg(chunkSize - 16, std::ios::cur);
+                }
+            } else if (std::memcmp(chunkId, "data", 4) == 0) {
+                rawData.resize(chunkSize);
+                if (chunkSize > 0) {
+                    f.read(reinterpret_cast<char*>(rawData.data()), chunkSize);
+                }
+                break;
+            } else {
+                f.seekg(chunkSize, std::ios::cur);
+            }
+            if (chunkSize & 1u) {
+                f.seekg(1, std::ios::cur);
+            }
+        }
+
+        if (rawData.empty() || numChannels == 0 || rate == 0 || (audioFormat != 1 && audioFormat != 3)) {
+            return false;
+        }
+
+        size_t bytesPerSample = bitsPerSample / 8;
+        if (bytesPerSample == 0) return false;
+        size_t frameSize = bytesPerSample * numChannels;
+        size_t frameCount = rawData.size() / frameSize;
+        if (frameCount == 0) return false;
+
+        samples.resize(frameCount);
+        for (size_t i = 0; i < frameCount; ++i) {
+            int32_t accum = 0;
+            for (uint16_t ch = 0; ch < numChannels; ++ch) {
+                const uint8_t* ptr = rawData.data() + i * frameSize + ch * bytesPerSample;
+                int16_t sample16 = 0;
+                if (audioFormat == 1 && bitsPerSample == 16) {
+                    std::memcpy(&sample16, ptr, sizeof(int16_t));
+                } else if (audioFormat == 1 && bitsPerSample == 8) {
+                    sample16 = static_cast<int16_t>((static_cast<int>(ptr[0]) - 128) * 256);
+                } else if (audioFormat == 1 && bitsPerSample == 24) {
+                    int32_t s24 = (static_cast<int32_t>(static_cast<int8_t>(ptr[2])) << 16)
+                                | (static_cast<int32_t>(ptr[1]) << 8)
+                                | static_cast<int32_t>(ptr[0]);
+                    sample16 = static_cast<int16_t>(s24 >> 8);
+                } else if (audioFormat == 3 && bitsPerSample == 32) {
+                    float flt = 0.0f;
+                    std::memcpy(&flt, ptr, sizeof(float));
+                    sample16 = static_cast<int16_t>(std::clamp(flt, -1.0f, 1.0f) * 32767.0f);
+                }
+                accum += sample16;
+            }
+            samples[i] = static_cast<int16_t>(accum / static_cast<int32_t>(numChannels));
+        }
+
+        filepath = path;
+        sampleRate = rate;
+        durationSeconds = static_cast<float>(frameCount) / static_cast<float>(rate);
+        return true;
+    }
+
+    bool DialogAudioClip::writeWavFile(const std::string& path, const std::vector<int16_t>& monoSamples, uint32_t rate) {
+        if (monoSamples.empty() || rate == 0) return false;
+        std::ofstream f(path, std::ios::binary);
+        if (!f.is_open()) return false;
+
+        uint32_t dataSize = static_cast<uint32_t>(monoSamples.size() * sizeof(int16_t));
+        uint32_t riffSize = 36u + dataSize;
+        uint32_t fmtChunkSize = 16u;
+        uint16_t audioFormat = 1u; // PCM
+        uint16_t numChannels = 1u;
+        uint32_t byteRate = rate * sizeof(int16_t);
+        uint16_t blockAlign = sizeof(int16_t);
+        uint16_t bitsPerSample = 16u;
+
+        f.write("RIFF", 4);
+        f.write(reinterpret_cast<const char*>(&riffSize), sizeof(uint32_t));
+        f.write("WAVE", 4);
+        f.write("fmt ", 4);
+        f.write(reinterpret_cast<const char*>(&fmtChunkSize), sizeof(uint32_t));
+        f.write(reinterpret_cast<const char*>(&audioFormat), sizeof(uint16_t));
+        f.write(reinterpret_cast<const char*>(&numChannels), sizeof(uint16_t));
+        f.write(reinterpret_cast<const char*>(&rate), sizeof(uint32_t));
+        f.write(reinterpret_cast<const char*>(&byteRate), sizeof(uint32_t));
+        f.write(reinterpret_cast<const char*>(&blockAlign), sizeof(uint16_t));
+        f.write(reinterpret_cast<const char*>(&bitsPerSample), sizeof(uint16_t));
+        f.write("data", 4);
+        f.write(reinterpret_cast<const char*>(&dataSize), sizeof(uint32_t));
+        f.write(reinterpret_cast<const char*>(monoSamples.data()), dataSize);
+        return f.good();
+    }
+
+    // =========================================================================
     // LipSyncEvaluator Implementation
     // =========================================================================
 
@@ -396,14 +523,122 @@ namespace Lab {
             return;
         }
 
-        // Calculate Root-Mean-Square (RMS) power of PCM chunk
+        // Calculate Root-Mean-Square (RMS) power and Zero-Crossing Rate (ZCR) for phoneme classification
         double sumSq = 0.0;
+        size_t zeroCrossings = 0;
         for (size_t i = 0; i < sampleCount; ++i) {
             double norm = static_cast<double>(samples[i]) / 32768.0;
             sumSq += norm * norm;
+            if (i > 0 && ((samples[i - 1] >= 0 && samples[i] < 0) || (samples[i - 1] < 0 && samples[i] >= 0))) {
+                ++zeroCrossings;
+            }
         }
         double rms = std::sqrt(sumSq / static_cast<double>(sampleCount));
+        float zcr = static_cast<float>(zeroCrossings) / static_cast<float>(sampleCount);
+
         update(static_cast<float>(rms), dt);
+
+        // Refine visemes using spectral ZCR:
+        // Low ZCR + high RMS -> rounded vowels (O / U -> Mouth_Narrow)
+        // High ZCR -> dental/sibilant consonants (S / T / I -> Mouth_Smile spread, smaller Jaw_Open)
+        if (_smoothedEnergy > 0.01f) {
+            float vowelRoundness = std::clamp((0.18f - zcr) * 4.5f, 0.0f, 1.0f);
+            float sibilance = std::clamp((zcr - 0.18f) * 3.5f, 0.0f, 1.0f);
+            _mouthNarrow = std::clamp(_mouthNarrow * 0.5f + vowelRoundness * _jawOpen * 0.65f, 0.0f, 0.85f);
+            _mouthSmile = std::clamp(_mouthSmile * 0.5f + sibilance * 0.65f, 0.0f, 0.75f);
+        }
+    }
+
+    bool LipSyncEvaluator::loadDialogAudio(const std::string& wavFilepath, const std::string& speaker, const std::string& subtitleText) {
+        DialogAudioClip loaded;
+        if (!loaded.loadWavFile(wavFilepath)) {
+            return false;
+        }
+        _clip = std::move(loaded);
+        _playbackTime = 0.0f;
+        _playing = false;
+        if (!subtitleText.empty() || !speaker.empty()) {
+            _clip.subtitles.push_back({ 0.0f, _clip.durationSeconds, speaker, subtitleText });
+        }
+        return true;
+    }
+
+    void LipSyncEvaluator::addSubtitle(float startTime, float endTime, const std::string& speaker, const std::string& text) {
+        _clip.subtitles.push_back({ startTime, endTime, speaker, text });
+    }
+
+    void LipSyncEvaluator::clearSubtitles() {
+        _clip.subtitles.clear();
+    }
+
+    void LipSyncEvaluator::playDialog(bool loop) {
+        if (!_clip.isValid()) return;
+        _playbackTime = 0.0f;
+        _playing = true;
+        _looping = loop;
+    }
+
+    void LipSyncEvaluator::stopDialog() {
+        _playing = false;
+        _playbackTime = 0.0f;
+        update(0.0f, 1.0f);
+    }
+
+    void LipSyncEvaluator::seekDialog(float timeSeconds) {
+        if (!_clip.isValid()) return;
+        _playbackTime = std::clamp(timeSeconds, 0.0f, _clip.durationSeconds);
+        evaluateAtTime(_playbackTime, 1.0f / 60.0f);
+    }
+
+    void LipSyncEvaluator::evaluateAtTime(float timeSeconds, float dt) {
+        if (!_clip.isValid()) {
+            update(0.0f, dt);
+            return;
+        }
+        float clampedTime = std::clamp(timeSeconds, 0.0f, _clip.durationSeconds);
+        size_t centerSample = static_cast<size_t>(clampedTime * static_cast<float>(_clip.sampleRate));
+        size_t windowSamples = std::max<size_t>(64, _clip.sampleRate / 40); // 25 ms acoustic window
+        if (centerSample >= _clip.samples.size()) {
+            update(0.0f, dt);
+            return;
+        }
+        size_t endSample = std::min(_clip.samples.size(), centerSample + windowSamples);
+        processPCM(_clip.samples.data() + centerSample, endSample - centerSample, dt);
+    }
+
+    void LipSyncEvaluator::updateDialog(float dt) {
+        if (!_playing || !_clip.isValid()) {
+            update(0.0f, dt);
+            return;
+        }
+        evaluateAtTime(_playbackTime, dt);
+        _playbackTime += dt;
+        if (_playbackTime >= _clip.durationSeconds) {
+            if (_looping && _clip.durationSeconds > 0.0f) {
+                _playbackTime = std::fmod(_playbackTime, _clip.durationSeconds);
+            } else {
+                _playbackTime = _clip.durationSeconds;
+                _playing = false;
+            }
+        }
+    }
+
+    std::string LipSyncEvaluator::getActiveSpeaker() const {
+        for (const auto& sub : _clip.subtitles) {
+            if (_playbackTime >= sub.startTime && _playbackTime <= sub.endTime) {
+                return sub.speaker;
+            }
+        }
+        return "";
+    }
+
+    std::string LipSyncEvaluator::getActiveSubtitle() const {
+        for (const auto& sub : _clip.subtitles) {
+            if (_playbackTime >= sub.startTime && _playbackTime <= sub.endTime) {
+                return sub.text;
+            }
+        }
+        return "";
     }
 
     void LipSyncEvaluator::applyTo(FacialMesh& mesh) const {

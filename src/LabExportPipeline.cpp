@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <iostream>
 #include <unordered_set>
+#include <algorithm>
 
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
@@ -87,6 +88,25 @@ namespace Lab {
         return out.str();
     }
 
+    static bool isExcludedWorkAsset(const std::filesystem::path& p) {
+        std::string fullStr = p.generic_string();
+        std::transform(fullStr.begin(), fullStr.end(), fullStr.begin(),
+                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if (!fullStr.empty() && fullStr.back() == '~') return true;
+        if (fullStr.find("inwork") != std::string::npos ||
+            fullStr.find("not_used") != std::string::npos ||
+            fullStr.find(".backup") != std::string::npos) {
+            return true;
+        }
+        std::string ext = p.extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(),
+                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if (ext == ".af" || ext == ".kra" || ext == ".mkv" || ext == ".psd" || ext == ".xcf" || ext == ".bak") {
+            return true;
+        }
+        return false;
+    }
+
     static void copyDirectoryRecursive(const std::filesystem::path& src, const std::filesystem::path& dst, size_t& fileCount, uint64_t& byteCount) {
         if (!std::filesystem::exists(src)) return;
         std::filesystem::create_directories(dst);
@@ -94,6 +114,7 @@ namespace Lab {
         for (const auto& entry : std::filesystem::recursive_directory_iterator(src)) {
             const auto& curPath = entry.path();
             auto relative = std::filesystem::relative(curPath, src);
+            if (isExcludedWorkAsset(relative)) continue;
             auto target = dst / relative;
 
             if (entry.is_directory()) {
@@ -171,20 +192,6 @@ namespace Lab {
             if (std::filesystem::exists(lRoot)) {
                 copyDirectoryRecursive(lRoot, outDir / "logos", result.copiedFiles, result.totalBytes);
                 copyDirectoryRecursive(lRoot, outDir / "assets" / "textures" / "logos", result.copiedFiles, result.totalBytes);
-                break;
-            }
-        }
-
-        // Replicate modular plugins directory
-        std::vector<std::filesystem::path> pluginRoots = {
-            pm.getEngineRoot() / "plugins",
-            "plugins",
-            pm.getEngineAssetsPath() / "plugins",
-            "engine/assets/plugins"
-        };
-        for (const auto& pRoot : pluginRoots) {
-            if (std::filesystem::exists(pRoot)) {
-                copyDirectoryRecursive(pRoot, outDir / "plugins", result.copiedFiles, result.totalBytes);
                 break;
             }
         }
@@ -638,17 +645,6 @@ namespace Lab {
         for (const auto& fRoot : fontRoots) {
             if (std::filesystem::exists(fRoot)) {
                 copyDirectoryRecursive(fRoot, testDir / "fonts", result.copiedFiles, result.totalBytes);
-                break;
-            }
-        }
-
-        // Replicate modular plugins directory
-        std::vector<std::filesystem::path> pluginRoots = {
-            root / "plugins", "plugins", pm.getEngineRoot() / "plugins", pm.getEngineAssetsPath() / "plugins"
-        };
-        for (const auto& pRoot : pluginRoots) {
-            if (std::filesystem::exists(pRoot)) {
-                copyDirectoryRecursive(pRoot, testDir / "plugins", result.copiedFiles, result.totalBytes);
                 break;
             }
         }

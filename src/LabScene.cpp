@@ -387,7 +387,15 @@ namespace Lab {
     }
 
     std::unique_ptr<LabScene> LabScene::loadSceneFromFile(const std::string& filePath) {
+        if (filePath.empty()) return nullptr;
         std::string resolved = resolveScenePath(filePath);
+        std::string ext = std::filesystem::path(resolved).extension().string();
+        for (auto& c : ext) c = static_cast<char>(::tolower(static_cast<unsigned char>(c)));
+        if (ext != ".labscene" && ext != ".labmap" && ext != ".backup") {
+            LabLog::error("Rejected non-scene file extension: " + filePath);
+            return nullptr;
+        }
+
         std::ifstream file(resolved);
         if (!file.is_open()) {
             LabLog::error("Failed to open scene file: " + filePath + " (resolved: " + resolved + ")");
@@ -397,6 +405,7 @@ namespace Lab {
         auto scene = std::make_unique<LabScene>();
         std::string line;
         std::string currentSection = "";
+        bool hasValidSceneStructure = false;
         enum class LastParsedEntity { None, Brush, Prop, Door, Camera, Sprite, Light };
         LastParsedEntity lastParsed = LastParsedEntity::None;
 
@@ -409,19 +418,23 @@ namespace Lab {
             std::string token;
             ss >> token;
 
-            if (token == "LABSCENE_VERSION") {
+            if (token == "LABSCENE_VERSION" || token == "LABMAP_VERSION") {
                 int ver = 1;
                 ss >> ver;
+                hasValidSceneStructure = true;
             } else if (token == "ENVIRONMENT" || token == "METADATA") {
                 currentSection = "ENVIRONMENT";
+                hasValidSceneStructure = true;
             } else if (token == "END_ENVIRONMENT" || token == "END_METADATA") {
                 currentSection = "";
             } else if (token == "STATIC") {
                 currentSection = "STATIC";
+                hasValidSceneStructure = true;
             } else if (token == "END_STATIC") {
                 currentSection = "";
             } else if (token == "ENTITIES") {
                 currentSection = "ENTITIES";
+                hasValidSceneStructure = true;
             } else if (token == "END_ENTITIES") {
                 currentSection = "";
             } else if (currentSection == "ENVIRONMENT") {
@@ -726,6 +739,11 @@ namespace Lab {
                     }
                 }
             }
+        }
+
+        if (!hasValidSceneStructure) {
+            LabLog::error("Rejected invalid or empty scene file: " + filePath);
+            return nullptr;
         }
 
         if (scene->spawnPoints.empty()) {

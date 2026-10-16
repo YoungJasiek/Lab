@@ -18,14 +18,34 @@ namespace Lab {
         if (std::filesystem::exists("assets/maps/" + path)) return "assets/maps/" + path;
         if (std::filesystem::exists("../assets/maps/" + path)) return "../assets/maps/" + path;
         if (std::filesystem::exists("../../assets/maps/" + path)) return "../../assets/maps/" + path;
+
+        // Fallback between .labscene and .labmap if only one exists on disk
+        std::filesystem::path p(path);
+        std::string ext = p.extension().string();
+        for (auto& c : ext) c = static_cast<char>(::tolower(static_cast<unsigned char>(c)));
+        if (ext == ".labscene" || ext == ".labmap") {
+            std::string altExt = (ext == ".labscene") ? ".labmap" : ".labscene";
+            std::filesystem::path altPath = p;
+            altPath.replace_extension(altExt);
+            std::string altFname = altPath.filename().string();
+            if (std::filesystem::exists(altPath)) return altPath.string();
+            if (std::filesystem::exists("assets/maps/" + altFname)) return "assets/maps/" + altFname;
+            if (std::filesystem::exists("../assets/maps/" + altFname)) return "../assets/maps/" + altFname;
+            if (std::filesystem::exists("../../assets/maps/" + altFname)) return "../../assets/maps/" + altFname;
+        }
         return path;
     }
 
     std::unique_ptr<LabMap> LabMap::loadFromFile(const std::string& filePath) {
+        if (filePath.empty()) return nullptr;
         std::string resolved = resolveMapPath(filePath);
 
         std::string ext = std::filesystem::path(resolved).extension().string();
-        for (auto& c : ext) c = (char)tolower(c);
+        for (auto& c : ext) c = static_cast<char>(::tolower(static_cast<unsigned char>(c)));
+        if (ext != ".labscene" && ext != ".labmap" && ext != ".backup") {
+            LabLog::error("Rejected non-map file extension: " + filePath);
+            return nullptr;
+        }
         if (ext == ".labscene") {
             return LabScene::loadSceneFromFile(resolved);
         }
@@ -54,6 +74,7 @@ namespace Lab {
         auto map = std::make_unique<LabMap>();
         std::string line;
         std::string currentSection = "";
+        bool hasValidMapStructure = false;
         enum class LastParsedEntity { None, Brush, Prop, Door, Camera, Sprite, Light };
         LastParsedEntity lastParsed = LastParsedEntity::None;
 
@@ -70,12 +91,15 @@ namespace Lab {
             if (token == "LABMAP_VERSION") {
                 int ver = 1;
                 ss >> ver;
+                hasValidMapStructure = true;
             } else if (token == "METADATA") {
                 currentSection = "METADATA";
+                hasValidMapStructure = true;
             } else if (token == "END_METADATA") {
                 currentSection = "";
             } else if (token == "ENTITIES") {
                 currentSection = "ENTITIES";
+                hasValidMapStructure = true;
             } else if (token == "END_ENTITIES") {
                 currentSection = "";
             } else if (currentSection == "METADATA") {
@@ -317,6 +341,11 @@ namespace Lab {
                     lastParsed = LastParsedEntity::Sprite;
                 }
             }
+        }
+
+        if (!hasValidMapStructure) {
+            LabLog::error("Rejected invalid or empty map file: " + filePath);
+            return nullptr;
         }
 
         if (map->spawnPoints.empty()) {

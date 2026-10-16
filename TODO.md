@@ -1,17 +1,21 @@
 FL
 FIX:
-- displaying 'labscane' instead of 'labmap'
-- preventing the execution of any file via 'OPEN FROM DISK'
-- fixed configuration for the positioning of the viewmodel and other LabStudio elements
+- [x] displaying 'labscene' instead of 'labmap'
+- [x] preventing the execution of any file via 'OPEN FROM DISK'
+- [x] fixed configuration for the positioning of the viewmodel and other LabStudio elements
 MAKE:
-- test scane for Chapter 1
+- [x] test scene for Chapter 1 (assets/maps/site14_chapter1.labscene)
 RESTORE:
-LabStudio.exe
+- [x] LabStudio.exe
+
 LAB
 DELETE:
-- plugin system
+- [x] plugin system
 FIX:
-- CMake Assets Shipping to not ship all assets like inwork or idk
-- only dll, delete .lib and exp
+- [x] CMake Assets Shipping to not ship all assets like inwork or idk
+- [x] only dll, delete .lib and exp
 ADD:
-- real facesync with audiofiles & Dialogs
+- [x] real facesync with audiofiles & Dialogs
+- [x] discrete high-performance GPU enforcement (NvOptimusEnablement / AmdPowerXpressRequestHighPerformance)
+- [x] pre-shading (OpenGL Program Binary Disk Cache + PSO/uniform pre-warming)
+- [x] native FXAA 3.11 in post-processing pipeline

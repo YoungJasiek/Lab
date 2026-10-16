@@ -74,6 +74,27 @@ namespace Lab {
         void updateGPU();
     };
 
+    // --- Timed Dialog Subtitle Entry ---
+    struct DialogSubtitle {
+        float startTime = 0.0f;
+        float endTime = 0.0f;
+        std::string speaker;
+        std::string text;
+    };
+
+    // --- Loaded WAV Audio Clip for Real-Time Lip-Sync ---
+    struct DialogAudioClip {
+        std::string filepath;
+        uint32_t sampleRate = 22050;
+        std::vector<int16_t> samples; // Mono 16-bit PCM
+        float durationSeconds = 0.0f;
+        std::vector<DialogSubtitle> subtitles;
+
+        bool isValid() const { return !samples.empty() && sampleRate > 0; }
+        bool loadWavFile(const std::string& path);
+        static bool writeWavFile(const std::string& path, const std::vector<int16_t>& monoSamples, uint32_t rate = 22050);
+    };
+
     // --- Real-time Audio Phoneme & Lip-Sync Evaluator ---
     class LipSyncEvaluator {
     public:
@@ -85,6 +106,16 @@ namespace Lab {
         // Process 16-bit PCM audio buffer to compute RMS energy and drive lip sync
         void processPCM(const int16_t* samples, size_t sampleCount, float dt);
 
+        // Real WAV audio file & dialog synchronization
+        bool loadDialogAudio(const std::string& wavFilepath, const std::string& speaker = "", const std::string& subtitleText = "");
+        void addSubtitle(float startTime, float endTime, const std::string& speaker, const std::string& text);
+        void clearSubtitles();
+        void playDialog(bool loop = false);
+        void stopDialog();
+        void seekDialog(float timeSeconds);
+        void updateDialog(float dt);
+        void evaluateAtTime(float timeSeconds, float dt = 1.0f / 60.0f);
+
         // Drive a FacialMesh directly with evaluated weights
         void applyTo(FacialMesh& mesh) const;
 
@@ -93,6 +124,14 @@ namespace Lab {
         float getMouthNarrow() const { return _mouthNarrow; }
         float getMouthSmile() const { return _mouthSmile; }
         float getSmoothedEnergy() const { return _smoothedEnergy; }
+
+        bool hasDialogAudio() const { return _clip.isValid(); }
+        bool isDialogPlaying() const { return _playing; }
+        float getDialogTime() const { return _playbackTime; }
+        float getDialogDuration() const { return _clip.durationSeconds; }
+        std::string getActiveSpeaker() const;
+        std::string getActiveSubtitle() const;
+        const DialogAudioClip& getDialogClip() const { return _clip; }
 
         // Procedural dialog track generator: returns amplitude series simulating spoken radio commands
         // ("Dr. Vance: Access Granted", "Warning: Sector Compromised", etc.)
@@ -107,6 +146,11 @@ namespace Lab {
         float _jawOpen = 0.0f;
         float _mouthNarrow = 0.0f;
         float _mouthSmile = 0.0f;
+
+        DialogAudioClip _clip;
+        float _playbackTime = 0.0f;
+        bool _playing = false;
+        bool _looping = false;
     };
 
 } // namespace Lab

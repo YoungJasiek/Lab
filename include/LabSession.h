@@ -25,7 +25,7 @@ namespace Lab {
     };
 
     struct GameSessionConfig {
-        std::string mapPath = "assets/maps/facility_alpha.labmap";
+        std::string mapPath = "assets/maps/facility_alpha.labscene";
         GameMode mode = GameMode::FFA;
         bool enableBots = false;
         int botCount = 0;

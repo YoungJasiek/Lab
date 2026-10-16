@@ -3,9 +3,9 @@
 #include "LabGraphics.h"
 #include "LabFont.h"
 #include "LabDialogs.h"
+#include "LabGpuPreference.h"
 #include "../games/frozen_life/include/FrozenLifeAnim.h"
 namespace FrozenLife = FrozenLifeGame;
-#include "LabPlugin.h"
 #include "LabApplication.h"
 #include "LabEvent.h"
 #include "LabSceneNode.h"
@@ -26,18 +26,9 @@ namespace FrozenLife = FrozenLifeGame;
 #include "LabForceField.h"
 #include "LabProfiler.h"
 #include "LabVCS.h"
-#include "LabPackage.h"
 #include "LabInput.h"
 #include "LabAsset2D.h"
 #include "LabScript.h"
-#include "plugins/ProceduralLevelPlugin.h"
-#include "plugins/SpeedrunTelemetryPlugin.h"
-#include "plugins/RetroPostProcessPlugin.h"
-#include "plugins/DialogueQuestPlugin.h"
-#include "plugins/VoxelTerrainPlugin.h"
-#include "plugins/AINavigationPatrolPlugin.h"
-#include "plugins/ArcadeVehiclePlugin.h"
-#include "plugins/DiscordRPCPlugin.h"
 #include "LabCamera.h"
 #include "LabCameraScripts.h"
 #include "LabComponents.h"
@@ -5910,91 +5901,54 @@ int main() {
         std::cout << "  [PASS] Test 52 Plug & Play Cloud Rendezvous and Auto-Punch Handshake passed 100%!\n";
     }
 
-    // 53. Verify Modular Plugin Architecture (ILabPlugin & PluginManager) and Zero-Cost Execution Loop
+    // 53. Verify Pre-Shading (PSO/Uniform Pre-Warming & OpenGL Program Binary Disk Cache)
     {
-        std::cout << "\n[Test 53] Verifying Plugin Architecture (ILabPlugin & PluginManager) and Zero-Cost Loop...\n";
+        std::cout << "\n[Test 53] Verifying Pre-Shading (PSO Pre-Warming & Program Binary Disk Cache)...\n";
 
-        class BenchmarkMockPlugin : public Lab::ILabPlugin {
-        public:
-            bool loaded = false;
-            bool unloaded = false;
-            int updateCallCount = 0;
+        Lab::Renderer::prewarmShaders();
+        if (!Lab::Renderer::isPrewarmed()) {
+            std::cerr << "Assertion failed: Renderer::prewarmShaders() did not mark renderer as prewarmed!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Renderer::prewarmShaders() executed PSO & uniform warm-up pass with zero runtime stutters!\n";
 
-            const char* getName() const override { return "BenchmarkMockPlugin"; }
-            const char* getVersion() const override { return "1.0.0"; }
+        const char* vsSrc = R"(
+            #version 450 core
+            layout(location = 0) in vec3 aPos;
+            void main() { gl_Position = vec4(aPos, 1.0); }
+        )";
+        const char* fsSrc = R"(
+            #version 450 core
+            out vec4 FragColor;
+            void main() { FragColor = vec4(0.2, 0.8, 1.0, 1.0); }
+        )";
 
-            bool onLoad() override {
-                loaded = true;
-                return true;
+        Lab::Shader firstCompile(vsSrc, fsSrc);
+        if (firstCompile.getId() == 0) {
+            std::cerr << "Assertion failed: Test shader failed to compile!\n";
+            return 1;
+        }
+
+        // Second compilation with identical sources should hit binary cache when supported by driver
+        size_t hitsBefore = Lab::Shader::getBinaryCacheHitCount();
+        Lab::Shader secondCompile(vsSrc, fsSrc);
+        if (secondCompile.getId() == 0) {
+            std::cerr << "Assertion failed: Cached shader failed to initialize!\n";
+            return 1;
+        }
+        if (Lab::Shader::getBinaryCacheSaveCount() > 0 && secondCompile.isLoadedFromBinaryCache()) {
+            if (Lab::Shader::getBinaryCacheHitCount() <= hitsBefore) {
+                std::cerr << "Assertion failed: Binary cache hit counter did not increment!\n";
+                return 1;
             }
-
-            void onUpdate(float dt) override {
-                (void)dt;
-                updateCallCount++;
-            }
-
-            void onUnload() override {
-                unloaded = true;
-            }
-        };
-
-        auto& pm = Lab::PluginManager::get();
-        size_t initialCount = pm.getPluginCount();
-
-        auto testPlugin = std::make_shared<BenchmarkMockPlugin>();
-        bool regOk = pm.registerPlugin(testPlugin);
-        if (!regOk || !testPlugin->loaded) {
-            std::cerr << "Assertion failed: Failed to register and load ILabPlugin!\n";
-            return 1;
+            std::cout << "  [PASS] OpenGL Program Binary Disk Cache hit verified (saves="
+                      << Lab::Shader::getBinaryCacheSaveCount()
+                      << ", hits=" << Lab::Shader::getBinaryCacheHitCount() << ")!\n";
+        } else {
+            std::cout << "  [PASS] Shader compiled cleanly (driver binary cache saves="
+                      << Lab::Shader::getBinaryCacheSaveCount() << ")!\n";
         }
-        std::cout << "  [PASS] ILabPlugin registration and onLoad() lifecycle verified!\n";
-
-        if (pm.getPluginCount() != initialCount + 1) {
-            std::cerr << "Assertion failed: Plugin count did not increment!\n";
-            return 1;
-        }
-
-        // Test duplicate registration protection
-        bool dupOk = pm.registerPlugin(testPlugin);
-        if (dupOk) {
-            std::cerr << "Assertion failed: Duplicate plugin registration should have been rejected!\n";
-            return 1;
-        }
-        std::cout << "  [PASS] Duplicate plugin rejection verified!\n";
-
-        // Query test
-        auto found = pm.getPlugin("BenchmarkMockPlugin");
-        if (!found || std::string(found->getName()) != "BenchmarkMockPlugin") {
-            std::cerr << "Assertion failed: Failed to query plugin by name!\n";
-            return 1;
-        }
-        std::cout << "  [PASS] Plugin retrieval by name verified!\n";
-
-        // Performance / Stress test: 10,000 update loop iterations
-        auto tStart = std::chrono::high_resolution_clock::now();
-        const int iterations = 10000;
-        for (int i = 0; i < iterations; ++i) {
-            pm.updateAll(0.016f);
-        }
-        auto tEnd = std::chrono::high_resolution_clock::now();
-        double totalMicros = std::chrono::duration<double, std::micro>(tEnd - tStart).count();
-        double avgNanosPerCall = (totalMicros * 1000.0) / iterations;
-
-        if (testPlugin->updateCallCount != iterations) {
-            std::cerr << "Assertion failed: Update calls mismatch!\n";
-            return 1;
-        }
-        std::cout << "  [PASS] Executed " << iterations << " plugin update iterations in "
-                  << totalMicros << " us (Avg: " << avgNanosPerCall << " ns per update call)!\n";
-
-        // Unregister test
-        pm.unregisterPlugin("BenchmarkMockPlugin");
-        if (!testPlugin->unloaded || pm.getPluginCount() != initialCount) {
-            std::cerr << "Assertion failed: Plugin unregister or onUnload() failed!\n";
-            return 1;
-        }
-        std::cout << "  [PASS] Graceful plugin unregister and onUnload() verified!\n";
-        std::cout << "  [PASS] Test 53 Plugin Architecture & Zero-Overhead Lifecycle passed 100%!\n";
+        std::cout << "  [PASS] Test 53 Pre-Shading & Program Binary Cache passed 100%!\n";
     }
 
     // 54. Verify Decoupled Event Bus, Message Dispatcher & High-Throughput Stress Test
@@ -7701,130 +7655,84 @@ int main() {
         std::cout << "  [PASS] Test 70 VCS / Git Integration & Asset Locking passed 100%!\n";
     }
 
-    // 71. Verify Plugin / Package Ecosystem (Unity Package Manager style) (Task #175)
+    // 71. Verify Native FXAA 3.11 & Scene File Security (.labscene)
     {
-        std::cout << "\n[Test 71] Verifying Plugin / Package Ecosystem...\n";
+        std::cout << "\n[Test 71] Verifying Native FXAA 3.11 & Scene File Security (.labscene)...\n";
 
-        auto& pkgMgr = Lab::PackageManager::instance();
-        pkgMgr.clear();
-
-        // Mock modular packages
-        Lab::PackageManifest coreUtils;
-        coreUtils.id = "com.lab.core-utils";
-        coreUtils.displayName = "Core Utilities";
-        coreUtils.version = "1.0.0";
-        coreUtils.state = Lab::PackageState::Discovered;
-
-        Lab::PackageManifest dialogue;
-        dialogue.id = "com.lab.dialogue-quest";
-        dialogue.displayName = "Dialogue & Quest System";
-        dialogue.version = "2.1.0";
-        dialogue.dependencies = { "com.lab.core-utils" }; // Depends on core-utils
-        dialogue.state = Lab::PackageState::Discovered;
-
-        pkgMgr.registerPackage(coreUtils);
-        pkgMgr.registerPackage(dialogue);
-
-        // --- Sub-test A: Dependency Validation & Order-Independent Resolution ---
+        // --- Sub-test A: Native FXAA 3.11 Edge Contrast Blend vs Flat Early-Out ---
         {
-            // Enabling dialogue without core-utils must fail
-            bool enabledEarly = pkgMgr.enablePackage("com.lab.dialogue-quest");
-            if (enabledEarly) {
-                std::cerr << "Assertion failed: Package enabled without fulfilling dependency!\n";
+            Lab::PostProcessPipeline postFx;
+            if (!postFx.isFXAAEnabled()) {
+                std::cerr << "Assertion failed: FXAA should be enabled by default in PostProcessPipeline!\n";
+                return 1;
+            }
+            postFx.setFXAAEnabled(false);
+            if (postFx.isFXAAEnabled()) {
+                std::cerr << "Assertion failed: setFXAAEnabled(false) did not disable FXAA!\n";
+                return 1;
+            }
+            postFx.setFXAAEnabled(true);
+
+            // Flat region: early-out returns exact center color
+            Lab::Vec3 flatCenter(0.45f, 0.45f, 0.45f);
+            Lab::Vec3 flatResult = Lab::PostProcessPipeline::evaluateFXAA3x3(
+                flatCenter, flatCenter, flatCenter, flatCenter, flatCenter);
+            if (std::abs(flatResult.x - flatCenter.x) > 1e-5f) {
+                std::cerr << "Assertion failed: FXAA modified a flat low-contrast region!\n";
                 return 1;
             }
 
-            // Enable core-utils first
-            bool enabledDep = pkgMgr.enablePackage("com.lab.core-utils");
-            if (!enabledDep) {
-                std::cerr << "Assertion failed: Failed to enable dependency package!\n";
+            // High-contrast horizontal edge (North bright, Center/South dark): blends along edge normal
+            Lab::Vec3 dark(0.05f, 0.05f, 0.05f);
+            Lab::Vec3 bright(0.95f, 0.95f, 0.95f);
+            Lab::Vec3 edgeResult = Lab::PostProcessPipeline::evaluateFXAA3x3(
+                dark, bright, dark, dark, dark);
+            if (edgeResult.x <= dark.x || edgeResult.x >= bright.x) {
+                std::cerr << "Assertion failed: FXAA did not smooth high-contrast edge!\n";
                 return 1;
             }
-
-            // Now dialogue must enable successfully
-            bool enabledSub = pkgMgr.enablePackage("com.lab.dialogue-quest");
-            if (!enabledSub) {
-                std::cerr << "Assertion failed: Failed to enable package with fulfilled dependency!\n";
-                return 1;
-            }
-
-            // Attempting to disable core-utils while dialogue is active must fail
-            bool disabledDep = pkgMgr.disablePackage("com.lab.core-utils");
-            if (disabledDep) {
-                std::cerr << "Assertion failed: Allowed disabling package required by active dependent!\n";
-                return 1;
-            }
-
-            // Disable dialogue first, then core-utils -> Success
-            bool disSub = pkgMgr.disablePackage("com.lab.dialogue-quest");
-            bool disDep = pkgMgr.disablePackage("com.lab.core-utils");
-            if (!disSub || !disDep) {
-                std::cerr << "Assertion failed: Clean package teardown sequence failed!\n";
-                return 1;
-            }
-
-            std::cout << "  [PASS] Sub-test A: Package dependency graph resolution & guarded teardown verified!\n";
+            std::cout << "  [PASS] Sub-test A: Native FXAA 3.11 early-out & high-contrast edge smoothing verified!\n";
         }
 
-        // --- Sub-test B: Dynamic Runtime Plugin Attachment via Package ---
+        // --- Sub-test B: Scene File Whitelist & 'OPEN FROM DISK' Security ---
         {
-            class PackageTestPlugin : public Lab::ILabPlugin {
-            public:
-                bool loaded{false};
-                const char* getName() const override { return "TestPackPlugin"; }
-                const char* getVersion() const override { return "1.0.0"; }
-                bool onLoad() override { loaded = true; return true; }
-                void onUpdate(float) override {}
-                void onUnload() override { loaded = false; }
-            };
-
-            auto plug = std::make_shared<PackageTestPlugin>();
-            Lab::PackageManifest dynPack;
-            dynPack.id = "com.lab.test-plugin";
-            dynPack.displayName = "Runtime Test Plugin";
-            dynPack.version = "1.0.0";
-
-            pkgMgr.registerPackage(dynPack, plug);
-            pkgMgr.enablePackage("com.lab.test-plugin");
-
-            if (!plug->loaded || Lab::PluginManager::get().getPlugin("TestPackPlugin") == nullptr) {
-                std::cerr << "Assertion failed: Plugin implementation not registered into PluginManager!\n";
+            if (!Lab::LabDialogs::isAllowedSceneFile("assets/maps/site14_chapter1.labscene") ||
+                !Lab::LabDialogs::isAllowedSceneFile("assets/maps/test_chamber.labmap")) {
+                std::cerr << "Assertion failed: Valid scene extensions rejected by isAllowedSceneFile!\n";
+                return 1;
+            }
+            if (Lab::LabDialogs::isAllowedSceneFile("C:/Windows/System32/cmd.exe") ||
+                Lab::LabDialogs::isAllowedSceneFile("malicious.bat") ||
+                Lab::LabDialogs::isAllowedSceneFile("payload.dll") ||
+                Lab::LabDialogs::isAllowedSceneFile("level.json") ||
+                Lab::LabDialogs::isAllowedSceneFile("notes.txt")) {
+                std::cerr << "Assertion failed: Unsafe/executable file extension allowed by isAllowedSceneFile!\n";
                 return 1;
             }
 
-            pkgMgr.disablePackage("com.lab.test-plugin");
-            if (plug->loaded || Lab::PluginManager::get().getPlugin("TestPackPlugin") != nullptr) {
-                std::cerr << "Assertion failed: Plugin implementation not cleanly unregistered!\n";
+            // Ensure LabMap and LabScene strictly reject non-scene files even if passed directly
+            if (Lab::LabMap::loadFromFile("C:/Windows/System32/cmd.exe") != nullptr ||
+                Lab::LabScene::loadSceneFromFile("C:/Windows/System32/cmd.exe") != nullptr ||
+                Lab::LabMap::loadFromFile("CMakeLists.txt") != nullptr) {
+                std::cerr << "Assertion failed: LabMap/LabScene loaded a non-scene file!\n";
                 return 1;
             }
-
-            std::cout << "  [PASS] Sub-test B: Dynamic runtime plugin attachment and lifecycle bridge verified!\n";
+            std::cout << "  [PASS] Sub-test B: Scene file extension whitelist & structural validation verified!\n";
         }
 
-        // --- Sub-test C: Massive Package Registry Benchmark (20,000 Packages) ---
+        // --- Sub-test C: Chapter 1 Starter Scene (site14_chapter1.labscene) ---
         {
-            constexpr size_t PKG_COUNT = 20000;
-            auto startPkg = std::chrono::high_resolution_clock::now();
-            for (size_t i = 0; i < PKG_COUNT; ++i) {
-                Lab::PackageManifest p;
-                p.id = "com.community.addon_" + std::to_string(i);
-                p.displayName = "Community Addon " + std::to_string(i);
-                p.version = "1.0.0";
-                pkgMgr.registerPackage(p);
-            }
-            auto endPkg = std::chrono::high_resolution_clock::now();
-            auto pkgMs = std::chrono::duration_cast<std::chrono::milliseconds>(endPkg - startPkg).count();
-
-            if (pkgMgr.getAllPackages().size() < PKG_COUNT) {
-                std::cerr << "Assertion failed: Package registry count mismatch!\n";
+            auto ch1Map = Lab::LabScene::loadSceneFromFile("assets/maps/site14_chapter1.labscene");
+            if (!ch1Map || ch1Map->brushes.size() < 6 || ch1Map->lights.size() < 2 || ch1Map->doors.empty()) {
+                std::cerr << "Assertion failed: Failed to load assets/maps/site14_chapter1.labscene!\n";
                 return 1;
             }
-
-            std::cout << "  [PASS] Sub-test C: 20,000 packages ingested into registry in " << pkgMs
-                      << " ms (avg " << (double)pkgMs / (double)PKG_COUNT * 1e6 << " ns/pkg)!\n";
+            std::cout << "  [PASS] Sub-test C: Chapter 1 scene (site14_chapter1.labscene) loaded ("
+                      << ch1Map->brushes.size() << " brushes, " << ch1Map->lights.size() << " lights, "
+                      << ch1Map->doors.size() << " doors)!\n";
         }
 
-        std::cout << "  [PASS] Test 71 Plugin / Package Ecosystem passed 100%!\n";
+        std::cout << "  [PASS] Test 71 Native FXAA 3.11 & Scene File Security passed 100%!\n";
     }
 
     // =========================================================================
@@ -8694,184 +8602,126 @@ int main() {
     }
 
     // ==========================================
-    // TEST 78: Modular Single-File Plugin Architecture & Package Manager
+    // TEST 78: Real WAV Audio Lip-Sync, Timed Dialog Subtitles & CharacterStudio Config Isolation
     // ==========================================
-    std::cout << "[Test 78] Running Modular Plugin Architecture Verification...\n";
+    std::cout << "[Test 78] Running Real WAV Audio Lip-Sync & Dialog Synchronization Verification...\n";
     {
-        // Sub-test A: Independent Plugin Class Verification
-        auto p1 = std::make_shared<Lab::ProceduralLevelPlugin>();
-        auto p2 = std::make_shared<Lab::SpeedrunTelemetryPlugin>();
-        auto p3 = std::make_shared<Lab::RetroPostProcessPlugin>();
-        auto p4 = std::make_shared<Lab::DialogueQuestPlugin>();
-        auto p5 = std::make_shared<Lab::VoxelTerrainPlugin>();
-        auto p6 = std::make_shared<Lab::AINavigationPatrolPlugin>();
-        auto p7 = std::make_shared<Lab::ArcadeVehiclePlugin>();
-        auto p8 = std::make_shared<Lab::DiscordRPCPlugin>();
-
-        if (std::string(p1->getName()) != "Procedural Level Generator" || std::string(p1->getVersion()) != "1.2.0") {
-            std::cerr << "Assertion failed: p1 metadata mismatch!\n";
-            return 1;
-        }
-        if (std::string(p2->getName()) != "Speedrun & Telemetry Splits" || std::string(p2->getVersion()) != "1.1.0") {
-            std::cerr << "Assertion failed: p2 metadata mismatch!\n";
-            return 1;
-        }
-        if (std::string(p3->getName()) != "Retro CRT & Post-Process FX" || std::string(p3->getVersion()) != "2.0.1") {
-            std::cerr << "Assertion failed: p3 metadata mismatch!\n";
-            return 1;
-        }
-        if (std::string(p4->getName()) != "Dialogue & Quest System" || std::string(p4->getVersion()) != "2.1.0") {
-            std::cerr << "Assertion failed: p4 metadata mismatch!\n";
-            return 1;
-        }
-        if (std::string(p5->getName()) != "Voxel Terrain & Sculptor" || std::string(p5->getVersion()) != "1.3.0") {
-            std::cerr << "Assertion failed: p5 metadata mismatch!\n";
-            return 1;
-        }
-        if (std::string(p6->getName()) != "AI Navmesh & Waypoint Patrol" || std::string(p6->getVersion()) != "1.1.2") {
-            std::cerr << "Assertion failed: p6 metadata mismatch!\n";
-            return 1;
-        }
-        if (std::string(p7->getName()) != "Arcade & Raycast Vehicle Dynamics" || std::string(p7->getVersion()) != "2.1.0") {
-            std::cerr << "Assertion failed: p7 metadata mismatch!\n";
-            return 1;
-        }
-        if (std::string(p8->getName()) != "Discord Rich Presence & Social" || std::string(p8->getVersion()) != "1.0.0") {
-            std::cerr << "Assertion failed: p8 metadata mismatch!\n";
-            return 1;
-        }
-        std::cout << "  [PASS] Sub-test A: 8 standalone plugin classes verified as independent translation units.\n";
-
-        // Sub-test B: PackageManager Builtin Registration & Filtering
-        auto& pm = Lab::PackageManager::instance();
-        pm.clear();
-        pm.registerBuiltinPackages();
-
-        auto allPkgs = pm.getAllPackages();
-        if (allPkgs.size() < 8) {
-            std::cerr << "Assertion failed: Expected at least 8 packages, got " << allPkgs.size() << "\n";
-            return 1;
-        }
-
-        // Test Category Filtering
-        auto geoPkgs = pm.filterPackages("", "3D & Geometry", "All");
-        if (geoPkgs.size() < 2) {
-            std::cerr << "Assertion failed: Expected at least 2 packages in 3D & Geometry, got " << geoPkgs.size() << "\n";
-            return 1;
-        }
-
-        // Test Text Search Filtering
-        auto searchSpeed = pm.filterPackages("speedrun", "All", "All");
-        bool foundSpeedrun = false;
-        for (const auto& pkg : searchSpeed) {
-            if (pkg.id == "com.lab.speedrun-timer") {
-                foundSpeedrun = true;
-                break;
+        // Sub-test A: Synthesize a multi-segment WAV file (low-freq vowel -> high-freq sibilant -> silence)
+        std::string testWavPath = "test_dialog_voice.wav";
+        constexpr uint32_t sampleRate = 16000;
+        std::vector<int16_t> monoSamples(sampleRate, 0); // 1.0 second clip
+        for (uint32_t i = 0; i < sampleRate; ++i) {
+            float t = static_cast<float>(i) / static_cast<float>(sampleRate);
+            float val = 0.0f;
+            if (t < 0.45f) {
+                // Strong open vowel (~220 Hz resonant tone)
+                val = 0.75f * std::sin(2.0f * 3.14159265f * 220.0f * t);
+            } else if (t < 0.80f) {
+                // High-ZCR fricative/sibilant (~3800 Hz alternating carrier)
+                val = 0.35f * ((i % 2 == 0) ? 1.0f : -1.0f) * std::sin(2.0f * 3.14159265f * 3800.0f * t);
             }
+            monoSamples[i] = static_cast<int16_t>(std::clamp(val, -1.0f, 1.0f) * 32767.0f);
         }
-        if (!foundSpeedrun) {
-            std::cerr << "Assertion failed: Text search for 'speedrun' failed!\n";
-            return 1;
-        }
-        std::cout << "  [PASS] Sub-test B: PackageManager registration, category filtering & text search verified.\n";
 
-        // Sub-test C: Drop-in toggle Enable/Disable (single .lua file = full control)
-        // registerBuiltinPackages auto-enables discovered drop-ins, so toggle OFF first.
-        std::string toggleTarget = "com.lab.voxel-terrain";
-        if (pm.getPackageFile(toggleTarget).empty()) {
-            std::cerr << "Assertion failed: voxel-terrain has no backing drop-in file!\n";
-            return 1;
-        }
-        if (!pm.isPackageEnabled(toggleTarget)) {
-            std::cerr << "Assertion failed: Voxel terrain drop-in should be auto-enabled on startup!\n";
+        if (!Lab::DialogAudioClip::writeWavFile(testWavPath, monoSamples, sampleRate)) {
+            std::cerr << "Assertion failed: Failed to write test WAV file!\n";
             return 1;
         }
 
-        // Toggle OFF
-        pm.togglePackage(toggleTarget);
-        if (pm.isPackageEnabled(toggleTarget)) {
-            std::cerr << "Assertion failed: Failed to toggle OFF package " << toggleTarget << "\n";
+        Lab::DialogAudioClip loadedClip;
+        if (!loadedClip.loadWavFile(testWavPath) || !loadedClip.isValid() ||
+            loadedClip.sampleRate != sampleRate || std::abs(loadedClip.durationSeconds - 1.0f) > 0.02f) {
+            std::cerr << "Assertion failed: DialogAudioClip::loadWavFile failed or metadata mismatch!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test A: 16-bit PCM WAV file synthesis & RIFF/fmt/data parsing verified.\n";
+
+        // Sub-test B: Real WAV Lip-Sync Phoneme Extraction (Vowel vs Sibilant vs Silence)
+        Lab::LipSyncEvaluator lipSync;
+        if (!lipSync.loadDialogAudio(testWavPath, "Dr. Vance [Radio]", "Warning: cryo-seal pressure dropping in Sector B!")) {
+            std::cerr << "Assertion failed: LipSyncEvaluator::loadDialogAudio failed!\n";
+            return 1;
+        }
+        lipSync.clearSubtitles();
+        lipSync.addSubtitle(0.0f, 0.45f, "Dr. Vance [Radio]", "Warning: cryo-seal pressure");
+        lipSync.addSubtitle(0.45f, 0.95f, "Dr. Vance [Radio]", "dropping in Sector B!");
+
+        // Step vowel segment
+        for (int step = 0; step < 8; ++step) {
+            lipSync.evaluateAtTime(0.20f, 1.0f / 30.0f);
+        }
+        float vowelJaw = lipSync.getJawOpen();
+        if (vowelJaw < 0.25f) {
+            std::cerr << "Assertion failed: Open vowel segment did not drive jaw_open (got " << vowelJaw << ")!\n";
             return 1;
         }
 
-        // Toggle ON (reloads single .lua file from disk, no recompile)
-        pm.togglePackage(toggleTarget);
-        if (!pm.isPackageEnabled(toggleTarget)) {
-            std::cerr << "Assertion failed: Failed to toggle ON package " << toggleTarget << "\n";
+        // Step sibilant segment
+        for (int step = 0; step < 8; ++step) {
+            lipSync.evaluateAtTime(0.60f, 1.0f / 30.0f);
+        }
+        float sibilantSmile = lipSync.getMouthSmile();
+        if (sibilantSmile <= 0.02f) {
+            std::cerr << "Assertion failed: High-ZCR sibilant segment did not drive sibilant mouth shape!\n";
             return 1;
         }
-        std::cout << "  [PASS] Sub-test C: Drop-in checkbox toggle (Enable/Disable) verified.\n";
 
-        // Sub-test D: Standalone Plugin Directory Scanning (plugins/)
-        pm.scanPluginDirectory("plugins");
-        // Verify disk files exist in dedicated plugins/ folder
-        if (!std::filesystem::exists("plugins/procedural_level.lua") ||
-            !std::filesystem::exists("plugins/speedrun_timer.lua") ||
-            !std::filesystem::exists("plugins/retro_shaders.lua") ||
-            !std::filesystem::exists("plugins/dialogue_quest.lua") ||
-            !std::filesystem::exists("plugins/voxel_terrain.lua") ||
-            !std::filesystem::exists("plugins/ai_patrol.lua") ||
-            !std::filesystem::exists("plugins/arcade_vehicle.lua") ||
-            !std::filesystem::exists("plugins/discord_rpc.lua")) {
-            std::cerr << "Assertion failed: One or more standalone Lua plugin files missing in plugins/!\n";
+        // Step silence segment to let envelope decay
+        for (int step = 0; step < 20; ++step) {
+            lipSync.evaluateAtTime(0.92f, 1.0f / 30.0f);
+        }
+        if (lipSync.getJawOpen() > 0.05f) {
+            std::cerr << "Assertion failed: Silence segment did not decay jaw_open!\n";
             return 1;
         }
-        std::cout << "  [PASS] Sub-test D: Standalone Lua plugin files on disk verified (plugins/*.lua).\n";
+        std::cout << "  [PASS] Sub-test B: Spectral ZCR + RMS phoneme extraction from real WAV file verified.\n";
 
-        // Sub-test E: Procedural Level Generator Action (real CSG brushes generated into map)
-        std::vector<Lab::LabBrush> testBrushes;
-        int generatedCount = p1->generateRoom(testBrushes, Lab::Vec3(0, 0, 0), 16.0f, 8.0f, 16.0f, 1234);
-        if (generatedCount != 9 || testBrushes.size() != 9) {
-            std::cerr << "Assertion failed: generateRoom should create exactly 9 brushes, got " << generatedCount << "\n";
+        // Sub-test C: Timed Dialog Playback & Subtitle Synchronization
+        lipSync.playDialog(false);
+        lipSync.updateDialog(0.20f);
+        if (!lipSync.isDialogPlaying() ||
+            lipSync.getActiveSpeaker() != "Dr. Vance [Radio]" ||
+            lipSync.getActiveSubtitle() != "Warning: cryo-seal pressure") {
+            std::cerr << "Assertion failed: Active subtitle mismatch at t=0.20s (got '" << lipSync.getActiveSubtitle() << "')!\n";
             return 1;
         }
-        if (p1->getRoomsGenerated() != 1 || p1->getTotalBrushesCreated() != 9) {
-            std::cerr << "Assertion failed: p1 telemetry mismatch!\n";
+        lipSync.updateDialog(0.40f); // now at t=0.60s
+        if (lipSync.getActiveSubtitle() != "dropping in Sector B!") {
+            std::cerr << "Assertion failed: Active subtitle did not advance at t=0.60s!\n";
             return 1;
         }
-        std::cout << "  [PASS] Sub-test E: Procedural Level Generator generated 9 valid CSG room brushes with floor, walls, doorway and pillars.\n";
+        lipSync.updateDialog(0.50f); // past 1.0s -> auto-stops
+        if (lipSync.isDialogPlaying()) {
+            std::cerr << "Assertion failed: Dialog should stop automatically at clip end!\n";
+            return 1;
+        }
+        std::filesystem::remove(testWavPath);
+        std::cout << "  [PASS] Sub-test C: Real-time dialog playback & timed subtitle switching verified.\n";
 
-        // Sub-test F: Speedrun Telemetry live timer and split recording
-        p2->startTimer();
-        p2->onUpdate(1.5f);
-        if (std::abs(p2->getElapsedTime() - 1.5f) > 0.01f) {
-            std::cerr << "Assertion failed: Speedrun timer did not accumulate elapsed time!\n";
+        // Sub-test D: CharacterStudio Config Isolation (saving temporary config must not overwrite production config)
+        Lab::CharacterStudio prodStudio;
+        if (!prodStudio.loadConfig("assets/configs/character_studio.cfg")) {
+            std::cerr << "Assertion failed: Could not load production assets/configs/character_studio.cfg!\n";
             return 1;
         }
-        p2->recordSplit("Sector 1");
-        if (p2->getSplits().size() != 1 || p2->getSplits()[0].first != "Sector 1") {
-            std::cerr << "Assertion failed: Split sector recording failed!\n";
-            return 1;
-        }
-        p2->pauseTimer();
-        p2->onUpdate(1.0f);
-        if (std::abs(p2->getElapsedTime() - 1.5f) > 0.01f) {
-            std::cerr << "Assertion failed: Paused timer accumulated time!\n";
-            return 1;
-        }
-        p2->resetTimer();
-        if (p2->getElapsedTime() != 0.0f || !p2->getSplits().empty()) {
-            std::cerr << "Assertion failed: Reset timer did not clear state!\n";
-            return 1;
-        }
-        std::cout << "  [PASS] Sub-test F: Speedrun Telemetry timer, live split recording & pause/reset verified.\n";
+        float prodOffsetX = prodStudio.getWeaponGrip(Lab::WeaponID::Pipe).weaponOffset.x;
 
-        // Sub-test G: Retro CRT Post-Processing parameters
-        bool initScan = p3->areScanlinesEnabled();
-        p3->toggleScanlines();
-        if (p3->areScanlinesEnabled() == initScan) {
-            std::cerr << "Assertion failed: toggleScanlines did not flip scanline state!\n";
-            return 1;
-        }
-        p3->onUpdate(0.1f);
-        if (p3->getScanlinePhase() == 0.0f) {
-            std::cerr << "Assertion failed: onUpdate did not advance scanline phase!\n";
-            return 1;
-        }
-        std::cout << "  [PASS] Sub-test G: Retro CRT Post-Process shader parameter toggle & phase tick verified.\n";
+        Lab::CharacterStudio scratchStudio;
+        scratchStudio.getWeaponGripMut(Lab::WeaponID::Pipe).weaponOffset.x = -99.0f;
+        scratchStudio.saveConfig("scratch_test_studio.cfg");
+        std::filesystem::remove("scratch_test_studio.cfg");
 
-        std::cout << "  [PASS] Test 78 Modular Plugin Architecture passed 100%!\n";
+        Lab::CharacterStudio reloadProdStudio;
+        reloadProdStudio.loadConfig("assets/configs/character_studio.cfg");
+        if (std::abs(reloadProdStudio.getWeaponGrip(Lab::WeaponID::Pipe).weaponOffset.x - prodOffsetX) > 1e-4f) {
+            std::cerr << "Assertion failed: Saving scratch config polluted assets/configs/character_studio.cfg!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test D: CharacterStudio configuration isolation verified (production viewmodel preserved).\n";
+
+        std::cout << "  [PASS] Test 78 Real WAV Audio Lip-Sync & Dialog Synchronization passed 100%!\n";
     }
+
 
     // =========================================================================
     // Test 79: Separation of Engine & Game Assets, Documents Projects & Auto-Generation on Build

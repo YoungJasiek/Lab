@@ -64,10 +64,15 @@ namespace Lab {
         float getContrast() const { return _contrast; }
         float getSaturation() const { return _saturation; }
 
+        void setFXAAEnabled(bool enabled) { _fxaaEnabled = enabled; }
+        bool isFXAAEnabled() const { return _fxaaEnabled; }
+        static Vec3 evaluateFXAA3x3(const Vec3& center, const Vec3& nw, const Vec3& ne, const Vec3& sw, const Vec3& se);
+
     private:
         int _width = 1280;
         int _height = 720;
         bool _initialized = false;
+        bool _fxaaEnabled = true;
         float _contrast = 1.04f;
         float _saturation = 1.08f;
         float _overlayIntensity = 0.0f;

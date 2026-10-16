@@ -319,21 +319,83 @@ namespace Lab {
         }
     )";
 
-    // --- Shader Implementation ---
-    Shader::Shader(const char* vertexSource, const char* fragmentSource) {
-        unsigned int vertex, fragment;
+    // --- Shader Implementation (with Pre-Shading GPU Binary Disk Cache) ---
+    static size_t s_shaderCacheHits = 0;
+    static size_t s_shaderCacheSaves = 0;
 
-        vertex = glCreateShader(GL_VERTEX_SHADER);
+    static uint64_t hashShaderSource64(const char* vs, const char* fs) {
+        uint64_t h = 14695981039346656037ULL;
+        auto mixStr = [&h](const char* s) {
+            if (!s) return;
+            while (*s) {
+                h ^= static_cast<uint8_t>(*s++);
+                h *= 1099511628211ULL;
+            }
+            h ^= 0xFFULL;
+            h *= 1099511628211ULL;
+        };
+        mixStr(vs);
+        mixStr(fs);
+        if (glad_glGetString != nullptr) {
+            mixStr(reinterpret_cast<const char*>(glGetString(GL_RENDERER)));
+            mixStr(reinterpret_cast<const char*>(glGetString(GL_VERSION)));
+        }
+        return h;
+    }
+
+    size_t Shader::getBinaryCacheHitCount() { return s_shaderCacheHits; }
+    size_t Shader::getBinaryCacheSaveCount() { return s_shaderCacheSaves; }
+
+    Shader::Shader(const char* vertexSource, const char* fragmentSource) {
+        uint64_t hashVal = hashShaderSource64(vertexSource, fragmentSource);
+        char hexBuf[32];
+        std::snprintf(hexBuf, sizeof(hexBuf), "%016llx", static_cast<unsigned long long>(hashVal));
+        std::filesystem::path cacheDir = "shader_cache";
+        std::filesystem::path cacheFile = cacheDir / (std::string(hexBuf) + ".shaderbin");
+
+        _id = glCreateProgram();
+
+        // 1. Try loading pre-compiled GPU microcode binary from disk cache
+        if (glad_glProgramBinary != nullptr && std::filesystem::exists(cacheFile)) {
+            std::ifstream in(cacheFile, std::ios::binary);
+            if (in.is_open()) {
+                uint32_t magic = 0;
+                GLenum binaryFormat = 0;
+                GLsizei binaryLength = 0;
+                in.read(reinterpret_cast<char*>(&magic), sizeof(magic));
+                in.read(reinterpret_cast<char*>(&binaryFormat), sizeof(binaryFormat));
+                in.read(reinterpret_cast<char*>(&binaryLength), sizeof(binaryLength));
+                if (in && magic == 0x4C414253U && binaryLength > 0 && binaryLength < 16 * 1024 * 1024) {
+                    std::vector<uint8_t> binaryData(static_cast<size_t>(binaryLength));
+                    in.read(reinterpret_cast<char*>(binaryData.data()), binaryLength);
+                    if (in.gcount() == binaryLength) {
+                        glProgramBinary(_id, binaryFormat, binaryData.data(), binaryLength);
+                        GLint linked = GL_FALSE;
+                        glGetProgramiv(_id, GL_LINK_STATUS, &linked);
+                        if (linked == GL_TRUE) {
+                            _loadedFromCache = true;
+                            ++s_shaderCacheHits;
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Fallback: Compile GLSL from source and store binary to disk cache
+        unsigned int vertex = glCreateShader(GL_VERTEX_SHADER);
         glShaderSource(vertex, 1, &vertexSource, NULL);
         glCompileShader(vertex);
         checkCompileErrors(vertex, "VERTEX");
 
-        fragment = glCreateShader(GL_FRAGMENT_SHADER);
+        unsigned int fragment = glCreateShader(GL_FRAGMENT_SHADER);
         glShaderSource(fragment, 1, &fragmentSource, NULL);
         glCompileShader(fragment);
         checkCompileErrors(fragment, "FRAGMENT");
 
-        _id = glCreateProgram();
+        if (glad_glProgramParameteri != nullptr) {
+            glProgramParameteri(_id, GL_PROGRAM_BINARY_RETRIEVABLE_HINT, GL_TRUE);
+        }
         glAttachShader(_id, vertex);
         glAttachShader(_id, fragment);
         glLinkProgram(_id);
@@ -341,6 +403,34 @@ namespace Lab {
 
         glDeleteShader(vertex);
         glDeleteShader(fragment);
+
+        if (glad_glGetProgramBinary != nullptr) {
+            GLint linked = GL_FALSE;
+            glGetProgramiv(_id, GL_LINK_STATUS, &linked);
+            GLint binaryLength = 0;
+            glGetProgramiv(_id, GL_PROGRAM_BINARY_LENGTH, &binaryLength);
+            if (linked == GL_TRUE && binaryLength > 0 && binaryLength < 16 * 1024 * 1024) {
+                std::vector<uint8_t> binaryData(static_cast<size_t>(binaryLength));
+                GLsizei actualLen = 0;
+                GLenum binaryFormat = 0;
+                glGetProgramBinary(_id, binaryLength, &actualLen, &binaryFormat, binaryData.data());
+                if (actualLen > 0) {
+                    std::error_code ec;
+                    std::filesystem::create_directories(cacheDir, ec);
+                    std::ofstream out(cacheFile, std::ios::binary | std::ios::trunc);
+                    if (out.is_open()) {
+                        uint32_t magic = 0x4C414253U; // 'LABS'
+                        out.write(reinterpret_cast<const char*>(&magic), sizeof(magic));
+                        out.write(reinterpret_cast<const char*>(&binaryFormat), sizeof(binaryFormat));
+                        out.write(reinterpret_cast<const char*>(&actualLen), sizeof(actualLen));
+                        out.write(reinterpret_cast<const char*>(binaryData.data()), actualLen);
+                        if (out.good()) {
+                            ++s_shaderCacheSaves;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     Shader::~Shader() {
@@ -351,8 +441,9 @@ namespace Lab {
     }
 
     Shader::Shader(Shader&& other) noexcept
-        : _id(other._id), _uniformCache(std::move(other._uniformCache)) {
+        : _id(other._id), _loadedFromCache(other._loadedFromCache), _uniformCache(std::move(other._uniformCache)) {
         other._id = 0;
+        other._loadedFromCache = false;
     }
 
     Shader& Shader::operator=(Shader&& other) noexcept {
@@ -361,8 +452,10 @@ namespace Lab {
                 glDeleteProgram(_id);
             }
             _id = other._id;
+            _loadedFromCache = other._loadedFromCache;
             _uniformCache = std::move(other._uniformCache);
             other._id = 0;
+            other._loadedFromCache = false;
         }
         return *this;
     }
@@ -1361,9 +1454,84 @@ namespace Lab {
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
+
+        prewarmShaders();
+    }
+
+    static bool s_rendererPrewarmed = false;
+
+    bool Renderer::isPrewarmed() {
+        return s_rendererPrewarmed;
+    }
+
+    void Renderer::prewarmShaders() {
+        if (!_defaultShader || !_shadowDepthShader || !_uiShader || !_cubeMesh) return;
+
+        // 1. Pre-populate uniform location cache for all standard uniforms (zero driver lookups during gameplay)
+        const char* defaultUniforms[] = {
+            "model", "view", "projection", "objectColor", "lightDir", "lightColor",
+            "ambientColor", "viewPos", "enableLighting", "useTexture", "texture1",
+            "uvTiling", "uvMode", "uUseSkinning", "uBones[0]", "uEnableSpotlight",
+            "uSpotLightPos", "uSpotLightDir", "uSpotLightColor", "uSpotLightInnerCone",
+            "uSpotLightOuterCone", "uSpotLightRange", "uSpotLightIntensity",
+            "uEnableShadows", "uLightSpaceMatrix", "shadowMap", "uNumPointLights",
+            "uEnableFog", "uFogColor", "uFogStart", "uFogEnd",
+            "uEnableHeightFog", "uHeightFogBase", "uHeightFogDensity"
+        };
+        for (const char* uName : defaultUniforms) {
+            _defaultShader->getUniformLocation(uName);
+        }
+        for (int i = 0; i < 16; ++i) {
+            std::string prefix = "uPointLights[" + std::to_string(i) + "].";
+            _defaultShader->getUniformLocation(prefix + "position");
+            _defaultShader->getUniformLocation(prefix + "color");
+            _defaultShader->getUniformLocation(prefix + "intensity");
+            _defaultShader->getUniformLocation(prefix + "radius");
+        }
+
+        _shadowDepthShader->getUniformLocation("uLightSpaceMatrix");
+        _shadowDepthShader->getUniformLocation("model");
+        _shadowDepthShader->getUniformLocation("uUseSkinning");
+        _shadowDepthShader->getUniformLocation("uBones[0]");
+
+        _uiShader->getUniformLocation("projection");
+        _uiShader->getUniformLocation("color");
+        _uiShader->getUniformLocation("useTexture");
+        _uiShader->getUniformLocation("texture1");
+
+        // 2. GPU Pipeline State Object (PSO) warm-up pass with color/depth writes masked off
+        glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+        glDepthMask(GL_FALSE);
+
+        Mat4 ident = Mat4::identity();
+        _defaultShader->use();
+        _defaultShader->setMat4("model", ident);
+        _defaultShader->setMat4("view", ident);
+        _defaultShader->setMat4("projection", ident);
+        _defaultShader->setInt("useTexture", 0);
+        _defaultShader->setInt("enableLighting", 1);
+        _defaultShader->setInt("uUseSkinning", 0);
+        applyLightingAndShadowUniforms(_defaultShader);
+        _cubeMesh->draw();
+
+        _shadowDepthShader->use();
+        _shadowDepthShader->setMat4("uLightSpaceMatrix", ident);
+        _shadowDepthShader->setMat4("model", ident);
+        _shadowDepthShader->setInt("uUseSkinning", 0);
+        _cubeMesh->draw();
+
+        _uiShader->use();
+        _uiShader->setMat4("projection", ident);
+        _uiShader->setVec3("color", Vec3(1.0f, 1.0f, 1.0f));
+        _uiShader->setInt("useTexture", 0);
+
+        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+        glDepthMask(GL_TRUE);
+        s_rendererPrewarmed = true;
     }
 
     void Renderer::shutdown() {
+        s_rendererPrewarmed = false;
         delete _defaultShader;
         _defaultShader = nullptr;
         delete _shadowDepthShader;

@@ -25,8 +25,22 @@ namespace Lab {
 
     class LabDialogs {
     public:
+        static bool isAllowedSceneFile(const std::string& path) {
+            if (path.empty()) return false;
+            std::filesystem::path p(path);
+            std::string ext = p.extension().string();
+            for (char& c : ext) c = static_cast<char>(::tolower(static_cast<unsigned char>(c)));
+            if (ext != ".labscene" && ext != ".labmap") {
+                return false;
+            }
+            if (std::filesystem::exists(p) && !std::filesystem::is_regular_file(p)) {
+                return false;
+            }
+            return true;
+        }
+
         // Native File Open Dialog (Windows GetOpenFileNameA, Linux zenity/kdialog)
-        static std::string openFileDialog(GLFWwindow* window, const char* filter = "Lab Map Files (*.labmap)\0*.labmap\0All Files (*.*)\0*.*\0", const char* defaultDir = "assets/maps") {
+        static std::string openFileDialog(GLFWwindow* window, const char* filter = "Lab Scene Files (*.labscene;*.labmap)\0*.labscene;*.labmap\0", const char* defaultDir = "assets/maps") {
 #if defined(_WIN32)
             char filename[MAX_PATH] = "";
 
@@ -52,18 +66,24 @@ namespace Lab {
                 ofn.lpstrInitialDir = initialDirStr.c_str();
             }
 
-            ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+            ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR | OFN_NODEREFERENCELINKS;
 
             if (GetOpenFileNameA(&ofn)) {
-                return std::string(filename);
+                std::string picked(filename);
+                if (defaultDir && std::string(defaultDir).find("maps") != std::string::npos) {
+                    if (!isAllowedSceneFile(picked)) {
+                        return "";
+                    }
+                }
+                return picked;
             }
             return "";
 #else
             (void)window; (void)filter; (void)defaultDir;
-            std::string cmd = "zenity --file-selection 2>/dev/null";
+            std::string cmd = "zenity --file-selection --file-filter='Lab Scene (*.labscene *.labmap) | *.labscene *.labmap' 2>/dev/null";
             FILE* pipe = popen(cmd.c_str(), "r");
             if (!pipe) {
-                cmd = "kdialog --getopenfilename 2>/dev/null";
+                cmd = "kdialog --getopenfilename . '*.labscene *.labmap' 2>/dev/null";
                 pipe = popen(cmd.c_str(), "r");
             }
             if (pipe) {
@@ -76,14 +96,19 @@ namespace Lab {
                 while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) {
                     result.pop_back();
                 }
-                if (!result.empty()) return result;
+                if (!result.empty()) {
+                    if (defaultDir && std::string(defaultDir).find("maps") != std::string::npos && !isAllowedSceneFile(result)) {
+                        return "";
+                    }
+                    return result;
+                }
             }
             return "";
 #endif
         }
 
         // Native File Save Dialog (Windows GetSaveFileNameA, Linux zenity/kdialog)
-        static std::string saveFileDialog(GLFWwindow* window, const char* filter = "Lab Map Files (*.labmap)\0*.labmap\0All Files (*.*)\0*.*\0", const char* defaultName = "my_level.labmap", const char* defaultDir = "assets/maps") {
+        static std::string saveFileDialog(GLFWwindow* window, const char* filter = "Lab Scene Files (*.labscene)\0*.labscene\0Lab Map Files (*.labmap)\0*.labmap\0", const char* defaultName = "my_level.labscene", const char* defaultDir = "assets/maps") {
 #if defined(_WIN32)
             char filename[MAX_PATH] = "";
             strncpy_s(filename, defaultName, MAX_PATH - 1);
@@ -110,8 +135,8 @@ namespace Lab {
                 ofn.lpstrInitialDir = initialDirStr.c_str();
             }
 
-            ofn.lpstrDefExt = "labmap";
-            ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR;
+            ofn.lpstrDefExt = "labscene";
+            ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR | OFN_NODEREFERENCELINKS;
 
             if (GetSaveFileNameA(&ofn)) {
                 return std::string(filename);

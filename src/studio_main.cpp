@@ -1,5 +1,6 @@
 #include "Lab.h"
 #include "LabStudio.h"
+#include "LabGpuPreference.h"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <iostream>

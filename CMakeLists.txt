@@ -15,6 +15,13 @@ option(LAB_STRICT_WARNINGS_AS_ERRORS "Treat all compiler warnings as errors acro
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ${LAB_EXPORT_ALL_SYMBOLS})
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# Emit import libraries (.lib) and export files (.exp) to build/lib so runtime directories contain only .dll and .exe
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+foreach(OUTPUTCONFIG Debug Release RelWithDebInfo MinSizeRel)
+    string(TOUPPER ${OUTPUTCONFIG} OUTPUTCONFIG_UPPER)
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER} "${CMAKE_BINARY_DIR}/lib/${OUTPUTCONFIG}")
+endforeach()
+
 # Strict compiler flags with standard MSVC DLL warning suppressions
 if(MSVC)
     set(COMPILER_FLAGS /W4 /EHsc /wd4251 /wd4275)
@@ -102,7 +109,6 @@ set(LAB_INCLUDES
 add_library(LabCore SHARED
     src/LabCore.cpp
     src/LabInput.cpp
-    src/LabPlugin.cpp
     src/LabEvent.cpp
     src/LabSceneNode.cpp
     src/LabVFS.cpp
@@ -111,20 +117,9 @@ add_library(LabCore SHARED
     src/LabExportPipeline.cpp
     src/LabProfiler.cpp
     src/LabVCS.cpp
-    src/LabPackage.cpp
     src/LabProject.cpp
-    src/plugins/ProceduralLevelPlugin.cpp
-    src/plugins/SpeedrunTelemetryPlugin.cpp
-    src/plugins/RetroPostProcessPlugin.cpp
-    src/plugins/DialogueQuestPlugin.cpp
-    src/plugins/VoxelTerrainPlugin.cpp
-    src/plugins/AINavigationPatrolPlugin.cpp
-    src/plugins/ArcadeVehiclePlugin.cpp
-    src/plugins/DiscordRPCPlugin.cpp
-    src/plugins/LuaDropinPlugin.cpp
     include/LabCore.h
     include/LabInput.h
-    include/LabPlugin.h
     include/LabEvent.h
     include/LabSceneNode.h
     include/LabVFS.h
@@ -133,18 +128,9 @@ add_library(LabCore SHARED
     include/LabExportPipeline.h
     include/LabProfiler.h
     include/LabVCS.h
-    include/LabPackage.h
     include/LabProject.h
-    include/plugins/ProceduralLevelPlugin.h
-    include/plugins/SpeedrunTelemetryPlugin.h
-    include/plugins/RetroPostProcessPlugin.h
-    include/plugins/DialogueQuestPlugin.h
-    include/plugins/VoxelTerrainPlugin.h
-    include/plugins/AINavigationPatrolPlugin.h
-    include/plugins/ArcadeVehiclePlugin.h
-    include/plugins/DiscordRPCPlugin.h
-    include/plugins/LuaDropinPlugin.h
     include/LabApplication.h
+    include/LabGpuPreference.h
     include/LabMath.h
     include/LabComponent.h
     include/LabTransform.h
@@ -360,33 +346,30 @@ add_executable(FrozenLife src/main.cpp)
 target_compile_options(FrozenLife PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(FrozenLife PRIVATE LabEngineLib)
 
-# 4. Standalone Headless Dedicated Server Executable
+# 4. Standalone Character & Weapon Studio Executable (LabStudio.exe)
+add_executable(LabStudio src/studio_main.cpp)
+target_compile_options(LabStudio PRIVATE ${COMPILER_FLAGS})
+target_link_libraries(LabStudio PRIVATE LabEngineLib)
+
+# 5. Standalone Headless Dedicated Server Executable
 add_executable(LabServer src/server_main.cpp)
 target_compile_options(LabServer PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabServer PRIVATE LabEngineLib)
 
-# 5. Full Engine Automated Verification Suite
+# 6. Full Engine Automated Verification Suite
 add_executable(TestVerify src/test_verify.cpp)
 target_compile_options(TestVerify PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(TestVerify PRIVATE LabEngineLib)
 
-# Unified asset replication to output directory (avoids parallel race conditions across executables)
+# Unified asset replication to output directory (filters out inwork/backup/authoring files and removes .lib/.exp)
 add_custom_target(LabAssets ALL
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_CURRENT_SOURCE_DIR}/assets"
-        "${CMAKE_CURRENT_BINARY_DIR}/$<IF:$<BOOL:$<CONFIG>>,$<CONFIG>/,>assets"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_CURRENT_SOURCE_DIR}/fonts"
-        "${CMAKE_CURRENT_BINARY_DIR}/$<IF:$<BOOL:$<CONFIG>>,$<CONFIG>/,>fonts"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_CURRENT_SOURCE_DIR}/plugins"
-        "${CMAKE_CURRENT_BINARY_DIR}/$<IF:$<BOOL:$<CONFIG>>,$<CONFIG>/,>plugins"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_CURRENT_SOURCE_DIR}/logos"
-        "${CMAKE_CURRENT_BINARY_DIR}/$<IF:$<BOOL:$<CONFIG>>,$<CONFIG>/,>logos"
-    COMMENT "Synchronizing engine assets, fonts, plugins and logos to output directory"
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+        -DBINARY_OUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/$<IF:$<BOOL:$<CONFIG>>,$<CONFIG>,.>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/SyncAssets.cmake"
+    COMMENT "Synchronizing clean runtime assets, fonts, and logos to output directory"
 )
-set(ASSET_TARGETS LabEditor LabPlayer FrozenLife LabServer TestVerify)
+set(ASSET_TARGETS LabEditor LabPlayer FrozenLife LabStudio LabServer TestVerify)
 foreach(tgt ${ASSET_TARGETS})
     add_dependencies(${tgt} LabAssets)
 endforeach()

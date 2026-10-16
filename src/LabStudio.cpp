@@ -2537,7 +2537,8 @@ namespace Lab {
         std::string content = out.str();
 
         std::vector<std::string> targetPaths = { filepath };
-        if (filepath.find("character_studio.cfg") != std::string::npos) {
+        const bool isPrimaryStudioConfig = (std::filesystem::path(filepath).filename() == "character_studio.cfg");
+        if (isPrimaryStudioConfig) {
             std::vector<std::string> syncCandidates = {
                 "assets/configs/character_studio.cfg",
                 "build/Release/assets/configs/character_studio.cfg",
@@ -2588,13 +2589,14 @@ namespace Lab {
     }
 
     bool CharacterStudio::loadConfig(const std::string& filepath) {
-        std::vector<std::string> candidates = {
-            filepath,
-            "assets/configs/character_studio.cfg",
-            "build/Release/assets/configs/character_studio.cfg",
-            "../assets/configs/character_studio.cfg",
-            "../../assets/configs/character_studio.cfg"
-        };
+        const bool isPrimaryStudioConfig = (std::filesystem::path(filepath).filename() == "character_studio.cfg");
+        std::vector<std::string> candidates = { filepath };
+        if (isPrimaryStudioConfig) {
+            candidates.push_back("assets/configs/character_studio.cfg");
+            candidates.push_back("build/Release/assets/configs/character_studio.cfg");
+            candidates.push_back("../assets/configs/character_studio.cfg");
+            candidates.push_back("../../assets/configs/character_studio.cfg");
+        }
         std::string actualPath;
         std::filesystem::file_time_type newestTime;
         bool foundAny = false;
@@ -2623,6 +2625,9 @@ namespace Lab {
         std::string currentSection;
 
         while (std::getline(in, line)) {
+            if (!line.empty() && line.back() == '\r') {
+                line.pop_back();
+            }
             // Trim whitespace
             if (line.empty() || line[0] == '#' || line[0] == ';') continue;
             if (line.front() == '[' && line.back() == ']') {
@@ -2697,7 +2702,7 @@ namespace Lab {
         in.close();
 
         // Sync loaded configuration across candidate locations
-        if (actualPath.find("character_studio.cfg") != std::string::npos) {
+        if (isPrimaryStudioConfig) {
             std::vector<std::string> syncCandidates = {
                 "assets/configs/character_studio.cfg",
                 "build/Release/assets/configs/character_studio.cfg",
