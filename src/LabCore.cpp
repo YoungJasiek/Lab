@@ -6,6 +6,7 @@
 #include "LabComponents.h"
 #include "LabFont.h"
 #include "LabDialogs.h"
+#include "LabGpuPreference.h"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
@@ -149,6 +150,12 @@ namespace Lab {
     }
 
     void Engine::run() {
+        GpuAdapterInfo strongestGpu = GpuSelector::enforceStrongestGpu();
+        if (!strongestGpu.name.empty()) {
+            uint64_t vramMB = strongestGpu.dedicatedVramBytes / (1024ULL * 1024ULL);
+            LabLog::info("[LabGPU] Selected strongest GPU: " + strongestGpu.name +
+                         " (" + std::to_string(vramMB) + " MB VRAM, score=" + std::to_string(strongestGpu.strengthScore) + ")");
+        }
 #if !defined(_WIN32)
         // On Linux / Mesa / WSL2 environments, enable modern OpenGL 4.6 & GLSL 460 if supported by Mesa driver
         // (Mesa drivers like d3d12 often default to 4.2 unless explicitly requested/overridden).

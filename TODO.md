@@ -16,6 +16,6 @@ FIX:
 - [x] only dll, delete .lib and exp
 ADD:
 - [x] real facesync with audiofiles & Dialogs
-- [x] discrete high-performance GPU enforcement (NvOptimusEnablement / AmdPowerXpressRequestHighPerformance)
+- [x] strongest GPU detection, scoring & enforcement (Lab::GpuSelector via DXGI + OS UserGpuPreferences)
 - [x] pre-shading (OpenGL Program Binary Disk Cache + PSO/uniform pre-warming)
 - [x] native FXAA 3.11 in post-processing pipeline

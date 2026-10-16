@@ -5901,9 +5901,37 @@ int main() {
         std::cout << "  [PASS] Test 52 Plug & Play Cloud Rendezvous and Auto-Punch Handshake passed 100%!\n";
     }
 
-    // 53. Verify Pre-Shading (PSO/Uniform Pre-Warming & OpenGL Program Binary Disk Cache)
+    // 53. Verify Strongest GPU Selection & Pre-Shading (PSO/Uniform Pre-Warming & Program Binary Disk Cache)
     {
-        std::cout << "\n[Test 53] Verifying Pre-Shading (PSO Pre-Warming & Program Binary Disk Cache)...\n";
+        std::cout << "\n[Test 53] Verifying Strongest GPU Selector & Pre-Shading (Program Binary Disk Cache)...\n";
+
+        // Verify multi-adapter hardware scoring always picks the STRONGEST GPU
+        Lab::GpuAdapterInfo weakGpu;
+        weakGpu.index = 0;
+        weakGpu.name = "Weak Legacy GPU 1GB";
+        weakGpu.vendorId = 0x10DE;
+        weakGpu.dedicatedVramBytes = 1024ULL * 1024ULL * 1024ULL;
+
+        Lab::GpuAdapterInfo strongGpu;
+        strongGpu.index = 1;
+        strongGpu.name = "Strong RTX GPU 12GB";
+        strongGpu.vendorId = 0x10DE;
+        strongGpu.dedicatedVramBytes = 12ULL * 1024ULL * 1024ULL * 1024ULL;
+        strongGpu.isHighPerfPreferredByOS = true;
+
+        Lab::GpuAdapterInfo softWarp;
+        softWarp.index = 2;
+        softWarp.name = "Microsoft Basic Render Driver";
+        softWarp.isSoftwareAdapter = true;
+
+        auto picked = Lab::GpuSelector::selectStrongestFromList({ weakGpu, strongGpu, softWarp });
+        if (picked.name != "Strong RTX GPU 12GB" || picked.strengthScore <= Lab::GpuSelector::computeStrengthScore(weakGpu)) {
+            std::cerr << "Assertion failed: GpuSelector did not select the strongest GPU!\n";
+            return 1;
+        }
+        auto sysStrongest = Lab::GpuSelector::enforceStrongestGpu();
+        std::cout << "  [PASS] Strongest GPU selector verified (System strongest: " << sysStrongest.name
+                  << ", score=" << sysStrongest.strengthScore << ")!\n";
 
         Lab::Renderer::prewarmShaders();
         if (!Lab::Renderer::isPrewarmed()) {
@@ -5948,7 +5976,7 @@ int main() {
             std::cout << "  [PASS] Shader compiled cleanly (driver binary cache saves="
                       << Lab::Shader::getBinaryCacheSaveCount() << ")!\n";
         }
-        std::cout << "  [PASS] Test 53 Pre-Shading & Program Binary Cache passed 100%!\n";
+        std::cout << "  [PASS] Test 53 Strongest GPU Selector & Pre-Shading passed 100%!\n";
     }
 
     // 54. Verify Decoupled Event Bus, Message Dispatcher & High-Throughput Stress Test
