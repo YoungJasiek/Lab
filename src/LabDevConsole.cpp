@@ -2,6 +2,15 @@
 #include "LabRenderer.h"
 #include "LabFont.h"
 #include <GLFW/glfw3.h>
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
 #include <sstream>
 #include <algorithm>
 #include <iomanip>
@@ -40,10 +49,87 @@ namespace Lab {
 
     void LabDevConsole::print(const std::string& line, const Vec3& color) {
         _entries.push_back({ line, color });
-        while (_entries.size() > 250) {
+        while (_entries.size() > 500) {
             _entries.pop_front();
         }
         _scrollOffset = 0;
+    }
+
+    void LabDevConsole::copyLogToClipboard() {
+        if (_entries.empty()) {
+            print("[INFO] Console log is empty. Nothing to copy.", Vec3(0.7f, 0.7f, 0.7f));
+            return;
+        }
+
+        std::string fullLog;
+        for (const auto& e : _entries) {
+            fullLog += e.text;
+            fullLog += "\r\n";
+        }
+
+        bool ok = false;
+        GLFWwindow* win = glfwGetCurrentContext();
+        if (win) {
+            glfwSetClipboardString(win, fullLog.c_str());
+            ok = true;
+        }
+
+#if defined(_WIN32)
+        if (OpenClipboard(nullptr)) {
+            EmptyClipboard();
+            HGLOBAL hGlob = GlobalAlloc(GMEM_MOVEABLE, fullLog.size() + 1);
+            if (hGlob) {
+                void* p = GlobalLock(hGlob);
+                if (p) {
+                    memcpy(p, fullLog.c_str(), fullLog.size() + 1);
+                    GlobalUnlock(hGlob);
+                    SetClipboardData(CF_TEXT, hGlob);
+                    ok = true;
+                }
+            }
+            CloseClipboard();
+        }
+#endif
+
+        if (ok) {
+            print("[SUCCESS] Entire console log copied to clipboard (" + std::to_string(_entries.size()) + " lines).",
+                  Vec3(0.35f, 0.95f, 0.45f));
+        } else {
+            print("[ERROR] Failed to access system clipboard.", Vec3(1.0f, 0.35f, 0.35f));
+        }
+    }
+
+    void LabDevConsole::copyLineToClipboard(int lineIndex) {
+        if (lineIndex < 0 || lineIndex >= static_cast<int>(_entries.size())) return;
+        const std::string& line = _entries[lineIndex].text;
+
+        bool ok = false;
+        GLFWwindow* win = glfwGetCurrentContext();
+        if (win) {
+            glfwSetClipboardString(win, line.c_str());
+            ok = true;
+        }
+
+#if defined(_WIN32)
+        if (OpenClipboard(nullptr)) {
+            EmptyClipboard();
+            HGLOBAL hGlob = GlobalAlloc(GMEM_MOVEABLE, line.size() + 1);
+            if (hGlob) {
+                void* p = GlobalLock(hGlob);
+                if (p) {
+                    memcpy(p, line.c_str(), line.size() + 1);
+                    GlobalUnlock(hGlob);
+                    SetClipboardData(CF_TEXT, hGlob);
+                    ok = true;
+                }
+            }
+            CloseClipboard();
+        }
+#endif
+
+        if (ok) {
+            print("[COPIED LINE] \"" + line + "\"", Vec3(0.35f, 0.95f, 0.45f));
+        }
     }
 
     void LabDevConsole::registerKnownCommands() {
@@ -62,7 +148,8 @@ namespace Lab {
             "dcl_clear", "dcl_limit", "dcl_spawn", "dcl_distance",
             "mp_a_bots", "mp_b_bots", "mp_bot_kick_all", "mp_bot_freeze", "mp_restart",
             "net_status", "net_fake_lag", "net_fake_loss", "net_connect", "net_disconnect",
-            "sys_clear", "sys_help", "sys_bind", "sys_quit"
+            "sys_copylog", "sys_clear", "sys_help", "sys_bind", "sys_quit",
+            "god", "noclip", "bhop", "clear", "copylog", "condump", "help", "quit", "exit"
         };
     }
 
@@ -124,11 +211,12 @@ namespace Lab {
             std::string name = cmd.substr(underscore + 1);
             dispatchCommand(prefix, name, args);
         } else {
-            // Standalone or Valve compatibility alias
+            // Standalone or compatibility aliases
             if (cmd == "god") dispatchCommand("sp", "god", args);
             else if (cmd == "noclip") dispatchCommand("sp", "noclip", args);
             else if (cmd == "bhop") dispatchCommand("sp", "bhop", args);
             else if (cmd == "clear") dispatchCommand("sys", "clear", args);
+            else if (cmd == "copylog" || cmd == "condump") dispatchCommand("sys", "copylog", args);
             else if (cmd == "help") dispatchCommand("sys", "help", args);
             else if (cmd == "quit" || cmd == "exit") dispatchCommand("sys", "quit", args);
             else dispatchCommand("sys", cmd, args);
@@ -413,24 +501,286 @@ namespace Lab {
             if (n == "clear") {
                 _entries.clear();
                 return;
+            } else if (n == "copylog" || n == "condump") {
+                copyLogToClipboard();
+                return;
             } else if (n == "quit" || n == "exit") {
                 if (onQuit) onQuit();
                 return;
             } else if (n == "help") {
-                print("=== LAB ENGINE DEVELOPER COMMAND LIST ===", Vec3(0.9f, 0.85f, 0.3f));
-                print("  sp_cheats 0/1          - Unlock developer cheats", Vec3(0.85f, 0.85f, 0.85f));
-                print("  sp_god, sp_noclip      - Invincibility and ghost fly", Vec3(0.85f, 0.85f, 0.85f));
-                print("  sp_bhop 0/1            - Toggle bunny hop physics", Vec3(0.85f, 0.85f, 0.85f));
-                print("  sp_give_all, sp_get    - Weapon acquisition", Vec3(0.85f, 0.85f, 0.85f));
-                print("  log_momentum, log_fps  - 2D HUD telemetry diagnostics", Vec3(0.85f, 0.85f, 0.85f));
-                print("  phys_max_bhop_speed    - Bhop speed ceiling cap", Vec3(0.85f, 0.85f, 0.85f));
-                print("  phys_air_accel, phys_friction - Air strafe & ground friction tuning", Vec3(0.85f, 0.85f, 0.85f));
-                print("  wrd_map, wrd_restart   - Level loading", Vec3(0.85f, 0.85f, 0.85f));
+                handleHelpCommand(args);
                 return;
             }
         }
 
-        print("Unknown command \"" + prefix + "_" + name + "\"", Vec3(1.0f, 0.35f, 0.35f));
+        print("Unknown command \"" + prefix + "_" + name + "\". Type 'help' for available commands.", Vec3(1.0f, 0.35f, 0.35f));
+    }
+
+    void LabDevConsole::handleHelpCommand(const std::string& rawFilter) {
+        std::string filter = rawFilter;
+        size_t fStart = filter.find_first_not_of(" \t");
+        if (fStart != std::string::npos) filter = filter.substr(fStart);
+        else filter.clear();
+        size_t fEnd = filter.find_last_not_of(" \t");
+        if (fEnd != std::string::npos) filter = filter.substr(0, fEnd + 1);
+        std::transform(filter.begin(), filter.end(), filter.begin(), [](unsigned char c) { return (char)std::tolower(c); });
+
+        // Strip trailing underscore if user typed 'help sp_'
+        if (!filter.empty() && filter.back() == '_') {
+            filter.pop_back();
+        }
+
+        struct CmdDoc {
+            std::string cmd;
+            std::string prefix;
+            std::string usage;
+            std::string desc;
+        };
+
+        const std::vector<CmdDoc> docs = {
+            // SP_ (SUPER / CHEATS & PLAYER)
+            { "sp_cheats", "sp", "0/1", "Unlock developer cheats and debug commands (Required)" },
+            { "sp_god", "sp", "0/1", "Toggle player invincibility" },
+            { "sp_noclip", "sp", "0/1", "Flight and noclip through walls" },
+            { "sp_bhop", "sp", "0/1", "Toggle bunny hop momentum preservation physics" },
+            { "sp_speed", "sp", "{val}", "Movement speed multiplier (1.0 = normal, 1.5 = fast)" },
+            { "sp_jump", "sp", "{val}", "Jump vertical impulse height (default: 5.2)" },
+            { "sp_get", "sp", "{id}", "Give weapon by ID (1=Pipe, 2=Shotgun, 3=M4A4, 8=RPG...)" },
+            { "sp_heal", "sp", "{amt}", "Restore or set player health points" },
+            { "sp_armor", "sp", "{amt}", "Add or set player armor points" },
+            { "sp_ammo", "sp", "{amt}", "Refill ammunition for current or all weapons" },
+            { "sp_give_all", "sp", "", "Equip all weapons with maximum ammunition" },
+            { "sp_respawn", "sp", "", "Instant player respawn at level spawn point" },
+            { "sp_suicide", "sp", "", "Kill player to test respawn kinematics and death screen" },
+
+            // LOG_ (HUD 2D TELEMETRY OVERLAYS)
+            { "log_momentum", "log", "0/1", "Real-time horizontal speed (u/s) & bhop telemetry overlay" },
+            { "log_fps", "log", "0/1", "FPS counter and frametime in milliseconds" },
+            { "log_ping", "log", "0/1", "Network latency and ping diagnostics in milliseconds" },
+            { "log_pos", "log", "0/1", "Player coordinates (X, Y, Z) and camera pitch/yaw angles" },
+            { "log_colliders", "log", "0/1", "Visualize 3D collision AABB wireframe bounding boxes" },
+            { "log_triggers", "log", "0/1", "Visualize 3D trigger volume boundaries" },
+            { "log_ai", "log", "0/1", "Display AI bot state, goal target & navigation waypoint" },
+            { "log_drawcalls", "log", "0/1", "Total draw calls and rendered vertex count per frame" },
+            { "log_memory", "log", "0/1", "RAM and VRAM memory usage by textures and geometry" },
+            { "log_all", "log", "0/1", "Master switch to toggle all 2D telemetry HUD overlays" },
+
+            // WRD_ (WORLD, MAP & ENVIRONMENT)
+            { "wrd_map", "wrd", "{name}", "Load specified scene or map (e.g. site14_chapter1)" },
+            { "wrd_restart", "wrd", "", "Restart current map to initial spawn state" },
+            { "wrd_skybox", "wrd", "{hex/name}", "Change skybox background color or cubemap asset" },
+            { "wrd_model", "wrd", "{path}", "Spawn 3D prop/mesh at crosshair aim position" },
+            { "wrd_timescale", "wrd", "{val}", "Engine timescale multiplier (0.5 slow-mo, 1.0 normal, 2.0 fast)" },
+            { "wrd_wireframe", "wrd", "0/1", "Toggle polygon wireframe rendering mode" },
+            { "wrd_fog", "wrd", "0/1", "Toggle atmospheric corridor depth and height fog" },
+            { "wrd_fog_density", "wrd", "{val}", "Fog density coefficient (default: 0.02)" },
+            { "wrd_light_ambient", "wrd", "{hex/rgb}", "Scene global ambient lighting color and intensity" },
+
+            // CAM_ (CAMERA, VIEWMODEL & FOV)
+            { "cam_fov", "cam", "{deg}", "Main camera field of view in degrees (default: 75)" },
+            { "cam_viewmodel_fov", "cam", "{deg}", "Viewmodel weapon camera field of view" },
+            { "cam_viewmodel_offset", "cam", "{x y z}", "Weapon screen holding position offset" },
+            { "cam_thirdperson", "cam", "0/1", "Toggle third-person (TPP) over-the-shoulder camera" },
+            { "cam_bob", "cam", "0/1", "Toggle weapon and camera bobbing while moving" },
+            { "cam_shake", "cam", "{force}", "Trigger camera screen shake impulse" },
+            { "cam_freecam", "cam", "0/1", "Detach camera from player for free-flight scene inspection" },
+
+            // R_ (RENDERER, SHADERS & LOW-LEVEL GRAPHICS)
+            { "r_bloom", "r", "0/1", "Toggle subtle HDR bloom post-processing effect" },
+            { "r_fxaa", "r", "0/1", "Toggle fast approximate anti-aliasing (FXAA 3.11)" },
+            { "r_vsync", "r", "0/1", "Toggle vertical synchronization with monitor refresh rate" },
+            { "r_shadows", "r", "0/1", "Toggle dynamic shadow map rendering and depth pass" },
+            { "r_shadow_res", "r", "{res}", "Shadow map texture resolution (512, 1024, 2048)" },
+            { "r_lightmaps", "r", "0/1", "Toggle baked static surface lightmaps" },
+            { "r_normalmaps", "r", "0/1", "Toggle surface normal maps and tangent space lighting" },
+            { "r_cubemaps", "r", "0/1", "Toggle environment cubemap reflections" },
+            { "r_postprocess", "r", "0/1", "Master switch for all post-processing effects" },
+            { "r_reload_shaders", "r", "", "Hot-reload all GLSL shaders from disk without restart" },
+
+            // PHYS_ (PHYSICS, GRAVITY & BHOP MOMENTUM)
+            { "phys_gravity", "phys", "{val}", "Gravitational acceleration (default: 12.0)" },
+            { "phys_friction", "phys", "{val}", "Ground surface friction (default: 5.5, lower = slippery)" },
+            { "phys_air_accel", "phys", "{val}", "Air strafe acceleration multiplier (default: 12.0)" },
+            { "phys_bhop_window", "phys", "{sec}", "Timing window in seconds for perfect hop (default: 0.08s)" },
+            { "phys_max_bhop_speed", "phys", "{val}", "Horizontal speed ceiling to prevent runaway momentum (default: 11.5)" },
+            { "phys_step_height", "phys", "{val}", "Maximum obstacle stair step height for smooth climbing" },
+            { "phys_ragdoll_force", "phys", "{val}", "Impact impulse force multiplier on ragdoll bodies" },
+            { "phys_debug", "phys", "0/1", "Visualize physics velocity vectors and contact normal rays" },
+
+            // AI_ (ARTIFICIAL INTELLIGENCE & BOTS)
+            { "ai_disable", "ai", "0/1", "Completely pause AI behavior tree and decision logic" },
+            { "ai_freeze", "ai", "0/1", "Freeze AI bot transforms and movement in place" },
+            { "ai_sight", "ai", "0/1", "Visualize bot vision cone and perception range in 3D" },
+            { "ai_paths", "ai", "0/1", "Draw AI bot waypoint navigation paths in 3D scene" },
+            { "ai_aggro", "ai", "0/1", "Force immediate bot hostility against player" },
+            { "ai_ignore_player", "ai", "0/1", "Bots ignore player and focus on script scenario" },
+            { "ai_spawn", "ai", "{type}", "Spawn an AI bot at crosshair aim position" },
+
+            // SND_ (AUDIO 3D, VOLUME & PLAYBACK)
+            { "snd_volume", "snd", "{0.0-1.0}", "Master audio volume level" },
+            { "snd_music", "snd", "{0.0-1.0}", "Background music volume level" },
+            { "snd_sfx", "snd", "{0.0-1.0}", "Sound effects volume level (gunshots, footsteps, explosions)" },
+            { "snd_voice", "snd", "{0.0-1.0}", "Character dialogue and voice volume level" },
+            { "snd_play", "snd", "{path}", "Play specified .wav/.ogg audio file directly" },
+            { "snd_stop_all", "snd", "", "Stop and silence all active sound playback channels" },
+            { "snd_lipsync_test", "snd", "{file}", "Play audio line with test facial lip-sync animation" },
+            { "snd_restart", "snd", "", "Re-initialize audio device and sound engine" },
+
+            // UI_ (2D INTERFACE, HUD & SCALING)
+            { "ui_hide", "ui", "0/1", "Hide entire HUD and UI for clean cinematic screenshots" },
+            { "ui_crosshair", "ui", "0/1", "Toggle weapon crosshair on screen" },
+            { "ui_crosshair_color", "ui", "{hex}", "Set crosshair color (e.g. #00ff00 or #ffffff)" },
+            { "ui_scale", "ui", "{val}", "UI scaling multiplier for 1080p, 1440p and 4K displays" },
+            { "ui_menu", "ui", "{name}", "Open specific 2D menu screen (main, pause, options)" },
+            { "ui_reload", "ui", "", "Hot-reload active UI layout from .labui file" },
+
+            // DCL_ (DECALS, BULLET IMPACTS & BLOOD)
+            { "dcl_clear", "dcl", "", "Clear all decals, impact marks and blood stains from map" },
+            { "dcl_limit", "dcl", "{count}", "Maximum concurrent decal count in memory (default: 256)" },
+            { "dcl_spawn", "dcl", "{type}", "Place decal at crosshair: blood, bullet, dirt" },
+            { "dcl_distance", "dcl", "{meters}", "Maximum visibility distance for rendering decals" },
+
+            // MP_ (MULTIPLAYER MATCH & BOTS)
+            { "mp_a_bots", "mp", "{count}", "Set number of combat bots in Team Alpha" },
+            { "mp_b_bots", "mp", "{count}", "Set number of combat bots in Team Bravo" },
+            { "mp_bot_kick_all", "mp", "", "Kick and remove all active multiplayer bots" },
+            { "mp_bot_freeze", "mp", "0/1", "Freeze or unfreeze all multiplayer bots" },
+            { "mp_restart", "mp", "", "Restart current multiplayer match or round" },
+            { "mp_friendly_fire", "mp", "0/1", "Toggle friendly fire damage between teammates" },
+
+            // NET_ (NETWORK DIAGNOSTICS & LATENCY)
+            { "net_status", "net", "", "Display connection stats: tickrate, packet loss, jitter" },
+            { "net_fake_lag", "net", "{ms}", "Simulate artificial latency in milliseconds for QA" },
+            { "net_fake_loss", "net", "{0-100}", "Simulate artificial packet loss percentage for QA" },
+            { "net_connect", "net", "{ip:port}", "Connect to dedicated multiplayer server" },
+            { "net_disconnect", "net", "", "Disconnect from current server and return to main menu" },
+
+            // SYS_ (SYSTEM UTILITIES & CONSOLE)
+            { "sys_copylog", "sys", "", "Copy entire console output log to operating system clipboard" },
+            { "sys_clear", "sys", "", "Clear all text entries and history from console log" },
+            { "sys_help", "sys", "{prefix}", "Display command catalog or filter by category" },
+            { "sys_bind", "sys", "{key} {cmd}", "Bind key to console command (e.g. bind f5 wrd_restart)" },
+            { "sys_quit", "sys", "", "Immediately exit engine and terminate application" }
+        };
+
+        auto printDocLine = [this](const CmdDoc& d) {
+            std::string line = "  " + d.cmd;
+            if (!d.usage.empty()) line += " " + d.usage;
+            while (line.size() < 28) line += ' ';
+            line += " - " + d.desc;
+            print(line, Vec3(0.85f, 0.88f, 0.85f));
+        };
+
+        // Case 1: Empty filter -> Category overview
+        if (filter.empty() || filter == "?" || filter == "categories" || filter == "list") {
+            print("=== LAB ENGINE DEV CONSOLE COMMAND REFERENCE ===", Vec3(0.95f, 0.85f, 0.25f));
+            print("Command syntax: {prefix}_{command} {arguments}", Vec3(0.8f, 0.85f, 0.8f));
+            print("----------------------------------------------------------------------", Vec3(0.4f, 0.45f, 0.4f));
+            print("AVAILABLE PREFIX CATEGORIES:", Vec3(0.95f, 0.95f, 0.35f));
+            print("  sp_   : Cheats, player godmode, noclip, speed, jump, health & ammo", Vec3(0.85f, 0.9f, 0.85f));
+            print("  log_  : 2D HUD telemetry diagnostics (momentum, fps, ping, pos, ai...)", Vec3(0.85f, 0.9f, 0.85f));
+            print("  wrd_  : World environment, map loading, timescale, skybox, fog", Vec3(0.85f, 0.9f, 0.85f));
+            print("  cam_  : Camera perspective, FOV, viewmodel position, camera shake", Vec3(0.85f, 0.9f, 0.85f));
+            print("  r_    : Low-level renderer, bloom, shadows, FXAA, reload shaders", Vec3(0.85f, 0.9f, 0.85f));
+            print("  phys_ : Physics simulation, gravity, friction, air accel, bhop timing", Vec3(0.85f, 0.9f, 0.85f));
+            print("  ai_   : Combat AI, bot state, navigation paths, spawning", Vec3(0.85f, 0.9f, 0.85f));
+            print("  snd_  : 3D audio, master/music/sfx volume, playback, restart", Vec3(0.85f, 0.9f, 0.85f));
+            print("  ui_   : 2D user interface, HUD toggle, crosshair, UI scaling", Vec3(0.85f, 0.9f, 0.85f));
+            print("  dcl_  : Dynamic decals, impact marks, blood stains & limits", Vec3(0.85f, 0.9f, 0.85f));
+            print("  mp_   : Multiplayer arena, team bots, friendly fire, restart", Vec3(0.85f, 0.9f, 0.85f));
+            print("  net_  : Network diagnostics, tickrate, latency & simulated packet loss", Vec3(0.85f, 0.9f, 0.85f));
+            print("  sys_  : System utilities, copy log to clipboard, clear, bind, exit", Vec3(0.85f, 0.9f, 0.85f));
+            print("----------------------------------------------------------------------", Vec3(0.4f, 0.45f, 0.4f));
+            print("FILTERING & SEARCH EXAMPLES:", Vec3(0.95f, 0.95f, 0.35f));
+            print("  help sp     -> List all player & cheat commands", Vec3(0.9f, 0.95f, 0.9f));
+            print("  help log    -> List all 2D HUD telemetry diagnostics", Vec3(0.9f, 0.95f, 0.9f));
+            print("  help phys   -> List all physics & bunnyhop tuning commands", Vec3(0.9f, 0.95f, 0.9f));
+            print("  help all    -> Display complete catalog of ALL commands", Vec3(0.9f, 0.95f, 0.9f));
+            print("  help <cmd>  -> Show syntax and current value (e.g. 'help bhop')", Vec3(0.9f, 0.95f, 0.9f));
+            return;
+        }
+
+        // Case 2: Full catalog (help all)
+        if (filter == "all") {
+            print("=== COMPLETE LAB ENGINE COMMAND CATALOG ===", Vec3(0.95f, 0.85f, 0.25f));
+            std::string currentPfx;
+            for (const auto& d : docs) {
+                if (d.prefix != currentPfx) {
+                    currentPfx = d.prefix;
+                    print("[" + currentPfx + "_ CATEGORY]", Vec3(0.95f, 0.9f, 0.3f));
+                }
+                printDocLine(d);
+            }
+            return;
+        }
+
+        // Case 3: Category filter
+        bool isCategory = false;
+        for (const auto& d : docs) {
+            if (d.prefix == filter) {
+                isCategory = true;
+                break;
+            }
+        }
+
+        if (isCategory) {
+            std::string catName = filter;
+            std::transform(catName.begin(), catName.end(), catName.begin(), [](unsigned char c) { return (char)std::toupper(c); });
+            print("=== [" + catName + "_] COMMAND LIST ===", Vec3(0.95f, 0.85f, 0.25f));
+            for (const auto& d : docs) {
+                if (d.prefix == filter) {
+                    printDocLine(d);
+                }
+            }
+            return;
+        }
+
+        // Case 4: Search by command name or description
+        std::vector<const CmdDoc*> matches;
+        for (const auto& d : docs) {
+            if (d.cmd == filter) {
+                matches.push_back(&d);
+            }
+        }
+        if (matches.empty()) {
+            for (const auto& d : docs) {
+                if (d.cmd.find(filter) != std::string::npos || d.desc.find(filter) != std::string::npos) {
+                    matches.push_back(&d);
+                }
+            }
+        }
+
+        if (!matches.empty()) {
+            print("=== SEARCH RESULTS FOR '" + filter + "' ===", Vec3(0.95f, 0.85f, 0.25f));
+            for (const auto* d : matches) {
+                print("COMMAND:     " + d->cmd + (d->usage.empty() ? "" : (" " + d->usage)), Vec3(0.98f, 0.98f, 0.98f));
+                print("CATEGORY:    " + d->prefix + "_", Vec3(0.75f, 0.8f, 0.75f));
+                print("DESCRIPTION: " + d->desc, Vec3(0.85f, 0.9f, 0.85f));
+
+                // Display live CVar state if known
+                if (d->cmd == "sp_cheats") print("CURRENT VALUE: " + std::string(sp_cheats ? "1 (ENABLED)" : "0 (DISABLED)"), Vec3(0.35f, 0.95f, 0.45f));
+                else if (d->cmd == "sp_god") print("CURRENT VALUE: " + std::string(sp_god ? "1 (ON)" : "0 (OFF)"), Vec3(0.35f, 0.95f, 0.45f));
+                else if (d->cmd == "sp_noclip") print("CURRENT VALUE: " + std::string(sp_noclip ? "1 (ON)" : "0 (OFF)"), Vec3(0.35f, 0.95f, 0.45f));
+                else if (d->cmd == "sp_bhop") print("CURRENT VALUE: " + std::string(sp_bhop ? "1 (ON)" : "0 (OFF)"), Vec3(0.35f, 0.95f, 0.45f));
+                else if (d->cmd == "sp_speed") print("CURRENT VALUE: " + std::to_string(sp_speed), Vec3(0.35f, 0.95f, 0.45f));
+                else if (d->cmd == "sp_jump") print("CURRENT VALUE: " + std::to_string(sp_jump), Vec3(0.35f, 0.95f, 0.45f));
+                else if (d->cmd == "phys_gravity") print("CURRENT VALUE: " + std::to_string(phys_gravity), Vec3(0.35f, 0.95f, 0.45f));
+                else if (d->cmd == "phys_friction") print("CURRENT VALUE: " + std::to_string(phys_friction), Vec3(0.35f, 0.95f, 0.45f));
+                else if (d->cmd == "phys_air_accel") print("CURRENT VALUE: " + std::to_string(phys_air_accel), Vec3(0.35f, 0.95f, 0.45f));
+                else if (d->cmd == "phys_bhop_window") print("CURRENT VALUE: " + std::to_string(phys_bhop_window) + "s", Vec3(0.35f, 0.95f, 0.45f));
+                else if (d->cmd == "phys_max_bhop_speed") print("CURRENT VALUE: " + std::to_string(phys_max_bhop_speed), Vec3(0.35f, 0.95f, 0.45f));
+                else if (d->cmd == "cam_fov") print("CURRENT VALUE: " + std::to_string((int)cam_fov) + " deg", Vec3(0.35f, 0.95f, 0.45f));
+                else if (d->cmd == "wrd_timescale") print("CURRENT VALUE: " + std::to_string(wrd_timescale), Vec3(0.35f, 0.95f, 0.45f));
+                else if (d->cmd == "r_bloom") print("CURRENT VALUE: " + std::string(r_bloom ? "1 (ON)" : "0 (OFF)"), Vec3(0.35f, 0.95f, 0.45f));
+                else if (d->cmd == "r_fxaa") print("CURRENT VALUE: " + std::string(r_fxaa ? "1 (ON)" : "0 (OFF)"), Vec3(0.35f, 0.95f, 0.45f));
+                else if (d->cmd == "log_momentum") print("CURRENT VALUE: " + std::string(log_momentum ? "1 (ON)" : "0 (OFF)"), Vec3(0.35f, 0.95f, 0.45f));
+                else if (d->cmd == "log_fps") print("CURRENT VALUE: " + std::string(log_fps ? "1 (ON)" : "0 (OFF)"), Vec3(0.35f, 0.95f, 0.45f));
+                print("----------------------------------------------------------------------", Vec3(0.4f, 0.45f, 0.4f));
+            }
+            return;
+        }
+
+        print("No commands matching query '" + filter + "'. Type 'help' for full category list.", Vec3(1.0f, 0.4f, 0.4f));
     }
 
     bool LabDevConsole::onMouseButton(int button, int action, float mx, float my) {
@@ -470,13 +820,31 @@ namespace Lab {
             return false;
         }
 
+        float closeBtnX = windowX + windowW - 26.0f;
+        float closeBtnY = windowY + 6.0f;
+        float clearBtnX = closeBtnX - 58.0f;
+        float clearBtnY = windowY + 6.0f;
+        float copyBtnX = clearBtnX - 86.0f;
+        float copyBtnY = windowY + 6.0f;
+
         if (button == 0) { // Left Mouse Button
             if (action == 1) { // Pressed
                 // 1. Close button [X]
-                float closeBtnX = windowX + windowW - 26.0f;
-                float closeBtnY = windowY + 6.0f;
                 if (mx >= closeBtnX && mx <= closeBtnX + 22.0f && my >= closeBtnY && my <= closeBtnY + 22.0f) {
                     close();
+                    return true;
+                }
+
+                // 1b. Clear Log button [Clear]
+                if (mx >= clearBtnX && mx <= clearBtnX + 54.0f && my >= clearBtnY && my <= clearBtnY + 22.0f) {
+                    _entries.clear();
+                    print("[INFO] Console log cleared.", Vec3(0.7f, 0.75f, 0.7f));
+                    return true;
+                }
+
+                // 1c. Copy Log button [Copy Log]
+                if (mx >= copyBtnX && mx <= copyBtnX + 82.0f && my >= copyBtnY && my <= copyBtnY + 22.0f) {
+                    copyLogToClipboard();
                     return true;
                 }
 
@@ -508,8 +876,8 @@ namespace Lab {
                     }
                 }
 
-                // 4. Title bar dragging
-                if (my >= windowY && my <= windowY + titleH) {
+                // 4. Title bar dragging (anywhere on title bar except the buttons area)
+                if (my >= windowY && my <= windowY + titleH && mx >= windowX && mx < copyBtnX - 6.0f) {
                     isDragging = true;
                     dragOffsetX = mx - windowX;
                     dragOffsetY = my - windowY;
@@ -536,6 +904,23 @@ namespace Lab {
                 }
             } else if (action == 0) { // Released
                 isDragging = false;
+            }
+        } else if (button == 1 && action == 1) { // Right Mouse Button: Copy clicked line
+            float textW = windowW - 16.0f;
+            float textH = windowH - titleH - inputAreaH - 14.0f;
+            float textY = windowY + titleH + 6.0f;
+            if (mx >= textX && mx <= textX + textW && my >= textY && my <= textY + textH) {
+                float lineH = 26.0f;
+                int clickedRow = static_cast<int>((my - (textY + 6.0f)) / lineH);
+                int maxLines = (int)(textH / lineH) - 1;
+                int total = (int)_entries.size();
+                int endIdx = total - _scrollOffset;
+                int startIdx = std::max(0, endIdx - maxLines);
+                int entryIdx = startIdx + clickedRow;
+                if (entryIdx >= 0 && entryIdx < total) {
+                    copyLineToClipboard(entryIdx);
+                    return true;
+                }
             }
         }
 
@@ -590,13 +975,36 @@ namespace Lab {
             return true;
         }
 
-        // Clipboard: Ctrl+C (Copy)
-        if (ctrl && (key == 67 || key == 'c' || key == 'C')) { // GLFW_KEY_C = 67
+        // Clipboard: Ctrl+Shift+C (Copy Full Console Log)
+        if (ctrl && shift && (key == 67 || key == 'c' || key == 'C')) {
+            copyLogToClipboard();
+            return true;
+        }
+
+        // Clipboard: Ctrl+C (Copy current input, or copy full log if input is empty)
+        if (ctrl && !shift && (key == 67 || key == 'c' || key == 'C')) {
             if (!_currentInput.empty()) {
                 GLFWwindow* win = glfwGetCurrentContext();
                 if (win) {
                     glfwSetClipboardString(win, _currentInput.c_str());
                 }
+#if defined(_WIN32)
+                if (OpenClipboard(nullptr)) {
+                    EmptyClipboard();
+                    HGLOBAL hGlob = GlobalAlloc(GMEM_MOVEABLE, _currentInput.size() + 1);
+                    if (hGlob) {
+                        void* p = GlobalLock(hGlob);
+                        if (p) {
+                            memcpy(p, _currentInput.c_str(), _currentInput.size() + 1);
+                            GlobalUnlock(hGlob);
+                            SetClipboardData(CF_TEXT, hGlob);
+                        }
+                    }
+                    CloseClipboard();
+                }
+#endif
+            } else {
+                copyLogToClipboard();
             }
             return true;
         }
@@ -837,6 +1245,22 @@ namespace Lab {
         Renderer::drawRect(closeBtnX, closeBtnY, 20.0f, 1.0f, borderLight);
         Renderer::drawRect(closeBtnX, closeBtnY + 19.0f, 20.0f, 1.0f, borderDark);
         LabFont::drawText(closeBtnX + 5.0f, closeBtnY + 2.0f, "x", 1.5f, Vec3(0.85f, 0.9f, 0.85f), LabFontType::GeoSans);
+
+        // Clear Button [Clear] next to [X]
+        float clearBtnX = closeBtnX - 58.0f;
+        float clearBtnY = windowY + 6.0f;
+        Renderer::drawRect(clearBtnX, clearBtnY, 52.0f, 20.0f, Vec3(0.28f, 0.32f, 0.26f));
+        Renderer::drawRect(clearBtnX, clearBtnY, 52.0f, 1.0f, borderLight);
+        Renderer::drawRect(clearBtnX, clearBtnY + 19.0f, 52.0f, 1.0f, borderDark);
+        LabFont::drawText(clearBtnX + 8.0f, clearBtnY + 2.0f, "Clear", 1.4f, Vec3(0.85f, 0.9f, 0.85f), LabFontType::GeoSans);
+
+        // Copy Log Button [Copy Log] next to [Clear]
+        float copyBtnX = clearBtnX - 86.0f;
+        float copyBtnY = windowY + 6.0f;
+        Renderer::drawRect(copyBtnX, copyBtnY, 80.0f, 20.0f, Vec3(0.24f, 0.38f, 0.28f));
+        Renderer::drawRect(copyBtnX, copyBtnY, 80.0f, 1.0f, borderLight);
+        Renderer::drawRect(copyBtnX, copyBtnY + 19.0f, 80.0f, 1.0f, borderDark);
+        LabFont::drawText(copyBtnX + 7.0f, copyBtnY + 2.0f, "Copy Log", 1.4f, Vec3(0.88f, 0.98f, 0.88f), LabFontType::GeoSans);
 
         // 3. Inner Log Text Area (Sunken)
         float textX = windowX + 8.0f;

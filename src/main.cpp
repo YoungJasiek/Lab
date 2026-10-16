@@ -903,6 +903,12 @@ public:
                 _devConsole.onMouseButton(0, 0, static_cast<float>(curX), static_cast<float>(curY));
             }
 
+            if (Input::isMouseButtonJustPressed(1)) {
+                _devConsole.onMouseButton(1, 1, static_cast<float>(curX), static_cast<float>(curY));
+            } else if (Input::isMouseButtonJustReleased(1)) {
+                _devConsole.onMouseButton(1, 0, static_cast<float>(curX), static_cast<float>(curY));
+            }
+
             if (Input::scrollDelta != 0.0f) {
                 _devConsole.onMouseScroll(Input::scrollDelta);
             }

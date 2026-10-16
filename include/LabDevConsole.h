@@ -44,6 +44,11 @@ namespace Lab {
         void print(const std::string& line, const Vec3& color = Vec3(0.85f, 0.85f, 0.85f));
         void execute(const std::string& commandLine);
 
+        // Clipboard & Utilities
+        void copyLogToClipboard();
+        void copyLineToClipboard(int lineIndex);
+        const std::deque<DevConsoleEntry>& getEntries() const { return _entries; }
+
         // Input Processing
         bool onKey(int key, int action, bool shift = false, bool ctrl = false);
         void onChar(unsigned int codepoint);
@@ -141,6 +146,7 @@ namespace Lab {
         void registerKnownCommands();
         void updateAutocomplete();
         void dispatchCommand(const std::string& prefix, const std::string& name, const std::string& args);
+        void handleHelpCommand(const std::string& filter);
 
         std::string _currentInput;
         int _cursorPos = 0;

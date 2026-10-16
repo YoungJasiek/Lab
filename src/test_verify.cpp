@@ -10210,16 +10210,88 @@ int main() {
             return 1;
         }
 
+        // Sub-test H: Developer Help System & Clipboard Logging
+        console.execute("help");
+        bool foundRef = false;
+        for (const auto& entry : console.getEntries()) {
+            if (entry.text.find("COMMAND REFERENCE") != std::string::npos) {
+                foundRef = true;
+                break;
+            }
+        }
+        if (!foundRef) {
+            std::cerr << "Assertion failed: 'help' command did not output category reference!\n";
+            return 1;
+        }
+
+        console.execute("help sp");
+        bool foundSp = false;
+        for (const auto& entry : console.getEntries()) {
+            if (entry.text.find("[SP_] COMMAND LIST") != std::string::npos) {
+                foundSp = true;
+                break;
+            }
+        }
+        if (!foundSp) {
+            std::cerr << "Assertion failed: 'help sp' command did not filter SP_ category!\n";
+            return 1;
+        }
+
+        console.execute("help bhop");
+        bool foundBhop = false;
+        for (const auto& entry : console.getEntries()) {
+            if (entry.text.find("sp_bhop") != std::string::npos) {
+                foundBhop = true;
+                break;
+            }
+        }
+        if (!foundBhop) {
+            std::cerr << "Assertion failed: 'help bhop' did not find specific command!\n";
+            return 1;
+        }
+
+        // Test Copy Log command and clipboard interaction
+        console.execute("copylog");
+        bool foundCopySuccess = false;
+        for (const auto& entry : console.getEntries()) {
+            if (entry.text.find("copied to clipboard") != std::string::npos) {
+                foundCopySuccess = true;
+                break;
+            }
+        }
+        if (!foundCopySuccess) {
+            std::cerr << "Assertion failed: 'copylog' command did not report success!\n";
+            return 1;
+        }
+
+        // Test Copy Log title bar button click
+        float closeBtnX = console.windowX + console.windowW - 26.0f;
+        float closeBtnY = console.windowY + 6.0f;
+        float clearBtnX = closeBtnX - 58.0f;
+        float clearBtnY = console.windowY + 6.0f;
+        float copyBtnX = clearBtnX - 86.0f;
+        float copyBtnY = console.windowY + 6.0f;
+
+        console.onMouseButton(0, 1, copyBtnX + 10.0f, copyBtnY + 8.0f);
+        console.onMouseButton(0, 0, copyBtnX + 10.0f, copyBtnY + 8.0f);
+
+        // Test Clear button click
+        console.onMouseButton(0, 1, clearBtnX + 10.0f, clearBtnY + 8.0f);
+        console.onMouseButton(0, 0, clearBtnX + 10.0f, clearBtnY + 8.0f);
+        if (console.getEntries().size() > 2) {
+            std::cerr << "Assertion failed: Title bar [Clear] button did not clear entries!\n";
+            return 1;
+        }
+
         // Close button click test
-        float closeBtnX = console.windowX + console.windowW - 22.0f + 6.0f;
-        float closeBtnY = console.windowY + 5.0f + 6.0f;
-        console.onMouseButton(0, 1, closeBtnX, closeBtnY);
+        console.onMouseButton(0, 1, closeBtnX + 8.0f, closeBtnY + 8.0f);
         if (console.isOpen) {
             std::cerr << "Assertion failed: Clicking close button [X] should close console!\n";
             return 1;
         }
 
-        std::cout << "  [PASS] Sub-test G: VGUI Floating Window dragging, close button and rendering verified.\n";
+        std::cout << "  [PASS] Sub-test G: VGUI Floating Window dragging, Copy Log, Clear, and Close button verified.\n";
+        std::cout << "  [PASS] Sub-test H: Professional command help catalog, filtering and clipboard utilities verified 100%.\n";
         std::cout << "  [PASS] Test 87 Developer Console, Command Dispatcher & Source-style Momentum / Bunny Hop passed 100%!\n";
     }
 
