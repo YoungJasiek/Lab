@@ -238,6 +238,15 @@ namespace Lab {
             return;
         }
 
+        {
+            const auto* renderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
+            const auto* vendor = reinterpret_cast<const char*>(glGetString(GL_VENDOR));
+            const auto* version = reinterpret_cast<const char*>(glGetString(GL_VERSION));
+            LabLog::info(std::string("[LabCore] GPU: ") + (renderer ? renderer : "?") +
+                         " | Vendor: " + (vendor ? vendor : "?") +
+                         " | GL: " + (version ? version : "?"));
+        }
+
         // Enable VSync (caps framerate to monitor refresh rate, prevents 100% GPU utilization)
         glfwSwapInterval(1);
 

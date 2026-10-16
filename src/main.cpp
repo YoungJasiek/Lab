@@ -1,6 +1,7 @@
 #include "Lab.h"
 #include "LabFont.h"
 #include "LabDialogs.h"
+#include "LabGpuPreference.h"
 #include "../games/frozen_life/include/FrozenLifeAnim.h"
 #include <iostream>
 #include <algorithm>

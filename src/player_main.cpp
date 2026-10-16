@@ -1,5 +1,6 @@
 #include "Lab.h"
 #include "LabFont.h"
+#include "LabGpuPreference.h"
 #include "LabHUDEditor.h"
 #include "LabScript.h"
 #include "LabProject.h"
