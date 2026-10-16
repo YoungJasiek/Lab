@@ -21,8 +21,8 @@ namespace Lab {
     LabDevConsole::LabDevConsole() {
         registerKnownCommands();
 
-        print("Lab Engine Developer Console initialized.", Vec3(0.85f, 0.95f, 0.85f));
-        print("Type 'help' for command list. Press [~] or [ESC] to close.", Vec3(0.7f, 0.75f, 0.7f));
+        print("Lab Engine Developer Console initialized.", Vec3(0.90f, 0.90f, 0.90f));
+        print("Type 'help' for command list. Press [~] or [ESC] to close.", Vec3(0.75f, 0.75f, 0.75f));
     }
 
     void LabDevConsole::open() {
@@ -93,7 +93,7 @@ namespace Lab {
 
         if (ok) {
             print("[SUCCESS] Entire console log copied to clipboard (" + std::to_string(_entries.size()) + " lines).",
-                  Vec3(0.35f, 0.95f, 0.45f));
+                  Vec3(0.90f, 0.90f, 0.90f));
         } else {
             print("[ERROR] Failed to access system clipboard.", Vec3(1.0f, 0.35f, 0.35f));
         }
@@ -128,7 +128,7 @@ namespace Lab {
 #endif
 
         if (ok) {
-            print("[COPIED LINE] \"" + line + "\"", Vec3(0.35f, 0.95f, 0.45f));
+            print("[COPIED LINE] \"" + line + "\"", Vec3(0.90f, 0.90f, 0.90f));
         }
     }
 
@@ -307,7 +307,7 @@ namespace Lab {
                 int b = parseBool(args);
                 if (b >= 0) sp_cheats = (b == 1);
                 print(std::string("sp_cheats set to ") + (sp_cheats ? "1" : "0"),
-                      sp_cheats ? Vec3(0.3f, 0.95f, 0.4f) : Vec3(1.0f, 0.4f, 0.4f));
+                      sp_cheats ? Vec3(0.92f, 0.92f, 0.92f) : Vec3(0.90f, 0.45f, 0.45f));
                 return;
             }
 
@@ -321,57 +321,57 @@ namespace Lab {
             if (n == "god") {
                 int b = parseBool(args);
                 sp_god = (b >= 0) ? (b == 1) : !sp_god;
-                print(std::string("godmode ") + (sp_god ? "ON" : "OFF"), Vec3(0.9f, 0.9f, 0.3f));
+                print(std::string("godmode ") + (sp_god ? "ON" : "OFF"), Vec3(0.92f, 0.92f, 0.92f));
             } else if (n == "noclip") {
                 int b = parseBool(args);
                 sp_noclip = (b >= 0) ? (b == 1) : !sp_noclip;
-                print(std::string("noclip ") + (sp_noclip ? "ON" : "OFF"), Vec3(0.9f, 0.9f, 0.3f));
+                print(std::string("noclip ") + (sp_noclip ? "ON" : "OFF"), Vec3(0.92f, 0.92f, 0.92f));
             } else if (n == "bhop") {
                 int b = parseBool(args);
                 sp_bhop = (b >= 0) ? (b == 1) : !sp_bhop;
-                print(std::string("bhop ") + (sp_bhop ? "ENABLED" : "DISABLED"), Vec3(0.9f, 0.9f, 0.3f));
+                print(std::string("bhop ") + (sp_bhop ? "ENABLED" : "DISABLED"), Vec3(0.92f, 0.92f, 0.92f));
             } else if (n == "speed") {
                 try {
                     float s = std::stof(args);
                     sp_speed = std::clamp(s, 0.1f, 10.0f);
-                    print("sp_speed = " + std::to_string(sp_speed), Vec3(0.9f, 0.9f, 0.9f));
+                    print("sp_speed = " + std::to_string(sp_speed), Vec3(0.92f, 0.92f, 0.92f));
                 } catch (...) {
-                    print("sp_speed currently: " + std::to_string(sp_speed), Vec3(0.7f, 0.7f, 0.7f));
+                    print("sp_speed currently: " + std::to_string(sp_speed), Vec3(0.75f, 0.75f, 0.75f));
                 }
             } else if (n == "jump") {
                 try {
                     float j = std::stof(args);
                     sp_jump = std::clamp(j, 1.0f, 30.0f);
-                    print("sp_jump = " + std::to_string(sp_jump), Vec3(0.9f, 0.9f, 0.9f));
+                    print("sp_jump = " + std::to_string(sp_jump), Vec3(0.92f, 0.92f, 0.92f));
                 } catch (...) {
-                    print("sp_jump currently: " + std::to_string(sp_jump), Vec3(0.7f, 0.7f, 0.7f));
+                    print("sp_jump currently: " + std::to_string(sp_jump), Vec3(0.75f, 0.75f, 0.75f));
                 }
             } else if (n == "heal") {
                 int val = 100;
                 try { if (!args.empty()) val = std::stoi(args); } catch (...) {}
                 if (onHeal) onHeal(val);
-                print("Giving player " + std::to_string(val) + " health", Vec3(0.3f, 0.95f, 0.4f));
+                print("Giving player " + std::to_string(val) + " health", Vec3(0.92f, 0.92f, 0.92f));
             } else if (n == "armor") {
                 int val = 100;
                 try { if (!args.empty()) val = std::stoi(args); } catch (...) {}
                 if (onArmor) onArmor(val);
-                print("Giving player " + std::to_string(val) + " suit armor", Vec3(0.3f, 0.85f, 1.0f));
+                print("Giving player " + std::to_string(val) + " suit armor", Vec3(0.92f, 0.92f, 0.92f));
             } else if (n == "ammo") {
                 int val = 250;
                 try { if (!args.empty()) val = std::stoi(args); } catch (...) {}
                 if (onAmmo) onAmmo(val);
-                print("Ammo replenished (" + std::to_string(val) + " rounds)", Vec3(1.0f, 0.9f, 0.2f));
+                print("Ammo replenished (" + std::to_string(val) + " rounds)", Vec3(0.92f, 0.92f, 0.92f));
             } else if (n == "get" || n == "give") {
                 try {
                     int wId = std::stoi(args);
                     if (onGetWeapon) onGetWeapon(wId);
-                    print("Acquired weapon ID #" + std::to_string(wId), Vec3(0.3f, 0.9f, 1.0f));
+                    print("Acquired weapon ID #" + std::to_string(wId), Vec3(0.92f, 0.92f, 0.92f));
                 } catch (...) {
                     print("Usage: sp_get <weapon_id> (101..109)", Vec3(1.0f, 0.4f, 0.4f));
                 }
             } else if (n == "give_all" || n == "impulse101") {
                 if (onGiveAll) onGiveAll();
-                print("All weapons and maximum ammunition unlocked!", Vec3(0.3f, 0.95f, 0.4f));
+                print("All weapons and maximum ammunition unlocked!", Vec3(0.92f, 0.92f, 0.92f));
             } else if (n == "respawn") {
                 if (onRespawn) onRespawn();
                 print("Respawning player...", Vec3(0.85f, 0.85f, 0.85f));
@@ -819,24 +819,24 @@ namespace Lab {
                 print("DESCRIPTION: " + d->desc, Vec3(0.85f, 0.9f, 0.85f));
 
                 // Display live CVar state if known
-                if (d->cmd == "sp_cheats") print("CURRENT VALUE: " + std::string(sp_cheats ? "1 (ENABLED)" : "0 (DISABLED)"), Vec3(0.35f, 0.95f, 0.45f));
-                else if (d->cmd == "sp_god") print("CURRENT VALUE: " + std::string(sp_god ? "1 (ON)" : "0 (OFF)"), Vec3(0.35f, 0.95f, 0.45f));
-                else if (d->cmd == "sp_noclip") print("CURRENT VALUE: " + std::string(sp_noclip ? "1 (ON)" : "0 (OFF)"), Vec3(0.35f, 0.95f, 0.45f));
-                else if (d->cmd == "sp_bhop") print("CURRENT VALUE: " + std::string(sp_bhop ? "1 (ON)" : "0 (OFF)"), Vec3(0.35f, 0.95f, 0.45f));
-                else if (d->cmd == "sp_speed") print("CURRENT VALUE: " + std::to_string(sp_speed), Vec3(0.35f, 0.95f, 0.45f));
-                else if (d->cmd == "sp_jump") print("CURRENT VALUE: " + std::to_string(sp_jump), Vec3(0.35f, 0.95f, 0.45f));
-                else if (d->cmd == "phys_gravity") print("CURRENT VALUE: " + std::to_string(phys_gravity), Vec3(0.35f, 0.95f, 0.45f));
-                else if (d->cmd == "phys_friction") print("CURRENT VALUE: " + std::to_string(phys_friction), Vec3(0.35f, 0.95f, 0.45f));
-                else if (d->cmd == "phys_air_accel") print("CURRENT VALUE: " + std::to_string(phys_air_accel), Vec3(0.35f, 0.95f, 0.45f));
-                else if (d->cmd == "phys_bhop_window") print("CURRENT VALUE: " + std::to_string(phys_bhop_window) + "s", Vec3(0.35f, 0.95f, 0.45f));
-                else if (d->cmd == "phys_max_bhop_speed") print("CURRENT VALUE: " + std::to_string(phys_max_bhop_speed), Vec3(0.35f, 0.95f, 0.45f));
-                else if (d->cmd == "cam_fov") print("CURRENT VALUE: " + std::to_string((int)cam_fov) + " deg", Vec3(0.35f, 0.95f, 0.45f));
-                else if (d->cmd == "wrd_timescale") print("CURRENT VALUE: " + std::to_string(wrd_timescale), Vec3(0.35f, 0.95f, 0.45f));
-                else if (d->cmd == "r_bloom") print("CURRENT VALUE: " + std::string(r_bloom ? "1 (ON)" : "0 (OFF)"), Vec3(0.35f, 0.95f, 0.45f));
-                else if (d->cmd == "r_fxaa") print("CURRENT VALUE: " + std::string(r_fxaa ? "1 (ON)" : "0 (OFF)"), Vec3(0.35f, 0.95f, 0.45f));
-                else if (d->cmd == "log_momentum") print("CURRENT VALUE: " + std::string(log_momentum ? "1 (ON)" : "0 (OFF)"), Vec3(0.35f, 0.95f, 0.45f));
-                else if (d->cmd == "log_fps") print("CURRENT VALUE: " + std::string(log_fps ? "1 (ON)" : "0 (OFF)"), Vec3(0.35f, 0.95f, 0.45f));
-                print("----------------------------------------------------------------------", Vec3(0.4f, 0.45f, 0.4f));
+                if (d->cmd == "sp_cheats") print("CURRENT VALUE: " + std::string(sp_cheats ? "1 (ENABLED)" : "0 (DISABLED)"), Vec3(0.92f, 0.92f, 0.92f));
+                else if (d->cmd == "sp_god") print("CURRENT VALUE: " + std::string(sp_god ? "1 (ON)" : "0 (OFF)"), Vec3(0.92f, 0.92f, 0.92f));
+                else if (d->cmd == "sp_noclip") print("CURRENT VALUE: " + std::string(sp_noclip ? "1 (ON)" : "0 (OFF)"), Vec3(0.92f, 0.92f, 0.92f));
+                else if (d->cmd == "sp_bhop") print("CURRENT VALUE: " + std::string(sp_bhop ? "1 (ON)" : "0 (OFF)"), Vec3(0.92f, 0.92f, 0.92f));
+                else if (d->cmd == "sp_speed") print("CURRENT VALUE: " + std::to_string(sp_speed), Vec3(0.92f, 0.92f, 0.92f));
+                else if (d->cmd == "sp_jump") print("CURRENT VALUE: " + std::to_string(sp_jump), Vec3(0.92f, 0.92f, 0.92f));
+                else if (d->cmd == "phys_gravity") print("CURRENT VALUE: " + std::to_string(phys_gravity), Vec3(0.92f, 0.92f, 0.92f));
+                else if (d->cmd == "phys_friction") print("CURRENT VALUE: " + std::to_string(phys_friction), Vec3(0.92f, 0.92f, 0.92f));
+                else if (d->cmd == "phys_air_accel") print("CURRENT VALUE: " + std::to_string(phys_air_accel), Vec3(0.92f, 0.92f, 0.92f));
+                else if (d->cmd == "phys_bhop_window") print("CURRENT VALUE: " + std::to_string(phys_bhop_window) + "s", Vec3(0.92f, 0.92f, 0.92f));
+                else if (d->cmd == "phys_max_bhop_speed") print("CURRENT VALUE: " + std::to_string(phys_max_bhop_speed), Vec3(0.92f, 0.92f, 0.92f));
+                else if (d->cmd == "cam_fov") print("CURRENT VALUE: " + std::to_string((int)cam_fov) + " deg", Vec3(0.92f, 0.92f, 0.92f));
+                else if (d->cmd == "wrd_timescale") print("CURRENT VALUE: " + std::to_string(wrd_timescale), Vec3(0.92f, 0.92f, 0.92f));
+                else if (d->cmd == "r_bloom") print("CURRENT VALUE: " + std::string(r_bloom ? "1 (ON)" : "0 (OFF)"), Vec3(0.92f, 0.92f, 0.92f));
+                else if (d->cmd == "r_fxaa") print("CURRENT VALUE: " + std::string(r_fxaa ? "1 (ON)" : "0 (OFF)"), Vec3(0.92f, 0.92f, 0.92f));
+                else if (d->cmd == "log_momentum") print("CURRENT VALUE: " + std::string(log_momentum ? "1 (ON)" : "0 (OFF)"), Vec3(0.92f, 0.92f, 0.92f));
+                else if (d->cmd == "log_fps") print("CURRENT VALUE: " + std::string(log_fps ? "1 (ON)" : "0 (OFF)"), Vec3(0.92f, 0.92f, 0.92f));
+                print("----------------------------------------------------------------------", Vec3(0.35f, 0.35f, 0.35f));
             }
             return;
         }
@@ -1333,13 +1333,14 @@ namespace Lab {
         windowX = std::clamp(windowX, 0.0f, std::max(0.0f, (float)screenW - 80.0f));
         windowY = std::clamp(windowY, 0.0f, std::max(0.0f, (float)screenH - titleH));
 
-        // ==================== CONSOLE THEME COLOR PALETTE ====================
-        Vec3 frameBg(0.28f, 0.33f, 0.27f);      // #475445 (Muted olive-green frame)
-        Vec3 titleBg(0.24f, 0.28f, 0.23f);      // #3d473b (Darker olive title bar)
-        Vec3 borderLight(0.38f, 0.44f, 0.36f);  // 3D Bevel highlight
-        Vec3 borderDark(0.15f, 0.18f, 0.14f);   // 3D Bevel shadow
-        Vec3 textAreaBg(0.14f, 0.16f, 0.13f);   // #242921 (Dark text area)
-        Vec3 inputBg(0.18f, 0.21f, 0.17f);      // #2e362b (Input box)
+        // ==================== CLEAN VGUI CONSOLE THEME ====================
+        Vec3 frameBg(0.25f, 0.26f, 0.27f);      // Clean neutral medium dark-grey (#404245)
+        Vec3 titleBg(0.22f, 0.23f, 0.24f);      // Clean neutral title bar (#383a3d)
+        Vec3 borderLight(0.42f, 0.43f, 0.45f);  // Crisp metallic bevel highlight
+        Vec3 borderDark(0.12f, 0.12f, 0.13f);   // Clean bevel shadow
+        Vec3 textAreaBg(0.13f, 0.13f, 0.14f);   // Clean dark charcoal text area (#212124)
+        Vec3 inputBg(0.16f, 0.17f, 0.17f);      // Clean dark sunken input field (#292b2c)
+        Vec3 buttonBg(0.30f, 0.31f, 0.32f);     // Clean neutral button (#4d4f52)
 
         // 1. Window Outer Frame & 3D Bevel
         Renderer::drawRect(windowX, windowY, windowW, windowH, frameBg);
@@ -1350,31 +1351,31 @@ namespace Lab {
 
         // 2. Title Bar
         Renderer::drawRect(windowX + 2.0f, windowY + 2.0f, windowW - 4.0f, titleH, titleBg);
-        LabFont::drawText(windowX + 12.0f, windowY + 7.0f, "Console", 1.8f, Vec3(0.92f, 0.95f, 0.92f), LabFontType::System);
+        LabFont::drawText(windowX + 10.0f, windowY + 7.0f, "Console", 1.8f, Vec3(0.92f, 0.92f, 0.92f), LabFontType::System);
 
         // Close Button [X] on top right
         float closeBtnX = windowX + windowW - 26.0f;
         float closeBtnY = windowY + 6.0f;
-        Renderer::drawRect(closeBtnX, closeBtnY, 20.0f, 20.0f, Vec3(0.32f, 0.37f, 0.30f));
+        Renderer::drawRect(closeBtnX, closeBtnY, 20.0f, 20.0f, buttonBg);
         Renderer::drawRect(closeBtnX, closeBtnY, 20.0f, 1.0f, borderLight);
         Renderer::drawRect(closeBtnX, closeBtnY + 19.0f, 20.0f, 1.0f, borderDark);
-        LabFont::drawText(closeBtnX + 5.0f, closeBtnY + 2.0f, "x", 1.5f, Vec3(0.85f, 0.9f, 0.85f), LabFontType::System);
+        LabFont::drawText(closeBtnX + 6.0f, closeBtnY + 2.0f, "x", 1.5f, Vec3(0.90f, 0.90f, 0.90f), LabFontType::System);
 
         // Clear Button [Clear] next to [X]
         float clearBtnX = closeBtnX - 58.0f;
         float clearBtnY = windowY + 6.0f;
-        Renderer::drawRect(clearBtnX, clearBtnY, 52.0f, 20.0f, Vec3(0.28f, 0.32f, 0.26f));
+        Renderer::drawRect(clearBtnX, clearBtnY, 52.0f, 20.0f, buttonBg);
         Renderer::drawRect(clearBtnX, clearBtnY, 52.0f, 1.0f, borderLight);
         Renderer::drawRect(clearBtnX, clearBtnY + 19.0f, 52.0f, 1.0f, borderDark);
-        LabFont::drawText(clearBtnX + 8.0f, clearBtnY + 2.0f, "Clear", 1.4f, Vec3(0.85f, 0.9f, 0.85f), LabFontType::System);
+        LabFont::drawText(clearBtnX + 8.0f, clearBtnY + 2.0f, "Clear", 1.4f, Vec3(0.90f, 0.90f, 0.90f), LabFontType::System);
 
         // Copy Log Button [Copy Log] next to [Clear]
         float copyBtnX = clearBtnX - 86.0f;
         float copyBtnY = windowY + 6.0f;
-        Renderer::drawRect(copyBtnX, copyBtnY, 80.0f, 20.0f, Vec3(0.24f, 0.38f, 0.28f));
+        Renderer::drawRect(copyBtnX, copyBtnY, 80.0f, 20.0f, buttonBg);
         Renderer::drawRect(copyBtnX, copyBtnY, 80.0f, 1.0f, borderLight);
         Renderer::drawRect(copyBtnX, copyBtnY + 19.0f, 80.0f, 1.0f, borderDark);
-        LabFont::drawText(copyBtnX + 7.0f, copyBtnY + 2.0f, "Copy Log", 1.4f, Vec3(0.88f, 0.98f, 0.88f), LabFontType::System);
+        LabFont::drawText(copyBtnX + 7.0f, copyBtnY + 2.0f, "Copy Log", 1.4f, Vec3(0.90f, 0.90f, 0.90f), LabFontType::System);
 
         // 3. Inner Log Text Area (Sunken)
         float textX = windowX + 8.0f;
@@ -1408,7 +1409,7 @@ namespace Lab {
         float sbX = textX + textW - sbW - 2.0f;
         float sbY = textY + 2.0f;
         float sbH = textH - 4.0f;
-        Renderer::drawRect(sbX, sbY, sbW, sbH, Vec3(0.11f, 0.13f, 0.10f));
+        Renderer::drawRect(sbX, sbY, sbW, sbH, Vec3(0.09f, 0.09f, 0.10f));
 
         if (total > maxLines && total > 0) {
             float thumbRatio = std::clamp((float)maxLines / (float)total, 0.15f, 1.0f);
@@ -1417,7 +1418,7 @@ namespace Lab {
             float scrollProgress = (maxScroll > 0) ? (float)(maxScroll - _scrollOffset) / (float)maxScroll : 1.0f;
             float thumbY = sbY + (sbH - thumbH) * scrollProgress;
 
-            Renderer::drawRect(sbX + 1.0f, thumbY, sbW - 2.0f, thumbH, Vec3(0.35f, 0.40f, 0.33f));
+            Renderer::drawRect(sbX + 1.0f, thumbY, sbW - 2.0f, thumbH, Vec3(0.32f, 0.33f, 0.34f));
             Renderer::drawRect(sbX + 1.0f, thumbY, sbW - 2.0f, 1.0f, borderLight);
             Renderer::drawRect(sbX + 1.0f, thumbY + thumbH - 1.0f, sbW - 2.0f, 1.0f, borderDark);
         }
@@ -1433,32 +1434,29 @@ namespace Lab {
         Renderer::drawRect(textX, inputY + 33.0f, inputW, 1.0f, borderLight);
         Renderer::drawRect(textX + inputW - 1.0f, inputY, 1.0f, 34.0f, borderLight);
 
-        // Prompt "] " in clean accent green
-        LabFont::drawText(textX + 8.0f, inputY + 7.0f, "] ", 1.9f, Vec3(0.45f, 0.95f, 0.45f), LabFontType::Monospace);
+        // Prompt "] " in clean neutral off-white
+        LabFont::drawText(textX + 8.0f, inputY + 7.0f, "] ", 1.9f, Vec3(0.90f, 0.90f, 0.90f), LabFontType::Monospace);
         float promptW = LabFont::getTextWidth("] ", 1.9f, LabFontType::Monospace);
 
         // User typed command text in clear monospace
-        LabFont::drawText(textX + 8.0f + promptW, inputY + 7.0f, _currentInput, 1.9f, Vec3(0.95f, 0.98f, 0.95f), LabFontType::Monospace);
+        LabFont::drawText(textX + 8.0f + promptW, inputY + 7.0f, _currentInput, 1.9f, Vec3(0.96f, 0.96f, 0.96f), LabFontType::Monospace);
 
-        // Prominent blinking underscore cursor
+        // Clean standard blinking text caret
         bool blink = (std::fmod(_cursorBlink, 2.0f) < 1.0f);
         if (blink) {
             float cursorXOffset = LabFont::getTextWidth(_currentInput.substr(0, _cursorPos), 1.9f, LabFontType::Monospace);
             float curDrawX = textX + 8.0f + promptW + cursorXOffset;
-            // Draw thick solid underscore cursor bar
-            Renderer::drawRect(curDrawX, inputY + 27.0f, 10.0f, 3.0f, Vec3(0.35f, 1.0f, 0.45f));
-            // Also draw monospace '_' glyph at baseline for maximum clarity
-            LabFont::drawText(curDrawX, inputY + 7.0f, "_", 1.9f, Vec3(0.35f, 1.0f, 0.45f), LabFontType::Monospace);
+            Renderer::drawRect(curDrawX, inputY + 7.0f, 2.0f, 20.0f, Vec3(0.96f, 0.96f, 0.96f));
         }
 
         // 5. Submit Button (Raised Bevel)
         float submitX = textX + inputW + 8.0f;
-        Renderer::drawRect(submitX, inputY, submitW, 34.0f, Vec3(0.32f, 0.38f, 0.30f));
+        Renderer::drawRect(submitX, inputY, submitW, 34.0f, Vec3(0.33f, 0.34f, 0.35f));
         Renderer::drawRect(submitX, inputY, submitW, 1.0f, borderLight);
         Renderer::drawRect(submitX, inputY, 1.0f, 34.0f, borderLight);
         Renderer::drawRect(submitX, inputY + 33.0f, submitW, 1.0f, borderDark);
         Renderer::drawRect(submitX + submitW - 1.0f, inputY, 1.0f, 34.0f, borderDark);
-        LabFont::drawText(submitX + 16.0f, inputY + 7.0f, "Submit", 1.6f, Vec3(0.92f, 0.95f, 0.92f), LabFontType::System);
+        LabFont::drawText(submitX + 16.0f, inputY + 7.0f, "Submit", 1.6f, Vec3(0.92f, 0.92f, 0.92f), LabFontType::System);
 
         // 6. Autocomplete Suggestion Popup (Rendered right below input)
         if (!_activeSuggestions.empty()) {
@@ -1467,7 +1465,7 @@ namespace Lab {
             float popH = (float)_activeSuggestions.size() * popItemH + 8.0f;
             float popY = inputY + 36.0f;
 
-            Renderer::drawRect(textX, popY, popW, popH, Vec3(0.14f, 0.17f, 0.13f));
+            Renderer::drawRect(textX, popY, popW, popH, Vec3(0.18f, 0.19f, 0.20f));
             Renderer::drawRect(textX, popY, popW, 1.0f, borderLight);
             Renderer::drawRect(textX, popY, 1.0f, popH, borderLight);
             Renderer::drawRect(textX, popY + popH - 1.0f, popW, 1.0f, borderDark);
@@ -1477,10 +1475,10 @@ namespace Lab {
             for (size_t s = 0; s < _activeSuggestions.size(); ++s) {
                 bool isSel = ((int)s == _selectedSuggestion);
                 if (isSel) {
-                    Renderer::drawRect(textX + 2.0f, curSugY - 1.0f, popW - 4.0f, popItemH, Vec3(0.24f, 0.32f, 0.22f));
+                    Renderer::drawRect(textX + 2.0f, curSugY - 1.0f, popW - 4.0f, popItemH, Vec3(0.30f, 0.34f, 0.40f));
                 }
                 LabFont::drawText(textX + 8.0f, curSugY + 4.0f, _activeSuggestions[s], 1.8f,
-                                  isSel ? Vec3(1.0f, 0.95f, 0.3f) : Vec3(0.85f, 0.9f, 0.85f), LabFontType::Monospace);
+                                  isSel ? Vec3(1.0f, 1.0f, 1.0f) : Vec3(0.85f, 0.85f, 0.85f), LabFontType::Monospace);
                 curSugY += popItemH;
             }
         }
@@ -1503,16 +1501,16 @@ namespace Lab {
 
         // 1. Momentum & Speed Telemetry Overlay
         if (log_momentum || log_all) {
-            Renderer::drawRect(startX, curY, boxW, 58.0f, Vec3(0.06f, 0.08f, 0.12f));
-            Renderer::drawRect(startX, curY, 3.0f, 58.0f, Vec3(0.2f, 0.85f, 0.4f));
+            Renderer::drawRect(startX, curY, boxW, 58.0f, Vec3(0.11f, 0.12f, 0.13f));
+            Renderer::drawRect(startX, curY, 3.0f, 58.0f, Vec3(0.40f, 0.60f, 0.85f));
 
             std::ostringstream ss;
             ss << std::fixed << std::setprecision(1);
             ss << "SPEED: " << t.horizontalSpeed << " u/s (Cap: " << phys_max_bhop_speed << ")";
-            LabFont::drawText(startX + 12.0f, curY + 6.0f, ss.str(), 1.7f, Vec3(0.3f, 1.0f, 0.5f), LabFontType::Monospace);
+            LabFont::drawText(startX + 12.0f, curY + 6.0f, ss.str(), 1.7f, Vec3(0.92f, 0.92f, 0.92f), LabFontType::Monospace);
 
             std::string bhopStatus = t.isBhopActive ? "BHOPPING: ACCELERATING" : (t.isGrounded ? "GROUND: FRICTION ACTIVE" : "AIR STRAFE ACTIVE");
-            Vec3 bhopCol = t.isBhopActive ? Vec3(1.0f, 0.85f, 0.2f) : (t.isGrounded ? Vec3(0.7f, 0.7f, 0.7f) : Vec3(0.3f, 0.85f, 1.0f));
+            Vec3 bhopCol = t.isBhopActive ? Vec3(1.0f, 0.85f, 0.25f) : (t.isGrounded ? Vec3(0.7f, 0.7f, 0.7f) : Vec3(0.40f, 0.70f, 1.0f));
             LabFont::drawText(startX + 12.0f, curY + 30.0f, bhopStatus, 1.5f, bhopCol, LabFontType::Monospace);
 
             curY += 66.0f;
@@ -1520,42 +1518,42 @@ namespace Lab {
 
         // 2. Position & Angles Overlay
         if (log_pos || log_all) {
-            Renderer::drawRect(startX, curY, boxW, 58.0f, Vec3(0.06f, 0.08f, 0.12f));
-            Renderer::drawRect(startX, curY, 3.0f, 58.0f, Vec3(0.3f, 0.7f, 1.0f));
+            Renderer::drawRect(startX, curY, boxW, 58.0f, Vec3(0.11f, 0.12f, 0.13f));
+            Renderer::drawRect(startX, curY, 3.0f, 58.0f, Vec3(0.35f, 0.55f, 0.85f));
 
             std::ostringstream ss;
             ss << std::fixed << std::setprecision(2);
             ss << "POS: (" << t.playerPos.x << ", " << t.playerPos.y << ", " << t.playerPos.z << ")";
-            LabFont::drawText(startX + 12.0f, curY + 6.0f, ss.str(), 1.6f, Vec3(0.85f, 0.9f, 0.95f), LabFontType::Monospace);
+            LabFont::drawText(startX + 12.0f, curY + 6.0f, ss.str(), 1.6f, Vec3(0.88f, 0.90f, 0.92f), LabFontType::Monospace);
 
             std::ostringstream ss2;
             ss2 << std::fixed << std::setprecision(1);
             ss2 << "ANG: PITCH " << t.pitch << " deg | YAW " << t.yaw << " deg";
-            LabFont::drawText(startX + 12.0f, curY + 30.0f, ss2.str(), 1.5f, Vec3(0.6f, 0.8f, 1.0f), LabFontType::Monospace);
+            LabFont::drawText(startX + 12.0f, curY + 30.0f, ss2.str(), 1.5f, Vec3(0.65f, 0.75f, 0.85f), LabFontType::Monospace);
 
             curY += 66.0f;
         }
 
         // 3. FPS & Performance Overlay
         if (log_fps || log_all) {
-            Renderer::drawRect(startX, curY, 260.0f, 34.0f, Vec3(0.06f, 0.08f, 0.12f));
-            Renderer::drawRect(startX, curY, 3.0f, 34.0f, Vec3(1.0f, 0.85f, 0.2f));
+            Renderer::drawRect(startX, curY, 260.0f, 34.0f, Vec3(0.11f, 0.12f, 0.13f));
+            Renderer::drawRect(startX, curY, 3.0f, 34.0f, Vec3(0.85f, 0.75f, 0.30f));
 
             std::ostringstream ss;
             ss << std::fixed << std::setprecision(1);
             ss << (int)t.fps << " FPS (" << t.frametimeMs << " ms)";
-            LabFont::drawText(startX + 12.0f, curY + 6.0f, ss.str(), 1.65f, Vec3(1.0f, 0.85f, 0.2f), LabFontType::Monospace);
+            LabFont::drawText(startX + 12.0f, curY + 6.0f, ss.str(), 1.65f, Vec3(0.92f, 0.92f, 0.92f), LabFontType::Monospace);
 
             curY += 42.0f;
         }
 
         // 4. Ping Overlay
         if (log_ping || log_all) {
-            Renderer::drawRect(startX, curY, 180.0f, 34.0f, Vec3(0.06f, 0.08f, 0.12f));
-            Renderer::drawRect(startX, curY, 3.0f, 34.0f, Vec3(0.2f, 0.8f, 1.0f));
+            Renderer::drawRect(startX, curY, 180.0f, 34.0f, Vec3(0.11f, 0.12f, 0.13f));
+            Renderer::drawRect(startX, curY, 3.0f, 34.0f, Vec3(0.35f, 0.65f, 0.90f));
 
             std::string pingStr = "PING: " + std::to_string(t.pingMs) + " ms";
-            LabFont::drawText(startX + 12.0f, curY + 6.0f, pingStr, 1.65f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::Monospace);
+            LabFont::drawText(startX + 12.0f, curY + 6.0f, pingStr, 1.65f, Vec3(0.90f, 0.90f, 0.90f), LabFontType::Monospace);
 
             curY += 42.0f;
         }
