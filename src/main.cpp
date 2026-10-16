@@ -860,12 +860,14 @@ public:
         }
 
         // =====================================================================
-        // Developer Console Toggle & Interactive VGUI Window Input Handling
+        // Developer Console Toggle & Interactive Window Input Handling
         // =====================================================================
+        bool justToggled = false;
         bool gravePressed = Input::isKeyPressed(96);
         bool f10Pressed = Input::isKeyPressed(299);
         if ((gravePressed && !_gravePressedLast) || (f10Pressed && !_f10PressedLast)) {
             _devConsole.toggle();
+            justToggled = true;
         }
         _gravePressedLast = gravePressed;
         _f10PressedLast = f10Pressed;
@@ -901,41 +903,18 @@ public:
                 _devConsole.onMouseScroll(Input::scrollDelta);
             }
 
-            bool enterPressed = Input::isKeyPressed(257);
-            bool escPressed = Input::isKeyPressed(256);
-            bool tabPressed = Input::isKeyPressed(258);
-            bool backspacePressed = Input::isKeyPressed(259);
-            bool delPressed = Input::isKeyPressed(261);
-            bool upPressed = Input::isKeyPressed(265);
-            bool downPressed = Input::isKeyPressed(264);
-            bool leftPressed = Input::isKeyPressed(263);
-            bool rightPressed = Input::isKeyPressed(262);
-            bool pgUpPressed = Input::isKeyPressed(266);
-            bool pgDnPressed = Input::isKeyPressed(267);
+            bool shift = Input::isKeyPressed(GLFW_KEY_LEFT_SHIFT) || Input::isKeyPressed(GLFW_KEY_RIGHT_SHIFT);
+            bool ctrl = Input::isKeyPressed(GLFW_KEY_LEFT_CONTROL) || Input::isKeyPressed(GLFW_KEY_RIGHT_CONTROL);
 
-            if (enterPressed && !_enterPressedLast) _devConsole.onKey(257, 1);
-            if (escPressed && !_escPressedLast) _devConsole.onKey(256, 1);
-            if (tabPressed && !_tabPressedLast) _devConsole.onKey(258, 1);
-            if (backspacePressed && !_backspacePressedLast) _devConsole.onKey(259, 1);
-            if (delPressed && !_delPressedLast) _devConsole.onKey(261, 1);
-            if (upPressed && !_upPressedLast) _devConsole.onKey(265, 1);
-            if (downPressed && !_downPressedLast) _devConsole.onKey(264, 1);
-            if (leftPressed && !_leftPressedLast) _devConsole.onKey(263, 1);
-            if (rightPressed && !_rightPressedLast) _devConsole.onKey(262, 1);
-            if (pgUpPressed && !_pgUpPressedLast) _devConsole.onKey(266, 1);
-            if (pgDnPressed && !_pgDnPressedLast) _devConsole.onKey(267, 1);
-
-            _enterPressedLast = enterPressed;
-            _escPressedLast = escPressed;
-            _tabPressedLast = tabPressed;
-            _backspacePressedLast = backspacePressed;
-            _delPressedLast = delPressed;
-            _upPressedLast = upPressed;
-            _downPressedLast = downPressed;
-            _leftPressedLast = leftPressed;
-            _rightPressedLast = rightPressed;
-            _pgUpPressedLast = pgUpPressed;
-            _pgDnPressedLast = pgDnPressed;
+            // Forward all pressed/repeated keys directly to developer console
+            for (int k = 0; k < 512; ++k) {
+                if (Input::keysJustPressed[k]) {
+                    if (justToggled && (k == 96 || k == 299)) {
+                        continue;
+                    }
+                    _devConsole.onKey(k, 1, shift, ctrl);
+                }
+            }
 
             _devConsole.update(time.delta);
             return; // Lock player and menu inputs while in developer console

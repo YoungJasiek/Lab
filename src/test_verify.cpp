@@ -10124,18 +10124,19 @@ int main() {
         }
         std::cout << "  [PASS] Sub-test E: Gameplay cheat callbacks (heal, armor, get, give_all, respawn, suicide) verified.\n";
 
-        // Sub-test F: Input handling & Command History
+        // Sub-test F: Input handling (direct onKey typing, shift-underscore, onChar) & Command History
         console.execute("sys_clear");
-        console.onChar('s');
-        console.onChar('p');
-        console.onChar('_');
-        console.onChar('b');
-        console.onChar('h');
-        console.onChar('o');
-        console.onChar('p');
+        // Test direct onKey typing with Shift modifier for underscore
+        console.onKey('S', 1, false, false); // 's'
+        console.onKey('P', 1, false, false); // 'p'
+        console.onKey(45, 1, true, false);   // Shift + '-' -> '_'
+        console.onKey('B', 1, false, false); // 'b'
+        console.onKey('H', 1, false, false); // 'h'
+        console.onKey('O', 1, false, false); // 'o'
+        console.onKey('P', 1, false, false); // 'p'
         console.onKey(257, 1); // Enter: executes "sp_bhop" (toggles bhop)
         if (console.sp_bhop) { // started true, toggled to false
-            std::cerr << "Assertion failed: onChar + Enter failed to execute command!\n";
+            std::cerr << "Assertion failed: onKey direct typing + Enter failed to execute command!\n";
             return 1;
         }
         console.onKey(265, 1); // Up Arrow: recalls previous command "sp_bhop"
@@ -10144,6 +10145,21 @@ int main() {
             std::cerr << "Assertion failed: History navigation via Up Arrow failed!\n";
             return 1;
         }
+
+        // Test onChar programmatic / character callback input
+        console.onChar('s');
+        console.onChar('p');
+        console.onChar('_');
+        console.onChar('b');
+        console.onChar('h');
+        console.onChar('o');
+        console.onChar('p');
+        console.onKey(257, 1);
+        if (console.sp_bhop) {
+            std::cerr << "Assertion failed: onChar + Enter failed to execute command!\n";
+            return 1;
+        }
+        console.execute("sp_bhop 1"); // restore
 
         // Sub-test G: Rendering & Interactive Window (Dragging & Close button)
         Lab::DevTelemetryData t;

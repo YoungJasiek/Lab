@@ -1,6 +1,7 @@
 #include "LabDevConsole.h"
 #include "LabRenderer.h"
 #include "LabFont.h"
+#include <GLFW/glfw3.h>
 #include <sstream>
 #include <algorithm>
 #include <iomanip>
@@ -11,10 +12,8 @@ namespace Lab {
     LabDevConsole::LabDevConsole() {
         registerKnownCommands();
 
-        print("maxplayers set to 1", Vec3(0.85f, 0.88f, 0.85f));
-        print("Steam config directory: C:\\Program Files (x86)\\Steam\\steamapps\\common\\LabEngine", Vec3(0.7f, 0.75f, 0.7f));
-        print("Lab Engine (Source / Half-Life 2 Style Console) initialized.", Vec3(0.9f, 0.85f, 0.3f));
-        print("Type 'sys_help' or use autocompletion for commands. Press [~] or [ESC] to close.", Vec3(0.7f, 0.75f, 0.7f));
+        print("Lab Engine Developer Console initialized.", Vec3(0.85f, 0.95f, 0.85f));
+        print("Type 'help' for command list. Press [~] or [ESC] to close.", Vec3(0.7f, 0.75f, 0.7f));
     }
 
     void LabDevConsole::open() {
@@ -101,7 +100,7 @@ namespace Lab {
         _commandHistory.push_back(line);
         _historyIndex = -1;
 
-        // Print executed command with classic Source Engine ']' prompt
+        // Print executed command with ']' prompt
         print("] " + line, Vec3(0.95f, 0.95f, 0.95f));
 
         // Tokenize command and arguments
@@ -163,7 +162,7 @@ namespace Lab {
                 return;
             }
 
-            // Commands below require sp_cheats 1 (Source engine style warning)
+            // Commands below require sp_cheats 1 warning
             if (!sp_cheats) {
                 print("Can't use cheat cvar " + p + "_" + n + " in multiplayer, unless the server has sp_cheats set to 1.",
                       Vec3(1.0f, 0.35f, 0.35f));
@@ -439,10 +438,11 @@ namespace Lab {
 
         float titleH = 26.0f;
         float inputAreaH = 34.0f;
+        float textX = windowX + 8.0f;
         float inputY = windowY + windowH - inputAreaH + 2.0f;
         float submitW = 76.0f;
         float inputW = windowW - submitW - 24.0f;
-        float submitX = windowX + 8.0f + inputW + 8.0f;
+        float submitX = textX + inputW + 8.0f;
 
         float popW = 340.0f;
         float popItemH = 19.0f;
@@ -485,6 +485,12 @@ namespace Lab {
                     return true;
                 }
 
+                // 2b. Input Box Click (Focus & place cursor at end)
+                if (mx >= textX && mx <= textX + inputW && my >= inputY && my <= inputY + 24.0f) {
+                    _cursorPos = static_cast<int>(_currentInput.size());
+                    return true;
+                }
+
                 // 3. Autocomplete popup click
                 if (insidePopup) {
                     int clickedIdx = static_cast<int>((my - (popY + 4.0f)) / popItemH);
@@ -506,7 +512,6 @@ namespace Lab {
                 }
 
                 // 5. Scrollbar click
-                float textX = windowX + 8.0f;
                 float textW = windowW - 16.0f;
                 float textH = windowH - titleH - inputAreaH - 14.0f;
                 float textY = windowY + titleH + 6.0f;
@@ -548,34 +553,66 @@ namespace Lab {
         _scrollOffset = std::clamp(_scrollOffset + (int)(yoffset * 3.0f), 0, maxScroll);
     }
 
-    bool LabDevConsole::onKey(int key, int action) {
+    bool LabDevConsole::onKey(int key, int action, bool shift, bool ctrl) {
         if (!isOpen) return false;
         if (action != 1 && action != 2) return false; // Press or Repeat
 
-        // Tilde (`~`, key 96 / GLFW_KEY_GRAVE_ACCENT) or Escape (256) closes console
+        // Tilde (`~`, key 96) or Escape (256) closes console
         if (key == 96 || key == 256) {
             close();
+            return true;
+        }
+
+        // Clipboard: Ctrl+V (Paste)
+        if (ctrl && (key == 86 || key == 'v' || key == 'V')) { // GLFW_KEY_V = 86
+            GLFWwindow* win = glfwGetCurrentContext();
+            if (win) {
+                const char* clip = glfwGetClipboardString(win);
+                if (clip) {
+                    for (const char* p = clip; *p; ++p) {
+                        if (*p >= 32 && *p < 127) {
+                            _currentInput.insert(_currentInput.begin() + _cursorPos, *p);
+                            _cursorPos++;
+                        }
+                    }
+                    _selectedSuggestion = -1;
+                    updateAutocomplete();
+                }
+            }
+            return true;
+        }
+
+        // Clipboard: Ctrl+C (Copy)
+        if (ctrl && (key == 67 || key == 'c' || key == 'C')) { // GLFW_KEY_C = 67
+            if (!_currentInput.empty()) {
+                GLFWwindow* win = glfwGetCurrentContext();
+                if (win) {
+                    glfwSetClipboardString(win, _currentInput.c_str());
+                }
+            }
             return true;
         }
 
         // Tab: Autocomplete selected suggestion
         if (key == 258) { // GLFW_KEY_TAB
             if (!_activeSuggestions.empty()) {
-                int idx = (_selectedSuggestion >= 0 && _selectedSuggestion < (int)_activeSuggestions.size())
+                int idx = (_selectedSuggestion >= 0 && _selectedSuggestion < static_cast<int>(_activeSuggestions.size()))
                           ? _selectedSuggestion : 0;
                 _currentInput = _activeSuggestions[idx] + " ";
-                _cursorPos = (int)_currentInput.size();
+                _cursorPos = static_cast<int>(_currentInput.size());
+                _selectedSuggestion = -1;
                 updateAutocomplete();
                 return true;
             }
         }
 
         // Enter: execute command
-        if (key == 257) {
+        if (key == 257 || key == 335) { // GLFW_KEY_ENTER or Keypad Enter
             if (!_currentInput.empty()) {
                 execute(_currentInput);
                 _currentInput.clear();
                 _cursorPos = 0;
+                _selectedSuggestion = -1;
             }
             return true;
         }
@@ -585,6 +622,7 @@ namespace Lab {
             if (!_currentInput.empty() && _cursorPos > 0) {
                 _currentInput.erase(_cursorPos - 1, 1);
                 _cursorPos--;
+                _selectedSuggestion = -1;
                 updateAutocomplete();
             }
             return true;
@@ -592,8 +630,9 @@ namespace Lab {
 
         // Delete
         if (key == 261) {
-            if (_cursorPos < (int)_currentInput.size()) {
+            if (_cursorPos < static_cast<int>(_currentInput.size())) {
                 _currentInput.erase(_cursorPos, 1);
+                _selectedSuggestion = -1;
                 updateAutocomplete();
             }
             return true;
@@ -607,7 +646,19 @@ namespace Lab {
 
         // Right Arrow
         if (key == 262) {
-            if (_cursorPos < (int)_currentInput.size()) _cursorPos++;
+            if (_cursorPos < static_cast<int>(_currentInput.size())) _cursorPos++;
+            return true;
+        }
+
+        // Home
+        if (key == 268) {
+            _cursorPos = 0;
+            return true;
+        }
+
+        // End
+        if (key == 269) {
+            _cursorPos = static_cast<int>(_currentInput.size());
             return true;
         }
 
@@ -615,14 +666,17 @@ namespace Lab {
         if (key == 265) {
             if (!_activeSuggestions.empty() && _selectedSuggestion > 0) {
                 _selectedSuggestion--;
+            } else if (!_activeSuggestions.empty() && _selectedSuggestion == 0) {
+                _selectedSuggestion = -1;
             } else if (!_commandHistory.empty()) {
                 if (_historyIndex == -1) {
-                    _historyIndex = (int)_commandHistory.size() - 1;
+                    _historyIndex = static_cast<int>(_commandHistory.size()) - 1;
                 } else if (_historyIndex > 0) {
                     _historyIndex--;
                 }
                 _currentInput = _commandHistory[_historyIndex];
-                _cursorPos = (int)_currentInput.size();
+                _cursorPos = static_cast<int>(_currentInput.size());
+                _selectedSuggestion = -1;
                 updateAutocomplete();
             }
             return true;
@@ -630,17 +684,18 @@ namespace Lab {
 
         // Down Arrow: Suggestions or Command History forward
         if (key == 264) {
-            if (!_activeSuggestions.empty() && _selectedSuggestion < (int)_activeSuggestions.size() - 1) {
+            if (!_activeSuggestions.empty() && _selectedSuggestion < static_cast<int>(_activeSuggestions.size()) - 1) {
                 _selectedSuggestion++;
             } else if (!_commandHistory.empty() && _historyIndex != -1) {
-                if (_historyIndex < (int)_commandHistory.size() - 1) {
+                if (_historyIndex < static_cast<int>(_commandHistory.size()) - 1) {
                     _historyIndex++;
                     _currentInput = _commandHistory[_historyIndex];
                 } else {
                     _historyIndex = -1;
                     _currentInput.clear();
                 }
-                _cursorPos = (int)_currentInput.size();
+                _cursorPos = static_cast<int>(_currentInput.size());
+                _selectedSuggestion = -1;
                 updateAutocomplete();
             }
             return true;
@@ -648,7 +703,7 @@ namespace Lab {
 
         // PageUp / PageDown: scroll output
         if (key == 266) { // PageUp
-            int maxScroll = std::max(0, (int)_entries.size() - 15);
+            int maxScroll = std::max(0, static_cast<int>(_entries.size()) - 15);
             _scrollOffset = std::min(maxScroll, _scrollOffset + 5);
             return true;
         }
@@ -657,16 +712,74 @@ namespace Lab {
             return true;
         }
 
-        return true;
+        // Alphanumeric and Printable Characters
+        char c = '\0';
+        if (key >= 65 && key <= 90) { // A-Z
+            c = shift ? static_cast<char>(key) : static_cast<char>(key + 32);
+        } else if (key >= 48 && key <= 57) { // 0-9
+            if (shift) {
+                const char shiftNums[] = ")!@#$%^&*(";
+                c = shiftNums[key - 48];
+            } else {
+                c = static_cast<char>(key);
+            }
+        } else if (key >= 320 && key <= 329) { // Keypad 0-9
+            c = static_cast<char>('0' + (key - 320));
+        } else if (key == 32) { // Space
+            c = ' ';
+        } else if (key == 45) { // Minus / Underscore
+            c = shift ? '_' : '-';
+        } else if (key == 333) { // Keypad Minus
+            c = '-';
+        } else if (key == 61) { // Equal / Plus
+            c = shift ? '+' : '=';
+        } else if (key == 334) { // Keypad Plus
+            c = '+';
+        } else if (key == 46 || key == 330) { // Period / Keypad Period
+            c = shift ? '>' : '.';
+        } else if (key == 47 || key == 331) { // Slash / Keypad Slash
+            c = shift ? '?' : '/';
+        } else if (key == 44) { // Comma
+            c = shift ? '<' : ',';
+        } else if (key == 59) { // Semicolon
+            c = shift ? ':' : ';';
+        } else if (key == 39) { // Apostrophe
+            c = shift ? '"' : '\'';
+        } else if (key == 91) { // Left bracket
+            c = shift ? '{' : '[';
+        } else if (key == 93) { // Right bracket
+            c = shift ? '}' : ']';
+        } else if (key == 92) { // Backslash
+            c = shift ? '|' : '\\';
+        }
+
+        if (c != '\0') {
+            _currentInput.insert(_currentInput.begin() + _cursorPos, c);
+            _cursorPos++;
+            _lastCharHandledKey = static_cast<int>(c);
+            _selectedSuggestion = -1;
+            updateAutocomplete();
+            return true;
+        }
+
+        return false;
     }
 
     void LabDevConsole::onChar(unsigned int codepoint) {
         if (!isOpen) return;
         if (codepoint == '`' || codepoint == '~') return;
 
+        // Prevent double typing if onKey already processed this character
+        if (_lastCharHandledKey == static_cast<int>(codepoint)) {
+            _lastCharHandledKey = -1;
+            return;
+        }
+        _lastCharHandledKey = -1;
+
         if (codepoint >= 32 && codepoint < 127) {
             _currentInput.insert(_currentInput.begin() + _cursorPos, static_cast<char>(codepoint));
             _cursorPos++;
+            _selectedSuggestion = -1;
             updateAutocomplete();
         }
     }
@@ -687,7 +800,7 @@ namespace Lab {
         float titleH = 26.0f;
         float inputAreaH = 34.0f;
 
-        // ==================== SOURCE ENGINE VGUI2 COLOR PALETTE ====================
+        // ==================== CONSOLE THEME COLOR PALETTE ====================
         Vec3 frameBg(0.28f, 0.33f, 0.27f);      // #475445 (Muted olive-green frame)
         Vec3 titleBg(0.24f, 0.28f, 0.23f);      // #3d473b (Darker olive title bar)
         Vec3 borderLight(0.38f, 0.44f, 0.36f);  // 3D Bevel highlight

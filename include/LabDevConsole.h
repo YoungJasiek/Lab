@@ -45,7 +45,7 @@ namespace Lab {
         void execute(const std::string& commandLine);
 
         // Input Processing
-        bool onKey(int key, int action);
+        bool onKey(int key, int action, bool shift = false, bool ctrl = false);
         void onChar(unsigned int codepoint);
         bool onMouseButton(int button, int action, float mx, float my);
         void onMouseMove(float mx, float my);
@@ -57,7 +57,7 @@ namespace Lab {
         void renderOverlay(int screenW, int screenH, const DevTelemetryData& telemetry);
 
         // =====================================================================
-        // Source Engine VGUI Floating Window Dimensions & Dragging
+        // Floating Window Dimensions & Dragging
         // =====================================================================
         float windowX = 220.0f;
         float windowY = 70.0f;
@@ -151,6 +151,7 @@ namespace Lab {
         std::vector<std::string> _knownCommands;
         std::vector<std::string> _activeSuggestions;
         int _selectedSuggestion = -1;
+        int _lastCharHandledKey = -1;
     };
 
 } // namespace Lab
