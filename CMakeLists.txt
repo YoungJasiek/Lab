@@ -246,6 +246,7 @@ add_library(LabWorld SHARED
     src/LabWeapon.cpp
     src/LabParticles.cpp
     src/LabInteractive.cpp
+    src/LabHUD.cpp
     include/LabMap.h
     include/LabScene.h
     include/LabPickups.h

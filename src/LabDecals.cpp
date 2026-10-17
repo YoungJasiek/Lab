@@ -358,6 +358,7 @@ namespace Lab {
 
             for (const auto& d : _decals) {
                 if (d.type != curType) continue;
+                if ((d.position - cam.getPosition()).lengthSq() > _maxDistance * _maxDistance) continue;
 
                 unsigned int baseIndex = (unsigned int)batchVerts.size();
                 batchVerts.insert(batchVerts.end(), d.vertices.begin(), d.vertices.end());

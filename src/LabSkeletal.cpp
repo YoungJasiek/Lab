@@ -382,31 +382,39 @@ namespace Lab {
 
     void Animator::playAnimation(const std::string& name, bool loop, float blendDuration) {
         std::string target = name;
-        // Prioritize full Mixamo FBX animations over placeholder clips
-        if ((target == "Idle" || target == "Pistol Idle" || target == "Stand") && hasClip("Pistol Idle")) {
+        // Prioritize full Mixamo FBX animations over placeholder clips, while preserving explicit Talk/Attack clips
+        if (target == "Talk" && hasClip("Talk")) {
+            target = "Talk";
+        } else if (target == "Attack" && hasClip("Attack")) {
+            target = "Attack";
+        } else if ((target == "Idle" || target == "Pistol Idle" || target == "Stand") && hasClip("Pistol Idle") && !hasClip("Idle")) {
             target = "Pistol Idle";
-        } else if (target == "Walk" && hasClip("Walking")) {
+        } else if (target == "Walk" && hasClip("Walking") && !hasClip("Walk")) {
             target = "Walking";
-        } else if ((target == "Shoot" || target == "Fire") && hasClip("Firing Rifle")) {
+        } else if ((target == "Shoot" || target == "Fire" || target == "Attack") && hasClip("Firing Rifle")) {
             target = "Firing Rifle";
         } else if (!hasClip(target)) {
             // Remap generic or missing clip requests to available equivalents
-            if (target == "Shoot" || target == "Fire" || target == "Firing Rifle" || target == "Heavy Weapon Swing") {
-                if (hasClip("Firing Rifle")) target = "Firing Rifle";
+            if (target == "Talk") {
+                if (hasClip("Pistol Idle")) target = "Pistol Idle";
+                else if (hasClip("Idle")) target = "Idle";
+            } else if (target == "Attack" || target == "Shoot" || target == "Fire" || target == "Firing Rifle" || target == "Heavy Weapon Swing") {
+                if (hasClip("Attack")) target = "Attack";
+                else if (hasClip("Firing Rifle")) target = "Firing Rifle";
                 else if (hasClip("Heavy Weapon Swing")) target = "Heavy Weapon Swing";
                 else if (hasClip("Shoot")) target = "Shoot";
             } else if (target == "Walk" || target == "Run" || target == "Walking" || target == "Run Forward" || target == "Sprint Backward" || target == "Strafing" || target == "Pistol Strafe") {
-                if (hasClip("Run Forward")) target = "Run Forward";
+                if (hasClip("Walk")) target = "Walk";
+                else if (hasClip("Run Forward")) target = "Run Forward";
                 else if (hasClip("Walking")) target = "Walking";
-                else if (hasClip("Walk")) target = "Walk";
             } else if (target == "Idle" || target == "Pistol Idle" || target == "Stand") {
-                if (hasClip("Pistol Idle")) target = "Pistol Idle";
-                else if (hasClip("Idle")) target = "Idle";
+                if (hasClip("Idle")) target = "Idle";
+                else if (hasClip("Pistol Idle")) target = "Pistol Idle";
             } else if (target == "Death" || target == "Dead" || target == "Death From Front Headshot" || target == "Death From The Back" || target == "Rifle Death") {
-                if (hasClip("Death From Front Headshot")) target = "Death From Front Headshot";
+                if (hasClip("Death")) target = "Death";
+                else if (hasClip("Death From Front Headshot")) target = "Death From Front Headshot";
                 else if (hasClip("Rifle Death")) target = "Rifle Death";
                 else if (hasClip("Death From The Back")) target = "Death From The Back";
-                else if (hasClip("Death")) target = "Death";
                 else if (hasClip("Dying")) target = "Dying";
             } else if (target == "Hit" || target == "Hurt" || target == "Hit Reaction") {
                 if (hasClip("Hit Reaction")) target = "Hit Reaction";

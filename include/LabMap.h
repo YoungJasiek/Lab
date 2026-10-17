@@ -15,6 +15,7 @@ namespace Lab {
         Vec3 ambientColor = { 0.2f, 0.25f, 0.35f };
         Vec3 sunDir = { -0.4f, -0.8f, -0.4f };
         Vec3 sunColor = { 0.9f, 0.95f, 1.0f };
+        std::string cubemapPath = "assets/textures/cubemap_site14.bmp";
     };
 
     struct MapBrush {
@@ -26,8 +27,10 @@ namespace Lab {
         Vec3 size = { 1, 1, 1 };
         Vec3 color = { 1, 1, 1 };
         std::string texturePath = "";
+        std::string normalMapPath = "";
         Vec2 uvScale = { 0.25f, 0.25f };
         int uvMode = 1;
+        bool collidable = true;
 
         // Custom polygon vertices and indices for CSG clipped brushes (type == "poly")
         std::vector<Vertex> customVertices;
@@ -44,6 +47,8 @@ namespace Lab {
         Vec3 scale = { 1, 1, 1 };
         Vec3 color = { 1, 1, 1 };
         std::string texturePath = "";
+        std::string normalMapPath = "";
+        bool collidable = true;
 
         // Component Attachments & Configurations
         bool hasAudio = false;
@@ -96,6 +101,26 @@ namespace Lab {
         float currentProgress = 0.0f;
         bool isOpen = false;
         bool isLocked = false;
+    };
+
+    struct MapTrigger {
+        std::string name = "trigger_story";
+        Vec3 position = { 0.0f, 1.5f, 0.0f };
+        Vec3 size = { 4.0f, 3.0f, 4.0f };
+        std::string eventType = "story_dialog"; // e.g. "story_dialog", "door_unlock", "script"
+        std::string targetBot = "Bot_Guard";
+        std::string dialogText = "WARNING: Sector 14 containment breach detected! Follow me to the airlock!";
+        std::string audioPath = "assets/audio/bot_corridor_dialog.wav";
+        std::string script = "";
+        bool once = true;
+        bool triggered = false;
+    };
+
+    struct MapWaypoint {
+        std::string name = "wp_0";
+        Vec3 position = { 0.0f, 0.0f, 0.0f };
+        std::string botName = "Bot_Guard";
+        int orderIndex = 0;
     };
 
     struct MapCamera {
@@ -197,7 +222,7 @@ namespace Lab {
     class LabMap;
 
     struct MapEntityHandle {
-        enum class Type { None, Brush, Prop, Door, Sprite, Light, Camera };
+        enum class Type { None, Brush, Prop, Door, Sprite, Light, Camera, Trigger, Waypoint };
         Type type = Type::None;
         size_t index = 0;
         std::string name = "";
@@ -219,6 +244,8 @@ namespace Lab {
         std::vector<MapBrush> brushes;
         std::vector<MapProp> props;
         std::vector<MapDoor> doors;
+        std::vector<MapTrigger> triggers;
+        std::vector<MapWaypoint> waypoints;
         std::vector<MapSpawnPoint> spawnPoints;
         std::vector<MapWeaponSpawner> weaponSpawners;
         std::vector<MapLight> lights;
@@ -235,3 +262,4 @@ namespace Lab {
     };
 
 } // namespace Lab
+

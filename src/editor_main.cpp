@@ -55,7 +55,9 @@ enum class SelectionType {
     WeaponSpawner,
     Light,
     Sprite,
-    Camera
+    Camera,
+    Trigger,
+    Waypoint
 };
 
 enum class GizmoMode {
@@ -1255,7 +1257,6 @@ public:
 
         // Handle Left-Click
         if (Input::isMouseButtonJustPressed(0) || (Input::isMouseButtonPressed(0) && !_lmbPressed)) {
-            LabLog::info("[LabHammer] LMB Click at (" + std::to_string((int)mx) + ", " + std::to_string((int)my) + ")");
             handleMouseClick(mx, my, false);
             _lmbPressed = true;
         } else if (!Input::isMouseButtonPressed(0)) {
@@ -2046,6 +2047,34 @@ public:
             }
         }
 
+        // Test Trigger Volumes
+        for (size_t i = 0; i < _map->triggers.size(); ++i) {
+            const auto& tr = _map->triggers[i];
+            Vec3 half = tr.size * 0.5f;
+            float t = 0;
+            if (rayIntersectAABB(rayOrigin, rayDir, tr.position - half, tr.position + half, t)) {
+                if (t < closestT) {
+                    closestT = t;
+                    hitType = SelectionType::Trigger;
+                    hitIndex = (int)i;
+                }
+            }
+        }
+
+        // Test Bot Waypoints
+        for (size_t i = 0; i < _map->waypoints.size(); ++i) {
+            const auto& wp = _map->waypoints[i];
+            Vec3 half(0.5f, 0.5f, 0.5f);
+            float t = 0;
+            if (rayIntersectAABB(rayOrigin, rayDir, wp.position - half, wp.position + half, t)) {
+                if (t < closestT) {
+                    closestT = t;
+                    hitType = SelectionType::Waypoint;
+                    hitIndex = (int)i;
+                }
+            }
+        }
+
         // Tool 3: Texture pipette & application
         if (_activeTool == 3) {
             if (hitType == SelectionType::Brush) {
@@ -2105,6 +2134,10 @@ public:
                 logMessage("Selected Lamp Light #" + std::to_string(hitIndex) + " (" + _map->lights[hitIndex].name + ")");
             } else if (_selectionType == SelectionType::Camera) {
                 logMessage("Selected Camera #" + std::to_string(hitIndex) + " (" + _map->cameras[hitIndex].name + ")");
+            } else if (_selectionType == SelectionType::Trigger) {
+                logMessage("Selected Trigger Volume #" + std::to_string(hitIndex) + " (" + _map->triggers[hitIndex].name + ")");
+            } else if (_selectionType == SelectionType::Waypoint) {
+                logMessage("Selected Bot Waypoint #" + std::to_string(hitIndex) + " (" + _map->waypoints[hitIndex].name + ")");
             } else {
                 _selectionType = SelectionType::None;
                 _selectedIndex = -1;
@@ -2140,6 +2173,10 @@ public:
             return _map->lights[_selectedIndex].position;
         } else if (_selectionType == SelectionType::Camera && _selectedIndex >= 0 && _selectedIndex < (int)_map->cameras.size()) {
             return _map->cameras[_selectedIndex].position;
+        } else if (_selectionType == SelectionType::Trigger && _selectedIndex >= 0 && _selectedIndex < (int)_map->triggers.size()) {
+            return _map->triggers[_selectedIndex].position;
+        } else if (_selectionType == SelectionType::Waypoint && _selectedIndex >= 0 && _selectedIndex < (int)_map->waypoints.size()) {
+            return _map->waypoints[_selectedIndex].position;
         }
         return Vec3(0, 0, 0);
     }
@@ -2188,6 +2225,8 @@ public:
             return _map->brushes[_selectedIndex].size;
         } else if (_selectionType == SelectionType::Prop && _selectedIndex >= 0 && _selectedIndex < (int)_map->props.size()) {
             return _map->props[_selectedIndex].scale;
+        } else if (_selectionType == SelectionType::Trigger && _selectedIndex >= 0 && _selectedIndex < (int)_map->triggers.size()) {
+            return _map->triggers[_selectedIndex].size;
         }
         return Vec3(1, 1, 1);
     }
@@ -2208,6 +2247,12 @@ public:
             p.scale.z = std::max(0.1f, p.scale.z + sz);
             logMessage("Scaled Prop #" + std::to_string(_selectedIndex) + " to (" +
                        std::to_string(p.scale.x) + ", " + std::to_string(p.scale.y) + ", " + std::to_string(p.scale.z) + ")");
+        } else if (_selectionType == SelectionType::Trigger && _selectedIndex >= 0 && _selectedIndex < (int)_map->triggers.size()) {
+            auto& tr = _map->triggers[_selectedIndex];
+            tr.size.x = std::max(0.5f, tr.size.x + sx);
+            tr.size.y = std::max(0.5f, tr.size.y + sy);
+            tr.size.z = std::max(0.5f, tr.size.z + sz);
+            logMessage("Scaled Trigger Volume #" + std::to_string(_selectedIndex));
         }
     }
 
@@ -2349,6 +2394,12 @@ public:
         } else if (_selectionType == SelectionType::Camera && _selectedIndex >= 0 && _selectedIndex < (int)_map->cameras.size()) {
             _map->cameras[_selectedIndex].position += Vec3(dx, dy, dz);
             newPos = _map->cameras[_selectedIndex].position;
+        } else if (_selectionType == SelectionType::Trigger && _selectedIndex >= 0 && _selectedIndex < (int)_map->triggers.size()) {
+            _map->triggers[_selectedIndex].position += Vec3(dx, dy, dz);
+            newPos = _map->triggers[_selectedIndex].position;
+        } else if (_selectionType == SelectionType::Waypoint && _selectedIndex >= 0 && _selectedIndex < (int)_map->waypoints.size()) {
+            _map->waypoints[_selectedIndex].position += Vec3(dx, dy, dz);
+            newPos = _map->waypoints[_selectedIndex].position;
         }
         if (std::abs(dy) > 0.0001f) {
             char buf[64];
@@ -2379,6 +2430,12 @@ public:
             lt.intensity = std::max(0.2f, lt.intensity + dh * 0.5f);
             logMessage("Adjusted Light #" + std::to_string(_selectedIndex) + " (Intensity: " +
                        std::to_string(lt.intensity) + ", Radius: " + std::to_string((int)lt.radius) + "m)");
+        } else if (_selectionType == SelectionType::Trigger && _selectedIndex >= 0 && _selectedIndex < (int)_map->triggers.size()) {
+            auto& tr = _map->triggers[_selectedIndex];
+            tr.size.x = std::max(0.5f, tr.size.x + dw);
+            tr.size.y = std::max(0.5f, tr.size.y + dh);
+            tr.size.z = std::max(0.5f, tr.size.z + dd);
+            logMessage("Resized Trigger Volume #" + std::to_string(_selectedIndex));
         }
     }
 
@@ -2435,6 +2492,23 @@ public:
             _map->cameras.push_back(c);
             _selectedIndex = (int)_map->cameras.size() - 1;
             logMessage("Duplicated Camera to #" + std::to_string(_selectedIndex));
+        } else if (_selectionType == SelectionType::Trigger && _selectedIndex >= 0 && _selectedIndex < (int)_map->triggers.size()) {
+            MapTrigger tr = _map->triggers[_selectedIndex];
+            tr.position.x += _gridSnap;
+            tr.position.z += _gridSnap;
+            tr.name = tr.name + "_copy";
+            _map->triggers.push_back(tr);
+            _selectedIndex = (int)_map->triggers.size() - 1;
+            logMessage("Duplicated Trigger Volume to #" + std::to_string(_selectedIndex));
+        } else if (_selectionType == SelectionType::Waypoint && _selectedIndex >= 0 && _selectedIndex < (int)_map->waypoints.size()) {
+            MapWaypoint wp = _map->waypoints[_selectedIndex];
+            wp.position.x += _gridSnap;
+            wp.position.z += _gridSnap;
+            wp.name = "wp_" + std::to_string(_map->waypoints.size() + 1);
+            wp.orderIndex = (int)_map->waypoints.size();
+            _map->waypoints.push_back(wp);
+            _selectedIndex = (int)_map->waypoints.size() - 1;
+            logMessage("Duplicated & Linked Bot Waypoint to #" + std::to_string(_selectedIndex));
         }
     }
 
@@ -2479,6 +2553,16 @@ public:
             logMessage("Deleted Camera #" + std::to_string(_selectedIndex));
             _selectionType = SelectionType::None;
             _selectedIndex = -1;
+        } else if (_selectionType == SelectionType::Trigger && _selectedIndex >= 0 && _selectedIndex < (int)_map->triggers.size()) {
+            _map->triggers.erase(_map->triggers.begin() + _selectedIndex);
+            logMessage("Deleted Trigger Volume #" + std::to_string(_selectedIndex));
+            _selectionType = SelectionType::None;
+            _selectedIndex = -1;
+        } else if (_selectionType == SelectionType::Waypoint && _selectedIndex >= 0 && _selectedIndex < (int)_map->waypoints.size()) {
+            _map->waypoints.erase(_map->waypoints.begin() + _selectedIndex);
+            logMessage("Deleted Bot Waypoint #" + std::to_string(_selectedIndex));
+            _selectionType = SelectionType::None;
+            _selectedIndex = -1;
         }
     }
 
@@ -2498,6 +2582,10 @@ public:
             targetPos = _map->lights[_selectedIndex].position;
         } else if (_selectionType == SelectionType::Camera && _selectedIndex >= 0 && _selectedIndex < (int)_map->cameras.size()) {
             targetPos = _map->cameras[_selectedIndex].position;
+        } else if (_selectionType == SelectionType::Trigger && _selectedIndex >= 0 && _selectedIndex < (int)_map->triggers.size()) {
+            targetPos = _map->triggers[_selectedIndex].position;
+        } else if (_selectionType == SelectionType::Waypoint && _selectedIndex >= 0 && _selectedIndex < (int)_map->waypoints.size()) {
+            targetPos = _map->waypoints[_selectedIndex].position;
         }
         _camera.setPosition(targetPos - _camera.getFront() * 10.0f);
         logMessage("Focused Camera on selection at (" + std::to_string((int)targetPos.x) + ", " + std::to_string((int)targetPos.y) + ", " + std::to_string((int)targetPos.z) + ")");
@@ -2777,18 +2865,19 @@ public:
                 break;
             }
             case 9: { // Trigger Zone Volume
-                MapBrush b;
-                b.type = "cube";
-                b.position = _cursorPos + Vec3(0, 1.5f, 0);
-                b.size = Vec3(4.0f, 3.0f, 4.0f);
-                b.color = Vec3(0.1f, 0.8f, 0.9f);
-                b.texturePath = "";
-                b.uvScale = Vec2(1.0f, 1.0f);
-                b.uvMode = 1;
-                _map->brushes.push_back(b);
-                _selectionType = SelectionType::Brush;
-                _selectedIndex = (int)_map->brushes.size() - 1;
-                logMessage("Placed Trigger Zone Volume (Gameplay Overlap)");
+                MapTrigger tr;
+                tr.name = "trigger_story_" + std::to_string(_map->triggers.size() + 1);
+                tr.position = _cursorPos + Vec3(0, 1.5f, 0);
+                tr.size = Vec3(4.0f, 3.0f, 4.0f);
+                tr.eventType = "story_dialog";
+                tr.targetBot = "Bot_Guard";
+                tr.dialogText = "Watch out! Sector C is contaminated. Follow me down the corridor!";
+                tr.audioPath = "assets/audio/bot_corridor_dialog.wav";
+                tr.once = true;
+                _map->triggers.push_back(tr);
+                _selectionType = SelectionType::Trigger;
+                _selectedIndex = (int)_map->triggers.size() - 1;
+                logMessage("Placed Trigger Zone Volume [" + tr.name + "] (Story / Gameplay Overlap)");
                 break;
             }
             case 10: { // Item / Pickup Node
@@ -2890,17 +2979,16 @@ public:
                 logMessage("Placed Radial Force Field / Attractor Volume");
                 break;
             }
-            case 18: { // NavMesh Obstacle Box
-                MapBrush b;
-                b.type = "cube";
-                b.position = _cursorPos + Vec3(0, 1.0f, 0);
-                b.size = Vec3(2.0f, 2.0f, 2.0f);
-                b.color = Vec3(0.5f, 0.5f, 0.55f);
-                b.texturePath = "";
-                _map->brushes.push_back(b);
-                _selectionType = SelectionType::Brush;
-                _selectedIndex = (int)_map->brushes.size() - 1;
-                logMessage("Placed NavMesh Obstacle Box (Dynamic AI Blocker)");
+            case 18: { // Bot Waypoint Node
+                MapWaypoint wp;
+                wp.name = "wp_" + std::to_string(_map->waypoints.size() + 1);
+                wp.position = _cursorPos + Vec3(0, 0.5f, 0);
+                wp.botName = "Bot_Guard";
+                wp.orderIndex = (int)_map->waypoints.size();
+                _map->waypoints.push_back(wp);
+                _selectionType = SelectionType::Waypoint;
+                _selectedIndex = (int)_map->waypoints.size() - 1;
+                logMessage("Placed Bot Waypoint [" + wp.name + "] (Assigned to " + wp.botName + ")");
                 break;
             }
         }
@@ -2995,6 +3083,8 @@ public:
             float cmW = 260.0f;
             struct CompDef { std::string name; std::string tag; };
             CompDef compRegistry[] = {
+                { "Magic Add: Trigger Volume", "Trigger" },
+                { "Magic Add: Bot Waypoint", "Waypoint" },
                 { "Magic Add: Camera", "Camera" },
                 { "Magic Add: Light", "Light" },
                 { "Magic Add: Spawn", "Spawn" },
@@ -3040,7 +3130,11 @@ public:
                 for (int i = 0; i < itemCount; ++i) {
                     if (my >= curItemY && my <= curItemY + 20.0f) {
                         std::string picked = filtered[i].name;
-                        if (picked == "Magic Add: Camera") {
+                        if (picked == "Magic Add: Trigger Volume") {
+                            placePrebuilt(9);
+                        } else if (picked == "Magic Add: Bot Waypoint") {
+                            placePrebuilt(18);
+                        } else if (picked == "Magic Add: Camera") {
                             MapCamera c;
                             c.name = "camera_" + std::to_string(_map->cameras.size() + 1);
                             c.position = _cursorPos + Vec3(0, 1.8f, 0);
@@ -5590,6 +5684,33 @@ public:
                 Renderer::drawCube(cam.position, cam.rotation, Vec3(0.6f, 0.4f, 0.8f), camCol, nullptr, false);
                 Renderer::drawWireCube(cam.position, Vec3(0.65f, 0.45f, 0.85f), camCol);
             }
+
+            // Render All Trigger Volumes in Map (Cyan/Teal Wireframe Volumes)
+            for (size_t i = 0; i < _map->triggers.size(); ++i) {
+                const auto& tr = _map->triggers[i];
+                Vec3 trCol = tr.triggered ? Vec3(0.55f, 0.55f, 0.6f) : Vec3(0.15f, 0.85f, 0.95f);
+                Renderer::drawWireCube(tr.position, tr.size, trCol);
+                Renderer::drawCube(tr.position, Vec3(0.35f, 0.35f, 0.35f), trCol, nullptr, false);
+            }
+
+            // Render All Bot Waypoints in Map (Yellow Nodes + Connected Path Lines)
+            for (size_t i = 0; i < _map->waypoints.size(); ++i) {
+                const auto& wp = _map->waypoints[i];
+                Vec3 wpCol(0.95f, 0.80f, 0.15f);
+                Renderer::drawCube(wp.position, Vec3(0.45f, 0.45f, 0.45f), wpCol, nullptr, false);
+                Renderer::drawWireCube(wp.position, Vec3(0.65f, 0.65f, 0.65f), Vec3(1.0f, 0.9f, 0.3f));
+                if (i + 1 < _map->waypoints.size()) {
+                    Vec3 pA = wp.position;
+                    Vec3 pB = _map->waypoints[i + 1].position;
+                    Vec3 mid = (pA + pB) * 0.5f;
+                    Vec3 diff = pB - pA;
+                    float len = diff.length();
+                    if (len > 0.05f) {
+                        float yawDeg = std::atan2(diff.x, diff.z) * (180.0f / 3.14159265f);
+                        Renderer::drawCube(mid, Vec3(0.0f, yawDeg, 0.0f), Vec3(0.08f, 0.08f, len), Vec3(1.0f, 0.85f, 0.2f), nullptr, false);
+                    }
+                }
+            }
         }
 
         _cullingStats = "Frustum Culling: Brushes " + std::to_string(renderedBrushes) + "/" + std::to_string(totalBrushes) +
@@ -5632,6 +5753,16 @@ public:
                 Vec3 half(0.6f, 0.6f, 0.6f);
                 Renderer::drawBoundingBox(cam.position - half, cam.position + half, hammerOrange);
                 drawGizmo(cam.position);
+            } else if (_selectionType == SelectionType::Trigger && _selectedIndex >= 0 && _selectedIndex < (int)_map->triggers.size()) {
+                const auto& tr = _map->triggers[_selectedIndex];
+                Vec3 half = tr.size * 0.5f;
+                Renderer::drawBoundingBox(tr.position - half, tr.position + half, hammerOrange);
+                drawGizmo(tr.position);
+            } else if (_selectionType == SelectionType::Waypoint && _selectedIndex >= 0 && _selectedIndex < (int)_map->waypoints.size()) {
+                const auto& wp = _map->waypoints[_selectedIndex];
+                Vec3 half(0.5f, 0.5f, 0.5f);
+                Renderer::drawBoundingBox(wp.position - half, wp.position + half, hammerOrange);
+                drawGizmo(wp.position);
             }
         }
 
@@ -6172,7 +6303,7 @@ public:
                 { "Verlet Cloth / SoftBody", "Simulated deformable mesh / cloth", Vec3(0.75f, 0.45f, 0.25f) },
                 { "Physics Joint / Constraint", "Hinge, slider, ball-socket constraint", Vec3(0.65f, 0.40f, 0.70f) },
                 { "Radial Force / Attractor", "Explosion, wind and planetary attractor", Vec3(0.85f, 0.25f, 0.25f) },
-                { "NavMesh Obstacle Box", "Dynamic pathfinding navigation blocker", Vec3(0.50f, 0.50f, 0.55f) }
+                { "Bot Waypoint Node", "AI patrol / story path waypoint node", Vec3(0.95f, 0.80f, 0.15f) }
             };
 
             float startY = catY + 30.0f;
@@ -6529,6 +6660,8 @@ public:
             else if (_selectionType == SelectionType::Spawn) selHeader = "Selection: Player Spawn";
             else if (_selectionType == SelectionType::Light) selHeader = "Selection: Lamp Light #" + std::to_string(_selectedIndex);
             else if (_selectionType == SelectionType::Camera) selHeader = "Selection: Camera #" + std::to_string(_selectedIndex);
+            else if (_selectionType == SelectionType::Trigger) selHeader = "Selection: Trigger Volume #" + std::to_string(_selectedIndex);
+            else if (_selectionType == SelectionType::Waypoint) selHeader = "Selection: Bot Waypoint #" + std::to_string(_selectedIndex);
 
             LabFont::drawText(l.rightX + 12.0f, propY, selHeader, 1.7f, (_selectionType != SelectionType::None) ? orangeGlow : textLight, LabFontType::System);
 
@@ -6556,6 +6689,12 @@ public:
                 pos = _map->cameras[_selectedIndex].position;
                 dims = Vec3(0.5f, 0.5f, 0.5f);
                 rot = _map->cameras[_selectedIndex].rotation;
+            } else if (_selectionType == SelectionType::Trigger && _selectedIndex >= 0 && _selectedIndex < (int)_map->triggers.size()) {
+                pos = _map->triggers[_selectedIndex].position;
+                dims = _map->triggers[_selectedIndex].size;
+            } else if (_selectionType == SelectionType::Waypoint && _selectedIndex >= 0 && _selectedIndex < (int)_map->waypoints.size()) {
+                pos = _map->waypoints[_selectedIndex].position;
+                dims = Vec3(0.5f, 0.5f, 0.5f);
             }
 
             std::string posStr = "Pos: (" + std::to_string((int)pos.x) + ", " + std::to_string((int)pos.y) + ", " + std::to_string((int)pos.z) + ")";
@@ -6582,6 +6721,12 @@ public:
             } else if (_selectionType == SelectionType::Camera && _selectedIndex >= 0 && _selectedIndex < (int)_map->cameras.size()) {
                 entName = _map->cameras[_selectedIndex].name;
                 entScript = _map->cameras[_selectedIndex].script;
+            } else if (_selectionType == SelectionType::Trigger && _selectedIndex >= 0 && _selectedIndex < (int)_map->triggers.size()) {
+                entName = _map->triggers[_selectedIndex].name;
+                entScript = _map->triggers[_selectedIndex].targetBot + " -> " + _map->triggers[_selectedIndex].eventType;
+            } else if (_selectionType == SelectionType::Waypoint && _selectedIndex >= 0 && _selectedIndex < (int)_map->waypoints.size()) {
+                entName = _map->waypoints[_selectedIndex].name;
+                entScript = _map->waypoints[_selectedIndex].botName;
             }
 
             if (_selectionType != SelectionType::None) {

@@ -95,8 +95,10 @@ namespace Lab {
         float topY = bottomY - totalMsgH;
 
         if (isOpen && lineCount > 0) {
-            Renderer::drawRect(chatX - 6.0f, topY - 4.0f, chatW + 12.0f, totalMsgH + 8.0f, Vec3(0.06f, 0.08f, 0.12f));
-            Renderer::drawRect(chatX - 6.0f, topY - 4.0f, chatW + 12.0f, 1.0f, Vec3(0.2f, 0.3f, 0.4f));
+            Renderer::drawRoundedRect(
+                chatX - 8.0f, topY - 4.0f, chatW + 16.0f, totalMsgH + 8.0f,
+                Vec3(0.03f, 0.04f, 0.06f), 0.32f, 4.0f, 0.0f
+            );
         }
 
         float currY = topY;
@@ -107,35 +109,33 @@ namespace Lab {
                 alpha = std::clamp((msg->maxLifetime - msg->lifetime) / 1.5f, 0.0f, 1.0f);
             }
 
-            // Draw sender prefix
+            // Subtle drop shadow + sender prefix
             std::string prefix = msg->sender + ": ";
-            Vec3 sCol = msg->senderColor * alpha;
-            Vec3 tCol = msg->textColor * alpha;
+            LabFont::drawText(chatX + 1.0f, currY + 4.0f, prefix, 1.45f, Vec3(0, 0, 0), LabFontType::GeoSans, alpha * 0.5f);
+            LabFont::drawText(chatX, currY + 3.0f, prefix, 1.45f, msg->senderColor, LabFontType::GeoSans, alpha);
 
-            LabFont::drawText(chatX, currY + 4.0f, prefix, 1.65f, sCol, LabFontType::GeoSans);
-
-            // Compute offset for text
-            float prefixWidth = (float)prefix.length() * 10.0f;
-            LabFont::drawText(chatX + prefixWidth, currY + 4.0f, msg->text, 1.65f, tCol, LabFontType::GeoSans);
+            // Compute exact offset for text using font metrics
+            float prefixWidth = LabFont::getTextWidth(prefix, 1.45f, LabFontType::GeoSans) + 4.0f;
+            LabFont::drawText(chatX + prefixWidth + 1.0f, currY + 4.0f, msg->text, 1.45f, Vec3(0, 0, 0), LabFontType::GeoSans, alpha * 0.5f);
+            LabFont::drawText(chatX + prefixWidth, currY + 3.0f, msg->text, 1.45f, msg->textColor, LabFontType::GeoSans, alpha);
 
             currY += lineH;
         }
 
         // Render active input bar if open
         if (isOpen) {
-            float barY = bottomY + 6.0f;
-            float barH = 30.0f;
+            float barY = bottomY + 4.0f;
+            float barH = 26.0f;
 
-            // Background card
-            Renderer::drawRect(chatX - 6.0f, barY, chatW + 12.0f, barH, Vec3(0.08f, 0.11f, 0.16f));
-            Renderer::drawRect(chatX - 6.0f, barY, chatW + 12.0f, 1.0f, Vec3(0.3f, 0.7f, 1.0f));
-            Renderer::drawRect(chatX - 6.0f, barY + barH - 1.0f, chatW + 12.0f, 1.0f, Vec3(0.3f, 0.7f, 1.0f));
-            Renderer::drawRect(chatX - 6.0f, barY, 1.0f, barH, Vec3(0.3f, 0.7f, 1.0f));
-            Renderer::drawRect(chatX + chatW + 5.0f, barY, 1.0f, barH, Vec3(0.3f, 0.7f, 1.0f));
+            // Sleek borderless translucent input pill
+            Renderer::drawRoundedRect(
+                chatX - 8.0f, barY, chatW + 16.0f, barH,
+                Vec3(0.04f, 0.05f, 0.07f), 0.45f, 4.0f, 0.0f
+            );
 
             // Prompt label & typed text
             std::string prompt = "SAY: " + currentInput + (std::fmod(cursorBlink, 2.0f) < 1.0f ? "_" : "");
-            LabFont::drawText(chatX + 6.0f, barY + 8.0f, prompt, 1.8f, Vec3(1.0f, 0.95f, 0.4f), LabFontType::GeoSans);
+            LabFont::drawText(chatX + 4.0f, barY + 6.0f, prompt, 1.45f, Vec3(1.0f, 0.82f, 0.22f), LabFontType::GeoSans, 0.95f);
         }
 
         Renderer::endUI();

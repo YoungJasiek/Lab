@@ -27,6 +27,11 @@ namespace Lab {
         int activeBots = 0;
         bool isGrounded = false;
         bool isBhopActive = false;
+        uint32_t drawCalls = 0;
+        uint32_t vertexCount = 0;
+        size_t ramWorkingSetMB = 0;
+        size_t vramTexturesMB = 0;
+        std::string closestBotInfo = "";
     };
 
     class LabDevConsole {
@@ -104,6 +109,11 @@ namespace Lab {
         bool wrd_fog = true;
         float wrd_fog_density = 0.02f;
         bool wrd_postprocess = true;
+        std::string wrd_skybox = "#0d121a";
+        Vec3 wrd_skybox_color{ 0.05f, 0.07f, 0.10f };
+        bool wrd_skybox_is_color = true;
+        Vec3 wrd_light_ambient{ 0.2f, 0.2f, 0.25f };
+        float wrd_gravity = -12.0f;
 
         // phys_ (Physics & Balanced Bhop tuning)
         float phys_gravity = 12.0f;
@@ -111,19 +121,60 @@ namespace Lab {
         float phys_air_accel = 12.0f;        // Default air acceleration for strafe momentum
         float phys_bhop_window = 0.08f;      // 80ms landing timing window
         float phys_max_bhop_speed = 11.5f;   // Maximum horizontal speed ceiling to prevent runaway momentum
+        float phys_step_height = 0.5f;
+        float phys_ragdoll_force = 1.0f;
+        bool phys_debug = false;
 
         // cam_ (Camera)
         float cam_fov = 75.0f;
+        float cam_viewmodel_fov = 54.0f;
+        Vec3 cam_viewmodel_offset{ 0.0f, 0.0f, 0.0f };
         bool cam_thirdperson = false;
         bool cam_bob = true;
+        bool cam_freecam = false;
 
         // r_ (Renderer)
         bool r_bloom = true;
         bool r_fxaa = true;
+        bool r_vsync = true;
         bool r_shadows = true;
+        int r_shadow_res = 1024;
         bool r_lightmaps = true;
         bool r_normalmaps = true;
         bool r_cubemaps = true;
+        bool r_postprocess = true;
+
+        // ai_ (AI)
+        bool ai_disable = false;
+        bool ai_freeze = false;
+        bool ai_sight = false;
+        bool ai_paths = false;
+        bool ai_aggro = false;
+        bool ai_ignore_player = false;
+
+        // snd_ (Audio)
+        float snd_volume = 1.0f;
+        float snd_music = 0.7f;
+        float snd_sfx = 1.0f;
+        float snd_voice = 1.0f;
+
+        // ui_ (UI)
+        bool ui_hide = false;
+        bool ui_crosshair = true;
+        std::string ui_crosshair_color = "#00ff00";
+        Vec3 ui_crosshair_color_rgb{ 0.0f, 1.0f, 0.0f };
+        float ui_scale = 1.0f;
+
+        // dcl_ (Decals)
+        int dcl_limit = 256;
+        float dcl_distance = 50.0f;
+
+        // mp_ (Multiplayer)
+        bool mp_friendly_fire = false;
+
+        // net_ (Network)
+        int net_fake_lag = 0;
+        float net_fake_loss = 0.0f;
 
         // Callbacks to game systems
         std::function<void(int amount)> onHeal;
@@ -135,12 +186,33 @@ namespace Lab {
         std::function<void()> onSuicide;
         std::function<void(const std::string& mapName)> onLoadMap;
         std::function<void()> onRestartMap;
+        std::function<void(const std::string& skybox)> onSetSkybox;
+        std::function<void(const std::string& modelPath)> onSpawnModel;
+        std::function<void(float force)> onCamShake;
+        std::function<void(bool vsync)> onSetVsync;
         std::function<void()> onReloadShaders;
         std::function<void(int count)> onSetBotsA;
         std::function<void(int count)> onSetBotsB;
         std::function<void()> onKickBots;
         std::function<void(bool freeze)> onFreezeBots;
+        std::function<void(const std::string& type)> onSpawnAi;
+        std::function<void(float vol)> onSetMasterVolume;
+        std::function<void(const std::string& path)> onPlaySound;
+        std::function<void()> onStopAllSounds;
+        std::function<void(const std::string& file)> onLipsyncTest;
+        std::function<void()> onRestartAudio;
+        std::function<void(const std::string& menuName)> onOpenMenu;
+        std::function<void()> onReloadUi;
+        std::function<void()> onClearDecals;
+        std::function<void(const std::string& type)> onSpawnDecal;
+        std::function<void()> onRestartRound;
+        std::function<void(const std::string& addr)> onNetConnect;
+        std::function<void()> onNetDisconnect;
         std::function<void()> onQuit;
+
+        // Key bindings
+        const std::unordered_map<std::string, std::string>& getKeyBinds() const { return _keyBinds; }
+        bool executeBind(const std::string& keyName);
 
     private:
         void registerKnownCommands();
@@ -160,6 +232,7 @@ namespace Lab {
         std::vector<std::string> _activeSuggestions;
         int _selectedSuggestion = -1;
         int _lastCharHandledKey = -1;
+        std::unordered_map<std::string, std::string> _keyBinds;
     };
 
 } // namespace Lab

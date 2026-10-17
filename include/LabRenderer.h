@@ -42,6 +42,7 @@ namespace Lab {
         int getUniformLocation(const std::string& name) const;
         void setMat4(const std::string& name, const Mat4& mat) const;
         void setMat4Array(const std::string& name, const Mat4* mats, int count) const;
+        void setVec4(const std::string& name, float x, float y, float z, float w) const;
         void setVec3(const std::string& name, const Vec3& vec) const;
         void setVec2(const std::string& name, const Vec2& vec) const;
         void setInt(const std::string& name, int value) const;
@@ -66,15 +67,19 @@ namespace Lab {
         Texture& operator=(Texture&& other) noexcept;
 
         void bind(unsigned int slot = 0) const;
+        void bindNormal(unsigned int slot = 2) const;
         void unbind() const;
         void updateData(const unsigned char* data, int width, int height, int channels);
         unsigned int getId() const { return _id; }
+        unsigned int getNormalId() const { return _normalId; }
+        bool hasNormalMap() const { return _normalId != 0; }
         int getWidth() const { return _width; }
         int getHeight() const { return _height; }
         int getChannels() const { return _channels; }
 
     private:
         unsigned int _id{0};
+        unsigned int _normalId{0};
         int _width{0}, _height{0}, _channels{0};
     };
 
@@ -148,8 +153,17 @@ namespace Lab {
         static void beginFrame(const Camera& camera);
         static void endFrame();
 
+        static Shader* getDefaultShader();
+        static Shader* getUIShader();
+
         static void beginViewModel();
         static void endViewModel(const Camera& camera);
+
+        // Frame rendering statistics & telemetry
+        static uint32_t getDrawCallCount();
+        static uint32_t getVertexCount();
+        static void resetFrameStats();
+        static void recordDraw(uint32_t vertices = 0);
 
         // Reentrant View State Stack for multi-camera / probe / cubemap / split-screen rendering
         static RenderViewState captureViewState();
@@ -185,6 +199,8 @@ namespace Lab {
         static void drawShadowCube(const Vec3& position, const Vec3& rotation, const Vec3& scale);
         static void drawShadowCube(const Vec3& position, const Vec3& size);
         static void drawShadowCube(const Mat4& modelTransform);
+        static void drawShadowCylinder(const Vec3& position, const Vec3& rotation, const Vec3& scale);
+        static void drawShadowCylinder(const Mat4& modelTransform);
         static void drawShadowMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale);
         static void drawShadowMesh(const Mesh& mesh, const Mat4& modelTransform);
         static void drawShadowSkinnedMesh(const SkinnedMesh& mesh, const Mat4& modelTransform, const std::vector<Mat4>& boneMatrices);
@@ -194,6 +210,13 @@ namespace Lab {
         static void drawCube(const Vec3& position, const Vec3& size, const Vec3& color, const Texture* texture, bool enableLighting = true, const Vec2& uvTiling = { 0.25f, 0.25f }, int uvMode = 1);
         static void drawCube(const Vec3& position, const Vec3& size, const Vec3& color, bool enableLighting = true);
         static void drawCube(const Mat4& modelTransform, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true, const Vec2& uvTiling = { 1.0f, 1.0f }, int uvMode = 1);
+        static void drawCylinder(const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color, const Texture* texture = nullptr, bool enableLighting = true, const Vec2& uvTiling = { 1.0f, 1.0f }, int uvMode = 0);
+        static void drawCylinder(const Mat4& modelTransform, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true, const Vec2& uvTiling = { 1.0f, 1.0f }, int uvMode = 0);
+        static void drawAdditiveTracer(const Vec3& start, const Vec3& end, const Vec3& color, float thickness = 0.032f, float alpha = 0.92f);
+        static void drawMuzzleFlash(const Vec3& position, const Vec3& forward, const Vec3& color, float radius = 0.22f, float rollDeg = 0.0f);
+        static void drawMuzzleFlash(const Vec3& position, const Vec3& forward, float radius, const Vec3& color, float rollDeg = 0.0f) {
+            drawMuzzleFlash(position, forward, color, radius, rollDeg);
+        }
         static void drawWireCube(const Vec3& position, const Vec3& size, const Vec3& color);
         static void drawBoundingBox(const Vec3& min, const Vec3& max, const Vec3& color);
         static void drawMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true, float uvScale = 1.0f);
@@ -206,9 +229,10 @@ namespace Lab {
         // 2D/UI Rendering
         static void beginUI(int windowWidth, int windowHeight);
         static void endUI();
-        static void drawRect(float x, float y, float w, float h, const Vec3& color);
-        static void drawTextureRect(float x, float y, float w, float h, const Texture& texture, const Vec3& tint = { 1, 1, 1 });
-        static void drawTextureRect(float x, float y, float w, float h, const Texture& texture, float u0, float v0, float u1, float v1, const Vec3& tint = { 1, 1, 1 });
+        static void drawRect(float x, float y, float w, float h, const Vec3& color, float alpha = 1.0f);
+        static void drawRoundedRect(float x, float y, float w, float h, const Vec3& color, float alpha = 1.0f, float cornerRadius = 6.0f, float borderWidth = 0.0f, const Vec3& borderColor = { 1, 1, 1 }, float borderAlpha = 1.0f);
+        static void drawTextureRect(float x, float y, float w, float h, const Texture& texture, const Vec3& tint = { 1, 1, 1 }, float alpha = 1.0f);
+        static void drawTextureRect(float x, float y, float w, float h, const Texture& texture, float u0, float v0, float u1, float v1, const Vec3& tint = { 1, 1, 1 }, float alpha = 1.0f);
 
     private:
         static Mat4 getTransform(const Vec3& pos, const Vec3& rot, const Vec3& scale);
@@ -218,6 +242,7 @@ namespace Lab {
         static Shader* _shadowDepthShader;
         static Shader* _uiShader;
         static Mesh* _cubeMesh;
+        static Mesh* _cylinderMesh;
         static Mesh* _quadMesh; // For baseplate
         static unsigned int _wireCubeVao, _wireCubeVbo, _wireCubeEbo;
         static unsigned int _uiVao, _uiVbo;

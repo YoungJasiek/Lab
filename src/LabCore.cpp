@@ -51,7 +51,7 @@ namespace Lab {
     }
 
     static std::ofstream& getLogStream() {
-        static std::ofstream s_logFile("lab_engine.log", std::ios::out | std::ios::app);
+        static std::ofstream s_logFile("lab_engine.log", std::ios::out | std::ios::trunc);
         return s_logFile;
     }
 
@@ -466,11 +466,9 @@ namespace Lab {
             if (action == GLFW_PRESS) {
                 Input::mouseButtons[button] = true;
                 Input::mouseButtonsJustPressed[button] = true;
-                LabLog::info("[Engine] Mouse Button PRESS: " + std::to_string(button) + " at (" + std::to_string(Input::mousePos.x) + ", " + std::to_string(Input::mousePos.y) + ")");
             } else if (action == GLFW_RELEASE) {
                 Input::mouseButtons[button] = false;
                 Input::mouseButtonsJustReleased[button] = true;
-                LabLog::info("[Engine] Mouse Button RELEASE: " + std::to_string(button) + " at (" + std::to_string(Input::mousePos.x) + ", " + std::to_string(Input::mousePos.y) + ")");
             }
         }
     }

@@ -221,4 +221,18 @@ namespace Lab {
             : modelPath(model), texturePath(tex) {}
     };
 
+    // =========================================================================
+    // 10. Box Collider Component (Dynamic Scene Collisions & Triggers)
+    // =========================================================================
+    class BoxCollider : public Component {
+    public:
+        Vec3 size{1.0f, 1.0f, 1.0f};
+        Vec3 offset{0.0f, 0.0f, 0.0f};
+        bool isTrigger{false};
+
+        BoxCollider() = default;
+        explicit BoxCollider(const Vec3& s, bool trigger = false)
+            : size(s), isTrigger(trigger) {}
+    };
+
 } // namespace Lab

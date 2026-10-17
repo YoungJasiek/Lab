@@ -75,7 +75,7 @@ namespace Lab {
         std::string line;
         std::string currentSection = "";
         bool hasValidMapStructure = false;
-        enum class LastParsedEntity { None, Brush, Prop, Door, Camera, Sprite, Light };
+        enum class LastParsedEntity { None, Brush, Prop, Door, Camera, Sprite, Light, Trigger, Waypoint };
         LastParsedEntity lastParsed = LastParsedEntity::None;
 
         while (std::getline(file, line)) {
@@ -119,6 +119,9 @@ namespace Lab {
                     ss >> map->metadata.sunDir.x >> map->metadata.sunDir.y >> map->metadata.sunDir.z;
                 } else if (token == "sun_color") {
                     ss >> map->metadata.sunColor.x >> map->metadata.sunColor.y >> map->metadata.sunColor.z;
+                } else if (token == "cubemap") {
+                    ss >> map->metadata.cubemapPath;
+                    if (map->metadata.cubemapPath == "\"\"") map->metadata.cubemapPath = "";
                 }
             } else if (currentSection == "ENTITIES") {
                 if (token == "spawn") {
@@ -208,6 +211,32 @@ namespace Lab {
                        >> d.openSpeed >> d.triggerRadius;
                     map->doors.push_back(d);
                     lastParsed = LastParsedEntity::Door;
+                } else if (token == "trigger_volume" || token == "trigger") {
+                    MapTrigger tr;
+                    int onceInt = 1;
+                    ss >> tr.name >> tr.position.x >> tr.position.y >> tr.position.z
+                       >> tr.size.x >> tr.size.y >> tr.size.z
+                       >> tr.eventType >> tr.targetBot >> onceInt;
+                    tr.once = (onceInt != 0);
+                    if (tr.targetBot == "\"\"") tr.targetBot = "";
+                    if (ss >> tr.audioPath) {
+                        if (tr.audioPath == "\"\"") tr.audioPath = "";
+                    }
+                    std::string rest;
+                    std::getline(ss, rest);
+                    size_t q1 = rest.find('"'), q2 = rest.rfind('"');
+                    if (q1 != std::string::npos && q2 != std::string::npos && q2 > q1) {
+                        tr.dialogText = rest.substr(q1 + 1, q2 - q1 - 1);
+                    }
+                    map->triggers.push_back(tr);
+                    lastParsed = LastParsedEntity::Trigger;
+                } else if (token == "waypoint" || token == "path_node") {
+                    MapWaypoint wp;
+                    ss >> wp.name >> wp.position.x >> wp.position.y >> wp.position.z
+                       >> wp.botName >> wp.orderIndex;
+                    if (wp.botName == "\"\"") wp.botName = "";
+                    map->waypoints.push_back(wp);
+                    lastParsed = LastParsedEntity::Waypoint;
                 } else if (token == "camera") {
                     MapCamera c;
                     int act = 1;
@@ -221,6 +250,23 @@ namespace Lab {
                     c.active = (act != 0);
                     map->cameras.push_back(c);
                     lastParsed = LastParsedEntity::Camera;
+                } else if (token == "normal_map") {
+                    std::string nPath;
+                    if (ss >> nPath) {
+                        if (nPath == "\"\"") nPath = "";
+                        if (lastParsed == LastParsedEntity::Brush && !map->brushes.empty()) {
+                            map->brushes.back().normalMapPath = nPath;
+                        } else if (lastParsed == LastParsedEntity::Prop && !map->props.empty()) {
+                            map->props.back().normalMapPath = nPath;
+                        }
+                    }
+                } else if (token == "dialog_text") {
+                    std::string rest;
+                    std::getline(ss, rest);
+                    size_t q1 = rest.find('"'), q2 = rest.rfind('"');
+                    if (q1 != std::string::npos && q2 != std::string::npos && q2 > q1 && lastParsed == LastParsedEntity::Trigger && !map->triggers.empty()) {
+                        map->triggers.back().dialogText = rest.substr(q1 + 1, q2 - q1 - 1);
+                    }
                 } else if (token == "script") {
                     std::string sPath;
                     if (ss >> sPath) {
@@ -231,6 +277,8 @@ namespace Lab {
                             map->props.back().script = sPath;
                         } else if (lastParsed == LastParsedEntity::Door && !map->doors.empty()) {
                             map->doors.back().script = sPath;
+                        } else if (lastParsed == LastParsedEntity::Trigger && !map->triggers.empty()) {
+                            map->triggers.back().script = sPath;
                         } else if (lastParsed == LastParsedEntity::Camera && !map->cameras.empty()) {
                             map->cameras.back().script = sPath;
                         } else if (lastParsed == LastParsedEntity::Sprite && !map->sprites.empty()) {
@@ -267,6 +315,10 @@ namespace Lab {
                             map->props.back().name = n;
                         } else if (lastParsed == LastParsedEntity::Door && !map->doors.empty()) {
                             map->doors.back().name = n;
+                        } else if (lastParsed == LastParsedEntity::Trigger && !map->triggers.empty()) {
+                            map->triggers.back().name = n;
+                        } else if (lastParsed == LastParsedEntity::Waypoint && !map->waypoints.empty()) {
+                            map->waypoints.back().name = n;
                         } else if (lastParsed == LastParsedEntity::Camera && !map->cameras.empty()) {
                             map->cameras.back().name = n;
                         } else if (lastParsed == LastParsedEntity::Sprite && !map->sprites.empty()) {
@@ -366,7 +418,9 @@ namespace Lab {
                      std::to_string(map->lights.size()) + " lights, " +
                      std::to_string(map->brushes.size()) + " brushes, " +
                      std::to_string(map->props.size()) + " props, " +
-                     std::to_string(map->doors.size()) + " doors)");
+                     std::to_string(map->doors.size()) + " doors, " +
+                     std::to_string(map->triggers.size()) + " triggers, " +
+                     std::to_string(map->waypoints.size()) + " waypoints)");
         return map;
     }
 
@@ -458,6 +512,9 @@ namespace Lab {
         file << "    ambient " << metadata.ambientColor.x << " " << metadata.ambientColor.y << " " << metadata.ambientColor.z << "\n";
         file << "    sun_dir " << metadata.sunDir.x << " " << metadata.sunDir.y << " " << metadata.sunDir.z << "\n";
         file << "    sun_color " << metadata.sunColor.x << " " << metadata.sunColor.y << " " << metadata.sunColor.z << "\n";
+        if (!metadata.cubemapPath.empty()) {
+            file << "    cubemap " << metadata.cubemapPath << "\n";
+        }
         file << "END_METADATA\n\n";
 
         file << "ENTITIES\n";
@@ -526,6 +583,9 @@ namespace Lab {
             if (!b.name.empty()) {
                 file << "        name \"" << b.name << "\"\n";
             }
+            if (!b.normalMapPath.empty()) {
+                file << "        normal_map " << b.normalMapPath << "\n";
+            }
             if (!b.script.empty()) {
                 file << "        script " << b.script << "\n";
             }
@@ -540,6 +600,9 @@ namespace Lab {
                  << (p.texturePath.empty() ? "\"\"" : p.texturePath) << "\n";
             if (!p.name.empty()) {
                 file << "        name \"" << p.name << "\"\n";
+            }
+            if (!p.normalMapPath.empty()) {
+                file << "        normal_map " << p.normalMapPath << "\n";
             }
             if (!p.script.empty()) {
                 file << "        script " << p.script << "\n";
@@ -556,6 +619,27 @@ namespace Lab {
             if (!d.script.empty()) {
                 file << "        script " << d.script << "\n";
             }
+        }
+
+        for (const auto& tr : triggers) {
+            file << "    trigger_volume " << (tr.name.empty() ? "trigger_story" : tr.name) << " "
+                 << tr.position.x << " " << tr.position.y << " " << tr.position.z << " "
+                 << tr.size.x << " " << tr.size.y << " " << tr.size.z << " "
+                 << (tr.eventType.empty() ? "story_dialog" : tr.eventType) << " "
+                 << (tr.targetBot.empty() ? "\"\"" : tr.targetBot) << " "
+                 << (tr.once ? 1 : 0) << " "
+                 << (tr.audioPath.empty() ? "\"\"" : tr.audioPath) << " "
+                 << "\"" << tr.dialogText << "\"\n";
+            if (!tr.script.empty()) {
+                file << "        script " << tr.script << "\n";
+            }
+        }
+
+        for (const auto& wp : waypoints) {
+            file << "    waypoint " << (wp.name.empty() ? "wp" : wp.name) << " "
+                 << wp.position.x << " " << wp.position.y << " " << wp.position.z << " "
+                 << (wp.botName.empty() ? "\"\"" : wp.botName) << " "
+                 << wp.orderIndex << "\n";
         }
 
         for (const auto& lt : lights) {
@@ -589,13 +673,15 @@ namespace Lab {
     Vec3* MapEntityHandle::getPosition() const {
         if (!map) return nullptr;
         switch (type) {
-            case Type::Brush:  return (index < map->brushes.size()) ? &map->brushes[index].position : nullptr;
-            case Type::Prop:   return (index < map->props.size())   ? &map->props[index].position   : nullptr;
-            case Type::Door:   return (index < map->doors.size())   ? &map->doors[index].position   : nullptr;
-            case Type::Camera: return (index < map->cameras.size()) ? &map->cameras[index].position : nullptr;
-            case Type::Sprite: return (index < map->sprites.size()) ? &map->sprites[index].position : nullptr;
-            case Type::Light:  return (index < map->lights.size())  ? &map->lights[index].position  : nullptr;
-            default:           return nullptr;
+            case Type::Brush:    return (index < map->brushes.size())   ? &map->brushes[index].position   : nullptr;
+            case Type::Prop:     return (index < map->props.size())     ? &map->props[index].position     : nullptr;
+            case Type::Door:     return (index < map->doors.size())     ? &map->doors[index].position     : nullptr;
+            case Type::Camera:   return (index < map->cameras.size())   ? &map->cameras[index].position   : nullptr;
+            case Type::Sprite:   return (index < map->sprites.size())   ? &map->sprites[index].position   : nullptr;
+            case Type::Light:    return (index < map->lights.size())    ? &map->lights[index].position    : nullptr;
+            case Type::Trigger:  return (index < map->triggers.size())  ? &map->triggers[index].position  : nullptr;
+            case Type::Waypoint: return (index < map->waypoints.size()) ? &map->waypoints[index].position : nullptr;
+            default:             return nullptr;
         }
     }
 
@@ -636,6 +722,16 @@ namespace Lab {
         for (size_t i = 0; i < doors.size(); ++i) {
             if (doors[i].name == name) {
                 return { MapEntityHandle::Type::Door, i, doors[i].name, this };
+            }
+        }
+        for (size_t i = 0; i < triggers.size(); ++i) {
+            if (triggers[i].name == name) {
+                return { MapEntityHandle::Type::Trigger, i, triggers[i].name, this };
+            }
+        }
+        for (size_t i = 0; i < waypoints.size(); ++i) {
+            if (waypoints[i].name == name) {
+                return { MapEntityHandle::Type::Waypoint, i, waypoints[i].name, this };
             }
         }
         for (size_t i = 0; i < cameras.size(); ++i) {

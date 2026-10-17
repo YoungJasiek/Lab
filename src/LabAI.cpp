@@ -61,6 +61,46 @@ namespace Lab {
         shootAnimTimer = 0.0f;
     }
 
+    void CombatBot::assignWaypoints(const std::vector<Vec3>& pathNodes, bool loopPath) {
+        waypoints = pathNodes;
+        currentWaypointIndex = 0;
+        loopWaypoints = loopPath;
+        if (!waypoints.empty()) {
+            patrolStart = waypoints.front();
+            patrolEnd = waypoints.back();
+        }
+    }
+
+    void CombatBot::startStoryEvent(const std::string& subtitle, const std::string& audioFile, const std::vector<Vec3>& pathNodes) {
+        activeSubtitle = subtitle;
+        activeAudioPath = audioFile.empty() ? "assets/audio/bot_corridor_dialog.wav" : audioFile;
+        state = AIState::Talk;
+
+        bool loaded = lipSync.loadDialogAudio(activeAudioPath, name, activeSubtitle);
+        if (!loaded) {
+            lipSync.clearSubtitles();
+            lipSync.addSubtitle(0.0f, 3.0f, name, activeSubtitle);
+        }
+        lipSync.playDialog(false);
+        talkTimer = (lipSync.getDialogDuration() > 0.1f) ? lipSync.getDialogDuration() : 3.0f;
+
+        // Play 3D positional bot voice audio
+        AudioEngine::playCustomSound3D(activeAudioPath, position + Vec3(0.0f, 1.65f, 0.0f), 1.0f, 2.0f, 38.0f);
+
+        if (!pathNodes.empty()) {
+            waypoints = pathNodes;
+            currentWaypointIndex = 0;
+            storyPathActive = true;
+        } else if (!waypoints.empty()) {
+            currentWaypointIndex = 0;
+            storyPathActive = true;
+        }
+
+        if (animator.getSkeleton()) {
+            animator.playAnimation("Talk", true, 0.1f);
+        }
+    }
+
     void CombatBot::getHitboxes(Vec3& headMin, Vec3& headMax, Vec3& bodyMin, Vec3& bodyMax) const {
         Vec3 headCenter = position + Vec3(0.0f, 1.68f, 0.0f);
         Vec3 headHalf   = Vec3(0.24f, 0.22f, 0.24f);
@@ -83,6 +123,7 @@ namespace Lab {
 
         // Test solid brushes
         for (const auto& b : map.brushes) {
+            if (!b.collidable || b.type == "trigger") continue;
             Vec3 half = b.size * 0.5f;
             if (Raycast::rayIntersectAABB(from, rayDir, b.position - half, b.position + half, hitT)) {
                 if (hitT > 0.1f && hitT < dist - 0.2f) {
@@ -133,12 +174,35 @@ namespace Lab {
             }
         }
 
+        // Update Lip-Sync & blendshapes/visemes when talking
+        if (talkTimer > 0.0f) {
+            talkTimer -= dt;
+            lipSync.updateDialog(dt);
+            if (!lipSync.hasDialogAudio()) {
+                float synthAmp = 0.5f + 0.5f * std::sin((3.0f - talkTimer) * 18.0f);
+                lipSync.update(synthAmp, dt);
+            }
+            if (faceMesh) {
+                lipSync.applyTo(*faceMesh);
+                faceMesh->evaluate();
+            }
+            if (talkTimer <= 0.0f) {
+                talkTimer = 0.0f;
+                activeSubtitle.clear();
+                if (state == AIState::Talk) {
+                    state = AIState::Patrol;
+                }
+            }
+        }
+
         Vec3 vecToPlayer = playerPos - position;
         float distToPlayer = vecToPlayer.length();
         Vec3 eyePos = position + Vec3(0.0f, 1.6f, 0.0f);
         Vec3 playerTargetPos = playerPos + Vec3(0.0f, 0.8f, 0.0f);
 
-        bool canSee = (distToPlayer <= sightRange) && hasLineOfSight(eyePos, playerTargetPos, map);
+        bool canSee = (state != AIState::Talk && !storyPathActive) &&
+                      (distToPlayer <= sightRange) && hasLineOfSight(eyePos, playerTargetPos, map);
+        bool movedThisStep = false;
 
         if (canSee) {
             // Face player
@@ -174,6 +238,7 @@ namespace Lab {
             LabCollision::moveAndSlide(nextPos, tempVel, grounded, dt, solidBoxes, 0.0f, 0.35f, 1.85f);
             position = nextPos;
             walkCycle += dt * 8.0f;
+            movedThisStep = true;
 
             // Combat weapons firing with weapon cadence, reload, and human recoil arc
             shootCooldown -= dt;
@@ -209,9 +274,32 @@ namespace Lab {
                     outTracers.push_back(tr);
                 }
             }
+        } else if (!waypoints.empty() && (storyPathActive || state == AIState::Patrol || state == AIState::Talk)) {
+            if (talkTimer <= 0.0f) state = AIState::Patrol;
+            int wpIdx = std::clamp(currentWaypointIndex, 0, static_cast<int>(waypoints.size()) - 1);
+            Vec3 targetNode = waypoints[wpIdx];
+            Vec3 toNode = Vec3(targetNode.x - position.x, 0.0f, targetNode.z - position.z);
+            float distNode = toNode.length();
+            if (distNode > 0.25f) {
+                Vec3 dir = toNode / distNode;
+                float step = std::min(distNode, moveSpeed * dt);
+                position.x += dir.x * step;
+                position.z += dir.z * step;
+                rotation.y = std::atan2(dir.x, dir.z) * 180.0f / 3.14159265f;
+                walkCycle += dt * 6.0f;
+                movedThisStep = true;
+            } else {
+                if (currentWaypointIndex + 1 < static_cast<int>(waypoints.size())) {
+                    currentWaypointIndex++;
+                } else if (loopWaypoints) {
+                    currentWaypointIndex = 0;
+                } else {
+                    storyPathActive = false;
+                }
+            }
         } else {
             // Return to / continue patrol
-            state = AIState::Patrol;
+            if (talkTimer <= 0.0f) state = AIState::Patrol;
             float pathLen = (patrolEnd - patrolStart).length();
             if (pathLen > 0.5f) {
                 patrolT += patrolDir * (moveSpeed / pathLen) * dt;
@@ -224,13 +312,24 @@ namespace Lab {
                 }
                 position = patrolStart * (1.0f - patrolT) + patrolEnd * patrolT;
                 walkCycle += dt * 6.0f;
+                movedThisStep = true;
 
                 Vec3 dir = (patrolDir > 0) ? (patrolEnd - patrolStart) : (patrolStart - patrolEnd);
                 rotation.y = std::atan2(dir.x, dir.z) * 180.0f / 3.14159265f;
             }
         }
 
-        // Update glTF 2.0 / FBX Skeletal Animator (Death, Hit, Reload, Shoot recoil, Walk, Idle)
+        // Emit 3D spatial footstep audio while moving
+        if (movedThisStep) {
+            footstepTimer -= dt;
+            if (footstepTimer <= 0.0f) {
+                footstepTimer = (state == AIState::Chase) ? 0.36f : 0.48f;
+                AudioEngine::playCustomSound3D("assets/audio/bot_footstep_3d.wav", position, 0.65f, 1.5f, 28.0f);
+                AudioEngine::playSound3D(SoundID::FootstepMetal, position, 0.50f, 1.0f, 1.5f, 28.0f);
+            }
+        }
+
+        // Update glTF 2.0 / FBX Skeletal Animator (Death, Hit, Reload, Shoot recoil, Talk, Walk, Idle)
         if (animator.getSkeleton()) {
             if (state == AIState::Dead) {
                 animator.playAnimation(deathAnim, false);
@@ -242,8 +341,10 @@ namespace Lab {
                 if (equippedWeapon == WeaponID::Pipe) {
                     animator.playAnimation("Heavy Weapon Swing", false, 0.05f);
                 } else {
-                    animator.playAnimation("Firing Rifle", false, 0.05f);
+                    animator.playAnimation(animator.hasClip("Firing Rifle") ? "Firing Rifle" : "Attack", false, 0.05f);
                 }
+            } else if (state == AIState::Talk && !movedThisStep) {
+                animator.playAnimation("Talk", true, 0.1f);
             } else if (state == AIState::Chase) {
                 animator.playAnimation("Run Forward", true, 0.1f);
             } else if (state == AIState::Attack) {
@@ -256,7 +357,7 @@ namespace Lab {
                         animator.playAnimation("Strafing", true, 0.1f);
                     }
                 } else if (distToPlayer > 8.0f) {
-                    animator.playAnimation("Walking", true, 0.1f);
+                    animator.playAnimation("Walk", true, 0.1f);
                 } else {
                     if (equippedWeapon == WeaponID::Pistol) {
                         animator.playAnimation("Pistol Idle", true, 0.15f);
@@ -264,8 +365,8 @@ namespace Lab {
                         animator.playAnimation("Idle", true, 0.15f);
                     }
                 }
-            } else if (state == AIState::Patrol) {
-                animator.playAnimation("Walking", true, 0.1f);
+            } else if (state == AIState::Patrol || (state == AIState::Talk && movedThisStep)) {
+                animator.playAnimation("Walk", true, 0.1f);
             } else {
                 if (equippedWeapon == WeaponID::Pistol) {
                     animator.playAnimation("Pistol Idle", true, 0.15f);
@@ -409,18 +510,17 @@ namespace Lab {
             }
         } else {
             float legSwing = std::sin(walkCycle) * 0.28f;
-            // 1. Torso
-            Renderer::drawCube(bPos + Vec3(0.0f, 1.15f, 0.0f), rotation, Vec3(0.52f, 0.72f, 0.36f), armorCol);
-            // 2. Chest Armor plate
-            Renderer::drawCube(bPos + Vec3(0.0f, 1.22f, 0.05f), rotation, Vec3(0.44f, 0.46f, 0.30f), Vec3(0.14f, 0.16f, 0.18f));
-            // 3. Head & Visor
-            Renderer::drawCube(bPos + Vec3(0.0f, 1.68f, 0.0f), rotation, Vec3(0.32f, 0.28f, 0.32f), Vec3(0.12f, 0.14f, 0.17f));
-            Renderer::drawCube(bPos + Vec3(0.0f, 1.68f, 0.17f), rotation, Vec3(0.24f, 0.08f, 0.04f), visorCol, nullptr, false);
-            // 4. Animated Legs
-            Renderer::drawCube(bPos + Vec3(-0.16f, 0.45f, legSwing), rotation, Vec3(0.13f, 0.8f, 0.15f), Vec3(0.15f, 0.15f, 0.17f));
-            Renderer::drawCube(bPos + Vec3(0.16f, 0.45f, -legSwing), rotation, Vec3(0.13f, 0.8f, 0.15f), Vec3(0.15f, 0.15f, 0.17f));
+            // 1. Cylindrical Armored Torso & Chest Plate
+            Renderer::drawCylinder(bPos + Vec3(0.0f, 1.15f, 0.0f), rotation, Vec3(0.50f, 0.72f, 0.36f), armorCol);
+            Renderer::drawCylinder(bPos + Vec3(0.0f, 1.22f, 0.04f), rotation, Vec3(0.44f, 0.46f, 0.32f), Vec3(0.14f, 0.16f, 0.19f));
+            // 2. Cylindrical Combat Helmet & Glowing Visor
+            Renderer::drawCylinder(bPos + Vec3(0.0f, 1.68f, 0.0f), rotation, Vec3(0.30f, 0.28f, 0.30f), Vec3(0.12f, 0.14f, 0.17f));
+            Renderer::drawCube(bPos + Vec3(0.0f, 1.68f, 0.15f), rotation, Vec3(0.22f, 0.07f, 0.04f), visorCol, nullptr, false);
+            // 3. Cylindrical Articulated Legs
+            Renderer::drawCylinder(bPos + Vec3(-0.15f, 0.45f, legSwing), rotation, Vec3(0.14f, 0.80f, 0.15f), Vec3(0.15f, 0.16f, 0.18f));
+            Renderer::drawCylinder(bPos + Vec3(0.15f, 0.45f, -legSwing), rotation, Vec3(0.14f, 0.80f, 0.15f), Vec3(0.15f, 0.16f, 0.18f));
 
-            // 5. Bot Held Weapon
+            // 4. Bot Held Weapon
             if (weaponMesh) {
                 Vec3 gunPos = bPos + Vec3(0.24f, 1.15f, 0.25f);
                 Vec3 offset(0.0f, 0.0f, 0.0f);
@@ -434,20 +534,18 @@ namespace Lab {
                 Renderer::drawMesh(*weaponMesh, gunPos + offset, rotation + rot, Vec3(0.45f * scale.x, 0.45f * scale.y, 0.45f * scale.z), Vec3(0.92f, 0.92f, 0.95f), weaponTex, true);
             } else {
                 Vec3 gunPos = bPos + Vec3(0.24f, 1.15f, 0.25f);
-                Renderer::drawCube(gunPos, rotation, Vec3(0.08f, 0.12f, 0.55f), Vec3(0.09f, 0.09f, 0.11f));
+                Renderer::drawCube(gunPos, rotation, Vec3(0.07f, 0.11f, 0.52f), Vec3(0.12f, 0.13f, 0.15f));
             }
         }
 
         if (muzzleFlashTimer > 0.0f) {
-            Vec3 mPos = bPos + Vec3(0.24f, 1.15f, 0.57f);
-            Renderer::drawCube(mPos, rotation, Vec3(0.16f, 0.16f, 0.16f), Vec3(1.0f, 0.9f, 0.2f), nullptr, false);
+            float yawRad = rotation.y * 3.14159265f / 180.0f;
+            Vec3 botFwd(std::sin(yawRad), 0.0f, std::cos(yawRad));
+            Vec3 botRight(botFwd.z, 0.0f, -botFwd.x);
+            Vec3 mPos = bPos + Vec3(0.0f, 1.18f, 0.0f) + botRight * 0.22f + botFwd * 0.58f;
+            Renderer::drawMuzzleFlash(mPos, botFwd, 0.24f, Vec3(1.0f, 0.85f, 0.25f));
+            Renderer::addPointLight(mPos, Vec3(1.0f, 0.78f, 0.22f), 2.2f, 5.5f);
         }
-
-        // 6. Overhead Health Bar
-        float hpRatio = std::clamp(health / maxHealth, 0.0f, 1.0f);
-        Renderer::drawCube(bPos + Vec3(0.0f, 2.05f, 0.0f), Vec3(0.0f, rotation.y, 0.0f), Vec3(0.7f, 0.06f, 0.03f), Vec3(0.15f, 0.15f, 0.15f), nullptr, false);
-        Vec3 hpColor = (team == 0) ? Vec3(0.9f, 0.2f, 0.2f) : Vec3(0.2f, 0.85f, 0.3f);
-        Renderer::drawCube(bPos + Vec3(0.0f, 2.05f, 0.01f), Vec3(0.0f, rotation.y, 0.0f), Vec3(0.68f * hpRatio, 0.05f, 0.03f), hpColor, nullptr, false);
     }
 
     void CombatBot::renderShadow(const SkinnedMesh* mesh, const Mesh* weaponMesh,
@@ -500,7 +598,7 @@ namespace Lab {
                 Renderer::drawShadowMesh(*weaponMesh, weaponSocket);
             }
         } else {
-            Renderer::drawShadowCube(bPos + Vec3(0.0f, 1.0f, 0.0f), Vec3(0.6f, 1.8f, 0.6f));
+            Renderer::drawShadowCylinder(bPos + Vec3(0.0f, 1.0f, 0.0f), Vec3(0.0f, 0.0f, 0.0f), Vec3(0.6f, 1.8f, 0.6f));
         }
     }
 
@@ -514,17 +612,11 @@ namespace Lab {
                 {  0,  1,  0 }, {  0, -1,  0 }
             };
             static const float faceVerts[6][4][3] = {
-                // Front (+Z)
                 { { -1, -1,  1 }, {  1, -1,  1 }, {  1,  1,  1 }, { -1,  1,  1 } },
-                // Back (-Z)
                 { {  1, -1, -1 }, { -1, -1, -1 }, { -1,  1, -1 }, {  1,  1, -1 } },
-                // Left (-X)
                 { { -1, -1, -1 }, { -1, -1,  1 }, { -1,  1,  1 }, { -1,  1, -1 } },
-                // Right (+X)
                 { {  1, -1,  1 }, {  1, -1, -1 }, {  1,  1, -1 }, {  1,  1,  1 } },
-                // Top (+Y)
                 { { -1,  1,  1 }, {  1,  1,  1 }, {  1,  1, -1 }, { -1,  1, -1 } },
-                // Bottom (-Y)
                 { { -1, -1, -1 }, {  1, -1, -1 }, {  1, -1,  1 }, { -1, -1,  1 } }
             };
             static const Vec2 uvs[4] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } };
@@ -552,51 +644,78 @@ namespace Lab {
             }
         }
 
+        void addCylinderZToMesh(std::vector<Vertex>& verts, std::vector<unsigned int>& idxs,
+                                const Vec3& center, const Vec3& size, const Vec3& color = Vec3(1, 1, 1)) {
+            const int segs = 16;
+            const float pi2 = 6.283185307f;
+            Vec3 half = size * 0.5f;
+            unsigned int baseIdx = static_cast<unsigned int>(verts.size());
+
+            for (int i = 0; i <= segs; ++i) {
+                float u = (float)i / (float)segs;
+                float a = u * pi2;
+                float cx = std::cos(a);
+                float sy = std::sin(a);
+                Vec3 n(cx, sy, 0.0f);
+
+                verts.push_back({ { center.x + cx * half.x, center.y + sy * half.y, center.z - half.z }, n, { u, 0.0f }, color });
+                verts.push_back({ { center.x + cx * half.x, center.y + sy * half.y, center.z + half.z }, n, { u, 1.0f }, color });
+            }
+            for (int i = 0; i < segs; ++i) {
+                unsigned int b0 = baseIdx + i * 2;
+                unsigned int t0 = b0 + 1;
+                unsigned int b1 = b0 + 2;
+                unsigned int t1 = b0 + 3;
+                idxs.push_back(b0); idxs.push_back(b1); idxs.push_back(t1);
+                idxs.push_back(b0); idxs.push_back(t1); idxs.push_back(t0);
+            }
+        }
+
         std::unique_ptr<Mesh> createProceduralWeaponMesh(WeaponID id) {
             std::vector<Vertex> verts;
             std::vector<unsigned int> idxs;
 
             switch (id) {
                 case WeaponID::Pistol:
-                    addBoxToMesh(verts, idxs, { 0.0f, 0.02f, -0.06f }, { 0.038f, 0.052f, 0.18f }, { 0.22f, 0.24f, 0.27f });
+                    addBoxToMesh(verts, idxs, { 0.0f, 0.02f, -0.06f }, { 0.036f, 0.048f, 0.18f }, { 0.45f, 0.48f, 0.52f });
+                    addCylinderZToMesh(verts, idxs, { 0.0f, 0.024f, -0.08f }, { 0.024f, 0.024f, 0.20f }, { 0.22f, 0.24f, 0.27f });
                     addBoxToMesh(verts, idxs, { 0.0f, -0.06f, 0.01f }, { 0.032f, 0.11f, 0.048f }, { 0.14f, 0.15f, 0.17f });
-                    addBoxToMesh(verts, idxs, { 0.0f, -0.025f, -0.02f }, { 0.022f, 0.035f, 0.035f }, { 0.35f, 0.35f, 0.38f });
                     break;
                 case WeaponID::Shotgun:
                     addBoxToMesh(verts, idxs, { 0.0f, 0.01f, 0.04f }, { 0.055f, 0.082f, 0.26f }, { 0.24f, 0.26f, 0.30f });
-                    addBoxToMesh(verts, idxs, { 0.0f, 0.025f, -0.28f }, { 0.048f, 0.038f, 0.42f }, { 0.18f, 0.19f, 0.22f });
-                    addBoxToMesh(verts, idxs, { 0.0f, -0.02f, -0.24f }, { 0.042f, 0.032f, 0.36f }, { 0.30f, 0.32f, 0.36f });
-                    addBoxToMesh(verts, idxs, { 0.0f, -0.02f, -0.18f }, { 0.060f, 0.050f, 0.14f }, { 0.45f, 0.28f, 0.15f });
-                    addBoxToMesh(verts, idxs, { 0.0f, -0.035f, 0.24f }, { 0.045f, 0.095f, 0.22f }, { 0.45f, 0.28f, 0.15f });
+                    addCylinderZToMesh(verts, idxs, { 0.0f, 0.028f, -0.28f }, { 0.042f, 0.042f, 0.44f }, { 0.18f, 0.19f, 0.22f });
+                    addCylinderZToMesh(verts, idxs, { 0.0f, -0.018f, -0.24f }, { 0.038f, 0.038f, 0.36f }, { 0.30f, 0.32f, 0.36f });
+                    addCylinderZToMesh(verts, idxs, { 0.0f, -0.018f, -0.18f }, { 0.058f, 0.052f, 0.16f }, { 0.16f, 0.17f, 0.19f });
+                    addBoxToMesh(verts, idxs, { 0.0f, -0.035f, 0.24f }, { 0.045f, 0.095f, 0.22f }, { 0.18f, 0.18f, 0.20f });
                     break;
                 case WeaponID::SG553:
                     addBoxToMesh(verts, idxs, { 0.0f, 0.01f, 0.02f }, { 0.050f, 0.088f, 0.36f }, { 0.26f, 0.30f, 0.26f });
-                    addBoxToMesh(verts, idxs, { 0.0f, 0.025f, -0.32f }, { 0.030f, 0.030f, 0.36f }, { 0.18f, 0.19f, 0.21f });
-                    addBoxToMesh(verts, idxs, { 0.0f, 0.075f, -0.02f }, { 0.038f, 0.042f, 0.16f }, { 0.15f, 0.16f, 0.18f });
+                    addCylinderZToMesh(verts, idxs, { 0.0f, 0.025f, -0.32f }, { 0.032f, 0.032f, 0.38f }, { 0.18f, 0.19f, 0.21f });
+                    addCylinderZToMesh(verts, idxs, { 0.0f, 0.075f, -0.02f }, { 0.040f, 0.040f, 0.18f }, { 0.15f, 0.16f, 0.18f });
                     addBoxToMesh(verts, idxs, { 0.0f, -0.095f, -0.03f }, { 0.032f, 0.13f, 0.075f }, { 0.18f, 0.19f, 0.21f });
                     addBoxToMesh(verts, idxs, { 0.0f, -0.02f, 0.26f }, { 0.042f, 0.080f, 0.18f }, { 0.22f, 0.25f, 0.23f });
                     break;
                 case WeaponID::Minigun:
-                    addBoxToMesh(verts, idxs, { 0.0f, 0.0f, 0.08f }, { 0.14f, 0.15f, 0.30f }, { 0.22f, 0.23f, 0.26f });
-                    addBoxToMesh(verts, idxs, { 0.0f, 0.0f, -0.28f }, { 0.12f, 0.12f, 0.48f }, { 0.32f, 0.34f, 0.38f });
+                    addCylinderZToMesh(verts, idxs, { 0.0f, 0.0f, 0.08f }, { 0.14f, 0.14f, 0.30f }, { 0.22f, 0.23f, 0.26f });
+                    addCylinderZToMesh(verts, idxs, { 0.0f, 0.0f, -0.28f }, { 0.11f, 0.11f, 0.48f }, { 0.32f, 0.34f, 0.38f });
                     addBoxToMesh(verts, idxs, { 0.0f, 0.11f, 0.02f }, { 0.038f, 0.075f, 0.26f }, { 0.15f, 0.16f, 0.18f });
                     addBoxToMesh(verts, idxs, { -0.075f, -0.05f, 0.08f }, { 0.075f, 0.11f, 0.16f }, { 0.40f, 0.35f, 0.18f });
                     break;
                 case WeaponID::PlasmaGun:
                     addBoxToMesh(verts, idxs, { 0.0f, 0.01f, 0.02f }, { 0.085f, 0.11f, 0.40f }, { 0.20f, 0.25f, 0.32f });
-                    addBoxToMesh(verts, idxs, { 0.0f, 0.025f, -0.10f }, { 0.105f, 0.075f, 0.16f }, { 0.20f, 0.85f, 1.00f });
-                    addBoxToMesh(verts, idxs, { 0.0f, 0.015f, -0.32f }, { 0.075f, 0.055f, 0.26f }, { 0.30f, 0.35f, 0.42f });
+                    addCylinderZToMesh(verts, idxs, { 0.0f, 0.025f, -0.10f }, { 0.095f, 0.095f, 0.18f }, { 0.20f, 0.85f, 1.00f });
+                    addCylinderZToMesh(verts, idxs, { 0.0f, 0.015f, -0.32f }, { 0.068f, 0.068f, 0.26f }, { 0.30f, 0.35f, 0.42f });
                     addBoxToMesh(verts, idxs, { 0.0f, -0.075f, 0.10f }, { 0.065f, 0.095f, 0.11f }, { 0.15f, 0.18f, 0.22f });
                     break;
                 case WeaponID::RPG:
-                    addBoxToMesh(verts, idxs, { 0.0f, 0.03f, 0.02f }, { 0.078f, 0.078f, 0.72f }, { 0.24f, 0.28f, 0.20f });
-                    addBoxToMesh(verts, idxs, { 0.0f, 0.03f, -0.38f }, { 0.125f, 0.125f, 0.20f }, { 0.28f, 0.34f, 0.22f });
-                    addBoxToMesh(verts, idxs, { 0.0f, 0.03f, -0.50f }, { 0.038f, 0.038f, 0.07f }, { 0.82f, 0.82f, 0.86f });
-                    addBoxToMesh(verts, idxs, { 0.0f, 0.03f, 0.40f }, { 0.110f, 0.110f, 0.08f }, { 0.18f, 0.18f, 0.20f });
+                    addCylinderZToMesh(verts, idxs, { 0.0f, 0.03f, 0.02f }, { 0.082f, 0.082f, 0.72f }, { 0.24f, 0.28f, 0.20f });
+                    addCylinderZToMesh(verts, idxs, { 0.0f, 0.03f, -0.38f }, { 0.128f, 0.128f, 0.20f }, { 0.28f, 0.34f, 0.22f });
+                    addCylinderZToMesh(verts, idxs, { 0.0f, 0.03f, -0.50f }, { 0.038f, 0.038f, 0.07f }, { 0.82f, 0.82f, 0.86f });
+                    addCylinderZToMesh(verts, idxs, { 0.0f, 0.03f, 0.40f }, { 0.112f, 0.112f, 0.08f }, { 0.18f, 0.18f, 0.20f });
                     addBoxToMesh(verts, idxs, { 0.0f, -0.07f, 0.02f }, { 0.038f, 0.12f, 0.055f }, { 0.15f, 0.15f, 0.17f });
                     break;
                 default:
-                    addBoxToMesh(verts, idxs, { 0.0f, 0.0f, 0.0f }, { 0.05f, 0.08f, 0.50f }, { 0.35f, 0.35f, 0.38f });
+                    addCylinderZToMesh(verts, idxs, { 0.0f, 0.0f, 0.0f }, { 0.055f, 0.055f, 0.50f }, { 0.35f, 0.35f, 0.38f });
                     break;
             }
 
@@ -734,6 +853,9 @@ namespace Lab {
             // Backwards compatibility pointer
             weaponMesh = std::unique_ptr<Mesh>(Mesh::loadSTL("assets/models/pipe.stl"));
         }
+        if (!sharedFaceMesh) {
+            sharedFaceMesh = FacialMesh::createProceduralHead();
+        }
     }
 
     void AIManager::spawnBotsForMap(const LabMap* map, int count, GameMode mode) {
@@ -743,7 +865,9 @@ namespace Lab {
 
         for (int i = 0; i < count; ++i) {
             int botTeam = (mode == GameMode::TDM) ? (i % 2) : -1;
-            std::string bName = "Bot #" + std::to_string(i + 1);
+            std::string bName = (i == 0 && map && !map->waypoints.empty() && !map->waypoints[0].botName.empty())
+                                ? map->waypoints[0].botName
+                                : ("Bot #" + std::to_string(i + 1));
 
             MapSpawnPoint sp;
             if (map) {
@@ -776,8 +900,28 @@ namespace Lab {
             WeaponID assignedWep = static_cast<WeaponID>((i + 2) % 9);
             bots.emplace_back(i, bName, botSpawnPos, patrolEnd, botTeam, assignedWep);
             bots.back().rotation.y = sp.yaw;
+            bots.back().faceMesh = sharedFaceMesh;
             if (skeleton) {
                 bots.back().initAnimation(skeleton, animations);
+            }
+
+            // Bind map waypoints assigned to this bot (or first bot if waypoints exist)
+            if (map && !map->waypoints.empty()) {
+                std::vector<MapWaypoint> matched;
+                for (const auto& wp : map->waypoints) {
+                    if (wp.botName == bName || (i == 0 && (wp.botName.empty() || wp.botName == "Bot_Guard" || wp.botName == "Bot #1"))) {
+                        matched.push_back(wp);
+                    }
+                }
+                std::sort(matched.begin(), matched.end(), [](const MapWaypoint& a, const MapWaypoint& b) {
+                    return a.orderIndex < b.orderIndex;
+                });
+                if (!matched.empty()) {
+                    std::vector<Vec3> nodes;
+                    nodes.reserve(matched.size());
+                    for (const auto& m : matched) nodes.push_back(m.position);
+                    bots.back().assignWaypoints(nodes, true);
+                }
             }
         }
     }
@@ -785,6 +929,44 @@ namespace Lab {
     void AIManager::spawnBotsForMap(const std::string& mapName, int count, GameMode mode) {
         auto loaded = LabMap::loadFromFile(mapName);
         spawnBotsForMap(loaded.get(), count, mode);
+    }
+
+    bool AIManager::triggerStoryEventOnBot(const std::string& targetBotName, const std::string& subtitle,
+                                           const std::string& audioFile, const LabMap& map) {
+        if (bots.empty()) {
+            spawnBotsForMap(&map, 1, GameMode::FFA);
+        }
+        if (bots.empty()) return false;
+
+        int targetIdx = 0;
+        for (size_t i = 0; i < bots.size(); ++i) {
+            if (!targetBotName.empty() && bots[i].name == targetBotName) {
+                targetIdx = static_cast<int>(i);
+                break;
+            }
+        }
+
+        std::vector<MapWaypoint> matched;
+        for (const auto& wp : map.waypoints) {
+            if (wp.botName.empty() || wp.botName == targetBotName || wp.botName == bots[targetIdx].name) {
+                matched.push_back(wp);
+            }
+        }
+        if (matched.empty() && !map.waypoints.empty()) {
+            matched = map.waypoints;
+        }
+        std::sort(matched.begin(), matched.end(), [](const MapWaypoint& a, const MapWaypoint& b) {
+            return a.orderIndex < b.orderIndex;
+        });
+
+        std::vector<Vec3> pathNodes;
+        pathNodes.reserve(matched.size());
+        for (const auto& m : matched) {
+            pathNodes.push_back(m.position);
+        }
+
+        bots[targetIdx].startStoryEvent(subtitle, audioFile, pathNodes);
+        return true;
     }
 
     void AIManager::update(float dt, const Vec3& playerPos, bool isPlayerAlive, int playerTeam,
@@ -818,7 +1000,7 @@ namespace Lab {
                     bot.deathTimer = 0.0f;
                     bot.deathAnim = "Death";
                     if (bot.animator.getSkeleton()) {
-                        bot.animator.playAnimation("Walking", true, 0.1f);
+                        bot.animator.playAnimation("Walk", true, 0.1f);
                     }
 
                     // Collect active enemy positions for anti-spawncamp selection
@@ -878,6 +1060,27 @@ namespace Lab {
                 }
             }
 
+            // Update Lip-Sync & blendshapes/visemes when talking
+            if (bot.talkTimer > 0.0f) {
+                bot.talkTimer -= dt;
+                bot.lipSync.updateDialog(dt);
+                if (!bot.lipSync.hasDialogAudio()) {
+                    float synthAmp = 0.5f + 0.5f * std::sin((3.0f - bot.talkTimer) * 18.0f);
+                    bot.lipSync.update(synthAmp, dt);
+                }
+                if (bot.faceMesh) {
+                    bot.lipSync.applyTo(*bot.faceMesh);
+                    bot.faceMesh->evaluate();
+                }
+                if (bot.talkTimer <= 0.0f) {
+                    bot.talkTimer = 0.0f;
+                    bot.activeSubtitle.clear();
+                    if (bot.state == AIState::Talk) {
+                        bot.state = AIState::Patrol;
+                    }
+                }
+            }
+
             // ==================== MULTI-TARGET SELECTION ====================
             // Find closest visible enemy (either the player or another enemy bot)
             float bestDist = 1e9f;
@@ -887,37 +1090,41 @@ namespace Lab {
 
             Vec3 botEye = bot.position + Vec3(0.0f, 1.6f, 0.0f);
 
-            // 1. Evaluate Player
-            if (isPlayerAlive && (playerTeam == -1 || playerTeam != bot.team)) {
-                Vec3 toPlayer = playerPos - bot.position;
-                float d = toPlayer.length();
-                if (d <= bot.sightRange) {
-                    Vec3 playerEye = playerPos + Vec3(0.0f, 0.8f, 0.0f);
-                    if (CombatBot::hasLineOfSight(botEye, playerEye, map)) {
-                        bestDist = d;
-                        bestTargetPos = playerPos;
-                        targetIsPlayer = true;
+            if (bot.state != AIState::Talk && !bot.storyPathActive) {
+                // 1. Evaluate Player
+                if (isPlayerAlive && (playerTeam == -1 || playerTeam != bot.team)) {
+                    Vec3 toPlayer = playerPos - bot.position;
+                    float d = toPlayer.length();
+                    if (d <= bot.sightRange) {
+                        Vec3 playerEye = playerPos + Vec3(0.0f, 0.8f, 0.0f);
+                        if (CombatBot::hasLineOfSight(botEye, playerEye, map)) {
+                            bestDist = d;
+                            bestTargetPos = playerPos;
+                            targetIsPlayer = true;
+                        }
+                    }
+                }
+
+                // 2. Evaluate other Bots (FFA: all other bots; TDM: opposing team bots)
+                for (size_t j = 0; j < bots.size(); ++j) {
+                    if (i == j || !bots[j].isAlive()) continue;
+                    if (bot.team != -1 && bot.team == bots[j].team) continue; // Teammate in TDM
+
+                    Vec3 toBot = bots[j].position - bot.position;
+                    float d = toBot.length();
+                    if (d <= bot.sightRange && d < bestDist) {
+                        Vec3 targetBotEye = bots[j].position + Vec3(0.0f, 1.6f, 0.0f);
+                        if (CombatBot::hasLineOfSight(botEye, targetBotEye, map)) {
+                            bestDist = d;
+                            bestTargetPos = bots[j].position;
+                            targetIsPlayer = false;
+                            targetBotIdx = static_cast<int>(j);
+                        }
                     }
                 }
             }
 
-            // 2. Evaluate other Bots (FFA: all other bots; TDM: opposing team bots)
-            for (size_t j = 0; j < bots.size(); ++j) {
-                if (i == j || !bots[j].isAlive()) continue;
-                if (bot.team != -1 && bot.team == bots[j].team) continue; // Teammate in TDM
-
-                Vec3 toBot = bots[j].position - bot.position;
-                float d = toBot.length();
-                if (d <= bot.sightRange && d < bestDist) {
-                    Vec3 targetBotEye = bots[j].position + Vec3(0.0f, 1.6f, 0.0f);
-                    if (CombatBot::hasLineOfSight(botEye, targetBotEye, map)) {
-                        bestDist = d;
-                        bestTargetPos = bots[j].position;
-                        targetIsPlayer = false;
-                        targetBotIdx = static_cast<int>(j);
-                    }
-                }
-            }
+            bool movedThisStep = false;
 
             // ==================== TACTICAL COMBAT ENGAGEMENT ====================
             if (bestDist < 1e8f) {
@@ -962,6 +1169,7 @@ namespace Lab {
                 LabCollision::moveAndSlide(nextPos, tempVel, grounded, dt, solidBoxes, 0.0f, 0.35f, 1.85f);
                 bot.position = nextPos;
                 bot.walkCycle += dt * 8.0f;
+                movedThisStep = true;
 
                 // ==================== WEAPONS FIRING ====================
                 bot.shootCooldown -= dt;
@@ -1038,9 +1246,38 @@ namespace Lab {
                         }
                     }
                 }
+            } else if (!bot.waypoints.empty() && (bot.storyPathActive || bot.state == AIState::Patrol || bot.state == AIState::Talk)) {
+                // ==================== STORY MODE / WAYPOINT PATH NAVIGATION ====================
+                if (bot.talkTimer <= 0.0f) bot.state = AIState::Patrol;
+                int wpIdx = std::clamp(bot.currentWaypointIndex, 0, static_cast<int>(bot.waypoints.size()) - 1);
+                Vec3 targetNode = bot.waypoints[wpIdx];
+                Vec3 toNode = Vec3(targetNode.x - bot.position.x, 0.0f, targetNode.z - bot.position.z);
+                float distNode = toNode.length();
+                if (distNode > 0.25f) {
+                    Vec3 dir = toNode / distNode;
+                    float step = std::min(distNode, bot.moveSpeed * dt);
+                    Vec3 nextPos = Vec3(bot.position.x + dir.x * step, bot.position.y, bot.position.z + dir.z * step);
+                    Vec3 pVel = { 0.0f, -12.0f * dt, 0.0f };
+                    bool grounded = true;
+                    LabCollision::moveAndSlide(nextPos, pVel, grounded, dt, solidBoxes, 0.0f, 0.35f, 1.85f);
+                    bot.position.x = bot.position.x + dir.x * step;
+                    bot.position.y = nextPos.y;
+                    bot.position.z = bot.position.z + dir.z * step;
+                    bot.rotation.y = std::atan2(dir.x, dir.z) * 180.0f / 3.14159265f;
+                    bot.walkCycle += dt * 6.0f;
+                    movedThisStep = true;
+                } else {
+                    if (bot.currentWaypointIndex + 1 < static_cast<int>(bot.waypoints.size())) {
+                        bot.currentWaypointIndex++;
+                    } else if (bot.loopWaypoints) {
+                        bot.currentWaypointIndex = 0;
+                    } else {
+                        bot.storyPathActive = false;
+                    }
+                }
             } else {
                 // ==================== PATROL NAVIGATION ====================
-                bot.state = AIState::Patrol;
+                if (bot.talkTimer <= 0.0f) bot.state = AIState::Patrol;
                 float pathLen = (bot.patrolEnd - bot.patrolStart).length();
                 if (pathLen > 0.5f) {
                     bot.patrolT += bot.patrolDir * (bot.moveSpeed / pathLen) * dt;
@@ -1064,10 +1301,21 @@ namespace Lab {
                     bot.position.y = nextPos.y;
                     bot.position.z = targetPos.z;
                     bot.walkCycle += dt * 6.0f;
+                    movedThisStep = true;
                 }
             }
 
-            // Update bot skeletal animator (Death, Hit, Reload, Shoot recoil, Walk, Idle)
+            // Emit 3D spatial footstep audio while moving
+            if (movedThisStep) {
+                bot.footstepTimer -= dt;
+                if (bot.footstepTimer <= 0.0f) {
+                    bot.footstepTimer = (bot.state == AIState::Chase) ? 0.36f : 0.48f;
+                    AudioEngine::playCustomSound3D("assets/audio/bot_footstep_3d.wav", bot.position, 0.65f, 1.5f, 28.0f);
+                    AudioEngine::playSound3D(SoundID::FootstepMetal, bot.position, 0.50f, 1.0f, 1.5f, 28.0f);
+                }
+            }
+
+            // Update bot skeletal animator (Death, Hit, Reload, Shoot recoil, Talk, Walk, Idle)
             if (bot.animator.getSkeleton()) {
                 if (bot.state == AIState::Dead) {
                     bot.animator.playAnimation(bot.deathAnim, false);
@@ -1079,8 +1327,10 @@ namespace Lab {
                     if (bot.equippedWeapon == WeaponID::Pipe) {
                         bot.animator.playAnimation("Heavy Weapon Swing", false, 0.05f);
                     } else {
-                        bot.animator.playAnimation("Firing Rifle", false, 0.05f);
+                        bot.animator.playAnimation("Attack", false, 0.05f);
                     }
+                } else if (bot.state == AIState::Talk && !movedThisStep) {
+                    bot.animator.playAnimation("Talk", true, 0.1f);
                 } else if (bot.state == AIState::Chase) {
                     bot.animator.playAnimation("Run Forward", true, 0.1f);
                 } else if (bot.state == AIState::Attack) {
@@ -1093,7 +1343,7 @@ namespace Lab {
                             bot.animator.playAnimation("Strafing", true, 0.1f);
                         }
                     } else if (bestDist > 8.0f) {
-                        bot.animator.playAnimation("Walking", true, 0.1f);
+                        bot.animator.playAnimation("Walk", true, 0.1f);
                     } else {
                         if (bot.equippedWeapon == WeaponID::Pistol) {
                             bot.animator.playAnimation("Pistol Idle", true, 0.15f);
@@ -1101,8 +1351,8 @@ namespace Lab {
                             bot.animator.playAnimation("Idle", true, 0.15f);
                         }
                     }
-                } else if (bot.state == AIState::Patrol) {
-                    bot.animator.playAnimation("Walking", true, 0.1f);
+                } else if (bot.state == AIState::Patrol || (bot.state == AIState::Talk && movedThisStep)) {
+                    bot.animator.playAnimation("Walk", true, 0.1f);
                 } else {
                     if (bot.equippedWeapon == WeaponID::Pistol) {
                         bot.animator.playAnimation("Pistol Idle", true, 0.15f);

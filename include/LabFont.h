@@ -157,19 +157,19 @@ namespace Lab {
             return fontTable[idx];
         }
 
-        static void drawDotMatrixChar(float x, float y, char c, float scale, const Vec3& color) {
+        static void drawDotMatrixChar(float x, float y, char c, float scale, const Vec3& color, float alpha = 1.0f) {
             const unsigned char* cols = getDotMatrixGlyph(c);
             for (int col = 0; col < 5; ++col) {
                 unsigned char bits = cols[col];
                 for (int row = 0; row < 7; ++row) {
                     if (bits & (1 << row)) {
-                        Renderer::drawRect(x + col * scale, y + row * scale, scale, scale, color);
+                        Renderer::drawRect(x + col * scale, y + row * scale, scale, scale, color, alpha);
                     }
                 }
             }
         }
 
-        static void drawDotMatrixText(float x, float y, const std::string& text, float scale, const Vec3& color) {
+        static void drawDotMatrixText(float x, float y, const std::string& text, float scale, const Vec3& color, float alpha = 1.0f) {
             float cursorX = x;
             float charWidth = 6.0f * scale;
             for (char c : text) {
@@ -178,7 +178,7 @@ namespace Lab {
                     cursorX = x;
                     continue;
                 }
-                drawDotMatrixChar(cursorX, y, c, scale, color);
+                drawDotMatrixChar(cursorX, y, c, scale, color, alpha);
                 cursorX += charWidth;
             }
         }
@@ -243,7 +243,7 @@ namespace Lab {
             if (!file.read(reinterpret_cast<char*>(fontBuffer.data()), size)) return atlas;
             file.close();
 
-            const int ATLAS_SIZE = 512;
+            const int ATLAS_SIZE = (fontHeight > 36.0f) ? 1024 : 512;
             std::vector<unsigned char> monoBitmap(ATLAS_SIZE * ATLAS_SIZE, 0);
             stbtt_bakedchar cdata[96];
 
@@ -418,33 +418,49 @@ namespace Lab {
         }
 #endif
 
-        static FontAtlas& getAtlas(LabFontType type) {
+        static FontAtlas& getAtlas(LabFontType type, float scale = 1.0f) {
             static FontAtlas geoSansAtlas;
+            static FontAtlas geoSansLargeAtlas;
             static FontAtlas systemAtlas;
             static FontAtlas monospaceAtlas;
             static bool initialized = false;
 
             if (!initialized) {
                 // 1. Primary: TrueType files via cross-platform stb_truetype
-                geoSansAtlas = buildAtlasSTB("GeosansLight.ttf", 26.0f);
+                geoSansAtlas = buildAtlasSTB("GeosansLight.ttf", 28.0f);
                 if (!geoSansAtlas.valid) {
-                    geoSansAtlas = buildAtlasSTB("Novecentosanswide-Normal.otf", 26.0f);
+                    geoSansAtlas = buildAtlasSTB("Novecentosanswide-Normal.otf", 28.0f);
+                }
+
+                // High-DPI 64px atlas for crisp large HUD numbers (HEV / Health / Ammo)
+                geoSansLargeAtlas = buildAtlasSTB("GeosansLight.ttf", 64.0f);
+                if (!geoSansLargeAtlas.valid) {
+                    geoSansLargeAtlas = buildAtlasSTB("Novecentosanswide-Normal.otf", 64.0f);
                 }
 
 #if defined(_WIN32)
-                systemAtlas = buildAtlasSTB("segoeui.ttf", 26.0f);
-                if (!systemAtlas.valid) systemAtlas = buildAtlasSTB("arial.ttf", 26.0f);
+                systemAtlas = buildAtlasSTB("segoeui.ttf", 28.0f);
+                if (!systemAtlas.valid) systemAtlas = buildAtlasSTB("arial.ttf", 28.0f);
                 if (!systemAtlas.valid) systemAtlas = buildAtlasGDI("Segoe UI", "");
                 if (!systemAtlas.valid) systemAtlas = buildAtlasGDI("Arial", "");
+
+                if (!geoSansLargeAtlas.valid) {
+                    geoSansLargeAtlas = buildAtlasSTB("segoeui.ttf", 64.0f);
+                    if (!geoSansLargeAtlas.valid) geoSansLargeAtlas = buildAtlasSTB("arial.ttf", 64.0f);
+                }
 
                 monospaceAtlas = buildAtlasSTB("consola.ttf", 26.0f);
                 if (!monospaceAtlas.valid) monospaceAtlas = buildAtlasSTB("cour.ttf", 26.0f);
                 if (!monospaceAtlas.valid) monospaceAtlas = buildAtlasGDI("Consolas", "");
                 if (!monospaceAtlas.valid) monospaceAtlas = buildAtlasGDI("Courier New", "");
 #else
-                systemAtlas = buildAtlasSTB("DejaVuSans.ttf", 26.0f);
-                if (!systemAtlas.valid) systemAtlas = buildAtlasSTB("LiberationSans-Regular.ttf", 26.0f);
-                if (!systemAtlas.valid) systemAtlas = buildAtlasSTB("GeosansLight.ttf", 26.0f);
+                systemAtlas = buildAtlasSTB("DejaVuSans.ttf", 28.0f);
+                if (!systemAtlas.valid) systemAtlas = buildAtlasSTB("LiberationSans-Regular.ttf", 28.0f);
+                if (!systemAtlas.valid) systemAtlas = buildAtlasSTB("GeosansLight.ttf", 28.0f);
+
+                if (!geoSansLargeAtlas.valid) {
+                    geoSansLargeAtlas = buildAtlasSTB("DejaVuSans.ttf", 64.0f);
+                }
 
                 monospaceAtlas = buildAtlasSTB("DejaVuSansMono.ttf", 26.0f);
                 if (!monospaceAtlas.valid) monospaceAtlas = buildAtlasSTB("LiberationMono-Regular.ttf", 26.0f);
@@ -452,7 +468,7 @@ namespace Lab {
 #endif
 
                 if (!systemAtlas.valid && geoSansAtlas.valid) {
-                    systemAtlas = buildAtlasSTB("GeosansLight.ttf", 26.0f);
+                    systemAtlas = buildAtlasSTB("GeosansLight.ttf", 28.0f);
                 }
                 if (!monospaceAtlas.valid && systemAtlas.valid) {
                     monospaceAtlas = buildAtlasSTB("GeosansLight.ttf", 26.0f);
@@ -461,13 +477,17 @@ namespace Lab {
                 initialized = true;
             }
 
-            if (type == LabFontType::GeoSans) return geoSansAtlas.valid ? geoSansAtlas : systemAtlas;
+            if (type == LabFontType::GeoSans) {
+                if (scale >= 2.2f && geoSansLargeAtlas.valid) return geoSansLargeAtlas;
+                return geoSansAtlas.valid ? geoSansAtlas : systemAtlas;
+            }
             if (type == LabFontType::Monospace) return monospaceAtlas.valid ? monospaceAtlas : systemAtlas;
+            if (scale >= 2.4f && geoSansLargeAtlas.valid) return geoSansLargeAtlas;
             return systemAtlas;
         }
 
         static float getMonospaceAdvance(float scale = 1.0f) {
-            FontAtlas& atlas = getAtlas(LabFontType::Monospace);
+            FontAtlas& atlas = getAtlas(LabFontType::Monospace, scale);
             if (atlas.valid) {
                 float visualScale = scale * (8.5f / atlas.fontHeight);
                 float adv = atlas.glyphs['0' - 32].xadvance;
@@ -478,9 +498,9 @@ namespace Lab {
             return 6.0f * scale;
         }
 
-        static void drawText(float x, float y, const std::string& text, float scale = 1.0f, const Vec3& color = { 1, 1, 1 }, LabFontType fontType = LabFontType::System) {
+        static void drawText(float x, float y, const std::string& text, float scale = 1.0f, const Vec3& color = { 1, 1, 1 }, LabFontType fontType = LabFontType::System, float alpha = 1.0f) {
             if (fontType != LabFontType::DotMatrix) {
-                FontAtlas& atlas = getAtlas(fontType);
+                FontAtlas& atlas = getAtlas(fontType, scale);
                 if (atlas.valid && atlas.texture) {
                     float visualScale = scale * (8.5f / atlas.fontHeight);
                     float cursorX = x;
@@ -513,7 +533,7 @@ namespace Lab {
                                 gm.w * visualScale, gm.h * visualScale,
                                 *atlas.texture,
                                 gm.u0, gm.v0, gm.u1, gm.v1,
-                                color
+                                color, alpha
                             );
                         }
                         cursorX += (fontType == LabFontType::Monospace) ? monoAdvance : ((gm.xadvance > 0.0f ? gm.xadvance : gm.w + 1.0f) * visualScale);
@@ -522,7 +542,7 @@ namespace Lab {
                 }
             }
 
-            drawDotMatrixText(x, y, text, scale, color);
+            drawDotMatrixText(x, y, text, scale, color, alpha);
         }
 
         static float getTextWidth(const std::string& text, float scale = 1.0f, LabFontType fontType = LabFontType::System) {
@@ -543,7 +563,7 @@ namespace Lab {
                 return (std::max)(maxW, curW);
             }
             if (fontType != LabFontType::DotMatrix) {
-                FontAtlas& atlas = getAtlas(fontType);
+                FontAtlas& atlas = getAtlas(fontType, scale);
                 if (atlas.valid) {
                     float visualScale = scale * (8.5f / atlas.fontHeight);
                     float maxW = 0.0f;
@@ -569,7 +589,7 @@ namespace Lab {
 
         static float getTextHeight(float scale = 1.0f, LabFontType fontType = LabFontType::System) {
             if (fontType != LabFontType::DotMatrix) {
-                FontAtlas& atlas = getAtlas(fontType);
+                FontAtlas& atlas = getAtlas(fontType, scale);
                 if (atlas.valid) {
                     float visualScale = scale * (8.5f / atlas.fontHeight);
                     return atlas.fontHeight * visualScale;

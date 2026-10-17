@@ -94,8 +94,13 @@ namespace Lab {
         in vec3 Color;
 
         uniform sampler2D texture1;
+        uniform sampler2D normalMap;
         uniform int useTexture;
+        uniform int uUseNormalMap;
+        uniform float uNormalStrength;
+        uniform float uEnvReflectionStrength;
         uniform vec3 objectColor;
+        uniform float uAlpha;
         uniform int enableLighting;
         uniform vec3 viewPos;
         uniform vec3 lightDir;
@@ -136,6 +141,35 @@ namespace Lab {
         uniform float uHeightFogBase;
         uniform float uHeightFogDensity;
 
+        // Analytic Orthonormal Tangent Frame (Gram-Schmidt aligned with Source Tri-Planar axes, zero derivative seams)
+        vec3 perturbNormal(vec3 N, vec3 worldPos, vec2 uv, vec3 mapN) {
+            vec3 absN = abs(N);
+            vec3 rawT;
+            vec3 rawB;
+            if (absN.y > 0.5) {
+                rawT = vec3(1.0, 0.0, 0.0);
+                rawB = vec3(0.0, 0.0, 1.0);
+            } else if (absN.z > 0.5) {
+                rawT = vec3(1.0, 0.0, 0.0);
+                rawB = vec3(0.0, 1.0, 0.0);
+            } else {
+                rawT = vec3(0.0, 0.0, 1.0);
+                rawB = vec3(0.0, 1.0, 0.0);
+            }
+            vec3 T = normalize(rawT - N * dot(rawT, N));
+            vec3 B = normalize(rawB - N * dot(rawB, N));
+            mat3 TBN = mat3(T, B, N);
+            return normalize(TBN * mapN);
+        }
+
+        // Source Engine style procedural environment cubemap reflection ($envmap)
+        vec3 sampleSourceEnvMap(vec3 R, vec3 baseAmbient) {
+            float up = clamp(R.y, -1.0, 1.0);
+            vec3 skyDome = mix(baseAmbient * vec3(1.06, 1.12, 1.20), vec3(0.34, 0.40, 0.48), clamp(up * 0.5 + 0.5, 0.0, 1.0));
+            vec3 groundBounce = baseAmbient * vec3(0.42, 0.40, 0.38);
+            return (up >= 0.0) ? skyDome : mix(skyDome, groundBounce, -up);
+        }
+
         float calculateShadow(vec4 fragPosLightSpace, vec3 normal, vec3 lightDirection) {
             vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
             projCoords = projCoords * 0.5 + 0.5;
@@ -143,21 +177,30 @@ namespace Lab {
                 return 0.0;
             }
 
-            float bias = max(0.0035 * (1.0 - dot(normal, -lightDirection)), 0.0008);
-            float shadow = 0.0;
+            float bias = max(0.0032 * (1.0 - dot(normal, -lightDirection)), 0.0007);
             vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
 
-            // 3x3 Percentage-Closer Filtering (PCF) for smooth penumbra
-            for (int x = -1; x <= 1; ++x) {
-                for (int y = -1; y <= 1; ++y) {
-                    float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
-                    shadow += (projCoords.z - bias > pcfDepth) ? 1.0 : 0.0;
-                }
+            // Screen-space interleaved gradient noise (IGN) rotation eliminates PCF grid banding & staircasing
+            float noise = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+            float angle = noise * 6.283185307;
+            float cosTheta = cos(angle);
+            float sinTheta = sin(angle);
+            mat2 rot = mat2(cosTheta, -sinTheta, sinTheta, cosTheta);
+
+            float shadow = 0.0;
+            const int NUM_SAMPLES = 16;
+            for (int i = 0; i < NUM_SAMPLES; ++i) {
+                float r = sqrt(float(i) + 0.5) * 0.25;
+                float theta = float(i) * 2.39996323;
+                vec2 sampleOffset = rot * (vec2(cos(theta), sin(theta)) * (r * 2.5) * texelSize);
+                float pcfDepth = texture(shadowMap, projCoords.xy + sampleOffset).r;
+                shadow += (projCoords.z - bias > pcfDepth) ? 1.0 : 0.0;
             }
-            return shadow / 9.0;
+            return shadow / float(NUM_SAMPLES);
         }
 
         void main() {
+            float outAlpha = (uAlpha > 0.0) ? uAlpha : 1.0;
             if (enableLighting == 0) {
                 vec3 albedo = (useTexture == 1) ? texture(texture1, TexCoords).rgb * objectColor : objectColor;
                 if (uEnableFog == 1) {
@@ -166,33 +209,70 @@ namespace Lab {
                     fogFactor = fogFactor * fogFactor;
                     albedo = mix(albedo, uFogColor, fogFactor);
                 }
-                FragColor = vec4(albedo, 1.0);
+                FragColor = vec4(albedo, outAlpha);
                 return;
             }
 
             vec4 texSample = (useTexture == 1) ? texture(texture1, TexCoords) : vec4(1.0);
             vec3 albedo = texSample.rgb * Color * objectColor;
 
-            // Ambient (Half-Life 2 style cool ambient)
-            vec3 ambient = ambientColor * albedo;
+            vec3 geomNorm = normalize(Normal);
+            vec3 norm = geomNorm;
+            vec3 viewDir = normalize(viewPos - FragPos);
 
-            // Diffuse (Sun / Directional Light)
-            vec3 norm = normalize(Normal);
+            // Tangent-space Normal Map + Specular Mask (Texture Unit 2)
+            float specMask = 0.35;
+            float shininess = 36.0;
+            if (uUseNormalMap == 1) {
+                vec4 normSample = texture(normalMap, TexCoords);
+                vec3 mapN = normSample.xyz * 2.0 - 1.0;
+                float strength = (uNormalStrength > 0.001) ? uNormalStrength : 1.35;
+                mapN.xy *= strength;
+                mapN = normalize(mapN);
+                norm = perturbNormal(geomNorm, FragPos, TexCoords, mapN);
+                specMask = clamp(normSample.a * 0.85 + 0.12, 0.08, 1.0);
+                shininess = mix(20.0, 64.0, normSample.a);
+            } else {
+                float luma = dot(albedo, vec3(0.299, 0.587, 0.114));
+                specMask = clamp(luma * 0.45 + 0.15, 0.12, 0.65);
+            }
+
+            // Valve Source Engine 6-Directional Ambient Cube + Ground Contact Cavity AO
             vec3 lDir = normalize(-lightDir);
-            float diff = max(dot(norm, lDir), 0.0);
+            float hemiY = norm.y * 0.5 + 0.5;
+            vec3 skyAmb = ambientColor * vec3(1.18, 1.24, 1.34);
+            vec3 gndAmb = ambientColor * vec3(0.54, 0.50, 0.46);
+            vec3 sideAmb = ambientColor * (0.88 + 0.16 * max(dot(norm, -lDir), 0.0));
+            vec3 ambientCube = mix(gndAmb, skyAmb, hemiY) * 0.72 + sideAmb * 0.28;
+
+            // Subtle floor contact / corner crease ambient occlusion
+            float floorContactAO = clamp(0.76 + 0.24 * clamp(FragPos.y * 1.4, 0.0, 1.0), 0.76, 1.0);
+            float normalCavityAO = clamp(dot(norm, geomNorm), 0.65, 1.0);
+            vec3 ambient = ambientCube * albedo * (floorContactAO * normalCavityAO);
+
+            // Half-Lambert wrapped diffuse (Valve HL2 signature lighting for richer surface volume)
+            float nDotL = dot(norm, lDir);
+            float halfLambert = clamp(nDotL * 0.5 + 0.5, 0.0, 1.0);
+            float diff = mix(max(nDotL, 0.0), halfLambert * halfLambert, 0.35);
             vec3 diffuse = diff * lightColor * albedo;
 
-            // Specular (Blinn-Phong)
-            vec3 viewDir = normalize(viewPos - FragPos);
+            // Blinn-Phong Specular with Specular Mask
             vec3 halfwayDir = normalize(lDir + viewDir);
-            float spec = pow(max(dot(norm, halfwayDir), 0.0), 32.0);
-            vec3 specular = lightColor * spec * 0.3;
+            float spec = pow(max(dot(norm, halfwayDir), 0.0), shininess) * max(nDotL, 0.0);
+            vec3 specular = lightColor * spec * (specMask * 0.55);
+
+            // Schlick Fresnel + Source Engine $envmap cubemap reflection
+            float nDotV = max(dot(norm, viewDir), 0.0);
+            float fresnel = pow(1.0 - nDotV, 4.0);
+            vec3 reflDir = reflect(-viewDir, norm);
+            float envStr = (uEnvReflectionStrength > 0.001) ? uEnvReflectionStrength : 0.38;
+            vec3 envReflection = sampleSourceEnvMap(reflDir, ambientColor) * specMask * mix(0.05, 0.28, fresnel) * (envStr / 0.38);
 
             // Calculate directional shadow
-            float shadow = (enableShadows == 1) ? calculateShadow(FragPosLightSpace, norm, lightDir) : 0.0;
-            vec3 baseLighting = ambient + (1.0 - shadow * 0.85) * (diffuse + specular);
+            float shadow = (enableShadows == 1) ? calculateShadow(FragPosLightSpace, geomNorm, lightDir) : 0.0;
+            vec3 baseLighting = ambient + envReflection + (1.0 - shadow * 0.85) * (diffuse + specular);
 
-            // Tactical Flashlight (HL2 style cone with distance attenuation and central hotspot)
+            // Tactical Flashlight (HL2 style dual-cone with central hotspot & sharp normal relief)
             vec3 spotResult = vec3(0.0);
             if (enableSpotlight == 1) {
                 vec3 toSpot = spotLightPos - FragPos;
@@ -202,40 +282,41 @@ namespace Lab {
                     float theta = dot(spotDirNorm, normalize(-spotLightDir));
                     float epsilon = spotLightInnerCone - spotLightOuterCone;
                     float spotFactor = clamp((theta - spotLightOuterCone) / max(epsilon, 0.0001), 0.0, 1.0);
+                    spotFactor = smoothstep(0.0, 1.0, spotFactor);
+                    float hotSpot = smoothstep(spotLightInnerCone, 1.0, theta) * 0.45;
 
                     if (spotFactor > 0.0) {
-                        float atten = 1.0 / (1.0 + 0.07 * dist + 0.012 * dist * dist);
+                        float atten = 1.0 / (1.0 + 0.065 * dist + 0.011 * dist * dist);
                         float spotDiff = max(dot(norm, spotDirNorm), 0.0);
                         vec3 spotDiffuse = spotDiff * spotLightColor * albedo;
 
                         vec3 spotHalfway = normalize(spotDirNorm + viewDir);
-                        float spotSpec = pow(max(dot(norm, spotHalfway), 0.0), 32.0);
-                        vec3 spotSpecular = spotLightColor * spotSpec * 0.4;
+                        float spotSpec = pow(max(dot(norm, spotHalfway), 0.0), shininess * 1.2);
+                        vec3 spotSpecular = spotLightColor * spotSpec * (specMask * 0.85);
 
-                        spotResult = (spotDiffuse + spotSpecular) * (spotFactor * atten * spotLightIntensity);
+                        spotResult = (spotDiffuse + spotSpecular) * ((spotFactor + hotSpot) * atten * spotLightIntensity);
                     }
                 }
             }
 
-            // Dynamic Point Lights (Omni Lamps / Sconces / Beacons)
+            // Dynamic Point Lights (Omni Lamps / Sconces / Beacons / Muzzle Flashes)
             vec3 pointLightsResult = vec3(0.0);
             for (int i = 0; i < uNumPointLights && i < MAX_POINT_LIGHTS; ++i) {
                 vec3 toLight = uPointLights[i].position - FragPos;
                 float dist = length(toLight);
                 if (dist < uPointLights[i].radius && dist > 0.001) {
                     vec3 lDirNorm = normalize(toLight);
-                    float diff = max(dot(norm, lDirNorm), 0.0);
+                    float pDiff = max(dot(norm, lDirNorm), 0.0);
 
-                    // Quadratic distance attenuation with smooth radius cutoff
                     float atten = 1.0 / (1.0 + 0.09 * dist + 0.032 * dist * dist);
                     float cutoff = clamp(1.0 - (dist / uPointLights[i].radius), 0.0, 1.0);
-                    float factor = atten * cutoff * uPointLights[i].intensity;
+                    float factor = atten * cutoff * cutoff * uPointLights[i].intensity;
 
-                    vec3 diffTerm = diff * uPointLights[i].color * albedo;
+                    vec3 diffTerm = pDiff * uPointLights[i].color * albedo;
 
                     vec3 halfDir = normalize(lDirNorm + viewDir);
-                    float spec = pow(max(dot(norm, halfDir), 0.0), 32.0);
-                    vec3 specTerm = uPointLights[i].color * spec * 0.35;
+                    float pSpec = pow(max(dot(norm, halfDir), 0.0), shininess);
+                    vec3 specTerm = uPointLights[i].color * pSpec * (specMask * 0.65);
 
                     pointLightsResult += (diffTerm + specTerm) * factor;
                 }
@@ -255,7 +336,7 @@ namespace Lab {
                 result = mix(result, uFogColor, fogFactor);
             }
 
-            FragColor = vec4(result, 1.0);
+            FragColor = vec4(result, outAlpha);
         }
     )";
 
@@ -307,14 +388,42 @@ namespace Lab {
         out vec4 FragColor;
         in vec2 TexCoords;
         uniform vec3 color;
+        uniform float uAlpha;
         uniform bool useTexture;
         uniform sampler2D texture1;
+        uniform vec2 uRectSize;
+        uniform float uCornerRadius;
+        uniform float uBorderWidth;
+        uniform vec4 uBorderColor;
+
         void main() {
+            float alpha = (uAlpha >= 0.0) ? uAlpha : 1.0;
             if (useTexture) {
                 vec4 tex = texture(texture1, TexCoords);
-                FragColor = vec4(tex.rgb * color, tex.a);
+                FragColor = vec4(tex.rgb * color, tex.a * alpha);
+                return;
+            }
+
+            vec4 fillCol = vec4(color, alpha);
+            if (uCornerRadius > 0.0 && uRectSize.x > 0.0 && uRectSize.y > 0.0) {
+                vec2 p = (TexCoords - 0.5) * uRectSize;
+                vec2 halfSize = uRectSize * 0.5;
+                float r = min(uCornerRadius, min(halfSize.x, halfSize.y));
+                vec2 q = abs(p) - (halfSize - vec2(r));
+                float dist = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+                float edgeMask = 1.0 - smoothstep(-0.75, 0.75, dist);
+                if (edgeMask <= 0.001) discard;
+
+                if (uBorderWidth > 0.0) {
+                    float borderMask = smoothstep(-uBorderWidth - 0.75, -uBorderWidth + 0.75, dist);
+                    vec4 finalCol = mix(fillCol, uBorderColor, borderMask);
+                    finalCol.a *= edgeMask;
+                    FragColor = finalCol;
+                } else {
+                    FragColor = vec4(fillCol.rgb, fillCol.a * edgeMask);
+                }
             } else {
-                FragColor = vec4(color, 1.0);
+                FragColor = fillCol;
             }
         }
     )";
@@ -482,6 +591,10 @@ namespace Lab {
         if (count > 0 && mats) {
             glUniformMatrix4fv(getUniformLocation(name), count, GL_FALSE, mats[0].m);
         }
+    }
+
+    void Shader::setVec4(const std::string& name, float x, float y, float z, float w) const {
+        glUniform4f(getUniformLocation(name), x, y, z, w);
     }
 
     void Shader::setVec3(const std::string& name, const Vec3& vec) const {
@@ -847,6 +960,79 @@ namespace Lab {
         glTextureParameteri(_id, GL_TEXTURE_WRAP_S, GL_REPEAT);
         glTextureParameteri(_id, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
+        // Hardware Anisotropic Filtering (up to 16x) for razor-sharp textures at oblique angles
+        static float s_maxAnisotropy = -1.0f;
+        if (s_maxAnisotropy < 0.0f) {
+            glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY, &s_maxAnisotropy);
+            if (s_maxAnisotropy < 1.0f) s_maxAnisotropy = 1.0f;
+        }
+        if (s_maxAnisotropy > 1.0f) {
+            glTextureParameterf(_id, GL_TEXTURE_MAX_ANISOTROPY, std::min(16.0f, s_maxAnisotropy));
+        }
+
+        // Generate 3x3 Sobel tangent-space Normal + Specular Mask map (RGBA8) for Source Engine surface relief
+        if (data != nullptr && _width > 1 && _height > 1 && _channels >= 3) {
+            std::vector<unsigned char> normSpec(static_cast<size_t>(_width) * static_cast<size_t>(_height) * 4);
+            auto lumaAt = [&](int x, int y) -> float {
+                int cx = (x % _width + _width) % _width;
+                int cy = (y % _height + _height) % _height;
+                size_t idx = (static_cast<size_t>(cy) * static_cast<size_t>(_width) + static_cast<size_t>(cx)) * static_cast<size_t>(_channels);
+                return (0.299f * data[idx + 0] + 0.587f * data[idx + 1] + 0.114f * data[idx + 2]) * (1.0f / 255.0f);
+            };
+
+            const float bumpScale = 0.85f;
+            auto filterSlope = [](float d) -> float {
+                float ad = std::abs(d);
+                // Ignore 8-bit gradient quantization steps on smooth metal panels
+                if (ad < 0.022f) return 0.0f;
+                // Attenuate high-contrast painted color edges (e.g. yellow/black hazard stripes) so paint stays flat
+                if (ad > 0.32f) return (d > 0.0f ? 1.0f : -1.0f) * (0.045f + (ad - 0.32f) * 0.08f);
+                return d;
+            };
+            for (int y = 0; y < _height; ++y) {
+                for (int x = 0; x < _width; ++x) {
+                    float tl = lumaAt(x - 1, y - 1);
+                    float tc = lumaAt(x,     y - 1);
+                    float tr = lumaAt(x + 1, y - 1);
+                    float ml = lumaAt(x - 1, y);
+                    float mc = lumaAt(x,     y);
+                    float mr = lumaAt(x + 1, y);
+                    float bl = lumaAt(x - 1, y + 1);
+                    float bc = lumaAt(x,     y + 1);
+                    float br = lumaAt(x + 1, y + 1);
+
+                    float rawDX = (tr + 2.0f * mr + br) - (tl + 2.0f * ml + bl);
+                    float rawDY = (bl + 2.0f * bc + br) - (tl + 2.0f * tc + tr);
+                    float dX = filterSlope(rawDX);
+                    float dY = filterSlope(rawDY);
+
+                    Vec3 n(-dX * bumpScale, -dY * bumpScale, 1.0f);
+                    n = n.normalized();
+
+                    // Specular mask: subtle surface reflectance without blotchy hotspots
+                    float specVal = std::clamp(mc * 0.55f + 0.15f, 0.10f, 0.70f);
+
+                    size_t outIdx = (static_cast<size_t>(y) * static_cast<size_t>(_width) + static_cast<size_t>(x)) * 4;
+                    normSpec[outIdx + 0] = static_cast<unsigned char>(std::clamp((n.x * 0.5f + 0.5f) * 255.0f, 0.0f, 255.0f));
+                    normSpec[outIdx + 1] = static_cast<unsigned char>(std::clamp((n.y * 0.5f + 0.5f) * 255.0f, 0.0f, 255.0f));
+                    normSpec[outIdx + 2] = static_cast<unsigned char>(std::clamp((n.z * 0.5f + 0.5f) * 255.0f, 128.0f, 255.0f));
+                    normSpec[outIdx + 3] = static_cast<unsigned char>(std::clamp(specVal * 255.0f, 0.0f, 255.0f));
+                }
+            }
+
+            glCreateTextures(GL_TEXTURE_2D, 1, &_normalId);
+            glTextureStorage2D(_normalId, mipLevels, GL_RGBA8, std::max(1, _width), std::max(1, _height));
+            glTextureSubImage2D(_normalId, 0, 0, 0, _width, _height, GL_RGBA, GL_UNSIGNED_BYTE, normSpec.data());
+            glGenerateTextureMipmap(_normalId);
+            glTextureParameteri(_normalId, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+            glTextureParameteri(_normalId, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTextureParameteri(_normalId, GL_TEXTURE_WRAP_S, GL_REPEAT);
+            glTextureParameteri(_normalId, GL_TEXTURE_WRAP_T, GL_REPEAT);
+            if (s_maxAnisotropy > 1.0f) {
+                glTextureParameterf(_normalId, GL_TEXTURE_MAX_ANISOTROPY, std::min(16.0f, s_maxAnisotropy));
+            }
+        }
+
         if (isStbi) {
             stbi_image_free(data);
         } else {
@@ -870,15 +1056,22 @@ namespace Lab {
     }
 
     Texture::~Texture() {
-        if (_id && glfwGetCurrentContext() != nullptr) {
-            glDeleteTextures(1, &_id);
-            _id = 0;
+        if (glfwGetCurrentContext() != nullptr) {
+            if (_id) {
+                glDeleteTextures(1, &_id);
+                _id = 0;
+            }
+            if (_normalId) {
+                glDeleteTextures(1, &_normalId);
+                _normalId = 0;
+            }
         }
     }
 
     Texture::Texture(Texture&& other) noexcept
-        : _id(other._id), _width(other._width), _height(other._height), _channels(other._channels) {
+        : _id(other._id), _normalId(other._normalId), _width(other._width), _height(other._height), _channels(other._channels) {
         other._id = 0;
+        other._normalId = 0;
         other._width = 0;
         other._height = 0;
         other._channels = 0;
@@ -886,14 +1079,17 @@ namespace Lab {
 
     Texture& Texture::operator=(Texture&& other) noexcept {
         if (this != &other) {
-            if (_id && glfwGetCurrentContext() != nullptr) {
-                glDeleteTextures(1, &_id);
+            if (glfwGetCurrentContext() != nullptr) {
+                if (_id) glDeleteTextures(1, &_id);
+                if (_normalId) glDeleteTextures(1, &_normalId);
             }
             _id = other._id;
+            _normalId = other._normalId;
             _width = other._width;
             _height = other._height;
             _channels = other._channels;
             other._id = 0;
+            other._normalId = 0;
             other._width = 0;
             other._height = 0;
             other._channels = 0;
@@ -903,6 +1099,12 @@ namespace Lab {
 
     void Texture::bind(unsigned int slot) const {
         glBindTextureUnit(slot, _id);
+    }
+
+    void Texture::bindNormal(unsigned int slot) const {
+        if (_normalId) {
+            glBindTextureUnit(slot, _normalId);
+        }
     }
 
     void Texture::unbind() const {
@@ -1264,6 +1466,7 @@ namespace Lab {
     Shader* Renderer::_shadowDepthShader = nullptr;
     Shader* Renderer::_uiShader = nullptr;
     Mesh* Renderer::_cubeMesh = nullptr;
+    Mesh* Renderer::_cylinderMesh = nullptr;
     Mesh* Renderer::_quadMesh = nullptr;
     unsigned int Renderer::_wireCubeVao = 0;
     unsigned int Renderer::_wireCubeVbo = 0;
@@ -1306,6 +1509,8 @@ namespace Lab {
         shader->setVec3("lightDir", Renderer::_lightDir);
         shader->setVec3("lightColor", Renderer::_lightColor);
         shader->setVec3("ambientColor", Renderer::_ambientColor);
+        shader->setFloat("uAlpha", 1.0f);
+        shader->setFloat("uEnvReflectionStrength", 0.38f);
 
         shader->setMat4("lightSpaceMatrix", Renderer::_lightSpaceMatrix);
         shader->setInt("enableShadows", Renderer::_enableShadows ? 1 : 0);
@@ -1412,6 +1617,66 @@ namespace Lab {
         }
         _cubeMesh = new Mesh(cubeVerts, cubeInds);
 
+        // Smooth 24-segment Cylinder Mesh (unit diameter 1.0, height 1.0 along Y axis)
+        {
+            const int segs = 24;
+            const float radius = 0.5f;
+            const float halfH = 0.5f;
+            std::vector<Vertex> cylVerts;
+            std::vector<unsigned int> cylInds;
+
+            // Side barrel with smooth radial normals
+            for (int i = 0; i <= segs; ++i) {
+                float u = static_cast<float>(i) / static_cast<float>(segs);
+                float theta = u * 6.283185307f;
+                float cx = std::cos(theta);
+                float sz = std::sin(theta);
+                Vec3 n(cx, 0.0f, sz);
+                cylVerts.emplace_back(Vec3(cx * radius, -halfH, sz * radius), n, Vec2(u, 0.0f));
+                cylVerts.emplace_back(Vec3(cx * radius,  halfH, sz * radius), n, Vec2(u, 1.0f));
+            }
+            for (int i = 0; i < segs; ++i) {
+                unsigned int b0 = static_cast<unsigned int>(i * 2);
+                unsigned int t0 = b0 + 1;
+                unsigned int b1 = b0 + 2;
+                unsigned int t1 = b0 + 3;
+                cylInds.push_back(b0); cylInds.push_back(t0); cylInds.push_back(t1);
+                cylInds.push_back(b0); cylInds.push_back(t1); cylInds.push_back(b1);
+            }
+
+            // Top cap (+Y)
+            unsigned int topCenterIdx = static_cast<unsigned int>(cylVerts.size());
+            cylVerts.emplace_back(Vec3(0.0f, halfH, 0.0f), Vec3(0.0f, 1.0f, 0.0f), Vec2(0.5f, 0.5f));
+            for (int i = 0; i <= segs; ++i) {
+                float theta = (static_cast<float>(i) / static_cast<float>(segs)) * 6.283185307f;
+                float cx = std::cos(theta);
+                float sz = std::sin(theta);
+                cylVerts.emplace_back(Vec3(cx * radius, halfH, sz * radius), Vec3(0.0f, 1.0f, 0.0f), Vec2(cx * 0.5f + 0.5f, sz * 0.5f + 0.5f));
+            }
+            for (int i = 0; i < segs; ++i) {
+                cylInds.push_back(topCenterIdx);
+                cylInds.push_back(topCenterIdx + 1 + static_cast<unsigned int>(i + 1));
+                cylInds.push_back(topCenterIdx + 1 + static_cast<unsigned int>(i));
+            }
+
+            // Bottom cap (-Y)
+            unsigned int botCenterIdx = static_cast<unsigned int>(cylVerts.size());
+            cylVerts.emplace_back(Vec3(0.0f, -halfH, 0.0f), Vec3(0.0f, -1.0f, 0.0f), Vec2(0.5f, 0.5f));
+            for (int i = 0; i <= segs; ++i) {
+                float theta = (static_cast<float>(i) / static_cast<float>(segs)) * 6.283185307f;
+                float cx = std::cos(theta);
+                float sz = std::sin(theta);
+                cylVerts.emplace_back(Vec3(cx * radius, -halfH, sz * radius), Vec3(0.0f, -1.0f, 0.0f), Vec2(cx * 0.5f + 0.5f, sz * 0.5f + 0.5f));
+            }
+            for (int i = 0; i < segs; ++i) {
+                cylInds.push_back(botCenterIdx);
+                cylInds.push_back(botCenterIdx + 1 + static_cast<unsigned int>(i));
+                cylInds.push_back(botCenterIdx + 1 + static_cast<unsigned int>(i + 1));
+            }
+
+            _cylinderMesh = new Mesh(cylVerts, cylInds);
+        }
+
         // Wireframe Cube setup for 3D selections and bounding boxes
         float wireVerts[] = {
             -s, -s, -s,
@@ -1464,13 +1729,22 @@ namespace Lab {
         return s_rendererPrewarmed;
     }
 
+    Shader* Renderer::getDefaultShader() {
+        return _defaultShader;
+    }
+
+    Shader* Renderer::getUIShader() {
+        return _uiShader;
+    }
+
     void Renderer::prewarmShaders() {
         if (!_defaultShader || !_shadowDepthShader || !_uiShader || !_cubeMesh) return;
 
         // 1. Pre-populate uniform location cache for all standard uniforms (zero driver lookups during gameplay)
         const char* defaultUniforms[] = {
-            "model", "view", "projection", "objectColor", "lightDir", "lightColor",
+            "model", "view", "projection", "objectColor", "uAlpha", "lightDir", "lightColor",
             "ambientColor", "viewPos", "enableLighting", "useTexture", "texture1",
+            "normalMap", "uUseNormalMap", "uNormalStrength", "uEnvReflectionStrength",
             "uvTiling", "uvMode", "uUseSkinning", "uBones[0]", "uEnableSpotlight",
             "uSpotLightPos", "uSpotLightDir", "uSpotLightColor", "uSpotLightInnerCone",
             "uSpotLightOuterCone", "uSpotLightRange", "uSpotLightIntensity",
@@ -1496,8 +1770,13 @@ namespace Lab {
 
         _uiShader->getUniformLocation("projection");
         _uiShader->getUniformLocation("color");
+        _uiShader->getUniformLocation("uAlpha");
         _uiShader->getUniformLocation("useTexture");
         _uiShader->getUniformLocation("texture1");
+        _uiShader->getUniformLocation("uRectSize");
+        _uiShader->getUniformLocation("uCornerRadius");
+        _uiShader->getUniformLocation("uBorderWidth");
+        _uiShader->getUniformLocation("uBorderColor");
 
         // 2. GPU Pipeline State Object (PSO) warm-up pass with color/depth writes masked off
         glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
@@ -1509,6 +1788,9 @@ namespace Lab {
         _defaultShader->setMat4("view", ident);
         _defaultShader->setMat4("projection", ident);
         _defaultShader->setInt("useTexture", 0);
+        _defaultShader->setInt("uUseNormalMap", 0);
+        _defaultShader->setFloat("uNormalStrength", 1.35f);
+        _defaultShader->setFloat("uAlpha", 1.0f);
         _defaultShader->setInt("enableLighting", 1);
         _defaultShader->setInt("uUseSkinning", 0);
         applyLightingAndShadowUniforms(_defaultShader);
@@ -1523,6 +1805,9 @@ namespace Lab {
         _uiShader->use();
         _uiShader->setMat4("projection", ident);
         _uiShader->setVec3("color", Vec3(1.0f, 1.0f, 1.0f));
+        _uiShader->setFloat("uAlpha", 1.0f);
+        _uiShader->setFloat("uCornerRadius", 0.0f);
+        _uiShader->setFloat("uBorderWidth", 0.0f);
         _uiShader->setInt("useTexture", 0);
 
         glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
@@ -1540,6 +1825,8 @@ namespace Lab {
         _uiShader = nullptr;
         delete _cubeMesh;
         _cubeMesh = nullptr;
+        delete _cylinderMesh;
+        _cylinderMesh = nullptr;
         delete _quadMesh;
         _quadMesh = nullptr;
         if (_wireCubeVao) { glDeleteVertexArrays(1, &_wireCubeVao); _wireCubeVao = 0; }
@@ -1640,6 +1927,7 @@ namespace Lab {
         _shadowDepthShader->use();
         _shadowDepthShader->setMat4("model", getTransform(position, rotation, scale));
         _shadowDepthShader->setInt("uUseSkinning", 0);
+        recordDraw(36);
         _cubeMesh->draw();
     }
 
@@ -1651,13 +1939,29 @@ namespace Lab {
         _shadowDepthShader->use();
         _shadowDepthShader->setMat4("model", modelTransform);
         _shadowDepthShader->setInt("uUseSkinning", 0);
+        recordDraw(36);
         _cubeMesh->draw();
+    }
+
+    void Renderer::drawShadowCylinder(const Vec3& position, const Vec3& rotation, const Vec3& scale) {
+        if (!_cylinderMesh) return;
+        drawShadowCylinder(getTransform(position, rotation, scale));
+    }
+
+    void Renderer::drawShadowCylinder(const Mat4& modelTransform) {
+        if (!_cylinderMesh) return;
+        _shadowDepthShader->use();
+        _shadowDepthShader->setMat4("model", modelTransform);
+        _shadowDepthShader->setInt("uUseSkinning", 0);
+        recordDraw(static_cast<uint32_t>(_cylinderMesh->getIndexCount()));
+        _cylinderMesh->draw();
     }
 
     void Renderer::drawShadowMesh(const Mesh& mesh, const Vec3& position, const Vec3& rotation, const Vec3& scale) {
         _shadowDepthShader->use();
         _shadowDepthShader->setMat4("model", getTransform(position, rotation, scale));
         _shadowDepthShader->setInt("uUseSkinning", 0);
+        recordDraw(static_cast<uint32_t>(mesh.getIndexCount()));
         mesh.draw();
     }
 
@@ -1665,22 +1969,38 @@ namespace Lab {
         _shadowDepthShader->use();
         _shadowDepthShader->setMat4("model", modelTransform);
         _shadowDepthShader->setInt("uUseSkinning", 0);
+        recordDraw(static_cast<uint32_t>(mesh.getIndexCount()));
         mesh.draw();
     }
 
     void Renderer::drawShadowSkinnedMesh(const SkinnedMesh& mesh, const Mat4& modelTransform, const std::vector<Mat4>& boneMatrices) {
         _shadowDepthShader->use();
         _shadowDepthShader->setMat4("model", modelTransform);
-        _shadowDepthShader->setInt("uUseSkinning", 1);
         if (!boneMatrices.empty()) {
+            _shadowDepthShader->setInt("uUseSkinning", 1);
             int count = std::min(static_cast<int>(boneMatrices.size()), 64);
             _shadowDepthShader->setMat4Array("uBoneMatrices", boneMatrices.data(), count);
+        } else {
+            _shadowDepthShader->setInt("uUseSkinning", 0);
         }
+        recordDraw(static_cast<uint32_t>(mesh.getIndexCount()));
         mesh.draw();
         _shadowDepthShader->setInt("uUseSkinning", 0);
     }
 
+    static uint32_t s_drawCalls = 0;
+    static uint32_t s_vertexCount = 0;
+
+    uint32_t Renderer::getDrawCallCount() { return s_drawCalls; }
+    uint32_t Renderer::getVertexCount() { return s_vertexCount; }
+    void Renderer::resetFrameStats() { s_drawCalls = 0; s_vertexCount = 0; }
+    void Renderer::recordDraw(uint32_t vertices) {
+        s_drawCalls++;
+        s_vertexCount += vertices;
+    }
+
     void Renderer::beginFrame(const Camera& camera) {
+        resetFrameStats();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         _projMatrix = camera.getProjectionMatrix();
@@ -1756,6 +2076,25 @@ namespace Lab {
         return t * rz * ry * rx * s;
     }
 
+    static void bindMaterialTextures(Shader* shader, const Texture* texture) {
+        if (texture && texture->getId() != 0) {
+            shader->setInt("useTexture", 1);
+            shader->setInt("texture1", 0);
+            texture->bind(0);
+            if (texture->hasNormalMap()) {
+                shader->setInt("uUseNormalMap", 1);
+                shader->setInt("normalMap", 2);
+                shader->setFloat("uNormalStrength", 0.55f);
+                texture->bindNormal(2);
+            } else {
+                shader->setInt("uUseNormalMap", 0);
+            }
+        } else {
+            shader->setInt("useTexture", 0);
+            shader->setInt("uUseNormalMap", 0);
+        }
+    }
+
     void Renderer::drawCube(const Vec3& position, const Vec3& size, const Vec3& color, const Texture* texture, bool enableLighting, const Vec2& uvTiling, int uvMode) {
         drawCube(position, {0, 0, 0}, size, color, texture, enableLighting, uvTiling, uvMode);
     }
@@ -1776,15 +2115,9 @@ namespace Lab {
         _defaultShader->setVec3("objectColor", color);
         _defaultShader->setInt("enableLighting", enableLighting ? 1 : 0);
         applyLightingAndShadowUniforms(_defaultShader);
+        bindMaterialTextures(_defaultShader, texture);
 
-        if (texture && texture->getId() != 0) {
-            _defaultShader->setInt("useTexture", 1);
-            _defaultShader->setInt("texture1", 0);
-            texture->bind(0);
-        } else {
-            _defaultShader->setInt("useTexture", 0);
-        }
-
+        recordDraw(36);
         _cubeMesh->draw();
 
         if (texture && texture->getId() != 0) {
@@ -1804,20 +2137,147 @@ namespace Lab {
         _defaultShader->setVec3("objectColor", color);
         _defaultShader->setInt("enableLighting", enableLighting ? 1 : 0);
         applyLightingAndShadowUniforms(_defaultShader);
+        bindMaterialTextures(_defaultShader, texture);
 
-        if (texture && texture->getId() != 0) {
-            _defaultShader->setInt("useTexture", 1);
-            _defaultShader->setInt("texture1", 0);
-            texture->bind(0);
-        } else {
-            _defaultShader->setInt("useTexture", 0);
-        }
-
+        recordDraw(36);
         _cubeMesh->draw();
 
         if (texture && texture->getId() != 0) {
             texture->unbind();
         }
+    }
+
+    void Renderer::drawCylinder(const Vec3& position, const Vec3& rotation, const Vec3& scale, const Vec3& color, const Texture* texture, bool enableLighting, const Vec2& uvTiling, int uvMode) {
+        if (!_cylinderMesh) return;
+        drawCylinder(getTransform(position, rotation, scale), color, texture, enableLighting, uvTiling, uvMode);
+    }
+
+    void Renderer::drawCylinder(const Mat4& modelTransform, const Vec3& color, const Texture* texture, bool enableLighting, const Vec2& uvTiling, int uvMode) {
+        if (!_cylinderMesh) return;
+        _defaultShader->use();
+        _defaultShader->setMat4("projection", _projMatrix);
+        _defaultShader->setMat4("view", _viewMatrix);
+        _defaultShader->setMat4("model", modelTransform);
+        _defaultShader->setVec3("brushSize", { 1.0f, 1.0f, 1.0f });
+        _defaultShader->setVec2("uvTiling", uvTiling);
+        _defaultShader->setInt("uvMode", uvMode);
+        _defaultShader->setInt("uUseSkinning", 0);
+        _defaultShader->setVec3("objectColor", color);
+        _defaultShader->setInt("enableLighting", enableLighting ? 1 : 0);
+        applyLightingAndShadowUniforms(_defaultShader);
+        bindMaterialTextures(_defaultShader, texture);
+
+        recordDraw(static_cast<uint32_t>(_cylinderMesh->getIndexCount()));
+        _cylinderMesh->draw();
+
+        if (texture && texture->getId() != 0) {
+            texture->unbind();
+        }
+    }
+
+    void Renderer::drawAdditiveTracer(const Vec3& start, const Vec3& end, const Vec3& color, float thickness, float alpha) {
+        if (!_cylinderMesh) return;
+        Vec3 diff = end - start;
+        float len = diff.length();
+        if (len < 0.01f) return;
+
+        Vec3 mid = start + diff * 0.5f;
+        float yaw = std::atan2(diff.x, diff.z) * 180.0f / 3.14159265f;
+        float pitch = -std::asin(std::clamp(diff.y / len, -1.0f, 1.0f)) * 180.0f / 3.14159265f;
+
+        // Rotate unit Y-cylinder onto Z-axis (+90 deg X), then aim via pitch & yaw
+        Mat4 baseAlign = Mat4::rotate(90.0f * 3.14159265f / 180.0f, { 1.0f, 0.0f, 0.0f });
+        Mat4 aimRot = Mat4::rotate(yaw * 3.14159265f / 180.0f, { 0.0f, 1.0f, 0.0f }) *
+                      Mat4::rotate(pitch * 3.14159265f / 180.0f, { 1.0f, 0.0f, 0.0f });
+
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+        glDepthMask(GL_FALSE);
+
+        _defaultShader->use();
+        _defaultShader->setMat4("projection", _projMatrix);
+        _defaultShader->setMat4("view", _viewMatrix);
+        _defaultShader->setVec3("brushSize", { 1.0f, 1.0f, 1.0f });
+        _defaultShader->setVec2("uvTiling", { 1.0f, 1.0f });
+        _defaultShader->setInt("uvMode", 0);
+        _defaultShader->setInt("uUseSkinning", 0);
+        _defaultShader->setInt("enableLighting", 0);
+        _defaultShader->setInt("useTexture", 0);
+        _defaultShader->setInt("uUseNormalMap", 0);
+        _defaultShader->setInt("uEnableFog", 0);
+
+        // Outer warm amber/orange plasma sheath
+        Mat4 outerXform = Mat4::translate(mid) * aimRot * baseAlign * Mat4::scale({ thickness * 1.45f, len, thickness * 1.45f });
+        _defaultShader->setMat4("model", outerXform);
+        _defaultShader->setVec3("objectColor", color * 0.95f);
+        _defaultShader->setFloat("uAlpha", std::clamp(alpha * 0.38f, 0.0f, 1.0f));
+        recordDraw(static_cast<uint32_t>(_cylinderMesh->getIndexCount()));
+        _cylinderMesh->draw();
+
+        // Inner incandescent white-gold core streak
+        Mat4 coreXform = Mat4::translate(mid) * aimRot * baseAlign * Mat4::scale({ thickness * 0.42f, len * 0.96f, thickness * 0.42f });
+        _defaultShader->setMat4("model", coreXform);
+        _defaultShader->setVec3("objectColor", Vec3(1.8f, 1.65f, 1.25f));
+        _defaultShader->setFloat("uAlpha", std::clamp(alpha * 0.85f, 0.0f, 1.0f));
+        recordDraw(static_cast<uint32_t>(_cylinderMesh->getIndexCount()));
+        _cylinderMesh->draw();
+
+        _defaultShader->setFloat("uAlpha", 1.0f);
+        glDepthMask(GL_TRUE);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDisable(GL_BLEND);
+    }
+
+    void Renderer::drawMuzzleFlash(const Vec3& position, const Vec3& forward, const Vec3& color, float radius, float rollDeg) {
+        if (!_cylinderMesh) return;
+        Vec3 fwd = (forward.lengthSq() > 0.0001f) ? forward.normalized() : Vec3(0.0f, 0.0f, -1.0f);
+        float yaw = std::atan2(fwd.x, fwd.z) * 180.0f / 3.14159265f;
+        float pitch = -std::asin(std::clamp(fwd.y, -1.0f, 1.0f)) * 180.0f / 3.14159265f;
+        Mat4 aimRot = Mat4::rotate(yaw * 3.14159265f / 180.0f, { 0.0f, 1.0f, 0.0f }) *
+                      Mat4::rotate(pitch * 3.14159265f / 180.0f, { 1.0f, 0.0f, 0.0f }) *
+                      Mat4::rotate(rollDeg * 3.14159265f / 180.0f, { 0.0f, 0.0f, 1.0f });
+
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+        glDepthMask(GL_FALSE);
+
+        _defaultShader->use();
+        _defaultShader->setMat4("projection", _projMatrix);
+        _defaultShader->setMat4("view", _viewMatrix);
+        _defaultShader->setVec3("brushSize", { 1.0f, 1.0f, 1.0f });
+        _defaultShader->setVec2("uvTiling", { 1.0f, 1.0f });
+        _defaultShader->setInt("uvMode", 0);
+        _defaultShader->setInt("uUseSkinning", 0);
+        _defaultShader->setInt("enableLighting", 0);
+        _defaultShader->setInt("useTexture", 0);
+        _defaultShader->setInt("uUseNormalMap", 0);
+        _defaultShader->setInt("uEnableFog", 0);
+
+        // 3 intersecting star-fins + forward jet plume (authentic Source Engine multi-fin muzzle flash)
+        const float angles[3] = { 0.0f, 60.0f, 120.0f };
+        for (int i = 0; i < 3; ++i) {
+            Mat4 finRot = aimRot * Mat4::rotate(angles[i] * 3.14159265f / 180.0f, { 0.0f, 0.0f, 1.0f });
+            Mat4 finXform = Mat4::translate(position) * finRot * Mat4::scale({ radius * 0.16f, radius * 1.35f, radius * 0.16f });
+            _defaultShader->setMat4("model", finXform);
+            _defaultShader->setVec3("objectColor", color * 1.35f);
+            _defaultShader->setFloat("uAlpha", 0.52f);
+            recordDraw(static_cast<uint32_t>(_cylinderMesh->getIndexCount()));
+            _cylinderMesh->draw();
+        }
+
+        // Forward muzzle jet core
+        Mat4 jetAlign = aimRot * Mat4::rotate(90.0f * 3.14159265f / 180.0f, { 1.0f, 0.0f, 0.0f });
+        Mat4 jetXform = Mat4::translate(position + fwd * (radius * 0.45f)) * jetAlign * Mat4::scale({ radius * 0.28f, radius * 1.25f, radius * 0.28f });
+        _defaultShader->setMat4("model", jetXform);
+        _defaultShader->setVec3("objectColor", Vec3(2.0f, 1.75f, 1.2f));
+        _defaultShader->setFloat("uAlpha", 0.78f);
+        recordDraw(static_cast<uint32_t>(_cylinderMesh->getIndexCount()));
+        _cylinderMesh->draw();
+
+        _defaultShader->setFloat("uAlpha", 1.0f);
+        glDepthMask(GL_TRUE);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDisable(GL_BLEND);
     }
 
     void Renderer::drawWireCube(const Vec3& position, const Vec3& size, const Vec3& color) {
@@ -1832,7 +2292,9 @@ namespace Lab {
         _defaultShader->setVec3("objectColor", color);
         _defaultShader->setInt("enableLighting", 0);
         _defaultShader->setInt("useTexture", 0);
+        _defaultShader->setInt("uUseNormalMap", 0);
 
+        recordDraw(24);
         glLineWidth(2.0f);
         glBindVertexArray(_wireCubeVao);
         glDrawElements(GL_LINES, 24, GL_UNSIGNED_INT, 0);
@@ -1861,15 +2323,9 @@ namespace Lab {
         _defaultShader->setVec3("objectColor", color);
         _defaultShader->setInt("enableLighting", enableLighting ? 1 : 0);
         applyLightingAndShadowUniforms(_defaultShader);
+        bindMaterialTextures(_defaultShader, texture);
 
-        if (texture && texture->getId() != 0) {
-            _defaultShader->setInt("useTexture", 1);
-            _defaultShader->setInt("texture1", 0);
-            texture->bind(0);
-        } else {
-            _defaultShader->setInt("useTexture", 0);
-        }
-
+        recordDraw(static_cast<uint32_t>(mesh.getIndexCount()));
         glDisable(GL_CULL_FACE);
         mesh.draw();
         glEnable(GL_CULL_FACE);
@@ -1887,25 +2343,21 @@ namespace Lab {
         _defaultShader->setVec3("brushSize", {1.0f, 1.0f, 1.0f});
         _defaultShader->setVec2("uvTiling", {1.0f, 1.0f});
         _defaultShader->setInt("uvMode", 0);
-        _defaultShader->setInt("uUseSkinning", 1);
 
         if (!boneMatrices.empty()) {
+            _defaultShader->setInt("uUseSkinning", 1);
             int count = std::min(static_cast<int>(boneMatrices.size()), 64);
             _defaultShader->setMat4Array("uBoneMatrices", boneMatrices.data(), count);
+        } else {
+            _defaultShader->setInt("uUseSkinning", 0);
         }
 
         _defaultShader->setVec3("objectColor", color);
         _defaultShader->setInt("enableLighting", enableLighting ? 1 : 0);
         applyLightingAndShadowUniforms(_defaultShader);
+        bindMaterialTextures(_defaultShader, texture);
 
-        if (texture && texture->getId() != 0) {
-            _defaultShader->setInt("useTexture", 1);
-            _defaultShader->setInt("texture1", 0);
-            texture->bind(0);
-        } else {
-            _defaultShader->setInt("useTexture", 0);
-        }
-
+        recordDraw(static_cast<uint32_t>(mesh.getIndexCount()));
         glDisable(GL_CULL_FACE);
         mesh.draw();
         glEnable(GL_CULL_FACE);
@@ -1929,15 +2381,9 @@ namespace Lab {
         _defaultShader->setVec3("objectColor", color);
         _defaultShader->setInt("enableLighting", enableLighting ? 1 : 0);
         applyLightingAndShadowUniforms(_defaultShader);
+        bindMaterialTextures(_defaultShader, texture);
 
-        if (texture && texture->getId() != 0) {
-            _defaultShader->setInt("useTexture", 1);
-            _defaultShader->setInt("texture1", 0);
-            texture->bind(0);
-        } else {
-            _defaultShader->setInt("useTexture", 0);
-        }
-
+        recordDraw(static_cast<uint32_t>(mesh.getIndexCount()));
         glDisable(GL_CULL_FACE);
         mesh.draw();
         glEnable(GL_CULL_FACE);
@@ -1979,10 +2425,13 @@ namespace Lab {
         glEnable(GL_DEPTH_TEST);
     }
 
-    void Renderer::drawRect(float x, float y, float w, float h, const Vec3& color) {
+    void Renderer::drawRect(float x, float y, float w, float h, const Vec3& color, float alpha) {
         _uiShader->use();
         _uiShader->setMat4("projection", _uiProjMatrix);
         _uiShader->setVec3("color", color);
+        _uiShader->setFloat("uAlpha", alpha);
+        _uiShader->setFloat("uCornerRadius", 0.0f);
+        _uiShader->setFloat("uBorderWidth", 0.0f);
         _uiShader->setInt("useTexture", 0);
 
         float vertices[4][4] = {
@@ -1995,19 +2444,53 @@ namespace Lab {
         glBindBuffer(GL_ARRAY_BUFFER, _uiVbo);
         glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
 
+        recordDraw(4);
         glBindVertexArray(_uiVao);
         glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
         glBindVertexArray(0);
     }
 
-    void Renderer::drawTextureRect(float x, float y, float w, float h, const Texture& texture, const Vec3& tint) {
-        drawTextureRect(x, y, w, h, texture, 0.0f, 0.0f, 1.0f, 1.0f, tint);
+    void Renderer::drawRoundedRect(float x, float y, float w, float h, const Vec3& color, float alpha, float cornerRadius, float borderWidth, const Vec3& borderColor, float borderAlpha) {
+        _uiShader->use();
+        _uiShader->setMat4("projection", _uiProjMatrix);
+        _uiShader->setVec3("color", color);
+        _uiShader->setFloat("uAlpha", alpha);
+        _uiShader->setVec2("uRectSize", Vec2(w, h));
+        _uiShader->setFloat("uCornerRadius", cornerRadius);
+        _uiShader->setFloat("uBorderWidth", borderWidth);
+        _uiShader->setVec4("uBorderColor", borderColor.x, borderColor.y, borderColor.z, borderAlpha);
+        _uiShader->setInt("useTexture", 0);
+
+        float vertices[4][4] = {
+            { x,     y + h, 0.0f, 1.0f },
+            { x + w, y + h, 1.0f, 1.0f },
+            { x + w, y,     1.0f, 0.0f },
+            { x,     y,     0.0f, 0.0f }
+        };
+
+        glBindBuffer(GL_ARRAY_BUFFER, _uiVbo);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
+
+        recordDraw(4);
+        glBindVertexArray(_uiVao);
+        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+        glBindVertexArray(0);
+
+        _uiShader->setFloat("uCornerRadius", 0.0f);
+        _uiShader->setFloat("uBorderWidth", 0.0f);
     }
 
-    void Renderer::drawTextureRect(float x, float y, float w, float h, const Texture& texture, float u0, float v0, float u1, float v1, const Vec3& tint) {
+    void Renderer::drawTextureRect(float x, float y, float w, float h, const Texture& texture, const Vec3& tint, float alpha) {
+        drawTextureRect(x, y, w, h, texture, 0.0f, 0.0f, 1.0f, 1.0f, tint, alpha);
+    }
+
+    void Renderer::drawTextureRect(float x, float y, float w, float h, const Texture& texture, float u0, float v0, float u1, float v1, const Vec3& tint, float alpha) {
         _uiShader->use();
         _uiShader->setMat4("projection", _uiProjMatrix);
         _uiShader->setVec3("color", tint);
+        _uiShader->setFloat("uAlpha", alpha);
+        _uiShader->setFloat("uCornerRadius", 0.0f);
+        _uiShader->setFloat("uBorderWidth", 0.0f);
         _uiShader->setInt("useTexture", 1);
         _uiShader->setInt("texture1", 0);
         texture.bind(0);
@@ -2022,6 +2505,7 @@ namespace Lab {
         glBindBuffer(GL_ARRAY_BUFFER, _uiVbo);
         glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
 
+        recordDraw(4);
         glBindVertexArray(_uiVao);
         glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
         glBindVertexArray(0);

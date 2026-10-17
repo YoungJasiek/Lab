@@ -21,6 +21,9 @@ using namespace Lab;
 
 
 #ifdef _WIN32
+#include <windows.h>
+#include <psapi.h>
+#pragma comment(lib, "psapi.lib")
 static std::string getClipboardText() {
     if (!OpenClipboard(nullptr)) return "";
     HANDLE hData = GetClipboardData(CF_TEXT);
@@ -145,6 +148,73 @@ public:
         _devConsole.onRestartMap = [this]() {
             if (!_sessionConfig.mapPath.empty()) loadSelectedMap(_sessionConfig.mapPath);
         };
+        _devConsole.onSetSkybox = [this](const std::string& /*skybox*/) {
+            if (_devConsole.wrd_skybox_is_color) {
+                _postProcess.setClearColor(_devConsole.wrd_skybox_color);
+            }
+        };
+        _devConsole.onSpawnModel = [this](const std::string& modelPath) {
+            if (!_currentMap) return;
+            Vec3 spawnPos = _camera.getPosition() + _camera.getFront() * 3.0f;
+            MapProp prop;
+            prop.name = "ConsoleProp_" + std::to_string(_currentMap->props.size() + 1);
+            prop.modelPath = modelPath;
+            prop.position = spawnPos;
+            prop.rotation = Vec3(0, _camera.getYaw(), 0);
+            prop.scale = Vec3(1, 1, 1);
+            prop.color = Vec3(1, 1, 1);
+            getMesh(modelPath);
+            _currentMap->props.push_back(std::move(prop));
+        };
+        _devConsole.onCamShake = [this](float force) {
+            _camShakeTrauma = std::min(1.0f, _camShakeTrauma + force);
+        };
+        _devConsole.onClearDecals = [this]() {
+            _decalSystem.clear();
+        };
+        _devConsole.onSpawnDecal = [this](const std::string& type) {
+            Vec3 origin = _camera.getPosition();
+            Vec3 dir = _camera.getFront();
+            DecalType dt = DecalType::BloodSplatter;
+            if (type == "bullet" || type == "concrete") dt = DecalType::BulletHoleConcrete;
+            else if (type == "metal") dt = DecalType::BulletHoleMetal;
+            else if (type == "dirt" || type == "scorch" || type == "burn") dt = DecalType::ExplosiveScorch;
+
+            float bestDist = 100.0f;
+            Vec3 hitPos = origin + dir * 2.5f;
+            Vec3 hitNormal = Vec3(0, 1, 0);
+            if (_currentMap) {
+                for (const auto& b : _currentMap->brushes) {
+                    Vec3 bMin = b.position - b.size * 0.5f;
+                    Vec3 bMax = b.position + b.size * 0.5f;
+                    Vec3 invDir(1.0f / (std::abs(dir.x) > 1e-5f ? dir.x : 1e-5f),
+                                1.0f / (std::abs(dir.y) > 1e-5f ? dir.y : 1e-5f),
+                                1.0f / (std::abs(dir.z) > 1e-5f ? dir.z : 1e-5f));
+                    Vec3 t0 = (bMin - origin) * invDir;
+                    Vec3 t1 = (bMax - origin) * invDir;
+                    Vec3 tMin(std::min(t0.x, t1.x), std::min(t0.y, t1.y), std::min(t0.z, t1.z));
+                    Vec3 tMax(std::max(t0.x, t1.x), std::max(t0.y, t1.y), std::max(t0.z, t1.z));
+                    float tEnter = std::max({tMin.x, tMin.y, tMin.z});
+                    float tExit = std::min({tMax.x, tMax.y, tMax.z});
+                    if (tEnter <= tExit && tEnter > 0.05f && tEnter < bestDist) {
+                        bestDist = tEnter;
+                        hitPos = origin + dir * tEnter;
+                        Vec3 pLocal = hitPos - b.position;
+                        Vec3 half = b.size * 0.5f;
+                        float dx = half.x - std::abs(pLocal.x);
+                        float dy = half.y - std::abs(pLocal.y);
+                        float dz = half.z - std::abs(pLocal.z);
+                        if (dx <= dy && dx <= dz) hitNormal = Vec3((pLocal.x > 0 ? 1.0f : -1.0f), 0, 0);
+                        else if (dy <= dx && dy <= dz) hitNormal = Vec3(0, (pLocal.y > 0 ? 1.0f : -1.0f), 0);
+                        else hitNormal = Vec3(0, 0, (pLocal.z > 0 ? 1.0f : -1.0f));
+                    }
+                }
+            }
+            _decalSystem.spawnDecal(dt, hitPos, hitNormal, 0.35f, 60.0f);
+        };
+        _devConsole.onSetVsync = [](bool vsync) {
+            glfwSwapInterval(vsync ? 1 : 0);
+        };
         _devConsole.onReloadShaders = []() {
             Renderer::prewarmShaders();
         };
@@ -164,6 +234,90 @@ public:
                 if (freeze) bot.state = AIState::Patrol;
             }
         };
+        _devConsole.onSpawnAi = [this](const std::string& type) {
+            Vec3 spawnPos = _camera.getPosition() + _camera.getFront() * 3.5f;
+            int botId = static_cast<int>(_aiManager.bots.size()) + 1;
+            std::string botName = type.empty() ? ("Combat Bot " + std::to_string(botId)) : (type + " #" + std::to_string(botId));
+            Vec3 patrolEnd = spawnPos + Vec3(5.0f, 0.0f, 5.0f);
+            WeaponID wep = WeaponID::M4A4S;
+            if (type == "heavy" || type == "shotgun") wep = WeaponID::Shotgun;
+            else if (type == "plasma") wep = WeaponID::PlasmaGun;
+            else if (type == "sniper" || type == "railgun") wep = WeaponID::Railgun;
+            else if (type == "rpg") wep = WeaponID::RPG;
+            CombatBot newBot(botId, botName, spawnPos, patrolEnd, -1, wep);
+            if (_aiManager.skeleton && !_aiManager.animations.empty()) {
+                newBot.initAnimation(_aiManager.skeleton, _aiManager.animations);
+            }
+            _aiManager.bots.push_back(std::move(newBot));
+        };
+        _devConsole.onSetMasterVolume = [](float vol) {
+            AudioEngine::setMasterVolume(vol);
+        };
+        _devConsole.onPlaySound = [](const std::string& path) {
+            AudioEngine::playCustomSound(path);
+        };
+        _devConsole.onStopAllSounds = []() {
+            AudioEngine::shutdown();
+            AudioEngine::init(true);
+        };
+        _devConsole.onLipsyncTest = [this](const std::string& file) {
+            AudioEngine::playCustomSound(file);
+        };
+        _devConsole.onRestartAudio = []() {
+            AudioEngine::shutdown();
+            AudioEngine::init(true);
+        };
+        _devConsole.onOpenMenu = [this](const std::string& menuName) {
+            std::string m = menuName;
+            std::transform(m.begin(), m.end(), m.begin(), [](unsigned char c){ return (char)std::tolower(c); });
+            if (m == "main" || m == "glowna") {
+                _inMenu = true;
+                _menuScreen = MenuScreen::Main;
+                setCursorCaptured(false);
+            } else if (m == "pause" || m == "pauza" || m == "singleplayer" || m == "sp") {
+                _inMenu = true;
+                _menuScreen = MenuScreen::Singleplayer;
+                setCursorCaptured(false);
+            } else if (m == "options" || m == "opcje" || m == "character" || m == "studio") {
+                _inMenu = true;
+                _menuScreen = MenuScreen::CharacterStudio;
+                setCursorCaptured(false);
+            } else if (m == "join" || m == "server" || m == "serwer") {
+                _inMenu = true;
+                _menuScreen = MenuScreen::JoinGame;
+                setCursorCaptured(false);
+            } else if (m == "game" || m == "resume" || m == "wznow") {
+                _inMenu = false;
+                setCursorCaptured(true);
+            }
+        };
+        _devConsole.onReloadUi = [this]() {
+            syncHudWeapon();
+        };
+        _devConsole.onRestartRound = [this]() {
+            _playerKills = 0;
+            _playerDeaths = 0;
+            _hud.frags = 0;
+            _devConsole.onRespawn();
+            if (_currentMap) {
+                _aiManager.spawnBotsForMap(_currentMap.get(), _sessionConfig.botCount, _sessionConfig.mode);
+            }
+        };
+        _devConsole.onNetConnect = [this](const std::string& addr) {
+            std::string ip = addr;
+            uint16_t port = 27015;
+            size_t colon = addr.find(':');
+            if (colon != std::string::npos) {
+                ip = addr.substr(0, colon);
+                try { port = static_cast<uint16_t>(std::stoi(addr.substr(colon + 1))); } catch (...) {}
+            }
+            _netClient.connect(ip, port, "Player");
+            _isConnecting = true;
+        };
+        _devConsole.onNetDisconnect = [this]() {
+            _netClient.disconnect();
+            _isConnecting = false;
+        };
         _devConsole.onQuit = [this]() {
             glfwSetWindowShouldClose(getWindow(), 1);
         };
@@ -176,6 +330,8 @@ public:
             "concrete_wall.bmp", "floor_tiles.bmp", "cryo_ice.bmp",
             "hazard_stripes.bmp", "metal_hull.bmp", "snow_frost.bmp",
             "floor_lab.bmp", "wall_concrete.bmp", "brick_wall.bmp", "blast_door.bmp",
+            "concrete_wall_normal.bmp", "floor_lab_normal.bmp", "metal_hull_normal.bmp",
+            "corridor_dirty_wall.bmp", "decal_rust_stain.bmp", "cubemap_site14.bmp",
             "weapon_pipe.bmp", "weapon_pistol.bmp", "weapon_shotgun.bmp",
             "weapon_m4a4s.bmp", "weapon_sg553.bmp", "weapon_minigun.bmp",
             "weapon_plasma.bmp", "weapon_railgun.bmp", "weapon_rpg.bmp"
@@ -236,6 +392,16 @@ public:
         _characterStudio.setOnApplyInGame([this]() {
             reloadStudioWeapons();
         });
+
+        // Initialize Skeletal Animation Assets & Dedicated Player Animator
+        _aiManager.initAssets();
+        if (_aiManager.skeleton && !_aiManager.animations.empty()) {
+            _playerAnimator.setSkeleton(_aiManager.skeleton);
+            for (const auto& clip : _aiManager.animations) {
+                _playerAnimator.addClip(clip);
+            }
+            _playerAnimator.playAnimation("Idle", true);
+        }
 
         reloadStudioWeapons();
         syncHudWeapon();
@@ -448,20 +614,24 @@ public:
 
             // Preload props and meshes
             for (const auto& prop : _currentMap->props) {
-                if (!_meshes.contains(prop.modelPath)) {
-                    Mesh* m = Mesh::loadSTL(prop.modelPath);
-                    if (m) _meshes[prop.modelPath] = std::unique_ptr<Mesh>(m);
-                }
+                getMesh(prop.modelPath);
                 if (!prop.texturePath.empty()) {
                     getTexture(prop.texturePath);
                 }
             }
 
-            // Preload brush textures
+            // Preload brush textures & normal maps
             for (const auto& brush : _currentMap->brushes) {
                 if (!brush.texturePath.empty()) {
                     getTexture(brush.texturePath);
                 }
+                if (!brush.normalMapPath.empty()) {
+                    getTexture(brush.normalMapPath);
+                }
+            }
+
+            if (!_currentMap->metadata.cubemapPath.empty()) {
+                getTexture(_currentMap->metadata.cubemapPath);
             }
 
             // Initialize World Weapon Spawners (Persistent 60s cooldown pads)
@@ -610,6 +780,17 @@ public:
         if (_sessionConfig.enableBots && _sessionConfig.botCount > 0) {
             _aiManager.spawnBotsForMap(_currentMap.get(), _sessionConfig.botCount, _sessionConfig.mode);
             _hud.showCombatMessage("MATCH HOSTED: " + _sessionConfig.getModeString() + " WITH " + std::to_string(_sessionConfig.botCount) + " BOTS", 3.0f);
+        } else if (_currentMap && (!_currentMap->triggers.empty() || !_currentMap->waypoints.empty())) {
+            // Campaign / Story Mode: spawn scripted corridor bot for Trigger & Waypoint sequences
+            _aiManager.spawnBotsForMap(_currentMap.get(), 1, _sessionConfig.mode);
+            if (!_aiManager.bots.empty()) {
+                std::vector<Vec3> wpNodes;
+                for (const auto& wp : _currentMap->waypoints) {
+                    wpNodes.push_back(wp.position);
+                }
+                _aiManager.bots[0].assignWaypoints(wpNodes, false);
+            }
+            _hud.showCombatMessage("CAMPAIGN SECTOR ENTERED :: STORY BOT ACTIVE", 3.0f);
         } else {
             _aiManager.clear();
             _hud.showCombatMessage("MATCH STARTED: BOTS DISABLED (SOLO)", 3.0f);
@@ -655,8 +836,8 @@ public:
         if (Input::isKeyPressed('A') || Input::isKeyPressed('a')) inputDir -= right;
         if (Input::isKeyPressed('D') || Input::isKeyPressed('d')) inputDir += right;
 
-        // Developer Ghost Noclip Mode (sp_noclip)
-        if (_devConsole.sp_noclip) {
+        // Developer Ghost Noclip Mode (sp_noclip) & Freecam (cam_freecam)
+        if (_devConsole.sp_noclip || _devConsole.cam_freecam) {
             Vec3 camPos = _camera.getPosition();
             float flySpeed = isSprinting ? 24.0f : 12.0f;
             if (Input::isKeyPressed('W') || Input::isKeyPressed('w')) camPos += _camera.getFront() * flySpeed * fixedDelta;
@@ -789,7 +970,7 @@ public:
         Vec3 pos = _camera.getPosition();
         if (_currentMap) {
             auto obstacles = LabCollision::getMapSolidBoxes(*_currentMap);
-            LabCollision::moveAndSlide(pos, _velocity, _isGrounded, fixedDelta, obstacles);
+            LabCollision::moveAndSlide(pos, _velocity, _isGrounded, fixedDelta, obstacles, 1.70f, 0.35f, 1.85f, _devConsole.phys_step_height);
         } else {
             pos += _velocity * fixedDelta;
             if (pos.y < 1.70f) {
@@ -933,6 +1114,50 @@ public:
         // Camera FOV from console
         _camera.fieldOfView = _devConsole.cam_fov;
 
+        // Process sys_bind key mappings
+        if (!_chat.isOpen && !_devConsole.getKeyBinds().empty()) {
+            for (int k = 0; k < 512; ++k) {
+                if (Input::keysJustPressed[k]) {
+                    std::string keyName;
+                    if (k >= GLFW_KEY_F1 && k <= GLFW_KEY_F12) {
+                        keyName = "f" + std::to_string(k - GLFW_KEY_F1 + 1);
+                    } else if (k >= 'A' && k <= 'Z') {
+                        keyName = std::string(1, (char)std::tolower(k));
+                    } else if (k >= '0' && k <= '9') {
+                        keyName = std::string(1, (char)k);
+                    } else if (k == GLFW_KEY_SPACE) {
+                        keyName = "space";
+                    } else if (k == GLFW_KEY_ENTER) {
+                        keyName = "enter";
+                    } else if (k == GLFW_KEY_TAB) {
+                        keyName = "tab";
+                    }
+                    if (!keyName.empty()) {
+                        _devConsole.executeBind(keyName);
+                    }
+                }
+            }
+        }
+
+        // Decay camera shake trauma
+        if (_camShakeTrauma > 0.0f) {
+            _camShakeTrauma = std::max(0.0f, _camShakeTrauma - time.delta * 1.8f);
+        }
+
+        // Synchronize decal limits
+        _decalSystem.setMaxDecals(static_cast<size_t>(_devConsole.dcl_limit));
+        _decalSystem.setMaxDistance(_devConsole.dcl_distance);
+
+        // Enforce AI aggro state
+        if (_devConsole.ai_aggro) {
+            for (auto& bot : _aiManager.bots) {
+                if (bot.isAlive()) {
+                    bot.state = AIState::Attack;
+                    bot.reactionTimer = 0.0f;
+                }
+            }
+        }
+
         if (_inMenu) {
             int winW = 1280, winH = 720;
             getWindowSize(winW, winH);
@@ -983,10 +1208,6 @@ public:
             bool lmbJustPressed = Input::isMouseButtonJustPressed(0);
             bool lmbClick = lmbJustPressed || (lmbPressed && !_menuLmbLast);
             _menuLmbLast = lmbPressed;
-
-            if (lmbClick) {
-                LabLog::info("[FrozenLife] Menu LMB Click at (" + std::to_string((int)mx) + ", " + std::to_string((int)my) + ")");
-            }
 
             if (_menuScreen == MenuScreen::JoinGame) {
                 _serverBrowser.update(time.delta);
@@ -1286,6 +1507,7 @@ public:
                 _muzzleFlashTime = def.isMelee ? 0.0f : 0.08f;
                 _weaponAnimator.onFire(def.isMelee);
                 _weaponAnimator.recoilSpring.addImpulse(Vec3(0.0f, def.recoilPitch, def.recoilKick));
+                _playerShootTimer = def.isMelee ? 0.35f : 0.22f;
 
                 switch (def.id) {
                     case WeaponID::Pipe:      AudioEngine::playSound(SoundID::PipeSwing); break;
@@ -1768,13 +1990,60 @@ public:
 
         // ==================== COMBAT AI BOTS UPDATE & RETALIATION ====================
         float botDamageToPlayer = 0.0f;
-        if (_currentMap) {
+        if (_currentMap && !_devConsole.ai_disable) {
+            // Check Story / Gameplay Trigger Volumes against player position
+            auto firedTriggers = LabCollision::checkTriggerVolumes(_camera.getPosition(), *_currentMap);
+            for (int trigIdx : firedTriggers) {
+                if (trigIdx >= 0 && trigIdx < (int)_currentMap->triggers.size()) {
+                    const auto& trig = _currentMap->triggers[trigIdx];
+                    _aiManager.triggerStoryEventOnBot(trig.targetBot, trig.dialogText, trig.audioPath, *_currentMap);
+                    if (!trig.dialogText.empty()) {
+                        _hud.showCombatMessage(trig.dialogText, 4.5f);
+                        _chat.addMessage("[" + (trig.targetBot.empty() ? "CorridorBot" : trig.targetBot) + "]", trig.dialogText, Vec3(0.3f, 0.9f, 1.0f));
+                    }
+                }
+            }
+
             int pTeam = (_sessionConfig.mode == GameMode::TDM) ? 1 : -1;
-            _aiManager.update(time.delta, _camera.getPosition(), !_isPlayerDead, pTeam, *_currentMap, _tracers, botDamageToPlayer, &_pickups, &_chat);
+            bool targetable = !_isPlayerDead && !_devConsole.ai_ignore_player;
+            _aiManager.update(time.delta, _camera.getPosition(), targetable, pTeam, *_currentMap, _tracers, botDamageToPlayer, &_pickups, &_chat);
         }
 
         if (botDamageToPlayer > 0.0f) {
             applyDamageToPlayer(botDamageToPlayer, "Combat Synth");
+        }
+
+        // ==================== LOCAL PLAYER SKELETAL ANIMATOR UPDATE ====================
+        if (!_playerAnimator.getSkeleton() && _aiManager.skeleton && !_aiManager.animations.empty()) {
+            _playerAnimator.setSkeleton(_aiManager.skeleton);
+            for (const auto& clip : _aiManager.animations) {
+                _playerAnimator.addClip(clip);
+            }
+            _playerAnimator.playAnimation("Idle", true);
+        }
+
+        if (_playerAnimator.getSkeleton()) {
+            float hSpeed = std::sqrt(_velocity.x * _velocity.x + _velocity.z * _velocity.z);
+            if (_isPlayerDead) {
+                _playerAnimator.playAnimation("Death", false, 0.1f);
+            } else if (_playerShootTimer > 0.0f) {
+                _playerShootTimer -= time.delta;
+                const auto& curWep = _weaponSystem.getActiveWeapon();
+                if (curWep.def.isMelee) {
+                    _playerAnimator.playAnimation("Heavy Weapon Swing", false, 0.05f);
+                } else {
+                    _playerAnimator.playAnimation("Firing Rifle", false, 0.05f);
+                }
+            } else if (!_isGrounded) {
+                _playerAnimator.playAnimation("Walk", true, 0.2f);
+            } else if (hSpeed > 5.5f) {
+                _playerAnimator.playAnimation("Run Forward", true, 0.15f);
+            } else if (hSpeed > 0.3f) {
+                _playerAnimator.playAnimation("Walking", true, 0.15f);
+            } else {
+                _playerAnimator.playAnimation("Idle", true, 0.2f);
+            }
+            _playerAnimator.update(time.delta);
         }
 
         // Update Pickups and Proximity Collection
@@ -1862,7 +2131,7 @@ public:
 
         // Procedural Weapon Sway and Bob update
         float horizontalSpeed = std::sqrt(_velocity.x * _velocity.x + _velocity.z * _velocity.z);
-        _weaponAnimator.update(time.delta, Input::mouseDelta, horizontalSpeed);
+        _weaponAnimator.update(time.delta, Input::mouseDelta, _devConsole.cam_bob ? horizontalSpeed : 0.0f);
 
         // Feed real dynamic player values to HUD
         if (_currentMap) _hud.mapName = _currentMap->metadata.name;
@@ -2493,8 +2762,10 @@ public:
             stlMesh = _cachedWeaponMeshes[curIdx];
         }
 
-        Vec3 animPosOffset = _weaponAnimator.calculatePositionOffset(Vec3(0, 0, 0));
+        Vec3 animPosOffset = _weaponAnimator.calculatePositionOffset(Vec3(0, 0, 0)) + _devConsole.cam_viewmodel_offset;
         Vec3 animRotOffset = _weaponAnimator.calculateRotationOffset(Vec3(0, 0, 0));
+        float savedFov = _camera.fieldOfView;
+        _camera.fieldOfView = _devConsole.cam_viewmodel_fov;
         _weaponSystem.renderViewModel(_camera, tex, stlMesh, _muzzleFlashTime,
                                       animPosOffset, animRotOffset,
                                       &grip.rightSocketPos, &grip.rightSocketRot,
@@ -2503,6 +2774,7 @@ public:
                                       &grip.weaponOffset, &grip.weaponRotation, &grip.weaponScale,
                                       skin.uvScale,
                                       grip.lockHands);
+        _camera.fieldOfView = savedFov;
     }
 
     void drawMenu() {
@@ -2562,17 +2834,17 @@ public:
                 LabFont::drawText(140.0f, it.y + 14.0f, it.title, 2.0f, txtCol, LabFontType::GeoSans);
             }
 
-            // Right side status panel
-            Renderer::drawRect(540.0f, 200.0f, 620.0f, 252.0f, Vec3(0.08f, 0.10f, 0.14f));
-            Renderer::drawRect(540.0f, 200.0f, 620.0f, 1.0f, Vec3(0.2f, 0.3f, 0.4f));
-            LabFont::drawText(560.0f, 220.0f, "ENGINE SUBSYSTEMS STATUS", 2.0f, Vec3(0.95f, 0.75f, 0.1f), LabFontType::GeoSans);
-            LabFont::drawText(560.0f, 260.0f, "> Rendering: OpenGL 4.5 Core (Direct State Access + Source Engine UV)", 1.6f, Vec3(0.8f, 0.85f, 0.9f), LabFontType::GeoSans);
-            LabFont::drawText(560.0f, 290.0f, "> Optimization: 6-Plane Frustum Culling ('To czego oko nie widzi...')", 1.6f, Vec3(0.8f, 0.85f, 0.9f), LabFontType::GeoSans);
-            LabFont::drawText(560.0f, 320.0f, "> Combat: Hitscan Raycast with Headshot Multiplier + 3D Tracers", 1.6f, Vec3(0.8f, 0.85f, 0.9f), LabFontType::GeoSans);
-            LabFont::drawText(560.0f, 350.0f, "> AI Squad: Tactical Patrol & Combat State Machine (LoS + Bursts)", 1.6f, Vec3(0.8f, 0.85f, 0.9f), LabFontType::GeoSans);
-            LabFont::drawText(560.0f, 380.0f, "> Multiplayer: Host Match with FFA / DM / TDM Rules & Custom Bots", 1.6f, Vec3(0.8f, 0.85f, 0.9f), LabFontType::GeoSans);
+            // Right side operational briefing card
+            Renderer::drawRoundedRect(540.0f, 185.0f, 620.0f, 288.0f, Vec3(0.05f, 0.07f, 0.10f), 0.78f, 8.0f, 1.2f, Vec3(1.0f, 0.74f, 0.14f), 0.35f);
+            LabFont::drawText(564.0f, 206.0f, "SECTOR BRIEFING // CRYO-WASTELAND", 2.0f, Vec3(1.0f, 0.74f, 0.14f), LabFontType::GeoSans);
+            Renderer::drawRect(564.0f, 236.0f, 572.0f, 1.0f, Vec3(1.0f, 0.74f, 0.14f), 0.28f);
+            LabFont::drawText(564.0f, 254.0f, "ACTIVE MAP:     " + (_currentMap ? _currentMap->metadata.name : std::string("Cryo Wasteland Outpost")), 1.65f, Vec3(0.86f, 0.90f, 0.95f), LabFontType::GeoSans);
+            LabFont::drawText(564.0f, 284.0f, "COMBAT MODE:    " + (_sessionConfig.mode == GameMode::TDM ? std::string("Team Deathmatch") : std::string("Free-For-All Combat")), 1.65f, Vec3(0.86f, 0.90f, 0.95f), LabFontType::GeoSans);
+            LabFont::drawText(564.0f, 314.0f, "HOSTILE SQUAD:  " + std::to_string(_aiManager.bots.size()) + " Autonomous Synth Units", 1.65f, Vec3(0.86f, 0.90f, 0.95f), LabFontType::GeoSans);
+            LabFont::drawText(564.0f, 344.0f, "ARSENAL:        Slots [1-9] Tactical Weapons & Physics Props", 1.65f, Vec3(0.86f, 0.90f, 0.95f), LabFontType::GeoSans);
+            LabFont::drawText(564.0f, 374.0f, "CONTROLS:       WASD Move | LMB Fire | R Reload | F Flashlight | ~ Console", 1.55f, Vec3(0.65f, 0.75f, 0.85f), LabFontType::GeoSans);
 
-            LabFont::drawText(120.0f, 625.0f, "USE MOUSE TO CLICK MENU OPTIONS | F2: HAMMER EDITOR | F9: RUN", 1.4f, Vec3(0.45f, 0.55f, 0.65f), LabFontType::GeoSans);
+            LabFont::drawText(120.0f, 625.0f, "[ESC] RESUME GAME   |   [F2] LEVEL EDITOR   |   [TAB] SCOREBOARD", 1.5f, Vec3(0.65f, 0.72f, 0.80f), LabFontType::GeoSans);
         }
         else if (_menuScreen == MenuScreen::MultiSelect) {
             // Multiplayer Mode Selection Frame
@@ -2911,6 +3183,24 @@ public:
 
     void drawUI() {
         int w = 1280, h = 720;
+        if (_devConsole.ui_scale > 0.1f && std::abs(_devConsole.ui_scale - 1.0f) > 0.01f) {
+            w = static_cast<int>(1280.0f / _devConsole.ui_scale);
+            h = static_cast<int>(720.0f / _devConsole.ui_scale);
+        }
+
+        _hud.showCrosshair = _devConsole.ui_crosshair;
+        _hud.crosshairColor = _devConsole.ui_crosshair_color_rgb;
+
+        if (_devConsole.ui_hide) {
+            int winW = w, winH = h;
+            getWindowSize(winW, winH);
+            if (winW <= 0) winW = w;
+            if (winH <= 0) winH = h;
+            if (_devConsole.isOpen) {
+                _devConsole.render(winW, winH);
+            }
+            return;
+        }
 
         if (!_hammerEditor.active) {
             if (_isPlayerDead) {
@@ -2974,7 +3264,16 @@ public:
             Renderer::endUI();
         }
 
-        // 2D Telemetry overlays & Developer Console
+        // 2D Telemetry overlays & Developer Console (real measured frame timing)
+        static auto s_prevTelemetryTime = std::chrono::steady_clock::now();
+        static float s_smoothedFrameMs = 16.67f;
+        auto nowTelemetryTime = std::chrono::steady_clock::now();
+        float rawFrameMs = std::chrono::duration<float, std::milli>(nowTelemetryTime - s_prevTelemetryTime).count();
+        s_prevTelemetryTime = nowTelemetryTime;
+        if (rawFrameMs > 0.1f && rawFrameMs < 500.0f) {
+            s_smoothedFrameMs = s_smoothedFrameMs * 0.90f + rawFrameMs * 0.10f;
+        }
+
         DevTelemetryData tData;
         tData.currentSpeed = _velocity.length();
         tData.horizontalSpeed = std::sqrt(_velocity.x * _velocity.x + _velocity.z * _velocity.z);
@@ -2982,12 +3281,60 @@ public:
         tData.playerPos = _camera.getPosition();
         tData.pitch = _camera.getPitch();
         tData.yaw = _camera.getYaw();
-        tData.fps = 60.0f;
-        tData.frametimeMs = 16.6f;
+        tData.frametimeMs = s_smoothedFrameMs;
+        tData.fps = (s_smoothedFrameMs > 0.01f) ? (1000.0f / s_smoothedFrameMs) : 60.0f;
         tData.pingMs = _netClient.isConnected() ? 25 : 0;
         tData.activeBots = (int)_aiManager.bots.size();
         tData.isGrounded = _isGrounded;
         tData.isBhopActive = (!_isGrounded && tData.horizontalSpeed > 5.2f);
+        tData.drawCalls = Renderer::getDrawCallCount();
+        tData.vertexCount = Renderer::getVertexCount();
+#ifdef _WIN32
+        PROCESS_MEMORY_COUNTERS_EX pmc;
+        if (GetProcessMemoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS*)&pmc, sizeof(pmc))) {
+            tData.ramWorkingSetMB = pmc.WorkingSetSize / (1024 * 1024);
+        }
+#endif
+        // Closest AI Bot telemetry
+        float closestDist = 999.0f;
+        const CombatBot* closestBot = nullptr;
+        for (const auto& b : _aiManager.bots) {
+            if (b.isAlive()) {
+                float dist = (b.position - _camera.getPosition()).length();
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    closestBot = &b;
+                }
+            }
+        }
+        if (closestBot) {
+            std::string stStr = "PATROL";
+            switch (closestBot->state) {
+                case AIState::Patrol: stStr = "PATROL"; break;
+                case AIState::Talk:   stStr = "TALK"; break;
+                case AIState::Alert:  stStr = "ALERT"; break;
+                case AIState::Chase:  stStr = "CHASE"; break;
+                case AIState::Attack: stStr = "ATTACK"; break;
+                case AIState::Hurt:   stStr = "HURT"; break;
+                case AIState::Dead:   stStr = "DEAD"; break;
+            }
+            char bBuf[128];
+            snprintf(bBuf, sizeof(bBuf), "%s | State: %s | Dist: %.1fm", closestBot->name.c_str(), stStr.c_str(), closestDist);
+            tData.closestBotInfo = bBuf;
+
+            if (closestBot->state == AIState::Talk && !closestBot->activeSubtitle.empty()) {
+                Renderer::beginUI(w, h);
+                float subW = 680.0f;
+                float subH = 44.0f;
+                float subX = (w - subW) * 0.5f;
+                float subY = h - 135.0f;
+                Renderer::drawRect(subX, subY, subW, subH, Vec3(0.06f, 0.09f, 0.14f));
+                Renderer::drawRect(subX, subY, 4.0f, subH, Vec3(0.2f, 0.85f, 1.0f));
+                std::string line = "[" + closestBot->name + "]: " + closestBot->activeSubtitle;
+                LabFont::drawText(subX + 14.0f, subY + 14.0f, line, 1.55f, Vec3(0.85f, 0.96f, 1.0f), LabFontType::GeoSans);
+                Renderer::endUI();
+            }
+        }
 
         int winW = w, winH = h;
         getWindowSize(winW, winH);
@@ -3122,9 +3469,14 @@ public:
 
         // ==================== PASS 1: DYNAMIC SHADOW DEPTH PASS ====================
         Mat4 lightSpaceMatrix;
-        if (_currentMap && _shadowMap.isInitialized()) {
-            Vec3 sunDir = Vec3(-0.35f, -1.0f, -0.45f);
-            lightSpaceMatrix = ShadowMap::computeSunLightSpaceMatrix(sunDir, _camera.getPosition(), 38.0f);
+        if (_devConsole.r_shadows && _currentMap && _shadowMap.isInitialized()) {
+            if (_shadowMap.getWidth() != _devConsole.r_shadow_res && _devConsole.r_shadow_res >= 512) {
+                _shadowMap.init(_devConsole.r_shadow_res, _devConsole.r_shadow_res);
+            }
+            Vec3 sunDir = (_currentMap && _currentMap->metadata.sunDir.lengthSq() > 0.01f)
+                ? _currentMap->metadata.sunDir
+                : Vec3(-0.35f, -1.0f, -0.45f);
+            lightSpaceMatrix = ShadowMap::computeSunLightSpaceMatrix(sunDir, _camera.getPosition(), 28.0f);
             _shadowMap.beginShadowPass(lightSpaceMatrix);
             Renderer::beginShadowDepthPass(lightSpaceMatrix);
 
@@ -3152,6 +3504,18 @@ public:
             // Render Combat AI bots into shadow map
             _aiManager.renderShadowPass();
 
+            // Render Local Player shadow in third person
+            if (_devConsole.cam_thirdperson && _aiManager.skinnedMesh && _playerAnimator.getSkeleton()) {
+                float pScale = _aiManager.skinnedMesh->getBaseScale(1.85f);
+                float yOff = -_aiManager.skinnedMesh->getMinBounds().y * pScale;
+                Vec3 pFeet = _camera.getPosition() - Vec3(0.0f, 1.70f, 0.0f);
+                float modelYaw = std::atan2(_camera.getFront().x, _camera.getFront().z) * 180.0f / 3.14159265f;
+                Mat4 pModel = Mat4::translate(pFeet + Vec3(0.0f, yOff, 0.0f)) *
+                              Mat4::rotate(modelYaw * 3.14159265f / 180.0f, Vec3(0, 1, 0)) *
+                              Mat4::scale(Vec3(pScale, pScale, pScale));
+                Renderer::drawShadowSkinnedMesh(*_aiManager.skinnedMesh, pModel, _playerAnimator.getSkinMatrices());
+            }
+
             // Render Dynamic Rigid Body Physics Props into shadow map
             _physicsWorld.renderShadow();
 
@@ -3159,9 +3523,9 @@ public:
             _shadowMap.endShadowPass(getWidth(), getHeight());
         }
 
-        // Ensure post-process pipeline and camera aspect match current viewport dimensions
-        int curW = getWidth();
-        int curH = getHeight();
+        // Ensure post-process pipeline and camera aspect match physical framebuffer dimensions (prevents High-DPI blur)
+        int curW = 1280, curH = 720;
+        getFramebufferSize(curW, curH);
         if (curW > 0 && curH > 0) {
             _camera.setAspect((float)curW / (float)curH);
             if (curW != _postProcess.getWidth() || curH != _postProcess.getHeight()) {
@@ -3170,9 +3534,10 @@ public:
         }
 
         // ==================== PASS 2: COLOR & LIGHTING SCENE PASS (HDR FBO) ====================
+        _postProcess.setClearColor(_devConsole.wrd_skybox_color);
         _postProcess.beginScene();
 
-        // Update Sun & Ambient Lighting (Handling Hammer Darkness Mode)
+        // Update Sun & Ambient Lighting (Handling Hammer Darkness Mode & wrd_light_ambient)
         if (_hammerEditor.active && _hammerEditor.darknessMode) {
             Renderer::setSunLight(
                 Vec3(0.0f, -1.0f, 0.0f),
@@ -3183,8 +3548,16 @@ public:
             Renderer::setSunLight(
                 _currentMap->metadata.sunDir,
                 _currentMap->metadata.sunColor,
-                _currentMap->metadata.ambientColor
+                _devConsole.wrd_light_ambient
             );
+        }
+
+        // Atmospheric Volumetric Fog (wrd_fog & wrd_fog_density)
+        if (_devConsole.wrd_fog) {
+            float fogEnd = 1.0f / std::max(0.001f, _devConsole.wrd_fog_density);
+            Renderer::setFog(true, _devConsole.wrd_skybox_color, 2.0f, fogEnd);
+        } else {
+            Renderer::setFog(false);
         }
 
         // Upload Dynamic Point Lights to Renderer
@@ -3204,9 +3577,62 @@ public:
             Renderer::clearPointLights();
         }
 
+        // Camera Thirdperson & Camera Shake Setup
+        Vec3 origCamPos = _camera.getPosition();
+        float origYaw = _camera.getYaw();
+        float origPitch = _camera.getPitch();
+
+        if (_camShakeTrauma > 0.0f) {
+            float trauma2 = _camShakeTrauma * _camShakeTrauma;
+            float t = static_cast<float>(glfwGetTime());
+            _camera.setYaw(origYaw + std::sin(t * 45.0f) * 2.5f * trauma2);
+            _camera.setPitch(origPitch + std::cos(t * 37.0f) * 1.8f * trauma2);
+        }
+
+        if (_devConsole.cam_thirdperson) {
+            Vec3 tppOffset = _camera.getRight() * 0.45f + Vec3(0.0f, 0.35f, 0.0f) - _camera.getFront() * 2.5f;
+            float targetDist = tppOffset.length();
+            if (targetDist > 0.001f) {
+                Vec3 rayDir = tppOffset / targetDist;
+                float allowedDist = targetDist;
+                if (_currentMap) {
+                    auto solidBoxes = LabCollision::getMapSolidBoxes(*_currentMap);
+                    for (const auto& box : solidBoxes) {
+                        float tHit = 0.0f;
+                        if (Raycast::rayIntersectAABB(origCamPos, rayDir, box.min, box.max, tHit)) {
+                            if (tHit > 0.1f && tHit < allowedDist) {
+                                allowedDist = std::max(0.2f, tHit - 0.25f);
+                            }
+                        }
+                    }
+                }
+                _camera.setPosition(origCamPos + rayDir * allowedDist);
+            }
+        }
+
         Renderer::beginFrame(_camera);
 
-        if (_shadowMap.isInitialized()) {
+        // Dynamic gunfire & projectile point lights (Source Engine style dynamic illumination)
+        if (_muzzleFlashTime > 0.0f) {
+            Vec3 flashWorldPos = _camera.getPosition() + _camera.getFront() * 0.75f;
+            Renderer::addPointLight(flashWorldPos, Vec3(1.0f, 0.78f, 0.25f), 2.8f, 7.0f);
+        }
+        for (const auto& bot : _aiManager.bots) {
+            if (bot.isAlive() && bot.muzzleFlashTimer > 0.0f) {
+                Renderer::addPointLight(bot.position + Vec3(0.0f, 1.25f, 0.0f), Vec3(1.0f, 0.75f, 0.22f), 2.2f, 5.5f);
+            }
+        }
+        for (const auto& proj : _weaponSystem.getProjectiles()) {
+            if (proj.active) {
+                Renderer::addPointLight(proj.position, proj.color, 2.4f, 6.0f);
+            }
+        }
+
+        if (_devConsole.wrd_wireframe) {
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        }
+
+        if (_devConsole.r_shadows && _shadowMap.isInitialized()) {
             Renderer::setShadowMap(lightSpaceMatrix, _shadowMap.getDepthTexture());
         } else {
             Renderer::disableShadowMap();
@@ -3271,7 +3697,6 @@ public:
                 const auto& p = snap.players[i];
                 if (p.clientId == _netClient.getClientId() || !p.isAlive) continue;
 
-                // Ground-aligned player model (eye position 1.70m -> feet at ground)
                 Vec3 pFeet = p.position - Vec3(0.0f, 1.70f, 0.0f);
                 if (_aiManager.skinnedMesh && _aiManager.skeleton) {
                     float pScale = _aiManager.skinnedMesh->getBaseScale(1.85f);
@@ -3279,43 +3704,78 @@ public:
                     Mat4 pModel = Mat4::translate(pFeet + Vec3(0.0f, yOff, 0.0f)) *
                                   Mat4::rotate(p.yaw * 3.14159265f / 180.0f, Vec3(0, 1, 0)) *
                                   Mat4::scale(Vec3(pScale, pScale, pScale));
+                    const auto& matrices = !_aiManager.bots.empty() ? _aiManager.bots[0].animator.getSkinMatrices()
+                                                                    : (_playerAnimator.getSkeleton() ? _playerAnimator.getSkinMatrices() : std::vector<Mat4>());
                     Renderer::drawSkinnedMesh(*_aiManager.skinnedMesh, pModel,
-                                              _aiManager.bots.empty() ? std::vector<Mat4>() : _aiManager.bots[0].animator.getSkinMatrices(),
+                                              matrices,
                                               Vec3(0.35f, 0.65f, 0.95f), nullptr, true);
                 } else {
-                    Renderer::drawCube(pFeet + Vec3(0.0f, 0.92f, 0.0f), Vec3(0.0f, p.yaw, 0.0f), Vec3(0.55f, 1.85f, 0.35f), Vec3(0.2f, 0.5f, 0.85f));
+                    Renderer::drawCylinder(pFeet + Vec3(0.0f, 0.92f, 0.0f), Vec3(0.0f, p.yaw, 0.0f), Vec3(0.55f, 1.85f, 0.35f), Vec3(0.2f, 0.5f, 0.85f));
                 }
-
-                // Overhead health bar & name tag
-                Vec3 tagPos = p.position + Vec3(0.0f, 0.35f, 0.0f);
-                Renderer::drawCube(tagPos, Vec3(0.0f, p.yaw, 0.0f), Vec3(0.7f, 0.08f, 0.02f), Vec3(0.1f, 0.1f, 0.15f), nullptr, false);
-                float hpRatio = std::clamp(p.health / 150.0f, 0.0f, 1.0f);
-                Renderer::drawCube(tagPos + Vec3(0.0f, 0.0f, 0.01f), Vec3(0.0f, p.yaw, 0.0f), Vec3(0.68f * hpRatio, 0.06f, 0.02f), Vec3(0.2f, 0.85f, 0.3f), nullptr, false);
             }
         }
 
-        // Render Dynamic Rigid Body Physics Props (Crates, Barrels, Shattered Debris)
+        // Render Local Player in Thirdperson mode (cam_thirdperson)
+        if (_devConsole.cam_thirdperson) {
+            Vec3 pFeet = origCamPos - Vec3(0.0f, 1.70f, 0.0f);
+            float modelYaw = std::atan2(_camera.getFront().x, _camera.getFront().z) * 180.0f / 3.14159265f;
+            if (_aiManager.skinnedMesh && _playerAnimator.getSkeleton()) {
+                float pScale = _aiManager.skinnedMesh->getBaseScale(1.85f);
+                float yOff = -_aiManager.skinnedMesh->getMinBounds().y * pScale;
+                Mat4 pModel = Mat4::translate(pFeet + Vec3(0.0f, yOff, 0.0f)) *
+                              Mat4::rotate(modelYaw * 3.14159265f / 180.0f, Vec3(0, 1, 0)) *
+                              Mat4::scale(Vec3(pScale, pScale, pScale));
+                Vec3 pColor = (_sessionConfig.mode == GameMode::TDM) ? Vec3(0.2f, 0.6f, 1.0f) : Vec3(0.2f, 0.85f, 0.45f);
+                Renderer::drawSkinnedMesh(*_aiManager.skinnedMesh, pModel,
+                                          _playerAnimator.getSkinMatrices(),
+                                          pColor, nullptr, true);
+
+                // Render equipped weapon in player's hands via hand socket
+                int wIdx = static_cast<int>(_weaponSystem.getActiveWeapon().def.id);
+                if (wIdx >= 0 && wIdx < 9) {
+                    const Mesh* wMesh = _aiManager.weaponMeshes[wIdx] ? _aiManager.weaponMeshes[wIdx].get() : _aiManager.weaponMesh.get();
+                    if (wMesh) {
+                        const Texture* wTex = _aiManager.weaponTextures[wIdx].get();
+                        const BotWeaponConfig* bCfg = &_aiManager.botWeaponConfigs[wIdx];
+                        float invScale = (pScale > 0.00001f) ? (1.0f / pScale) : 1.0f;
+                        Vec3 offset = bCfg ? bCfg->offset : Vec3(0.0f, -0.05f, 0.02f);
+                        Vec3 rot = bCfg ? bCfg->rotation : Vec3(5.73f, -11.46f, 0.0f);
+                        Vec3 scale = bCfg ? bCfg->scale : Vec3(1.0f, 1.0f, 1.0f);
+                        Vec3 socketPos = offset * invScale;
+                        Quat socketRot = Quat::fromEuler(rot.x * 3.14159265f / 180.0f,
+                                                         rot.y * 3.14159265f / 180.0f,
+                                                         rot.z * 3.14159265f / 180.0f);
+                        Vec3 weaponScale = Vec3(0.016f * scale.x * invScale,
+                                                0.016f * scale.y * invScale,
+                                                0.016f * scale.z * invScale);
+                        Mat4 weaponSocket = _playerAnimator.getSocketTransform("Socket_Weapon", pModel,
+                            makeTransform(socketPos, socketRot, weaponScale));
+                        Renderer::drawMesh(*wMesh, weaponSocket, Vec3(0.92f, 0.92f, 0.95f), wTex, true);
+                    }
+                }
+            } else {
+                Renderer::drawCylinder(pFeet + Vec3(0.0f, 0.92f, 0.0f), Vec3(0.0f, modelYaw, 0.0f), Vec3(0.55f, 1.85f, 0.35f), Vec3(0.2f, 0.8f, 0.4f));
+            }
+        }
+
+        // Render Dynamic Rigid Body Physics Props (Crates, Cylindrical Barrels, Shattered Debris)
         _physicsWorld.render();
 
         // Render 3D World Pickups (Ammo crates, Medkits, and 1-min Weapon Spawn Pads)
         _pickups.render(_cachedWeaponMeshes, _cachedWeaponTextures);
 
-        // Render 3D Bullet Tracers (Source / Half-Life 2 style luminous beams)
+        // Render 3D Bullet Tracers (Source / Half-Life 2 style additive luminous beams)
         for (const auto& tr : _tracers) {
-            Vec3 diff = tr.end - tr.start;
-            float len = diff.length();
-            if (len < 0.05f) continue;
-            Vec3 mid = tr.start + diff * 0.5f;
-            float yaw = std::atan2(diff.x, diff.z) * 180.0f / 3.14159265f;
-            float pitch = -std::asin(std::clamp(diff.y / len, -1.0f, 1.0f)) * 180.0f / 3.14159265f;
-            Renderer::drawCube(mid, Vec3(pitch, yaw, 0.0f), Vec3(tr.thickness, tr.thickness, len), tr.color, nullptr, false);
+            float alpha = std::clamp(1.0f - (tr.lifetime / (std::max)(0.01f, tr.maxLifetime)), 0.1f, 1.0f);
+            Renderer::drawAdditiveTracer(tr.start, tr.end, tr.color * alpha, tr.thickness);
         }
 
         // Render Active Projectiles (RPG Rockets & Plasma Orbs)
         for (const auto& proj : _weaponSystem.getProjectiles()) {
             if (!proj.active) continue;
-            float pSize = (proj.weaponId == WeaponID::RPG) ? 0.22f : 0.16f;
-            Renderer::drawCube(proj.position, Vec3(0, 0, 0), Vec3(pSize, pSize, pSize * 2.0f), proj.color, nullptr, false);
+            float pSize = (proj.weaponId == WeaponID::RPG) ? 0.24f : 0.18f;
+            Vec3 pDir = (proj.velocity.lengthSq() > 0.001f) ? proj.velocity.normalized() : Vec3(0, 0, -1);
+            Renderer::drawMuzzleFlash(proj.position, pDir, pSize, proj.color);
         }
 
         // Render Dynamic Projective Decals (Bullet holes, blood splatters, scorch marks)
@@ -3330,8 +3790,115 @@ public:
         // Lab Hammer Editor 3D Ghost/Grid Overlay
         _hammerEditor.draw3DOverlay(_currentMap.get());
 
-        // Viewmodel (only drawn when not in Hammer Editor mode)
-        if (!_hammerEditor.active) {
+        // ==================== 3D DEBUG OVERLAYS (COLLIDERS, TRIGGERS, AI, PHYSICS) ====================
+        if (_devConsole.log_colliders || _devConsole.log_all) {
+            if (_currentMap) {
+                for (const auto& b : _currentMap->brushes) {
+                    Renderer::drawWireCube(b.position, b.size, Vec3(0.1f, 1.0f, 0.3f));
+                }
+            }
+            for (const auto& bot : _aiManager.bots) {
+                if (bot.isAlive()) {
+                    Renderer::drawWireCube(bot.position + Vec3(0.0f, 0.92f, 0.0f), Vec3(0.6f, 1.85f, 0.6f), Vec3(1.0f, 0.2f, 0.2f));
+                }
+            }
+            for (const auto& rb : _physicsWorld.bodies) {
+                if (!rb->isDestroyed) {
+                    Renderer::drawWireCube(rb->position, rb->halfExtents * 2.0f, Vec3(0.1f, 0.8f, 1.0f));
+                }
+            }
+            Renderer::drawWireCube(origCamPos - Vec3(0.0f, 0.78f, 0.0f), Vec3(0.65f, 1.85f, 0.65f), Vec3(1.0f, 0.9f, 0.1f));
+        }
+
+        if (_devConsole.log_triggers || _devConsole.log_all) {
+            if (_currentMap) {
+                for (const auto& d : _currentMap->doors) {
+                    Renderer::drawWireCube(d.position, d.size * 1.15f, Vec3(1.0f, 0.6f, 0.1f));
+                }
+                for (const auto& tr : _currentMap->triggers) {
+                    Vec3 trCol = tr.triggered ? Vec3(0.4f, 0.5f, 0.55f) : Vec3(0.15f, 0.9f, 1.0f);
+                    Renderer::drawWireCube(tr.position, tr.size, trCol);
+                }
+            }
+            for (const auto& item : _pickups.items) {
+                if (!item.collected) {
+                    Renderer::drawWireCube(item.position, Vec3(0.8f, 0.8f, 0.8f), Vec3(0.9f, 0.2f, 0.9f));
+                }
+            }
+            for (const auto& pad : _pickups.weaponPads) {
+                Renderer::drawWireCube(pad.position + Vec3(0.0f, 0.4f, 0.0f), Vec3(1.2f, 0.8f, 1.2f), Vec3(0.4f, 0.7f, 1.0f));
+            }
+        }
+
+        if (_devConsole.ai_sight || _devConsole.log_all) {
+            for (const auto& bot : _aiManager.bots) {
+                if (!bot.isAlive()) continue;
+                float radYaw = bot.rotation.y * 3.14159265f / 180.0f;
+                Vec3 fwd(std::sin(radYaw), 0.0f, std::cos(radYaw));
+                Vec3 sightCenter = bot.position + Vec3(0.0f, 1.2f, 0.0f) + fwd * (bot.sightRange * 0.5f);
+                Vec3 coneCol = (bot.state == AIState::Attack) ? Vec3(1.0f, 0.2f, 0.2f) :
+                               (bot.state == AIState::Chase || bot.state == AIState::Alert) ? Vec3(1.0f, 0.8f, 0.1f) :
+                               Vec3(0.2f, 0.9f, 0.3f);
+                Renderer::drawWireCube(sightCenter, Vec3(bot.sightRange * 0.5f, 1.5f, bot.sightRange), coneCol);
+            }
+        }
+
+        if (_devConsole.ai_paths || _devConsole.log_all) {
+            for (const auto& bot : _aiManager.bots) {
+                if (!bot.isAlive()) continue;
+                Renderer::drawWireCube(bot.patrolStart, Vec3(0.4f, 0.4f, 0.4f), Vec3(0.2f, 0.5f, 1.0f));
+                Renderer::drawWireCube(bot.patrolEnd, Vec3(0.4f, 0.4f, 0.4f), Vec3(1.0f, 0.3f, 0.6f));
+                Vec3 pathMid = (bot.patrolStart + bot.patrolEnd) * 0.5f;
+                Vec3 pathDiff = bot.patrolEnd - bot.patrolStart;
+                float pLen = pathDiff.length();
+                if (pLen > 0.1f) {
+                    float pYaw = std::atan2(pathDiff.x, pathDiff.z) * 180.0f / 3.14159265f;
+                    Renderer::drawCube(pathMid + Vec3(0.0f, 0.05f, 0.0f), Vec3(0.0f, pYaw, 0.0f), Vec3(0.06f, 0.06f, pLen), Vec3(0.3f, 0.8f, 1.0f), nullptr, false);
+                }
+            }
+            if (_currentMap) {
+                for (size_t i = 0; i < _currentMap->waypoints.size(); ++i) {
+                    const auto& wp = _currentMap->waypoints[i];
+                    Renderer::drawWireCube(wp.position, Vec3(0.5f, 0.5f, 0.5f), Vec3(1.0f, 0.85f, 0.2f));
+                    if (i + 1 < _currentMap->waypoints.size()) {
+                        Vec3 diff = _currentMap->waypoints[i + 1].position - wp.position;
+                        float len = diff.length();
+                        if (len > 0.05f) {
+                            Vec3 mid = wp.position + diff * 0.5f;
+                            float yaw = std::atan2(diff.x, diff.z) * 180.0f / 3.14159265f;
+                            Renderer::drawCube(mid + Vec3(0, 0.1f, 0), Vec3(0, yaw, 0), Vec3(0.06f, 0.06f, len), Vec3(1.0f, 0.85f, 0.2f), nullptr, false);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (_devConsole.phys_debug) {
+            float vLen = _velocity.length();
+            if (vLen > 0.1f) {
+                Vec3 vMid = origCamPos + _velocity * 0.25f;
+                float vYaw = std::atan2(_velocity.x, _velocity.z) * 180.0f / 3.14159265f;
+                Renderer::drawCube(vMid, Vec3(0.0f, vYaw, 0.0f), Vec3(0.08f, 0.08f, vLen * 0.5f), Vec3(1.0f, 0.95f, 0.1f), nullptr, false);
+            }
+            Renderer::drawWireCube(origCamPos - Vec3(0.0f, 1.65f, 0.0f), Vec3(0.6f, 0.1f, 0.6f), _isGrounded ? Vec3(0.2f, 1.0f, 0.3f) : Vec3(1.0f, 0.2f, 0.2f));
+
+            for (const auto& rb : _physicsWorld.bodies) {
+                if (rb->isDestroyed) continue;
+                float rLen = rb->linearVelocity.length();
+                if (rLen > 0.1f) {
+                    Vec3 rMid = rb->position + rb->linearVelocity * 0.25f;
+                    float rYaw = std::atan2(rb->linearVelocity.x, rb->linearVelocity.z) * 180.0f / 3.14159265f;
+                    Renderer::drawCube(rMid, Vec3(0.0f, rYaw, 0.0f), Vec3(0.06f, 0.06f, rLen * 0.5f), Vec3(1.0f, 0.5f, 0.1f), nullptr, false);
+                }
+            }
+        }
+
+        if (_devConsole.wrd_wireframe) {
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        }
+
+        // Viewmodel (only drawn when not in Hammer Editor mode and not in thirdperson)
+        if (!_hammerEditor.active && !_devConsole.cam_thirdperson) {
             drawWeapon();
         }
 
@@ -3340,7 +3907,18 @@ public:
         Renderer::endFrame();
         _postProcess.endScene();
 
+        // Restore camera orientation and position if altered for thirdperson or camera shake
+        if (_devConsole.cam_thirdperson || _camShakeTrauma > 0.0f) {
+            _camera.setPosition(origCamPos);
+            _camera.setYaw(origYaw);
+            _camera.setPitch(origPitch);
+        }
+
         // ==================== PASS 3: HDR TONEMAPPING, BLOOM & CRYO FROST ====================
+        _postProcess.setBloomEnabled(_devConsole.r_bloom);
+        _postProcess.setFXAAEnabled(_devConsole.r_fxaa);
+        _postProcess.setPostProcessEnabled(_devConsole.r_postprocess);
+
         bool isCryo = (_currentMap && _currentMap->metadata.name.find("Cryo") != std::string::npos);
         float frost = PostProcessPipeline::calculateFrostVignette(_hud.health, _hud.maxHealth, isCryo);
         _postProcess.render(1.0f, frost, (float)glfwGetTime(), TonemapperType::ACESFilmic);
@@ -3493,6 +4071,7 @@ private:
 
     // Developer Console & Telemetry
     LabDevConsole _devConsole;
+    float _camShakeTrauma = 0.0f;
     bool _gravePressedLast = false;
     bool _f10PressedLast = false;
     bool _tabPressedLast = false;
@@ -3527,6 +4106,8 @@ private:
     // Animation & Combat state
     FrozenLifeGame::WeaponAnimator _weaponAnimator;
     AIManager _aiManager;
+    Animator _playerAnimator;
+    float _playerShootTimer = 0.0f;
     PhysicsWorld _physicsWorld;
     std::vector<BulletTracer> _tracers;
     float _muzzleFlashTime;

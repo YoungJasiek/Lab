@@ -132,21 +132,32 @@ namespace Lab {
         }
     }
 
+    bool LabDevConsole::executeBind(const std::string& keyName) {
+        std::string k = keyName;
+        std::transform(k.begin(), k.end(), k.begin(), [](unsigned char c){ return (char)std::tolower(c); });
+        auto it = _keyBinds.find(k);
+        if (it != _keyBinds.end()) {
+            execute(it->second);
+            return true;
+        }
+        return false;
+    }
+
     void LabDevConsole::registerKnownCommands() {
         _knownCommands = {
             "sp_cheats", "sp_god", "sp_noclip", "sp_bhop", "sp_speed", "sp_jump",
             "sp_heal", "sp_armor", "sp_ammo", "sp_get", "sp_give_all", "sp_respawn", "sp_suicide",
             "log_momentum", "log_fps", "log_ping", "log_pos", "log_colliders", "log_triggers",
             "log_ai", "log_drawcalls", "log_memory", "log_all",
-            "wrd_map", "wrd_restart", "wrd_skybox", "wrd_model", "wrd_timescale", "wrd_wireframe", "wrd_fog", "wrd_postprocess",
-            "phys_gravity", "phys_friction", "phys_air_accel", "phys_bhop_window", "phys_max_bhop_speed",
-            "cam_fov", "cam_thirdperson", "cam_bob", "cam_shake", "cam_freecam",
-            "r_bloom", "r_fxaa", "r_vsync", "r_shadows", "r_lightmaps", "r_normalmaps", "r_cubemaps", "r_reload_shaders",
+            "wrd_map", "wrd_restart", "wrd_skybox", "wrd_model", "wrd_timescale", "wrd_wireframe", "wrd_fog", "wrd_fog_density", "wrd_light_ambient", "wrd_postprocess",
+            "cam_fov", "cam_viewmodel_fov", "cam_viewmodel_offset", "cam_thirdperson", "cam_bob", "cam_shake", "cam_freecam",
+            "r_bloom", "r_fxaa", "r_vsync", "r_shadows", "r_shadow_res", "r_lightmaps", "r_normalmaps", "r_cubemaps", "r_postprocess", "r_reload_shaders",
+            "phys_gravity", "phys_friction", "phys_air_accel", "phys_bhop_window", "phys_max_bhop_speed", "phys_step_height", "phys_ragdoll_force", "phys_debug",
             "ai_disable", "ai_freeze", "ai_sight", "ai_paths", "ai_aggro", "ai_ignore_player", "ai_spawn",
             "snd_volume", "snd_music", "snd_sfx", "snd_voice", "snd_play", "snd_stop_all", "snd_lipsync_test", "snd_restart",
-            "ui_hide", "ui_crosshair", "ui_scale", "ui_reload",
+            "ui_hide", "ui_crosshair", "ui_crosshair_color", "ui_scale", "ui_menu", "ui_reload",
             "dcl_clear", "dcl_limit", "dcl_spawn", "dcl_distance",
-            "mp_a_bots", "mp_b_bots", "mp_bot_kick_all", "mp_bot_freeze", "mp_restart",
+            "mp_a_bots", "mp_b_bots", "mp_bot_kick_all", "mp_bot_freeze", "mp_restart", "mp_friendly_fire",
             "net_status", "net_fake_lag", "net_fake_loss", "net_connect", "net_disconnect",
             "sys_copylog", "sys_clear", "sys_help", "sys_bind", "sys_quit",
             "god", "noclip", "bhop", "clear", "copylog", "condump", "help", "quit", "exit"
@@ -401,6 +412,8 @@ namespace Lab {
             else if (n == "colliders") toggleFlag(log_colliders, "log_colliders");
             else if (n == "triggers") toggleFlag(log_triggers, "log_triggers");
             else if (n == "ai") toggleFlag(log_ai, "log_ai");
+            else if (n == "drawcalls") toggleFlag(log_drawcalls, "log_drawcalls");
+            else if (n == "memory") toggleFlag(log_memory, "log_memory");
             else if (n == "all") {
                 int b = parseBool(args);
                 bool state = (b >= 0) ? (b == 1) : !log_all;
@@ -409,6 +422,11 @@ namespace Lab {
                 log_fps = state;
                 log_pos = state;
                 log_ping = state;
+                log_colliders = state;
+                log_triggers = state;
+                log_ai = state;
+                log_drawcalls = state;
+                log_memory = state;
                 print(std::string("log_all = ") + (state ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
             } else {
                 print("Unknown overlay cvar 'log_" + n + "'", Vec3(1.0f, 0.35f, 0.35f));
@@ -430,6 +448,62 @@ namespace Lab {
             } else if (n == "restart") {
                 if (onRestartMap) onRestartMap();
                 print("Reloading current map...", Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "skybox") {
+                if (args.empty()) {
+                    print("wrd_skybox currently: " + wrd_skybox, Vec3(0.7f, 0.7f, 0.7f));
+                } else {
+                    std::string hexCand = args;
+                    if (!hexCand.empty() && hexCand[0] == '#') hexCand = hexCand.substr(1);
+                    bool isHex = (hexCand.size() == 6 || hexCand.size() == 3) &&
+                        std::all_of(hexCand.begin(), hexCand.end(), [](char c){
+                            return std::isxdigit(static_cast<unsigned char>(c));
+                        });
+
+                    if (isHex) {
+                        Vec3 col(0.0f, 0.0f, 0.0f);
+                        if (hexCand.size() == 6) {
+                            unsigned int r = 0, g = 0, b = 0;
+                            auto [rp, rec] = std::from_chars(hexCand.data(), hexCand.data() + 2, r, 16);
+                            auto [gp, gec] = std::from_chars(hexCand.data() + 2, hexCand.data() + 4, g, 16);
+                            auto [bp, bec] = std::from_chars(hexCand.data() + 4, hexCand.data() + 6, b, 16);
+                            if (rec == std::errc{} && gec == std::errc{} && bec == std::errc{}) {
+                                col = Vec3(static_cast<float>(r) / 255.0f,
+                                           static_cast<float>(g) / 255.0f,
+                                           static_cast<float>(b) / 255.0f);
+                            }
+                        } else if (hexCand.size() == 3) {
+                            unsigned int r = 0, g = 0, b = 0;
+                            std::string rStr(2, hexCand[0]);
+                            std::string gStr(2, hexCand[1]);
+                            std::string bStr(2, hexCand[2]);
+                            std::from_chars(rStr.data(), rStr.data() + 2, r, 16);
+                            std::from_chars(gStr.data(), gStr.data() + 2, g, 16);
+                            std::from_chars(bStr.data(), bStr.data() + 2, b, 16);
+                            col = Vec3(static_cast<float>(r) / 255.0f,
+                                       static_cast<float>(g) / 255.0f,
+                                       static_cast<float>(b) / 255.0f);
+                        }
+                        wrd_skybox = "#" + hexCand;
+                        wrd_skybox_color = col;
+                        wrd_skybox_is_color = true;
+                        if (onSetSkybox) onSetSkybox(wrd_skybox);
+                        print("Skybox background color set to " + wrd_skybox + " (RGB: " +
+                              std::to_string(col.x) + ", " + std::to_string(col.y) + ", " + std::to_string(col.z) + ")",
+                              Vec3(0.85f, 0.85f, 0.85f));
+                    } else {
+                        wrd_skybox = args;
+                        wrd_skybox_is_color = false;
+                        if (onSetSkybox) onSetSkybox(wrd_skybox);
+                        print("Skybox cubemap/asset set to " + wrd_skybox, Vec3(0.85f, 0.85f, 0.85f));
+                    }
+                }
+            } else if (n == "model") {
+                if (!args.empty()) {
+                    if (onSpawnModel) onSpawnModel(args);
+                    print("Spawned model '" + args + "' at aim position", Vec3(0.85f, 0.85f, 0.85f));
+                } else {
+                    print("Usage: wrd_model <id/path>", Vec3(1.0f, 0.4f, 0.4f));
+                }
             } else if (n == "timescale") {
                 try {
                     float ts = std::stof(args);
@@ -446,6 +520,58 @@ namespace Lab {
                 int b = parseBool(args);
                 wrd_fog = (b >= 0) ? (b == 1) : !wrd_fog;
                 print(std::string("wrd_fog = ") + (wrd_fog ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "fog_density") {
+                try {
+                    float fd = std::stof(args);
+                    wrd_fog_density = std::clamp(fd, 0.0001f, 1.0f);
+                    print("wrd_fog_density = " + std::to_string(wrd_fog_density), Vec3(0.85f, 0.85f, 0.85f));
+                } catch (...) {
+                    print("wrd_fog_density currently: " + std::to_string(wrd_fog_density), Vec3(0.7f, 0.7f, 0.7f));
+                }
+            } else if (n == "gravity") {
+                try {
+                    wrd_gravity = std::stof(args);
+                    phys_gravity = std::abs(wrd_gravity);
+                    print("wrd_gravity = " + std::to_string(wrd_gravity), Vec3(0.85f, 0.85f, 0.85f));
+                } catch (...) {
+                    print("wrd_gravity currently: " + std::to_string(wrd_gravity), Vec3(0.7f, 0.7f, 0.7f));
+                }
+            } else if (n == "light_ambient") {
+                if (args.empty()) {
+                    print("wrd_light_ambient currently: (" + std::to_string(wrd_light_ambient.x) + ", " +
+                          std::to_string(wrd_light_ambient.y) + ", " + std::to_string(wrd_light_ambient.z) + ")",
+                          Vec3(0.7f, 0.7f, 0.7f));
+                } else {
+                    std::string hexCand = args;
+                    if (!hexCand.empty() && hexCand[0] == '#') hexCand = hexCand.substr(1);
+                    if (hexCand.size() == 6 && std::all_of(hexCand.begin(), hexCand.end(), [](char c){ return std::isxdigit(static_cast<unsigned char>(c)); })) {
+                        unsigned int r = 0, g = 0, b = 0;
+                        std::from_chars(hexCand.data(), hexCand.data() + 2, r, 16);
+                        std::from_chars(hexCand.data() + 2, hexCand.data() + 4, g, 16);
+                        std::from_chars(hexCand.data() + 4, hexCand.data() + 6, b, 16);
+                        wrd_light_ambient = Vec3(static_cast<float>(r) / 255.0f,
+                                                 static_cast<float>(g) / 255.0f,
+                                                 static_cast<float>(b) / 255.0f);
+                    } else {
+                        std::istringstream aiss(args);
+                        float r = 0.2f, g = 0.2f, b = 0.2f;
+                        if (aiss >> r) {
+                            if (aiss >> g && aiss >> b) {
+                                wrd_light_ambient = Vec3(r, g, b);
+                            } else {
+                                wrd_light_ambient = Vec3(r, r, r);
+                            }
+                        }
+                    }
+                    print("wrd_light_ambient = (" + std::to_string(wrd_light_ambient.x) + ", " +
+                          std::to_string(wrd_light_ambient.y) + ", " + std::to_string(wrd_light_ambient.z) + ")",
+                          Vec3(0.85f, 0.85f, 0.85f));
+                }
+            } else if (n == "postprocess") {
+                int b = parseBool(args);
+                wrd_postprocess = (b >= 0) ? (b == 1) : !wrd_postprocess;
+                r_postprocess = wrd_postprocess;
+                print(std::string("wrd_postprocess = ") + (wrd_postprocess ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
             } else {
                 print("Unknown world command 'wrd_" + n + "'", Vec3(1.0f, 0.35f, 0.35f));
             }
@@ -460,17 +586,23 @@ namespace Lab {
                 try {
                     phys_friction = std::stof(args);
                     print("phys_friction = " + std::to_string(phys_friction), Vec3(0.85f, 0.85f, 0.85f));
-                } catch (...) {}
+                } catch (...) {
+                    print("phys_friction currently: " + std::to_string(phys_friction), Vec3(0.7f, 0.7f, 0.7f));
+                }
             } else if (n == "air_accel") {
                 try {
                     phys_air_accel = std::stof(args);
                     print("phys_air_accel = " + std::to_string(phys_air_accel), Vec3(0.85f, 0.85f, 0.85f));
-                } catch (...) {}
+                } catch (...) {
+                    print("phys_air_accel currently: " + std::to_string(phys_air_accel), Vec3(0.7f, 0.7f, 0.7f));
+                }
             } else if (n == "bhop_window") {
                 try {
                     phys_bhop_window = std::stof(args) / 1000.0f; // ms to s
                     print("phys_bhop_window = " + std::to_string((int)(phys_bhop_window * 1000.0f)) + " ms", Vec3(0.85f, 0.85f, 0.85f));
-                } catch (...) {}
+                } catch (...) {
+                    print("phys_bhop_window currently: " + std::to_string((int)(phys_bhop_window * 1000.0f)) + " ms", Vec3(0.7f, 0.7f, 0.7f));
+                }
             } else if (n == "max_bhop_speed") {
                 try {
                     phys_max_bhop_speed = std::stof(args);
@@ -481,8 +613,29 @@ namespace Lab {
             } else if (n == "gravity") {
                 try {
                     phys_gravity = std::stof(args);
+                    wrd_gravity = -phys_gravity;
                     print("phys_gravity = " + std::to_string(phys_gravity), Vec3(0.85f, 0.85f, 0.85f));
-                } catch (...) {}
+                } catch (...) {
+                    print("phys_gravity currently: " + std::to_string(phys_gravity), Vec3(0.7f, 0.7f, 0.7f));
+                }
+            } else if (n == "step_height") {
+                try {
+                    phys_step_height = std::stof(args);
+                    print("phys_step_height = " + std::to_string(phys_step_height), Vec3(0.85f, 0.85f, 0.85f));
+                } catch (...) {
+                    print("phys_step_height currently: " + std::to_string(phys_step_height), Vec3(0.7f, 0.7f, 0.7f));
+                }
+            } else if (n == "ragdoll_force") {
+                try {
+                    phys_ragdoll_force = std::stof(args);
+                    print("phys_ragdoll_force = " + std::to_string(phys_ragdoll_force), Vec3(0.85f, 0.85f, 0.85f));
+                } catch (...) {
+                    print("phys_ragdoll_force currently: " + std::to_string(phys_ragdoll_force), Vec3(0.7f, 0.7f, 0.7f));
+                }
+            } else if (n == "debug") {
+                int b = parseBool(args);
+                phys_debug = (b >= 0) ? (b == 1) : !phys_debug;
+                print(std::string("phys_debug = ") + (phys_debug ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
             } else {
                 print("Unknown physics command 'phys_" + n + "'", Vec3(1.0f, 0.35f, 0.35f));
             }
@@ -498,11 +651,44 @@ namespace Lab {
                     float f = std::stof(args);
                     cam_fov = std::clamp(f, 45.0f, 140.0f);
                     print("cam_fov = " + std::to_string((int)cam_fov), Vec3(0.85f, 0.85f, 0.85f));
-                } catch (...) {}
+                } catch (...) {
+                    print("cam_fov currently: " + std::to_string((int)cam_fov), Vec3(0.7f, 0.7f, 0.7f));
+                }
+            } else if (n == "viewmodel_fov") {
+                try {
+                    float f = std::stof(args);
+                    cam_viewmodel_fov = std::clamp(f, 30.0f, 120.0f);
+                    print("cam_viewmodel_fov = " + std::to_string((int)cam_viewmodel_fov), Vec3(0.85f, 0.85f, 0.85f));
+                } catch (...) {
+                    print("cam_viewmodel_fov currently: " + std::to_string((int)cam_viewmodel_fov), Vec3(0.7f, 0.7f, 0.7f));
+                }
+            } else if (n == "viewmodel_offset") {
+                std::istringstream oiss(args);
+                float x = 0.0f, y = 0.0f, z = 0.0f;
+                if (oiss >> x >> y >> z) {
+                    cam_viewmodel_offset = Vec3(x, y, z);
+                    print("cam_viewmodel_offset = (" + std::to_string(x) + ", " + std::to_string(y) + ", " + std::to_string(z) + ")", Vec3(0.85f, 0.85f, 0.85f));
+                } else {
+                    print("cam_viewmodel_offset currently: (" + std::to_string(cam_viewmodel_offset.x) + ", " +
+                          std::to_string(cam_viewmodel_offset.y) + ", " + std::to_string(cam_viewmodel_offset.z) + ")", Vec3(0.7f, 0.7f, 0.7f));
+                }
             } else if (n == "thirdperson") {
                 int b = parseBool(args);
                 cam_thirdperson = (b >= 0) ? (b == 1) : !cam_thirdperson;
                 print(std::string("cam_thirdperson = ") + (cam_thirdperson ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "bob") {
+                int b = parseBool(args);
+                cam_bob = (b >= 0) ? (b == 1) : !cam_bob;
+                print(std::string("cam_bob = ") + (cam_bob ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "shake") {
+                float force = 1.0f;
+                try { if (!args.empty()) force = std::stof(args); } catch (...) {}
+                if (onCamShake) onCamShake(force);
+                print("Camera shake triggered (force=" + std::to_string(force) + ")", Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "freecam") {
+                int b = parseBool(args);
+                cam_freecam = (b >= 0) ? (b == 1) : !cam_freecam;
+                print(std::string("cam_freecam = ") + (cam_freecam ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
             } else {
                 print("Unknown camera command 'cam_" + n + "'", Vec3(1.0f, 0.35f, 0.35f));
             }
@@ -521,6 +707,44 @@ namespace Lab {
                 int b = parseBool(args);
                 r_fxaa = (b >= 0) ? (b == 1) : !r_fxaa;
                 print(std::string("r_fxaa = ") + (r_fxaa ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "vsync") {
+                int b = parseBool(args);
+                r_vsync = (b >= 0) ? (b == 1) : !r_vsync;
+                if (onSetVsync) onSetVsync(r_vsync);
+                print(std::string("r_vsync = ") + (r_vsync ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "shadows") {
+                int b = parseBool(args);
+                r_shadows = (b >= 0) ? (b == 1) : !r_shadows;
+                print(std::string("r_shadows = ") + (r_shadows ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "shadow_res") {
+                try {
+                    int res = std::stoi(args);
+                    if (res == 512 || res == 1024 || res == 2048 || res == 4096) {
+                        r_shadow_res = res;
+                        print("r_shadow_res = " + std::to_string(r_shadow_res), Vec3(0.85f, 0.85f, 0.85f));
+                    } else {
+                        print("Usage: r_shadow_res 512/1024/2048/4096", Vec3(1.0f, 0.4f, 0.4f));
+                    }
+                } catch (...) {
+                    print("r_shadow_res currently: " + std::to_string(r_shadow_res), Vec3(0.7f, 0.7f, 0.7f));
+                }
+            } else if (n == "lightmaps") {
+                int b = parseBool(args);
+                r_lightmaps = (b >= 0) ? (b == 1) : !r_lightmaps;
+                print(std::string("r_lightmaps = ") + (r_lightmaps ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "normalmaps") {
+                int b = parseBool(args);
+                r_normalmaps = (b >= 0) ? (b == 1) : !r_normalmaps;
+                print(std::string("r_normalmaps = ") + (r_normalmaps ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "cubemaps") {
+                int b = parseBool(args);
+                r_cubemaps = (b >= 0) ? (b == 1) : !r_cubemaps;
+                print(std::string("r_cubemaps = ") + (r_cubemaps ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "postprocess") {
+                int b = parseBool(args);
+                r_postprocess = (b >= 0) ? (b == 1) : !r_postprocess;
+                wrd_postprocess = r_postprocess;
+                print(std::string("r_postprocess = ") + (r_postprocess ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
             } else if (n == "reload_shaders") {
                 if (onReloadShaders) onReloadShaders();
                 print("Reloading all shaders...", Vec3(0.3f, 0.95f, 0.4f));
@@ -531,26 +755,265 @@ namespace Lab {
         }
 
         // =====================================================================
-        // MP_ & AI_ (MULTIPLAYER & BOTS)
+        // AI_ (ARTIFICIAL INTELLIGENCE & BOTS)
         // =====================================================================
-        if (p == "mp" || p == "ai") {
+        if (p == "ai") {
+            if (n == "disable") {
+                int b = parseBool(args);
+                ai_disable = (b >= 0) ? (b == 1) : !ai_disable;
+                print(std::string("ai_disable = ") + (ai_disable ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "freeze") {
+                int b = parseBool(args);
+                ai_freeze = (b >= 0) ? (b == 1) : !ai_freeze;
+                if (onFreezeBots) onFreezeBots(ai_freeze);
+                print(std::string("ai_freeze = ") + (ai_freeze ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "sight") {
+                int b = parseBool(args);
+                ai_sight = (b >= 0) ? (b == 1) : !ai_sight;
+                print(std::string("ai_sight = ") + (ai_sight ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "paths") {
+                int b = parseBool(args);
+                ai_paths = (b >= 0) ? (b == 1) : !ai_paths;
+                print(std::string("ai_paths = ") + (ai_paths ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "aggro") {
+                int b = parseBool(args);
+                ai_aggro = (b >= 0) ? (b == 1) : !ai_aggro;
+                print(std::string("ai_aggro = ") + (ai_aggro ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "ignore_player") {
+                int b = parseBool(args);
+                ai_ignore_player = (b >= 0) ? (b == 1) : !ai_ignore_player;
+                print(std::string("ai_ignore_player = ") + (ai_ignore_player ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "spawn") {
+                if (!args.empty()) {
+                    if (onSpawnAi) onSpawnAi(args);
+                    print("Spawned AI bot of type '" + args + "'", Vec3(0.85f, 0.85f, 0.85f));
+                } else {
+                    print("Usage: ai_spawn <type>", Vec3(1.0f, 0.4f, 0.4f));
+                }
+            } else {
+                print("Unknown AI command 'ai_" + n + "'", Vec3(1.0f, 0.35f, 0.35f));
+            }
+            return;
+        }
+
+        // =====================================================================
+        // SND_ (AUDIO 3D, VOLUME & PLAYBACK)
+        // =====================================================================
+        if (p == "snd") {
+            if (n == "volume") {
+                try {
+                    float v = std::stof(args);
+                    snd_volume = std::clamp(v, 0.0f, 1.0f);
+                    if (onSetMasterVolume) onSetMasterVolume(snd_volume);
+                    print("snd_volume = " + std::to_string(snd_volume), Vec3(0.85f, 0.85f, 0.85f));
+                } catch (...) {
+                    print("snd_volume currently: " + std::to_string(snd_volume), Vec3(0.7f, 0.7f, 0.7f));
+                }
+            } else if (n == "music") {
+                try {
+                    float v = std::stof(args);
+                    snd_music = std::clamp(v, 0.0f, 1.0f);
+                    print("snd_music = " + std::to_string(snd_music), Vec3(0.85f, 0.85f, 0.85f));
+                } catch (...) {
+                    print("snd_music currently: " + std::to_string(snd_music), Vec3(0.7f, 0.7f, 0.7f));
+                }
+            } else if (n == "sfx") {
+                try {
+                    float v = std::stof(args);
+                    snd_sfx = std::clamp(v, 0.0f, 1.0f);
+                    print("snd_sfx = " + std::to_string(snd_sfx), Vec3(0.85f, 0.85f, 0.85f));
+                } catch (...) {
+                    print("snd_sfx currently: " + std::to_string(snd_sfx), Vec3(0.7f, 0.7f, 0.7f));
+                }
+            } else if (n == "voice") {
+                try {
+                    float v = std::stof(args);
+                    snd_voice = std::clamp(v, 0.0f, 1.0f);
+                    print("snd_voice = " + std::to_string(snd_voice), Vec3(0.85f, 0.85f, 0.85f));
+                } catch (...) {
+                    print("snd_voice currently: " + std::to_string(snd_voice), Vec3(0.7f, 0.7f, 0.7f));
+                }
+            } else if (n == "play") {
+                if (!args.empty()) {
+                    if (onPlaySound) onPlaySound(args);
+                    print("Playing sound: " + args, Vec3(0.85f, 0.85f, 0.85f));
+                } else {
+                    print("Usage: snd_play <path_to_audio>", Vec3(1.0f, 0.4f, 0.4f));
+                }
+            } else if (n == "stop_all") {
+                if (onStopAllSounds) onStopAllSounds();
+                print("Silenced all active audio channels.", Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "lipsync_test") {
+                if (onLipsyncTest) onLipsyncTest(args);
+                print("Testing lip-sync playback: " + args, Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "restart") {
+                if (onRestartAudio) onRestartAudio();
+                print("Restarting audio engine...", Vec3(0.85f, 0.85f, 0.85f));
+            } else {
+                print("Unknown sound command 'snd_" + n + "'", Vec3(1.0f, 0.35f, 0.35f));
+            }
+            return;
+        }
+
+        // =====================================================================
+        // UI_ (2D INTERFACE, MENU & HUD)
+        // =====================================================================
+        if (p == "ui") {
+            if (n == "hide") {
+                int b = parseBool(args);
+                ui_hide = (b >= 0) ? (b == 1) : !ui_hide;
+                print(std::string("ui_hide = ") + (ui_hide ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "crosshair") {
+                int b = parseBool(args);
+                ui_crosshair = (b >= 0) ? (b == 1) : !ui_crosshair;
+                print(std::string("ui_crosshair = ") + (ui_crosshair ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "crosshair_color") {
+                if (args.empty()) {
+                    print("ui_crosshair_color currently: " + ui_crosshair_color, Vec3(0.7f, 0.7f, 0.7f));
+                } else {
+                    std::string hexCand = args;
+                    if (!hexCand.empty() && hexCand[0] == '#') hexCand = hexCand.substr(1);
+                    if (hexCand.size() == 6 && std::all_of(hexCand.begin(), hexCand.end(), [](char c){ return std::isxdigit(static_cast<unsigned char>(c)); })) {
+                        unsigned int r = 0, g = 0, b = 0;
+                        std::from_chars(hexCand.data(), hexCand.data() + 2, r, 16);
+                        std::from_chars(hexCand.data() + 2, hexCand.data() + 4, g, 16);
+                        std::from_chars(hexCand.data() + 4, hexCand.data() + 6, b, 16);
+                        ui_crosshair_color = "#" + hexCand;
+                        ui_crosshair_color_rgb = Vec3(static_cast<float>(r) / 255.0f,
+                                                      static_cast<float>(g) / 255.0f,
+                                                      static_cast<float>(b) / 255.0f);
+                        print("ui_crosshair_color set to " + ui_crosshair_color, Vec3(0.85f, 0.85f, 0.85f));
+                    } else {
+                        print("Usage: ui_crosshair_color <#hex> (e.g. #00ff00)", Vec3(1.0f, 0.4f, 0.4f));
+                    }
+                }
+            } else if (n == "scale") {
+                try {
+                    float s = std::stof(args);
+                    ui_scale = std::clamp(s, 0.25f, 4.0f);
+                    print("ui_scale = " + std::to_string(ui_scale), Vec3(0.85f, 0.85f, 0.85f));
+                } catch (...) {
+                    print("ui_scale currently: " + std::to_string(ui_scale), Vec3(0.7f, 0.7f, 0.7f));
+                }
+            } else if (n == "menu") {
+                if (!args.empty()) {
+                    if (onOpenMenu) onOpenMenu(args);
+                    print("Navigating to menu: " + args, Vec3(0.85f, 0.85f, 0.85f));
+                } else {
+                    print("Usage: ui_menu <main/pause/options>", Vec3(1.0f, 0.4f, 0.4f));
+                }
+            } else if (n == "reload") {
+                if (onReloadUi) onReloadUi();
+                print("Reloading UI layout...", Vec3(0.85f, 0.85f, 0.85f));
+            } else {
+                print("Unknown UI command 'ui_" + n + "'", Vec3(1.0f, 0.35f, 0.35f));
+            }
+            return;
+        }
+
+        // =====================================================================
+        // DCL_ (DECALS, BULLET IMPACTS & BLOOD)
+        // =====================================================================
+        if (p == "dcl") {
+            if (n == "clear") {
+                if (onClearDecals) onClearDecals();
+                print("All decals cleared from map.", Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "limit") {
+                try {
+                    int lim = std::stoi(args);
+                    dcl_limit = std::clamp(lim, 16, 2048);
+                    print("dcl_limit = " + std::to_string(dcl_limit), Vec3(0.85f, 0.85f, 0.85f));
+                } catch (...) {
+                    print("dcl_limit currently: " + std::to_string(dcl_limit), Vec3(0.7f, 0.7f, 0.7f));
+                }
+            } else if (n == "spawn") {
+                if (!args.empty()) {
+                    if (onSpawnDecal) onSpawnDecal(args);
+                    print("Spawned decal of type '" + args + "' at aim position.", Vec3(0.85f, 0.85f, 0.85f));
+                } else {
+                    print("Usage: dcl_spawn <blood|bullet|dirt>", Vec3(1.0f, 0.4f, 0.4f));
+                }
+            } else if (n == "distance") {
+                try {
+                    float dist = std::stof(args);
+                    dcl_distance = std::clamp(dist, 1.0f, 500.0f);
+                    print("dcl_distance = " + std::to_string(dcl_distance) + " m", Vec3(0.85f, 0.85f, 0.85f));
+                } catch (...) {
+                    print("dcl_distance currently: " + std::to_string(dcl_distance) + " m", Vec3(0.7f, 0.7f, 0.7f));
+                }
+            } else {
+                print("Unknown decal command 'dcl_" + n + "'", Vec3(1.0f, 0.35f, 0.35f));
+            }
+            return;
+        }
+
+        // =====================================================================
+        // MP_ (MULTIPLAYER MATCH & BOTS)
+        // =====================================================================
+        if (p == "mp") {
             if (n == "a_bots" || n == "b_bots") {
                 try {
                     int c = std::stoi(args);
                     if (n == "a_bots" && onSetBotsA) onSetBotsA(c);
                     if (n == "b_bots" && onSetBotsB) onSetBotsB(c);
                     print("Set bot count to " + std::to_string(c), Vec3(0.85f, 0.85f, 0.85f));
-                } catch (...) {}
+                } catch (...) {
+                    print("Usage: mp_" + n + " <count>", Vec3(1.0f, 0.4f, 0.4f));
+                }
             } else if (n == "bot_kick_all" || n == "kick_all") {
                 if (onKickBots) onKickBots();
                 print("Kicked all bots.", Vec3(1.0f, 0.4f, 0.4f));
-            } else if (n == "freeze" || n == "bot_freeze") {
+            } else if (n == "bot_freeze" || n == "freeze") {
                 int b = parseBool(args);
                 bool freeze = (b >= 0) ? (b == 1) : true;
+                ai_freeze = freeze;
                 if (onFreezeBots) onFreezeBots(freeze);
-                print(std::string("bot_freeze = ") + (freeze ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
+                print(std::string("mp_bot_freeze = ") + (freeze ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "restart") {
+                if (onRestartRound) onRestartRound();
+                print("Restarting match round...", Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "friendly_fire") {
+                int b = parseBool(args);
+                mp_friendly_fire = (b >= 0) ? (b == 1) : !mp_friendly_fire;
+                print(std::string("mp_friendly_fire = ") + (mp_friendly_fire ? "1" : "0"), Vec3(0.85f, 0.85f, 0.85f));
             } else {
-                print("Unknown AI/MP command", Vec3(1.0f, 0.35f, 0.35f));
+                print("Unknown multiplayer command 'mp_" + n + "'", Vec3(1.0f, 0.35f, 0.35f));
+            }
+            return;
+        }
+
+        // =====================================================================
+        // NET_ (NETWORK DIAGNOSTICS & LATENCY)
+        // =====================================================================
+        if (p == "net") {
+            if (n == "status") {
+                print("Network status: Tickrate: 64 Hz | Ping: 0 ms | Loss: " + std::to_string((int)net_fake_loss) + "% | Jitter: 1.2 ms", Vec3(0.85f, 0.85f, 0.85f));
+            } else if (n == "fake_lag") {
+                try {
+                    net_fake_lag = std::clamp(std::stoi(args), 0, 1000);
+                    print("net_fake_lag = " + std::to_string(net_fake_lag) + " ms", Vec3(0.85f, 0.85f, 0.85f));
+                } catch (...) {
+                    print("net_fake_lag currently: " + std::to_string(net_fake_lag) + " ms", Vec3(0.7f, 0.7f, 0.7f));
+                }
+            } else if (n == "fake_loss") {
+                try {
+                    net_fake_loss = std::clamp(std::stof(args), 0.0f, 100.0f);
+                    print("net_fake_loss = " + std::to_string((int)net_fake_loss) + "%", Vec3(0.85f, 0.85f, 0.85f));
+                } catch (...) {
+                    print("net_fake_loss currently: " + std::to_string((int)net_fake_loss) + "%", Vec3(0.7f, 0.7f, 0.7f));
+                }
+            } else if (n == "connect") {
+                if (!args.empty()) {
+                    if (onNetConnect) onNetConnect(args);
+                    print("Connecting to server: " + args + "...", Vec3(0.85f, 0.85f, 0.85f));
+                } else {
+                    print("Usage: net_connect <ip:port>", Vec3(1.0f, 0.4f, 0.4f));
+                }
+            } else if (n == "disconnect") {
+                if (onNetDisconnect) onNetDisconnect();
+                print("Disconnected from server.", Vec3(0.85f, 0.85f, 0.85f));
+            } else {
+                print("Unknown network command 'net_" + n + "'", Vec3(1.0f, 0.35f, 0.35f));
             }
             return;
         }
@@ -570,6 +1033,25 @@ namespace Lab {
                 return;
             } else if (n == "help") {
                 handleHelpCommand(args);
+                return;
+            } else if (n == "bind") {
+                std::istringstream biss(args);
+                std::string keyName;
+                biss >> keyName;
+                std::string bindCmd;
+                std::getline(biss, bindCmd);
+                size_t bcStart = bindCmd.find_first_not_of(" \t\"");
+                if (bcStart != std::string::npos) {
+                    size_t bcEnd = bindCmd.find_last_not_of(" \t\"");
+                    bindCmd = bindCmd.substr(bcStart, bcEnd - bcStart + 1);
+                }
+                if (!keyName.empty() && !bindCmd.empty()) {
+                    std::transform(keyName.begin(), keyName.end(), keyName.begin(), [](unsigned char c){ return (char)std::tolower(c); });
+                    _keyBinds[keyName] = bindCmd;
+                    print("Bound key '" + keyName + "' to command '" + bindCmd + "'", Vec3(0.85f, 0.85f, 0.85f));
+                } else {
+                    print("Usage: sys_bind <key> <command>", Vec3(1.0f, 0.4f, 0.4f));
+                }
                 return;
             }
         }
@@ -1487,7 +1969,8 @@ namespace Lab {
     }
 
     void LabDevConsole::renderOverlay(int screenW, int screenH, const DevTelemetryData& t) {
-        bool showAny = log_momentum || log_fps || log_ping || log_pos || log_all;
+        bool showAny = log_momentum || log_fps || log_ping || log_pos ||
+                       log_drawcalls || log_memory || log_ai || log_all;
         if (!showAny) return;
 
         lastScreenW = screenW;
@@ -1497,7 +1980,7 @@ namespace Lab {
 
         float startX = 20.0f;
         float curY = 20.0f;
-        float boxW = 420.0f;
+        float boxW = 440.0f;
 
         // 1. Momentum & Speed Telemetry Overlay
         if (log_momentum || log_all) {
@@ -1556,6 +2039,42 @@ namespace Lab {
             LabFont::drawText(startX + 12.0f, curY + 6.0f, pingStr, 1.65f, Vec3(0.90f, 0.90f, 0.90f), LabFontType::Monospace);
 
             curY += 42.0f;
+        }
+
+        // 5. Drawcalls & Vertices Overlay
+        if (log_drawcalls || log_all) {
+            Renderer::drawRect(startX, curY, boxW, 36.0f, Vec3(0.11f, 0.12f, 0.13f));
+            Renderer::drawRect(startX, curY, 3.0f, 36.0f, Vec3(0.25f, 0.85f, 0.45f));
+
+            std::string dcStr = "DRAWCALLS: " + std::to_string(t.drawCalls) + " | VERTS: " + std::to_string(t.vertexCount);
+            LabFont::drawText(startX + 12.0f, curY + 8.0f, dcStr, 1.6f, Vec3(0.90f, 0.95f, 0.90f), LabFontType::Monospace);
+
+            curY += 44.0f;
+        }
+
+        // 6. Memory Overlay (RAM & VRAM)
+        if (log_memory || log_all) {
+            Renderer::drawRect(startX, curY, boxW, 36.0f, Vec3(0.11f, 0.12f, 0.13f));
+            Renderer::drawRect(startX, curY, 3.0f, 36.0f, Vec3(0.75f, 0.40f, 0.85f));
+
+            std::string memStr = "RAM: " + std::to_string(t.ramWorkingSetMB) + " MB | VRAM (Est): " + std::to_string(t.vramTexturesMB) + " MB";
+            LabFont::drawText(startX + 12.0f, curY + 8.0f, memStr, 1.6f, Vec3(0.92f, 0.88f, 0.95f), LabFontType::Monospace);
+
+            curY += 44.0f;
+        }
+
+        // 7. AI Bot Navigation & Combat Telemetry Overlay
+        if (log_ai || log_all) {
+            Renderer::drawRect(startX, curY, boxW, 58.0f, Vec3(0.11f, 0.12f, 0.13f));
+            Renderer::drawRect(startX, curY, 3.0f, 58.0f, Vec3(0.95f, 0.45f, 0.20f));
+
+            std::string aiHead = "AI SYNTHS: " + std::to_string(t.activeBots) + " ACTIVE IN ARENA";
+            LabFont::drawText(startX + 12.0f, curY + 6.0f, aiHead, 1.6f, Vec3(0.98f, 0.90f, 0.85f), LabFontType::Monospace);
+
+            std::string aiSub = t.closestBotInfo.empty() ? "NO COMBAT TARGETS IN SECTOR" : t.closestBotInfo;
+            LabFont::drawText(startX + 12.0f, curY + 30.0f, aiSub, 1.45f, Vec3(0.85f, 0.80f, 0.75f), LabFontType::Monospace);
+
+            curY += 66.0f;
         }
 
         Renderer::endUI();
