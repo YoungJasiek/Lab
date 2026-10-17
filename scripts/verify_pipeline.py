@@ -21,7 +21,7 @@ def run_tests():
         return False, 0, 0, 0
 
     print(f"[TEST] Uruchamianie: {BUILD_BIN}")
-    proc = subprocess.run([str(BUILD_BIN)], cwd=str(ROOT_DIR), capture_output=True, text=True)
+    proc = subprocess.run([str(BUILD_BIN)], cwd=str(ROOT_DIR), capture_output=True, text=True, encoding="utf-8", errors="replace")
     
     output = proc.stdout + "\n" + proc.stderr
     print(f"[TEST] Kod wyjscia: {proc.returncode}")

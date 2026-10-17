@@ -5,9 +5,10 @@ Ten dokument jest źródłem prawdy dla pracy nad silnikiem. Zasady dla narzędz
 ## 0. Cel i zakres
 
 **Tożsamość projektu:**
-- **Lab Engine** to wielogrowy, niezależny od gatunku fundament silnika 2D i 3D (C++20, OpenGL 4.5+ Core).
-- **Frozen-Life** to pierwsza gra (FPS w stylu Source Engine / Half-Life 2) zbudowana na tym silniku.
-- **Cel obecnego etapu:** wyczyścić dług technologiczny powstały przy przejściu z „silnika pod jedną grę” na „silnik ogólny”, oddzielić resztki logiki *Frozen-Life* od rdzenia silnika (`LabCore`, `LabRender`, `LabPhysics`, `LabWorld`, `LabScript`) oraz ustabilizować styl wizualny 3D (Blinn-Phong, ostre cienie, lightmapy, cubemapy, subtelny bloom i HDR, korekcja kolorów i winieta, FXAA lub MSAA — **bez PBR i bez TAA**) i potok 2D.
+- **Frozen-Life SDK (oparty na Lab Engine)** to wyspecjalizowany pakiet SDK oraz silnik FPS w stylu **Source Engine (Half-Life 2)** (C++20, OpenGL 4.5+ Core DSA, Blinn-Phong, lightmapy, cienie, audio 3D, Source bunny-hop, dev console).
+- **Frozen-Life** to oficjalna gra flagowa oraz wzorcowy moduł gry (`IGameModule`), stanowiący bazę pod tworzenie map i modów.
+- **Narzędzia autorskie SDK**: `LabEditor` (Hammer), `LabStudio` (HLMV), `LabServer` (serwer dedykowany), `LabPlayer` (mod runner) oraz skrypty CLI (`scripts/run_sdk.py`, `scripts/verify_pipeline.py`).
+- **Cel obecnego etapu:** wyczyścić dług technologiczny, oddzielić logikę gry od rdzenia silnika za pomocą interfejsu `IGameModule` oraz ustabilizować styl wizualny 3D i narzędzia SDK.
 
 **Poza zakresem na teraz:** Vulkan, DirectX 12, Metal, WebAssembly (WASM), nowe podsystemy (LOD, NavMesh, Blend Trees, IK, streaming), nowe funkcje edytora i moduły pod nieistniejące gry. Wracają dopiero po zamknięciu faz 1–4.
 

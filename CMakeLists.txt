@@ -130,6 +130,7 @@ add_library(LabCore SHARED
     include/LabVCS.h
     include/LabProject.h
     include/LabApplication.h
+    include/LabSDK.h
     include/LabGpuPreference.h
     include/LabMath.h
     include/LabComponent.h

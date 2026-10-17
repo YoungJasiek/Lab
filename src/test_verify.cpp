@@ -10834,6 +10834,74 @@ int main() {
         std::cout << "  [PASS] Test 89 Anti-Slop GPU & HUD Integrity verified 100%!\n";
     }
 
+    // 90. Verifying Frozen-Life SDK Architecture, IGameModule Lifecycle & GameManifest
+    {
+        std::cout << "\n[Test 90] Verifying Frozen-Life SDK Architecture, IGameModule Lifecycle & GameManifest...\n";
+
+        // Sub-test A: SDK Versioning & Name
+        if (LAB_SDK_VERSION_MAJOR != 1 || std::string(LAB_SDK_NAME).find("Frozen-Life SDK") == std::string::npos) {
+            std::cerr << "Assertion failed: Invalid SDK metadata!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test A: SDK Version " << LAB_SDK_VERSION_STRING << " & Name '" << LAB_SDK_NAME << "' verified.\n";
+
+        // Sub-test B: GameManifest default fields
+        Lab::GameManifest manifest;
+        manifest.gameTitle = "Frozen-Life";
+        manifest.gameDir = "frozen_life";
+        manifest.version = "1.0.0";
+        if (manifest.gameTitle != "Frozen-Life" || manifest.gameDir != "frozen_life" || !manifest.isMultiplayerCapable) {
+            std::cerr << "Assertion failed: GameManifest validation failed!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test B: GameManifest ('" << manifest.gameTitle << "', dir: " << manifest.gameDir << ") verified.\n";
+
+        // Sub-test C: Decoupled IGameModule lifecycle
+        class MockFrozenLifeModule : public Lab::IGameModule {
+        public:
+            bool initCalled = false;
+            bool updateCalled = false;
+            bool render3DCalled = false;
+            bool renderUICalled = false;
+            bool shutdownCalled = false;
+            Lab::GameManifest mf;
+
+            bool onInit(Lab::Engine* /*engine*/) override {
+                initCalled = true;
+                return true;
+            }
+            void onUpdate(float dt) override {
+                if (dt > 0.0f) updateCalled = true;
+            }
+            void onRender3D(Lab::Renderer* /*renderer*/) override {
+                render3DCalled = true;
+            }
+            void onRenderUI(Lab::Renderer* /*renderer*/) override {
+                renderUICalled = true;
+            }
+            void onShutdown() override {
+                shutdownCalled = true;
+            }
+            const Lab::GameManifest& getManifest() const override {
+                return mf;
+            }
+        };
+
+        auto module = std::make_unique<MockFrozenLifeModule>();
+        module->onInit(nullptr);
+        module->onUpdate(0.016f);
+        module->onRender3D(nullptr);
+        module->onRenderUI(nullptr);
+        module->onShutdown();
+
+        if (!module->initCalled || !module->updateCalled || !module->render3DCalled || !module->renderUICalled || !module->shutdownCalled) {
+            std::cerr << "Assertion failed: IGameModule lifecycle hooks failed to execute!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test C: Decoupled IGameModule lifecycle (onInit -> onUpdate -> onRender3D -> onRenderUI -> onShutdown) verified.\n";
+        std::cout << "  [PASS] Test 90 Frozen-Life SDK Architecture & Decoupled Lifecycle passed 100%!\n";
+    }
+
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();

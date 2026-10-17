@@ -15,22 +15,39 @@
 
 ## 📖 Overview
 
-**Lab Engine** is a modular 3D and 2D game engine and authoring suite written in **C++20** and **OpenGL 4.5+ Core**, designed around the crisp, responsive aesthetic of classic **Source Engine (Half-Life 2)** games (Blinn-Phong shading, sharp directional shadows, baked lightmaps, cubemaps, subtle HDR bloom, and 2D sprite batching — **without PBR or TAA**).
+**Frozen-Life SDK** (napędzany przez **Lab Engine**) to wyspecjalizowany zestaw narzędzi deweloperskich (SDK) oraz silnik FPS w stylu **Source Engine (Half-Life 2)** napisany w nowoczesnym **C++20** i **OpenGL 4.5+ Core** (Direct State Access, Blinn-Phong, lightmapy, cubemapy, cienie PCF, dynamiczny flash lufy, smugi pocisków i półprzezroczysty minimalistyczny HUD — **bez PBR i bez TAA**).
 
-* **Lab Engine (`LabCore` .. `LabHUDEditorCore`)** provides the genre-agnostic runtime foundation and editor tools (`LabEditor.exe`, `LabPlayer.exe`, `LabServer.exe`).
-* **Frozen-Life (`FrozenLife.exe`)** is the flagship first-person shooter built on top of Lab Engine. *(Note: The project is currently in an active architectural stabilization phase to finish decoupling remaining Frozen-Life game specifics from the core engine DLLs — see [`PLAN.md`](PLAN.md) and [`tech_todo.md`](tech_todo.md)).*
+* **Lab Engine (`LabCore` .. `LabWorld`)**: Solidny, zoptymalizowany fundament silnika FPS (okno, wejście, VFS, fizyka ruchu gracza w stylu Source Engine z bunny-hopem, audio 3D, cieniowanie DSA, dev console).
+* **Frozen-Life (`FrozenLife.exe`)**: Oficjalna gra flagowa oraz wzorcowy moduł FPS (`IGameModule` / `FrozenLifeGame`).
+* **Narzędzia autorskie SDK**:
+  - **`LabEditor.exe`** (odpowiednik **Hammera** w Source SDK) — edytor poziomów CSG, oświetlenia, spawnów, prefabów i triggerów.
+  - **`LabStudio.exe`** (odpowiednik **HLMV** w Source SDK) — podgląd modeli, animacji FBX/glTF, gniazd broni i chwytu rąk (Grip Studio).
+  - **`LabServer.exe`** — dedykowany serwer wieloosobowy UDP.
+  - **`LabPlayer.exe`** — uniwersalny launcher dla wyeksportowanych modów i map.
+  - **`TestVerify.exe`** — zintegrowany zestaw 90 testów automatycznych i weryfikacji klatek bufora GPU.
 
 ---
 
-## 🎯 Executable Targets (defined in `CMakeLists.txt`)
+## 🚀 Szybki start: Frozen-Life SDK CLI (`scripts/run_sdk.py`)
 
-| Target | Executable | Description |
-| :--- | :--- | :--- |
-| **`LabEditor`** | `LabEditor.exe` | Unified multi-workspace visual editor (`src/editor_main.cpp`): 3D CSG/level editing, 2D tilemap/canvas tools, character/weapon studio views, Lua scripting buffer, and Play-In-Editor (PIE). |
-| **`FrozenLife`** | `FrozenLife.exe` | Flagship retro-modern tactical FPS showcase game (`src/main.cpp`). |
-| **`LabPlayer`** | `LabPlayer.exe` | Standalone runtime runner (`src/player_main.cpp`) booting `.labproject` / `.labpak` packages without editor overhead. |
-| **`LabServer`** | `LabServer.exe` | Headless dedicated UDP multiplayer server (`src/server_main.cpp`). |
-| **`TestVerify`** | `TestVerify.exe` | Automated verification runner (`src/test_verify.cpp`) executing the engine's regression test suite. |
+Do zarządzania procesem budowania, weryfikacji i uruchamiania narzędzi służy dedykowany skrypt `scripts/run_sdk.py`:
+
+```powershell
+# 1. Kompilacja całego projektu (wszystkie 11 DLL + 6 EXE w trybie Release)
+python scripts/run_sdk.py --build
+
+# 2. Uruchomienie pełnego zestawu 90 testów i weryfikacji klatek GPU
+python scripts/run_sdk.py --verify
+
+# 3. Uruchomienie gry Frozen-Life
+python scripts/run_sdk.py --game
+
+# 4. Uruchomienie edytora poziomów (Hammer-like Level Editor)
+python scripts/run_sdk.py --editor
+
+# 5. Uruchomienie podglądu modeli i broni (Model & Weapon Studio)
+python scripts/run_sdk.py --studio
+```
 
 ---
 
