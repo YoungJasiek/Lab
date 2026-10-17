@@ -8,6 +8,7 @@ logos/
 !logos/*.png
 skills/
 scripts/
+!scripts/*.py
 !assets/scripts/
 !assets/scripts/**
 !.github/scripts/
