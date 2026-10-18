@@ -874,7 +874,7 @@
                   <button type="button" class="hub-tool-btn" data-act="bold" title="Bold text">B</button>
                   <button type="button" class="hub-tool-btn" data-act="italic" title="Italic text">I</button>
                   <button type="button" class="hub-tool-btn" data-act="code" title="Inline code">&lt;code&gt;</button>
-                  <button type="button" class="hub-tool-btn" data-act="pre" title="C++ / Code block">``` Code Block</button>
+                  <button type="button" class="hub-tool-btn" data-act="pre" title="C++ / Code block">[Code Block]</button>
                   <button type="button" class="hub-tool-btn" data-act="quote" title="Blockquote">&gt; Quote</button>
                   <button type="button" class="hub-tool-btn" data-act="list" title="Bullet List">&bull; List</button>
                   <button type="button" class="hub-tool-btn" data-act="numlist" title="Numbered List">1. List</button>
