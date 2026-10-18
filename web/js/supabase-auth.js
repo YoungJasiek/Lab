@@ -62,7 +62,10 @@
   });
 
   async function fetchVercelConfig() {
-    if (window.LAB_SUPABASE_URL && window.LAB_SUPABASE_ANON_KEY) return;
+    if (window.LAB_SUPABASE_URL && window.LAB_SUPABASE_ANON_KEY) {
+      syncUserSession();
+      return;
+    }
     try {
       const res = await fetch('/api/config');
       if (res.ok) {
@@ -71,7 +74,44 @@
           window.LAB_SUPABASE_URL = data.url;
           window.LAB_SUPABASE_ANON_KEY = data.anonKey;
           renderUserTools(document.querySelector('.vdc-user-tools'));
+          syncUserSession();
         }
+      }
+    } catch (e) {}
+  }
+
+  // Background sync: Fetches live user profile from Supabase to automatically reflect role changes
+  async function syncUserSession() {
+    if (!currentSession || !currentSession.access_token) return;
+    const config = getSupabaseConfig();
+    if (!config.url || !config.anonKey) return;
+
+    try {
+      const res = await fetch(`${config.url}/auth/v1/user`, {
+        headers: {
+          'Authorization': `Bearer ${currentSession.access_token}`,
+          'apikey': config.anonKey
+        }
+      });
+      if (res.ok) {
+        const userData = await res.json();
+        const verifiedRole = userData.app_metadata?.role || userData.user_metadata?.role || 'user';
+        if (currentSession.user) {
+          const previousRole = currentSession.user.role;
+          currentSession.user.role = verifiedRole;
+          if (userData.user_metadata) {
+            currentSession.user.user_metadata = userData.user_metadata;
+          }
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(currentSession));
+          if (previousRole !== verifiedRole) {
+            renderUserTools(document.querySelector('.vdc-user-tools'));
+            showToast(`Role updated to [${verifiedRole.toUpperCase()}].`, 'info');
+          }
+        }
+      } else if (res.status === 401) {
+        localStorage.removeItem(STORAGE_KEY);
+        currentSession = null;
+        renderUserTools(document.querySelector('.vdc-user-tools'));
       }
     } catch (e) {}
   }
