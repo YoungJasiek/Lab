@@ -281,7 +281,25 @@
   function getLocalComments(postId) {
     try {
       const all = JSON.parse(localStorage.getItem(STORAGE_LOCAL_COMMENTS_KEY)) || {};
-      return all[postId] || [];
+      const list = all[postId] || [];
+      const seenIds = new Set();
+      const deduped = [];
+      for (const c of list) {
+        if (!c || !c.content) continue;
+        if (seenIds.has(c.id)) continue;
+        // Filter out rapid accidental duplicate submissions (same author, content, parent within 4s)
+        const isDuplicateSubmission = deduped.some(prev => 
+          prev.author_name === c.author_name &&
+          prev.content === c.content &&
+          prev.parent_id === c.parent_id &&
+          Math.abs(new Date(prev.created_at).getTime() - new Date(c.created_at).getTime()) < 4000
+        );
+        if (isDuplicateSubmission) continue;
+
+        seenIds.add(c.id);
+        deduped.push(c);
+      }
+      return deduped;
     } catch (e) {
       return [];
     }
@@ -291,7 +309,17 @@
     try {
       const all = JSON.parse(localStorage.getItem(STORAGE_LOCAL_COMMENTS_KEY)) || {};
       if (!all[postId]) all[postId] = [];
-      all[postId].push(comment);
+      const list = all[postId];
+      const isDuplicate = list.some(c => 
+        c.id === comment.id || 
+        (c.author_name === comment.author_name && 
+         c.content === comment.content && 
+         c.parent_id === comment.parent_id &&
+         Math.abs(new Date(c.created_at).getTime() - new Date(comment.created_at).getTime()) < 4000)
+      );
+      if (!isDuplicate) {
+        list.push(comment);
+      }
       localStorage.setItem(STORAGE_LOCAL_COMMENTS_KEY, JSON.stringify(all));
     } catch (e) {}
   }
@@ -643,6 +671,9 @@
     });
 
     document.getElementById('hub-submit-comment-btn')?.addEventListener('click', async () => {
+      const btn = document.getElementById('hub-submit-comment-btn');
+      if (btn?.disabled) return;
+
       const textarea = document.getElementById('hub-new-comment-text');
       const text = textarea?.value?.trim();
       if (!text) return;
@@ -656,8 +687,15 @@
         return;
       }
 
-      await submitComment(postId, text, null);
-      textarea.value = '';
+      btn.disabled = true;
+      btn.textContent = 'Posting...';
+      try {
+        await submitComment(postId, text, null);
+        textarea.value = '';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Comment';
+      }
       loadCommentsForThread(postId, post.author_name);
     });
 
@@ -668,9 +706,39 @@
     const listEl = document.getElementById('thread-comments-list');
     if (!listEl) return;
 
-    let comments = [...(SEED_COMMENTS[postId] || []), ...getLocalComments(postId)];
-    const config = getSupabaseConfig();
+    const commentMap = new Map();
 
+    function ingestComment(c, parentId = null) {
+      if (!c || !c.id) return;
+      const effectiveParentId = c.parent_id !== undefined ? c.parent_id : parentId;
+      if (!commentMap.has(c.id)) {
+        commentMap.set(c.id, {
+          id: c.id,
+          post_id: c.post_id || postId,
+          parent_id: effectiveParentId,
+          author_id: c.author_id || null,
+          author_name: c.author_name || 'Developer',
+          author_role: c.author_role || 'user',
+          content: c.content || '',
+          upvotes: c.upvotes || 1,
+          created_at: c.created_at || new Date().toISOString(),
+          replies: []
+        });
+      }
+
+      if (Array.isArray(c.replies)) {
+        c.replies.forEach(r => ingestComment(r, c.id));
+      }
+    }
+
+    // 1. Ingest baseline seed comments
+    (SEED_COMMENTS[postId] || []).forEach(c => ingestComment(c, null));
+
+    // 2. Ingest local comments
+    getLocalComments(postId).forEach(c => ingestComment(c, c.parent_id || null));
+
+    // 3. Ingest Supabase comments if configured
+    const config = getSupabaseConfig();
     if (config.url && config.anonKey && !String(postId).startsWith('seed-') && !String(postId).startsWith('post-')) {
       try {
         const res = await fetch(`${config.url}/rest/v1/community_comments?post_id=eq.${postId}&order=created_at.asc`, {
@@ -682,7 +750,7 @@
         if (res.ok) {
           const dbComments = await res.json();
           if (Array.isArray(dbComments) && dbComments.length > 0) {
-            comments = dbComments;
+            dbComments.forEach(c => ingestComment(c, c.parent_id || null));
           }
         }
       } catch (err) {
@@ -690,12 +758,31 @@
       }
     }
 
-    if (comments.length === 0) {
+    if (commentMap.size === 0) {
       listEl.innerHTML = '<div class="hub-no-comments">No responses yet. Be the first to comment.</div>';
       return;
     }
 
-    listEl.innerHTML = comments.map(c => renderCommentNodeHtml(c, opAuthorName, postId)).join('');
+    // 4. Assemble hierarchical Reddit-style comment tree
+    const rootComments = [];
+    const allComments = Array.from(commentMap.values());
+
+    allComments.forEach(c => {
+      c.replies = [];
+    });
+
+    allComments.forEach(c => {
+      if (c.parent_id && commentMap.has(c.parent_id)) {
+        const parent = commentMap.get(c.parent_id);
+        if (!parent.replies.some(r => r.id === c.id)) {
+          parent.replies.push(c);
+        }
+      } else {
+        rootComments.push(c);
+      }
+    });
+
+    listEl.innerHTML = rootComments.map(c => renderCommentNodeHtml(c, opAuthorName, postId)).join('');
     wireCommentReplyButtons(postId, opAuthorName);
   }
 
@@ -771,8 +858,10 @@
 
     document.querySelectorAll('.hub-btn-send-reply').forEach(btn => {
       btn.addEventListener('click', async () => {
+        if (btn.disabled) return;
         const commentId = btn.getAttribute('data-comment-id');
-        const text = document.getElementById(`reply-text-${commentId}`)?.value?.trim();
+        const textarea = document.getElementById(`reply-text-${commentId}`);
+        const text = textarea?.value?.trim();
         if (!text) return;
 
         const session = getCurrentSession();
@@ -784,7 +873,16 @@
           return;
         }
 
-        await submitComment(postId, text, commentId);
+        btn.disabled = true;
+        btn.textContent = 'Sending...';
+        try {
+          await submitComment(postId, text, commentId);
+          const box = document.getElementById(`reply-box-${commentId}`);
+          if (box) box.style.display = 'none';
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Send';
+        }
         loadCommentsForThread(postId, opAuthorName);
       });
     });
@@ -832,11 +930,8 @@
       } catch (err) {}
     }
 
-    if (!synced) {
-      saveLocalComment(postId, newCommentObj);
-      if (!SEED_COMMENTS[postId]) SEED_COMMENTS[postId] = [];
-      SEED_COMMENTS[postId].push(newCommentObj);
-    }
+    // Save locally into localStorage (deduplicated automatically)
+    saveLocalComment(postId, newCommentObj);
 
     const post = postsData.find(p => p.id === postId);
     if (post) post.comments_count = (post.comments_count || 0) + 1;
