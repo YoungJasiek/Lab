@@ -31,6 +31,9 @@
   <a href="#content" class="skip-link">Skip to main content</a>
 
   <!-- Top Header -->
+    <!-- ====================================================================
+       1. TOP HEADER (EXACT MATCH TO VALVE DEVELOPER COMMUNITY - IMAGE 2)
+       ==================================================================== -->
   <header class="vdc-top-header" role="banner">
     <div class="vdc-header-left">
       <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
@@ -38,21 +41,15 @@
         <span class="vdc-logo-stamp">LAB</span>
         <div class="vdc-brand-text">
           <span class="vdc-brand-title">Developer Community</span>
-          <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LABHAMMER</span>
         </div>
       </a>
     </div>
 
-    <div class="vdc-search-bar" role="search">
-      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search Lab Developer Community" aria-label="Search wiki documentation">
-      <button id="search-go-btn" class="vdc-search-btn" aria-label="Search">Go</button>
-    </div>
-
     <div class="vdc-header-right">
       <div class="vdc-user-tools">
-        <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="user-link">YoungJasiek</a>
-        <span class="pipe-sep">&bull;</span>
-        <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="user-link">Git Source</a>
+        <a href="#" id="auth-btn-create" class="user-link">Create account</a>
+        <span class="pipe-sep" style="color:#505967; margin:0 4px;">&bull;</span>
+        <a href="#" id="auth-btn-login" class="user-link">Log in</a>
       </div>
     </div>
   </header>
@@ -76,6 +73,16 @@
         <ul class="sidebar-links">
           <li><a href="privacy.html">Privacy Policy</a></li>
           <li><a href="terms.html" class="active">Terms of Use</a></li>
+        </ul>
+      </div>
+    
+      <div class="sidebar-block">
+        <div class="sidebar-title">Tools</div>
+        <ul class="sidebar-links">
+          <li><a href="editor.html" style="color:var(--wiki-accent); font-weight:bold;">+ Create New Article</a></li>
+          <li><a href="wiki-contents.html">What links here</a></li>
+          <li><a href="project-hub.html">Special pages</a></li>
+          <li><a href="javascript:window.print();">Printable version</a></li>
         </ul>
       </div>
     </aside>
@@ -151,6 +158,9 @@
       </div>
     </main>
   </div>
+
+  <!-- Supabase Auth & VDC MediaWiki Editor -->
+  <script src="js/supabase-auth.js"></script>
 
   <script src="js/app.js?v=3"></script>
 </body>
