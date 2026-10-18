@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Special:Moderation – Dedicated documentation moderation dashboard, pull requests review stream, and spam management for Lab Developer Community.">
+  <meta name="author" content="Lab Developer Community">
+
+  <title>Special:Moderation – Lab Developer Community</title>
+  <link rel="icon" type="image/webp" href="assets/img/LabLogo.webp">
+  <link rel="stylesheet" href="css/style.css?v=3">
+
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="manifest" href="site.webmanifest">
+</head>
+<body>
+  <a href="#content" class="skip-link">Skip to main content</a>
+
+  <!-- TOP HEADER -->
+  <header class="vdc-top-header" role="banner">
+    <div class="vdc-header-left">
+      <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
+      <a href="index.html" class="vdc-brand">
+        <span class="vdc-logo-stamp">LAB</span>
+        <div class="vdc-brand-text">
+          <span class="vdc-brand-title">Developer Community</span>
+        </div>
+      </a>
+    </div>
+
+    <div class="vdc-header-right">
+      <div class="vdc-user-tools">
+        <a href="#" id="auth-btn-create" class="user-link">Create account</a>
+        <span class="pipe-sep" style="color:#505967; margin:0 4px;">&bull;</span>
+        <a href="#" id="auth-btn-login" class="user-link">Log in</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- WIKI CONTAINER -->
+  <div class="vdc-page-container">
+
+    <!-- Left Sidebar Navigation -->
+    <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
+      <div class="sidebar-block">
+        <div class="sidebar-title">Navigation</div>
+        <ul class="sidebar-links">
+          <li><a href="index.html">Main Page</a></li>
+          <li><a href="modules.html">Lab SDK Index</a></li>
+          <li><a href="wiki-contents.html">Wiki Contents</a></li>
+          <li><a href="project-hub.html">Community &amp; Project Hub</a></li>
+          <li><a href="talk.html">Discussion (Talk)</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title"><a href="modules.html" style="color:inherit; text-decoration:none;">Modular Subsystems (.dll)</a></div>
+        <ul class="sidebar-links">
+          <li><a href="module-core.html">Engine.dll</a></li>
+          <li><a href="module-render.html">render.dll</a></li>
+          <li><a href="module-audio.html">audio.dll</a></li>
+          <li><a href="module-physics.html">physics.dll</a></li>
+          <li><a href="module-animation.html">animation.dll</a></li>
+          <li><a href="module-world.html">world.dll</a></li>
+          <li><a href="module-network.html">network.dll</a></li>
+          <li><a href="module-ai.html">ai.dll</a></li>
+          <li><a href="module-script.html">script.dll</a></li>
+          <li><a href="module-studio.html">studio.dll</a></li>
+          <li><a href="module-hud.html">hud.dll</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Engine &amp; Toolset</div>
+        <ul class="sidebar-links">
+          <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+          <li><a href="lighting.html">Blinn-Phong Lighting</a></li>
+          <li><a href="skeletal-animations.html">Skeletal Animations</a></li>
+          <li><a href="labhammer.html">LabHammer Map Editor</a></li>
+          <li><a href="character-studio.html">Character Studio</a></li>
+          <li><a href="editor.html">Wiki Source Editor</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Games &amp; SDKs</div>
+        <ul class="sidebar-links">
+          <li><a href="frozen-life.html">Frozen-Life Game</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; ViewModel</a></li>
+          <li><a href="bot-ai.html">Bot AI &amp; Waypoints</a></li>
+          <li><a href="multiplayer.html">Multiplayer &amp; Netcode</a></li>
+          <li><a href="audio-synthesizer.html">Audio Synthesizer</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Tools</div>
+        <ul class="sidebar-links">
+          <li id="sidebar-mod-li"><a href="moderation.html" style="color:var(--wiki-accent); font-weight:bold;">Moderation Dashboard</a></li>
+          <li><a href="wiki-contents.html">Special pages</a></li>
+          <li><a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener">GitHub Repository</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main id="content" class="vdc-content" role="main">
+
+      <!-- Monobook Tabs Header -->
+      <div class="vdc-page-tabs">
+        <div class="tabs-left">
+          <a href="moderation.html" class="wiki-tab active">Special page</a>
+          <span class="wiki-tab disabled" style="opacity:0.5; cursor:not-allowed;">Discussion</span>
+        </div>
+        <div class="tabs-right">
+          <a href="moderation.html" class="wiki-tab active">Moderation</a>
+        </div>
+      </div>
+
+      <!-- ACCESS GATE: SHOWN WHEN USER IS NOT PRIVILEGED -->
+      <div id="mod-access-gate" style="display:none; margin:30px 0;">
+        <div class="wiki-notice notice-warning" style="margin-bottom:20px;">
+          <div class="wiki-notice-content">
+            <strong>Permission Error:</strong> The action you have requested is limited to users in the groups: 
+            <strong>Administrators</strong>, <strong>Developers</strong>, <strong>Moderators</strong>.
+          </div>
+        </div>
+
+        <div style="background:#141c26; border:1px solid #2a475e; border-radius:3px; padding:24px; max-width:600px;">
+          <h2 style="margin-top:0; font-size:16px; color:#ffffff; border-bottom:1px solid #2a475e; padding-bottom:8px;">Authentication Required</h2>
+          <p style="font-size:12px; color:#a8b4c4; line-height:1.6;">
+            The Moderation Dashboard is an administrative special page designed to review pull requests, approve community edits, and purge spam submissions.
+          </p>
+          <p style="font-size:12px; color:#a8b4c4; line-height:1.6;">
+            If you are a member of the development team or a community moderator, please log in with your credentials to access the moderation stream.
+          </p>
+          <div style="margin-top:16px;">
+            <button type="button" id="btn-gate-login" class="vdc-btn-save" style="cursor:pointer; padding:7px 18px; font-size:12px;">Log in to Moderator Account</button>
+            <a href="index.html" style="margin-left:14px; font-size:12px; color:#66c0f4; text-decoration:none;">Return to Main Page</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- PRIVILEGED CONTENT AREA -->
+      <div id="mod-content-area" style="display:none;">
+
+        <!-- Header Title -->
+        <h1 class="firstHeading" style="margin-bottom:4px;">Special:Moderation</h1>
+        <div class="vdc-subtitle" style="margin-bottom:16px; color:#8a96a8; font-size:11.5px;">
+          Documentation Change Proposals, Pull Requests Review Queue &amp; Spam Purge
+        </div>
+
+        <!-- Metrics Overview Grid -->
+        <div class="mod-metrics-grid">
+          <div class="mod-metric-card">
+            <span class="mod-metric-val" id="metric-pending">0</span>
+            <span class="mod-metric-lbl">Pending Review</span>
+          </div>
+          <div class="mod-metric-card">
+            <span class="mod-metric-val" id="metric-approved" style="color:#38b274;">0</span>
+            <span class="mod-metric-lbl">Approved Live</span>
+          </div>
+          <div class="mod-metric-card">
+            <span class="mod-metric-val" id="metric-rejected" style="color:#e0982d;">0</span>
+            <span class="mod-metric-lbl">Rejected</span>
+          </div>
+          <div class="mod-metric-card">
+            <span class="mod-metric-val" id="metric-total" style="color:#a855f7;">0</span>
+            <span class="mod-metric-lbl">Total Proposals</span>
+          </div>
+        </div>
+
+        <!-- Filter & Search Toolbar -->
+        <div class="mod-filter-toolbar">
+          <div class="mod-filter-tabs">
+            <button type="button" class="mod-filter-tab active" data-status="pending">Pending (<span id="tab-count-pending">0</span>)</button>
+            <button type="button" class="mod-filter-tab" data-status="approved">Approved</button>
+            <button type="button" class="mod-filter-tab" data-status="rejected">Rejected</button>
+            <button type="button" class="mod-filter-tab" data-status="all">All</button>
+          </div>
+
+          <div style="display:flex; align-items:center; gap:8px;">
+            <input type="text" id="mod-search-input" class="mod-search-input" placeholder="Search by title, summary, author or slug..." autocomplete="off">
+            <select id="mod-limit-select" class="mod-filter-tab" style="padding:5px 8px; cursor:pointer;" aria-label="Items per page">
+              <option value="10">10 / page</option>
+              <option value="25" selected>25 / page</option>
+              <option value="50">50 / page</option>
+            </select>
+            <button type="button" id="btn-mod-refresh" class="mod-page-btn" title="Refresh list">Refresh</button>
+          </div>
+        </div>
+
+        <!-- Batch Actions Toolbar -->
+        <div class="mod-batch-bar">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <label style="cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+              <input type="checkbox" id="mod-select-all" style="cursor:pointer;">
+              <span>Select all on this page</span>
+            </label>
+            <span id="mod-selected-count" style="color:#66c0f4; font-weight:bold; margin-left:8px;">0 selected</span>
+          </div>
+          <div>
+            <button type="button" id="btn-batch-delete-spam" class="btn-delete-spam" style="display:none;">Delete Selected as Spam</button>
+          </div>
+        </div>
+
+        <!-- Proposals Stream List -->
+        <div id="mod-proposals-container">
+          <p style="text-align:center; color:#8a96a8; padding:30px 0;">Loading moderation stream...</p>
+        </div>
+
+        <!-- Pagination Controls -->
+        <div class="mod-pagination-bar" id="mod-pagination-bar" style="display:none;">
+          <div id="mod-range-info">Showing 0-0 of 0</div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button type="button" id="btn-page-prev" class="mod-page-btn" disabled>&laquo; Previous</button>
+            <span id="mod-page-current" style="font-weight:bold; color:#ffffff;">Page 1 of 1</span>
+            <button type="button" id="btn-page-next" class="mod-page-btn" disabled>Next &raquo;</button>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+
+  <!-- AUTH & CORE SYSTEM SCRIPTS -->
+  <script src="js/supabase-auth.js"></script>
+
+  <!-- MODERATION DASHBOARD CONTROLLER -->
+  <script>
+    (function () {
+      'use strict';
+
+      let state = {
+        status: 'pending',
+        search: '',
+        limit: 25,
+        offset: 0,
+        page: 1,
+        total: 0,
+        selectedIds: new Set(),
+        currentItems: []
+      };
+
+      document.addEventListener('DOMContentLoaded', () => {
+        // Allow VdcAuth initialization cycle
+        setTimeout(initDashboard, 200);
+      });
+
+      function initDashboard() {
+        const privileged = window.VdcAuth ? window.VdcAuth.isPrivilegedRole() : false;
+        const gate = document.getElementById('mod-access-gate');
+        const content = document.getElementById('mod-content-area');
+
+        if (!privileged) {
+          if (gate) gate.style.display = 'block';
+          if (content) content.style.display = 'none';
+
+          document.getElementById('btn-gate-login')?.addEventListener('click', () => {
+            if (window.VdcAuth) window.VdcAuth.openLogin();
+          });
+          return;
+        }
+
+        if (gate) gate.style.display = 'none';
+        if (content) content.style.display = 'block';
+
+        bindToolbarEvents();
+        refreshAll();
+      }
+
+      function bindToolbarEvents() {
+        // Filter tabs
+        document.querySelectorAll('.mod-filter-tab[data-status]').forEach(tab => {
+          tab.addEventListener('click', () => {
+            document.querySelectorAll('.mod-filter-tab[data-status]').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            state.status = tab.getAttribute('data-status');
+            state.offset = 0;
+            state.page = 1;
+            state.selectedIds.clear();
+            updateBatchBar();
+            loadProposals();
+          });
+        });
+
+        // Search input with debounce
+        let searchTimer = null;
+        const searchInput = document.getElementById('mod-search-input');
+        if (searchInput) {
+          searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => {
+              state.search = e.target.value.trim();
+              state.offset = 0;
+              state.page = 1;
+              state.selectedIds.clear();
+              updateBatchBar();
+              loadProposals();
+            }, 300);
+          });
+        }
+
+        // Limit per page select
+        const limitSelect = document.getElementById('mod-limit-select');
+        if (limitSelect) {
+          limitSelect.addEventListener('change', (e) => {
+            state.limit = parseInt(e.target.value, 10) || 25;
+            state.offset = 0;
+            state.page = 1;
+            state.selectedIds.clear();
+            updateBatchBar();
+            loadProposals();
+          });
+        }
+
+        // Refresh button
+        document.getElementById('btn-mod-refresh')?.addEventListener('click', () => {
+          refreshAll();
+        });
+
+        // Select all checkbox
+        const selectAllCb = document.getElementById('mod-select-all');
+        if (selectAllCb) {
+          selectAllCb.addEventListener('change', (e) => {
+            if (e.target.checked) {
+              state.currentItems.forEach(item => state.selectedIds.add(item.id));
+            } else {
+              state.selectedIds.clear();
+            }
+            document.querySelectorAll('.mod-item-checkbox').forEach(cb => {
+              cb.checked = e.target.checked;
+            });
+            updateBatchBar();
+          });
+        }
+
+        // Batch delete as spam
+        const batchDeleteBtn = document.getElementById('btn-batch-delete-spam');
+        if (batchDeleteBtn) {
+          batchDeleteBtn.addEventListener('click', async () => {
+            const count = state.selectedIds.size;
+            if (count === 0) return;
+            const confirmed = confirm(`Are you sure you want to permanently delete ${count} selected item(s) as spam?`);
+            if (!confirmed) return;
+
+            batchDeleteBtn.disabled = true;
+            batchDeleteBtn.textContent = 'Purging spam...';
+
+            const ids = Array.from(state.selectedIds);
+            await window.VdcAuth.batchDeleteWikiProposals(ids);
+            window.VdcAuth.showToast(`Purged ${count} spam proposal(s).`, 'info');
+
+            state.selectedIds.clear();
+            updateBatchBar();
+            batchDeleteBtn.disabled = false;
+            batchDeleteBtn.textContent = 'Delete Selected as Spam';
+            refreshAll();
+          });
+        }
+
+        // Pagination buttons
+        document.getElementById('btn-page-prev')?.addEventListener('click', () => {
+          if (state.offset >= state.limit) {
+            state.offset -= state.limit;
+            state.page--;
+            state.selectedIds.clear();
+            updateBatchBar();
+            loadProposals();
+          }
+        });
+
+        document.getElementById('btn-page-next')?.addEventListener('click', () => {
+          if (state.offset + state.limit < state.total) {
+            state.offset += state.limit;
+            state.page++;
+            state.selectedIds.clear();
+            updateBatchBar();
+            loadProposals();
+          }
+        });
+      }
+
+      async function refreshAll() {
+        await loadMetrics();
+        await loadProposals();
+      }
+
+      async function loadMetrics() {
+        if (!window.VdcAuth) return;
+        const metrics = await window.VdcAuth.getProposalMetrics();
+        document.getElementById('metric-pending').textContent = metrics.pending;
+        document.getElementById('metric-approved').textContent = metrics.approved;
+        document.getElementById('metric-rejected').textContent = metrics.rejected;
+        document.getElementById('metric-total').textContent = metrics.total;
+        document.getElementById('tab-count-pending').textContent = metrics.pending;
+      }
+
+      async function loadProposals() {
+        const container = document.getElementById('mod-proposals-container');
+        if (!container) return;
+
+        container.innerHTML = '<p style="text-align:center; color:#8a96a8; padding:30px 0;">Loading proposals...</p>';
+
+        const res = await window.VdcAuth.fetchWikiProposalsPaginated({
+          status: state.status,
+          search: state.search,
+          limit: state.limit,
+          offset: state.offset
+        });
+
+        state.currentItems = res.items || [];
+        state.total = res.total || 0;
+
+        renderProposalsList(state.currentItems);
+        renderPagination(res);
+      }
+
+      function renderProposalsList(items) {
+        const container = document.getElementById('mod-proposals-container');
+        if (!container) return;
+
+        if (items.length === 0) {
+          container.innerHTML = `
+            <div style="background:#131820; border:1px solid #212c3b; padding:40px 20px; text-align:center; border-radius:3px;">
+              <p style="color:#8a96a8; font-size:13px; margin:0;">No submissions found matching the selected filter criteria.</p>
+            </div>
+          `;
+          return;
+        }
+
+        const html = items.map(p => {
+          const isChecked = state.selectedIds.has(p.id);
+          const statusBadge = getStatusBadge(p.status);
+          const authorBadge = `<span class="role-badge role-${escapeHtml(p.author_role || 'user')}">${escapeHtml((p.author_role || 'user').toUpperCase())}</span>`;
+          const createdDate = new Date(p.created_at).toLocaleString();
+
+          return `
+            <div class="mod-proposal-card" data-id="${escapeHtml(p.id)}">
+              <div class="mod-proposal-header">
+                <div class="mod-proposal-title-row">
+                  <input type="checkbox" class="mod-item-checkbox" data-id="${escapeHtml(p.id)}" ${isChecked ? 'checked' : ''} style="cursor:pointer;">
+                  <span class="role-badge role-dev" style="font-size:9.5px;">${escapeHtml((p.type || 'edit').toUpperCase())}</span>
+                  ${statusBadge}
+                  <a href="${escapeHtml(p.slug)}" target="_blank" class="mod-target-link">${escapeHtml(p.title || p.slug)}</a>
+                  <span style="font-size:11px; color:#5c7088;">(<code>${escapeHtml(p.slug)}</code>)</span>
+                </div>
+                <div style="font-size:11px; color:#6e8299; white-space:nowrap;">
+                  ${createdDate}
+                </div>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:6px; font-size:11px; color:#8a96a8; margin-bottom:8px;">
+                <span>Author: <strong style="color:#ffffff;">${escapeHtml(p.author_name)}</strong> ${authorBadge}</span>
+                ${p.reviewed_by_name ? `<span>&bull; Reviewed by: <strong>${escapeHtml(p.reviewed_by_name)}</strong></span>` : ''}
+              </div>
+
+              <div class="mod-summary-text">
+                <strong style="color:#8da4be;">Summary:</strong> "${escapeHtml(p.summary || 'No edit summary provided')}"
+              </div>
+
+              <!-- Collapsed lazy diff/content view -->
+              <div>
+                <button type="button" class="btn-toggle-diff" data-id="${escapeHtml(p.id)}">
+                  [+] View Wikitext / Content
+                </button>
+                <div class="mod-diff-box" id="diff-box-${escapeHtml(p.id)}" style="display:none;">${escapeHtml(p.content || '')}</div>
+              </div>
+
+              <div class="mw-proposal-actions" style="margin-top:10px;">
+                ${p.status === 'pending' ? `
+                  <button type="button" class="btn-approve-pr btn-mod-approve" data-id="${escapeHtml(p.id)}">Approve &amp; Publish Live</button>
+                  <button type="button" class="btn-reject-pr btn-mod-reject" data-id="${escapeHtml(p.id)}">Reject</button>
+                ` : ''}
+                <button type="button" class="btn-delete-spam btn-mod-delete" data-id="${escapeHtml(p.id)}">Delete as Spam</button>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        container.innerHTML = html;
+        attachItemEvents(container);
+      }
+
+      function attachItemEvents(container) {
+        // Item checkboxes
+        container.querySelectorAll('.mod-item-checkbox').forEach(cb => {
+          cb.addEventListener('change', (e) => {
+            const id = cb.getAttribute('data-id');
+            if (e.target.checked) {
+              state.selectedIds.add(id);
+            } else {
+              state.selectedIds.delete(id);
+            }
+            updateBatchBar();
+          });
+        });
+
+        // Toggle diff buttons
+        container.querySelectorAll('.btn-toggle-diff').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const id = btn.getAttribute('data-id');
+            const box = document.getElementById('diff-box-' + id);
+            if (!box) return;
+            const isHidden = box.style.display === 'none';
+            box.style.display = isHidden ? 'block' : 'none';
+            btn.textContent = isHidden ? '[-] Hide Wikitext' : '[+] View Wikitext / Content';
+          });
+        });
+
+        // Approve buttons
+        container.querySelectorAll('.btn-mod-approve').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const id = btn.getAttribute('data-id');
+            const item = state.currentItems.find(p => p.id === id);
+            if (!item) return;
+
+            btn.disabled = true;
+            btn.textContent = 'Publishing...';
+
+            await window.VdcAuth.updateProposalStatus(id, 'approved', item.content, item.slug, item.title);
+            window.VdcAuth.showToast(`Proposal approved and published live to ${item.slug}!`, 'success');
+            refreshAll();
+          });
+        });
+
+        // Reject buttons
+        container.querySelectorAll('.btn-mod-reject').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const id = btn.getAttribute('data-id');
+            btn.disabled = true;
+            btn.textContent = 'Rejecting...';
+
+            await window.VdcAuth.updateProposalStatus(id, 'rejected');
+            window.VdcAuth.showToast('Proposal marked as rejected.', 'info');
+            refreshAll();
+          });
+        });
+
+        // Delete as spam buttons
+        container.querySelectorAll('.btn-mod-delete').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const id = btn.getAttribute('data-id');
+            if (!confirm('Are you sure you want to permanently delete this submission as spam?')) return;
+
+            btn.disabled = true;
+            btn.textContent = 'Purging...';
+
+            await window.VdcAuth.deleteWikiProposal(id);
+            window.VdcAuth.showToast('Spam proposal purged successfully.', 'info');
+            refreshAll();
+          });
+        });
+      }
+
+      function updateBatchBar() {
+        const count = state.selectedIds.size;
+        const countLabel = document.getElementById('mod-selected-count');
+        const batchBtn = document.getElementById('btn-batch-delete-spam');
+        const selectAllCb = document.getElementById('mod-select-all');
+
+        if (countLabel) {
+          countLabel.textContent = `${count} selected`;
+        }
+
+        if (batchBtn) {
+          batchBtn.style.display = count > 0 ? 'inline-block' : 'none';
+        }
+
+        if (selectAllCb) {
+          const allCurrentSelected = state.currentItems.length > 0 && 
+            state.currentItems.every(item => state.selectedIds.has(item.id));
+          selectAllCb.checked = allCurrentSelected;
+        }
+      }
+
+      function renderPagination(res) {
+        const bar = document.getElementById('mod-pagination-bar');
+        if (!bar) return;
+
+        if (state.total === 0) {
+          bar.style.display = 'none';
+          return;
+        }
+
+        bar.style.display = 'flex';
+
+        const start = state.offset + 1;
+        const end = Math.min(state.offset + state.limit, state.total);
+        document.getElementById('mod-range-info').textContent = `Showing ${start}-${end} of ${state.total} submissions`;
+        document.getElementById('mod-page-current').textContent = `Page ${res.currentPage} of ${res.pages}`;
+
+        const prevBtn = document.getElementById('btn-page-prev');
+        const nextBtn = document.getElementById('btn-page-next');
+
+        if (prevBtn) prevBtn.disabled = state.offset <= 0;
+        if (nextBtn) nextBtn.disabled = state.offset + state.limit >= state.total;
+      }
+
+      function getStatusBadge(status) {
+        if (status === 'approved') {
+          return '<span class="role-badge" style="background:#153a25; border-color:#295438; color:#4ade80;">APPROVED</span>';
+        }
+        if (status === 'rejected') {
+          return '<span class="role-badge" style="background:#3b1e1e; border-color:#6e2b2b; color:#f87171;">REJECTED</span>';
+        }
+        return '<span class="role-badge" style="background:#19324d; border-color:#2a5078; color:#66c0f4;">PENDING</span>';
+      }
+
+      function escapeHtml(str) {
+        return String(str || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+    })();
+  </script>
+</body>
+</html>

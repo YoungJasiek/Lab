@@ -248,7 +248,7 @@
 
       const modQueueHtml = privileged
         ? `<span class="pipe-sep" style="color:#2a475e; margin:0 4px;">&bull;</span>
-           <a href="#" id="vdc-mod-queue-btn" class="user-link" style="color:#66c0f4; font-weight:bold;">Review PRs <span id="vdc-pr-counter" class="role-badge role-dev" style="margin-left:2px; font-size:9px;">0</span></a>`
+           <a href="moderation.html" id="vdc-mod-queue-btn" class="user-link" style="color:#66c0f4; font-weight:bold;">Moderation Queue <span id="vdc-pr-counter" class="role-badge role-dev" style="margin-left:2px; font-size:9px;">0</span></a>`
         : '';
 
       container.innerHTML = `
@@ -260,11 +260,6 @@
       `;
 
       if (privileged) {
-        document.getElementById('vdc-mod-queue-btn')?.addEventListener('click', async (e) => {
-          e.preventDefault();
-          const allProposals = await fetchWikiProposals();
-          showProposalReviewModal(allProposals, null, null, null);
-        });
         updatePrCounters();
         initSidebarModLink();
       }
@@ -550,6 +545,193 @@
     } catch (e) {}
 
     return proposals;
+  }
+
+  async function fetchWikiProposalsPaginated({
+    slug = null,
+    type = null,
+    status = 'pending',
+    search = '',
+    limit = 15,
+    offset = 0
+  } = {}) {
+    const config = getSupabaseConfig();
+    let items = [];
+    let total = 0;
+
+    if (config.url && config.anonKey) {
+      try {
+        let query = `${config.url}/rest/v1/wiki_proposals?select=*&order=created_at.desc&limit=${limit}&offset=${offset}`;
+        if (status && status !== 'all') {
+          query += `&status=eq.${encodeURIComponent(status)}`;
+        }
+        if (slug) {
+          query += `&slug=eq.${encodeURIComponent(slug)}`;
+        }
+        if (type) {
+          query += `&type=eq.${encodeURIComponent(type)}`;
+        }
+        if (search && search.trim()) {
+          const s = encodeURIComponent(`*${search.trim()}*`);
+          query += `&or=(title.ilike.${s},summary.ilike.${s},author_name.ilike.${s},slug.ilike.${s})`;
+        }
+
+        const res = await fetch(query, {
+          headers: {
+            'apikey': config.anonKey,
+            'Authorization': currentSession ? `Bearer ${currentSession.access_token}` : `Bearer ${config.anonKey}`,
+            'Prefer': 'count=exact'
+          }
+        });
+
+        if (res.ok) {
+          items = await res.json();
+          const contentRange = res.headers.get('Content-Range');
+          if (contentRange && contentRange.includes('/')) {
+            const totalStr = contentRange.split('/')[1];
+            total = parseInt(totalStr, 10) || items.length;
+          } else {
+            total = items.length;
+          }
+        }
+      } catch (e) {
+        console.warn('Supabase paginated query failed:', e);
+      }
+    }
+
+    // LocalStorage fallback / merge
+    try {
+      const local = JSON.parse(localStorage.getItem('lab_wiki_proposals') || '[]');
+      const filteredLocal = local.filter(p => {
+        if (status && status !== 'all' && p.status !== status) return false;
+        if (slug && p.slug !== slug) return false;
+        if (type && p.type !== type) return false;
+        if (search && search.trim()) {
+          const term = search.trim().toLowerCase();
+          const matchTitle = (p.title || '').toLowerCase().includes(term);
+          const matchSummary = (p.summary || '').toLowerCase().includes(term);
+          const matchAuthor = (p.author_name || '').toLowerCase().includes(term);
+          const matchSlug = (p.slug || '').toLowerCase().includes(term);
+          if (!matchTitle && !matchSummary && !matchAuthor && !matchSlug) return false;
+        }
+        return true;
+      });
+
+      if (items.length === 0 && total === 0 && filteredLocal.length > 0) {
+        total = filteredLocal.length;
+        items = filteredLocal.slice(offset, offset + limit);
+      }
+    } catch (e) {}
+
+    return {
+      items,
+      total,
+      limit,
+      offset,
+      pages: Math.max(1, Math.ceil(total / limit)),
+      currentPage: Math.floor(offset / limit) + 1
+    };
+  }
+
+  async function getProposalMetrics() {
+    const metrics = { pending: 0, approved: 0, rejected: 0, total: 0 };
+    const config = getSupabaseConfig();
+    if (config.url && config.anonKey) {
+      try {
+        const res = await fetch(`${config.url}/rest/v1/wiki_proposals?select=status`, {
+          headers: {
+            'apikey': config.anonKey,
+            'Authorization': currentSession ? `Bearer ${currentSession.access_token}` : `Bearer ${config.anonKey}`
+          }
+        });
+        if (res.ok) {
+          const rows = await res.json();
+          metrics.total = rows.length;
+          rows.forEach(r => {
+            if (r.status === 'pending') metrics.pending++;
+            else if (r.status === 'approved') metrics.approved++;
+            else if (r.status === 'rejected') metrics.rejected++;
+          });
+          return metrics;
+        }
+      } catch (e) {}
+    }
+
+    try {
+      const local = JSON.parse(localStorage.getItem('lab_wiki_proposals') || '[]');
+      metrics.total = local.length;
+      local.forEach(r => {
+        if (r.status === 'pending') metrics.pending++;
+        else if (r.status === 'approved') metrics.approved++;
+        else if (r.status === 'rejected') metrics.rejected++;
+      });
+    } catch (e) {}
+
+    return metrics;
+  }
+
+  async function deleteWikiProposal(proposalId) {
+    if (!proposalId) return false;
+
+    try {
+      const local = JSON.parse(localStorage.getItem('lab_wiki_proposals') || '[]');
+      const filtered = local.filter(p => p.id !== proposalId);
+      localStorage.setItem('lab_wiki_proposals', JSON.stringify(filtered));
+
+      const myProposals = JSON.parse(localStorage.getItem('lab_my_proposals') || '[]');
+      const myFiltered = myProposals.filter(p => p.id !== proposalId);
+      localStorage.setItem('lab_my_proposals', JSON.stringify(myFiltered));
+    } catch (e) {}
+
+    const config = getSupabaseConfig();
+    if (config.url && config.anonKey && currentSession && currentSession.access_token) {
+      try {
+        const res = await fetch(`${config.url}/rest/v1/wiki_proposals?id=eq.${encodeURIComponent(proposalId)}`, {
+          method: 'DELETE',
+          headers: {
+            'apikey': config.anonKey,
+            'Authorization': `Bearer ${currentSession.access_token}`
+          }
+        });
+        return res.ok;
+      } catch (e) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  async function batchDeleteWikiProposals(proposalIds) {
+    if (!proposalIds || !proposalIds.length) return false;
+
+    try {
+      const idSet = new Set(proposalIds);
+      const local = JSON.parse(localStorage.getItem('lab_wiki_proposals') || '[]');
+      const filtered = local.filter(p => !idSet.has(p.id));
+      localStorage.setItem('lab_wiki_proposals', JSON.stringify(filtered));
+
+      const myProposals = JSON.parse(localStorage.getItem('lab_my_proposals') || '[]');
+      const myFiltered = myProposals.filter(p => !idSet.has(p.id));
+      localStorage.setItem('lab_my_proposals', JSON.stringify(myFiltered));
+    } catch (e) {}
+
+    const config = getSupabaseConfig();
+    if (config.url && config.anonKey && currentSession && currentSession.access_token) {
+      try {
+        const idList = proposalIds.map(encodeURIComponent).join(',');
+        const res = await fetch(`${config.url}/rest/v1/wiki_proposals?id=in.(${idList})`, {
+          method: 'DELETE',
+          headers: {
+            'apikey': config.anonKey,
+            'Authorization': `Bearer ${currentSession.access_token}`
+          }
+        });
+        return res.ok;
+      } catch (e) {
+        return false;
+      }
+    }
+    return true;
   }
 
   async function submitWikiProposal(proposal) {
@@ -980,6 +1162,7 @@
         <div class="mw-proposal-actions">
           <button type="button" class="btn-approve-pr" data-id="${escapeHtml(p.id)}">Approve &amp; Publish Live</button>
           <button type="button" class="btn-reject-pr" data-id="${escapeHtml(p.id)}">Reject</button>
+          <button type="button" class="btn-delete-spam" data-id="${escapeHtml(p.id)}">Delete as Spam</button>
         </div>
       </div>
     `).join('');
@@ -1045,13 +1228,29 @@
         updatePrCounters();
       });
     });
+
+    modalOverlay.querySelectorAll('.btn-delete-spam').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-id');
+        if (!confirm('Are you sure you want to permanently delete this submission as spam?')) return;
+        btn.disabled = true;
+        btn.textContent = 'Purging...';
+
+        await deleteWikiProposal(id);
+        showToast('Spam proposal permanently deleted.', 'info');
+
+        modalOverlay.remove();
+        checkPendingProposalsForPage();
+        updatePrCounters();
+      });
+    });
   }
 
   async function updatePrCounters() {
     if (!isPrivilegedRole()) return;
     try {
-      const all = await fetchWikiProposals();
-      const count = all.length;
+      const metrics = await getProposalMetrics();
+      const count = metrics.pending;
       const topCounter = document.getElementById('vdc-pr-counter');
       if (topCounter) {
         topCounter.textContent = count;
@@ -1078,14 +1277,8 @@
     if (toolsUl && !document.getElementById('sidebar-mod-li')) {
       const li = document.createElement('li');
       li.id = 'sidebar-mod-li';
-      li.innerHTML = `<a href="#" id="sidebar-mod-queue-btn" style="color:var(--wiki-accent); font-weight:bold;">Review Pull Requests (<span id="sidebar-pr-count">0</span>)</a>`;
+      li.innerHTML = `<a href="moderation.html" id="sidebar-mod-queue-btn" style="color:var(--wiki-accent); font-weight:bold;">Moderation Dashboard (<span id="sidebar-pr-count">0</span>)</a>`;
       toolsUl.insertBefore(li, toolsUl.firstChild);
-
-      li.querySelector('#sidebar-mod-queue-btn').addEventListener('click', async (e) => {
-        e.preventDefault();
-        const allProposals = await fetchWikiProposals();
-        showProposalReviewModal(allProposals, null, null, null);
-      });
       updatePrCounters();
     }
   }
@@ -1217,6 +1410,10 @@
     getUserRole: getUserRole,
     isPrivilegedRole: isPrivilegedRole,
     fetchWikiProposals: fetchWikiProposals,
+    fetchWikiProposalsPaginated: fetchWikiProposalsPaginated,
+    deleteWikiProposal: deleteWikiProposal,
+    batchDeleteWikiProposals: batchDeleteWikiProposals,
+    getProposalMetrics: getProposalMetrics,
     submitWikiProposal: submitWikiProposal,
     updateProposalStatus: updateProposalStatus,
     showProposalReviewModal: showProposalReviewModal,
