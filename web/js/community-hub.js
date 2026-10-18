@@ -27,38 +27,38 @@
     {
       id: 'seed-announcement-1',
       title: 'Lab Engine Architecture & Project Hub Roadmap',
-      content: 'Official discussion thread for Lab Engine C++20 core, Direct State Access (OpenGL 4.5+ DSA), and the decoupled VFS architecture separating engine:// assets from Documents/LabGames/.\n\nAll subsystem headers are compiled under /include and exported via 11 modular dynamic libraries. Review the project hub documentation for packaging standalone builds.',
+      content: 'Official discussion thread for Lab Engine C++20 core, Direct State Access (OpenGL 4.5+ DSA), and the decoupled VFS architecture separating `engine://` assets from `Documents/LabGames/`.\n\n### Modular Subsystems\nAll subsystem headers are compiled under `/include` and exported via 11 modular dynamic libraries:\n- `Engine.dll` - Core loop and memory management\n- `render.dll` - OpenGL 4.5+ DSA pipeline\n- `audio.dll` - Spatial 3D sound synthesizer\n- `physics.dll` - Rigid body simulation\n\n```powershell\n# Build the full modular engine from source\ncmake -B build -S . -DCMAKE_BUILD_TYPE=Release\ncmake --build build --config Release\n```',
       flair: 'ANNOUNCEMENT',
       author_name: 'YoungJasiek',
       author_role: 'admin',
       upvotes: 42,
       is_pinned: true,
       created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-      comments_count: 5
+      comments_count: 3
     },
     {
       id: 'seed-engine-1',
       title: 'GPU Bindless Textures & Vertex Buffer Storage Performance Benchmarks',
-      content: 'Comparing glNamedBufferStorage with persistent mapped flags vs glBufferSubData across AMD and NVIDIA hardware. In our tests with 10,000 dynamic drawcalls, persistent DSA mapping reduced render-thread CPU driver overhead by 4.2x.',
+      content: 'Comparing `glNamedBufferStorage` with persistent mapped flags vs `glBufferSubData` across AMD and NVIDIA hardware.\n\nIn our tests with 10,000 dynamic drawcalls, persistent DSA mapping reduced render-thread CPU driver overhead by 4.2x:\n\n```cpp\n// Direct State Access Persistent Mapping Example\nGLuint vbo = 0;\nglCreateBuffers(1, &vbo);\nGLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;\nglNamedBufferStorage(vbo, bufferSize, nullptr, flags);\nvoid* ptr = glMapNamedBufferRange(vbo, 0, bufferSize, flags);\n```',
       flair: 'ENGINE',
       author_name: 'GordonFreeman',
       author_role: 'admin',
       upvotes: 28,
       is_pinned: false,
       created_at: new Date(Date.now() - 86400000).toISOString(),
-      comments_count: 3
+      comments_count: 2
     },
     {
       id: 'seed-fl-1',
       title: 'Frozen-Life: Tactical Bot AI State Machine Integration',
-      content: 'The 5-state AI finite state machine (Patrol, Alert, Chase, Flank, Retreat) is now fully integrated with skeletal hitboxes and raycast line-of-sight checks. You can test waypoint navigation using test_multi_bot_waypoints.LABMAP in the editor.',
+      content: 'The 5-state AI finite state machine (Patrol, Alert, Chase, Flank, Retreat) is now fully integrated with skeletal hitboxes and raycast line-of-sight checks.\n\n### How to test:\n1. Open `LabEditor`\n2. Load map `test_multi_bot_waypoints.LABMAP`\n3. Press F5 to simulate bot waypoint navigation with combat decision trees.',
       flair: 'FROZEN-LIFE',
       author_name: 'DevTeam',
       author_role: 'dev',
       upvotes: 19,
       is_pinned: false,
       created_at: new Date(Date.now() - 3600000 * 14).toISOString(),
-      comments_count: 2
+      comments_count: 1
     },
     {
       id: 'seed-hammer-1',
@@ -70,7 +70,7 @@
       upvotes: 11,
       is_pinned: false,
       created_at: new Date(Date.now() - 3600000 * 4).toISOString(),
-      comments_count: 4
+      comments_count: 1
     }
   ];
 
@@ -90,7 +90,17 @@
         author_role: 'user',
         content: 'Is there an export script for Blender 4.x skeletal models with multiple animation clips?',
         upvotes: 4,
-        created_at: new Date(Date.now() - 3600000 * 18).toISOString()
+        created_at: new Date(Date.now() - 3600000 * 18).toISOString(),
+        replies: [
+          {
+            id: 'c-2-1',
+            author_name: 'YoungJasiek',
+            author_role: 'admin',
+            content: 'Yes, check `scripts/export_t800_animations.py`. It exports bone hierarchies and named keyframe clips directly into the engine format.',
+            upvotes: 6,
+            created_at: new Date(Date.now() - 3600000 * 16).toISOString()
+          }
+        ]
       }
     ],
     'seed-engine-1': [
@@ -98,7 +108,7 @@
         id: 'c-3',
         author_name: 'YoungJasiek',
         author_role: 'admin',
-        content: 'Make sure GL_MAP_COHERENT_BIT and GL_MAP_PERSISTENT_BIT are strictly coupled with glMemoryBarrier before dispatch.',
+        content: 'Make sure `GL_MAP_COHERENT_BIT` and `GL_MAP_PERSISTENT_BIT` are strictly coupled with `glMemoryBarrier` before dispatch.',
         upvotes: 7,
         created_at: new Date(Date.now() - 3600000 * 10).toISOString()
       }
@@ -189,7 +199,7 @@
         </div>
       </div>
 
-      <!-- New Thread Modal Container -->
+      <!-- Article Studio & Thread Modal Container -->
       <div id="hub-modal-container"></div>
     `;
   }
@@ -215,7 +225,7 @@
       });
     });
 
-    // Create Thread Button
+    // Create Thread Button -> Opens Studio Article Creator
     document.getElementById('hub-btn-new-post')?.addEventListener('click', () => {
       const session = getCurrentSession();
       if (!session || !session.user) {
@@ -229,12 +239,12 @@
           if (loginBtn) {
             loginBtn.click();
           } else {
-            openNewPostModal();
+            openStudioArticleCreator();
           }
         }
         return;
       }
-      openNewPostModal();
+      openStudioArticleCreator();
     });
   }
 
@@ -380,7 +390,7 @@
             <span class="hub-flair-tag flair-${escapeHtml(String(post.flair).toLowerCase())}">${escapeHtml(post.flair)}</span>
             <span class="hub-meta-sep">&bull;</span>
             <span class="hub-author-label">Posted by</span>
-            <span class="hub-author-name">${escapeHtml(post.author_name || 'Developer')}</span>
+            <span class="hub-author-name">u/${escapeHtml(post.author_name || 'Developer')}</span>
             <span class="role-badge role-${escapeHtml(authorRole)}">[${escapeHtml(authorRole.toUpperCase())}]</span>
             <span class="hub-meta-sep">&bull;</span>
             <span class="hub-post-time">${timeAgo}</span>
@@ -424,7 +434,7 @@
       });
     });
 
-    // Click on Post Title or Comments Button opens thread view
+    // Click on Post Title or Comments Button opens Reddit-style thread view
     document.querySelectorAll('.hub-post-link, .hub-btn-comments').forEach(el => {
       el.addEventListener('click', (e) => {
         e.preventDefault();
@@ -492,6 +502,9 @@
     }
   }
 
+  /* ========================================================================
+     REDDIT-STYLE THREAD VIEW & HIERARCHICAL COMMENT TREE (Image 2 style)
+     ======================================================================== */
   async function openThreadView(postId) {
     const post = postsData.find(p => p.id === postId);
     if (!post) return;
@@ -499,41 +512,64 @@
     const modalContainer = document.getElementById('hub-modal-container');
     if (!modalContainer) return;
 
+    const authorRole = (post.author_role || 'user').toLowerCase();
+    const timeAgo = formatTimeAgo(new Date(post.created_at));
+    const userVote = userVotes[post.id] || 0;
+
     modalContainer.innerHTML = `
       <div class="hub-modal-backdrop" id="thread-modal-backdrop">
         <div class="hub-thread-modal">
+          <!-- Header Bar -->
           <div class="hub-modal-header">
             <div class="hub-modal-title">
               <span class="hub-flair-tag flair-${escapeHtml(String(post.flair).toLowerCase())}">${escapeHtml(post.flair)}</span>
-              <span>${escapeHtml(post.title)}</span>
+              <span style="color:#67788c; font-size:12px;">&bull; Posted by <strong style="color:#f0f4f8;">u/${escapeHtml(post.author_name || 'Developer')}</strong> <span class="role-badge role-${escapeHtml(authorRole)}">[${escapeHtml(authorRole.toUpperCase())}]</span> &bull; ${timeAgo}</span>
             </div>
-            <button type="button" class="hub-modal-close" id="thread-modal-close">&times;</button>
+            <button type="button" class="hub-modal-close" id="thread-modal-close" aria-label="Close dialog">&times;</button>
           </div>
 
           <div class="hub-thread-body">
-            <div class="hub-post-meta" style="margin-bottom:12px;">
-              <span>Posted by <strong>${escapeHtml(post.author_name || 'Developer')}</strong></span>
-              <span class="role-badge role-${escapeHtml((post.author_role || 'user').toLowerCase())}">[${escapeHtml((post.author_role || 'user').toUpperCase())}]</span>
-              <span class="hub-meta-sep">&bull;</span>
-              <span>${formatTimeAgo(new Date(post.created_at))}</span>
-            </div>
+            <!-- Big Bold Title (Reddit Style) -->
+            <h1 style="font-size:22px; font-weight:700; color:#ffffff; margin:4px 0 16px 0; line-height:1.35; letter-spacing:-0.01em;">
+              ${escapeHtml(post.title)}
+            </h1>
 
+            <!-- Full Article Content Area -->
             <div class="hub-thread-full-content">
               ${formatPostContentFull(post.content)}
             </div>
 
-            <!-- Comment Input Box -->
+            <!-- Reddit Action Bar (Vote Pill, Comment count, Share) -->
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:20px; padding-bottom:12px; border-bottom:1px solid #2a475e;">
+              <div style="display:inline-flex; align-items:center; background:#10141b; border:1px solid #2a475e; border-radius:18px; padding:2px 8px;">
+                <button type="button" class="hub-vote-btn upvote ${userVote === 1 ? 'voted' : ''}" id="modal-vote-up" title="Upvote" style="padding:4px 6px;">&#9650;</button>
+                <span class="hub-vote-count ${userVote === 1 ? 'voted-up' : userVote === -1 ? 'voted-down' : ''}" id="modal-vote-val" style="margin:0 6px;">${post.upvotes || 0}</span>
+                <button type="button" class="hub-vote-btn downvote ${userVote === -1 ? 'voted' : ''}" id="modal-vote-down" title="Downvote" style="padding:4px 6px;">&#9660;</button>
+              </div>
+
+              <span style="font-size:12px; color:#8da4be; font-weight:600;">
+                Discussion
+              </span>
+
+              <button type="button" class="hub-action-btn" id="modal-share-btn">
+                Copy Thread Link
+              </button>
+            </div>
+
+            <!-- Main Comment Input Box -->
             <div class="hub-comment-box-wrap">
-              <div class="hub-comment-box-header">Add a comment:</div>
-              <textarea id="hub-new-comment-text" class="hub-textarea" placeholder="Write a constructive response or technical inquiry..." rows="3"></textarea>
+              <div class="hub-comment-box-header">
+                Comment as <strong>${escapeHtml(getCurrentSession()?.user?.user_metadata?.username || getCurrentSession()?.user?.email?.split('@')[0] || 'Guest')}</strong>
+              </div>
+              <textarea id="hub-new-comment-text" class="hub-textarea" placeholder="What are your technical thoughts or constructive feedback?" rows="3"></textarea>
               <div style="display:flex; justify-content:flex-end; margin-top:8px;">
-                <button type="button" id="hub-submit-comment-btn" class="hub-btn-primary">Post Comment</button>
+                <button type="button" id="hub-submit-comment-btn" class="hub-btn-primary">Comment</button>
               </div>
             </div>
 
-            <!-- Comments List -->
+            <!-- Hierarchical Reddit Comments Tree -->
             <div class="hub-comments-section">
-              <div class="hub-comments-title" id="thread-comments-heading">Discussion</div>
+              <div class="hub-comments-title" id="thread-comments-heading">All Responses</div>
               <div class="hub-comments-list" id="thread-comments-list">
                 <div class="hub-loading">Loading comments...</div>
               </div>
@@ -551,6 +587,23 @@
       if (e.target.id === 'thread-modal-backdrop') modalContainer.innerHTML = '';
     });
 
+    // In-modal voting
+    document.getElementById('modal-vote-up')?.addEventListener('click', () => {
+      handleVote(post.id, 1);
+      document.getElementById('modal-vote-val').textContent = post.upvotes || 0;
+    });
+    document.getElementById('modal-vote-down')?.addEventListener('click', () => {
+      handleVote(post.id, -1);
+      document.getElementById('modal-vote-val').textContent = post.upvotes || 0;
+    });
+
+    document.getElementById('modal-share-btn')?.addEventListener('click', () => {
+      const shareUrl = `${window.location.origin}${window.location.pathname}#post-${post.id}`;
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        showNotification('Thread link copied to clipboard.');
+      }).catch(() => {});
+    });
+
     document.getElementById('hub-submit-comment-btn')?.addEventListener('click', async () => {
       const textarea = document.getElementById('hub-new-comment-text');
       const text = textarea?.value?.trim();
@@ -565,15 +618,15 @@
         return;
       }
 
-      await submitComment(postId, text);
+      await submitComment(postId, text, null);
       textarea.value = '';
-      loadCommentsForThread(postId);
+      loadCommentsForThread(postId, post.author_name);
     });
 
-    loadCommentsForThread(postId);
+    loadCommentsForThread(postId, post.author_name);
   }
 
-  async function loadCommentsForThread(postId) {
+  async function loadCommentsForThread(postId, opAuthorName) {
     const listEl = document.getElementById('thread-comments-list');
     if (!listEl) return;
 
@@ -604,20 +657,102 @@
       return;
     }
 
-    listEl.innerHTML = comments.map(c => `
-      <div class="hub-comment-item">
-        <div class="hub-comment-meta">
-          <span class="hub-author-name">${escapeHtml(c.author_name || 'Developer')}</span>
-          <span class="role-badge role-${escapeHtml((c.author_role || 'user').toLowerCase())}">[${escapeHtml((c.author_role || 'user').toUpperCase())}]</span>
-          <span class="hub-meta-sep">&bull;</span>
-          <span class="hub-post-time">${formatTimeAgo(new Date(c.created_at))}</span>
-        </div>
-        <div class="hub-comment-body">${formatPostContentFull(c.content)}</div>
-      </div>
-    `).join('');
+    listEl.innerHTML = comments.map(c => renderCommentNodeHtml(c, opAuthorName, postId)).join('');
+    wireCommentReplyButtons(postId, opAuthorName);
   }
 
-  async function submitComment(postId, content) {
+  function renderCommentNodeHtml(comment, opAuthorName, postId) {
+    const role = (comment.author_role || 'user').toLowerCase();
+    const timeAgo = formatTimeAgo(new Date(comment.created_at));
+    const isOp = comment.author_name && opAuthorName && (comment.author_name.toLowerCase() === opAuthorName.toLowerCase());
+    const initial = (comment.author_name || 'D').charAt(0).toUpperCase();
+
+    const replies = comment.replies || [];
+
+    return `
+      <div class="hub-comment-node" data-comment-id="${escapeHtml(comment.id)}">
+        <!-- Vertical Thread Line (Reddit Style) -->
+        <div class="hub-comment-thread-line"></div>
+
+        <!-- Avatar Circle -->
+        <div class="hub-comment-avatar role-${escapeHtml(role)}">${escapeHtml(initial)}</div>
+
+        <!-- Content Box -->
+        <div class="hub-comment-content-block">
+          <div class="hub-comment-header">
+            <span class="hub-comment-author">u/${escapeHtml(comment.author_name || 'Developer')}</span>
+            ${isOp ? '<span class="hub-badge-op">OP</span>' : ''}
+            <span class="role-badge role-${escapeHtml(role)}">[${escapeHtml(role.toUpperCase())}]</span>
+            <span class="hub-meta-sep">&bull;</span>
+            <span class="hub-comment-time">${timeAgo}</span>
+          </div>
+
+          <div class="hub-comment-body">
+            ${formatPostContentFull(comment.content)}
+          </div>
+
+          <div class="hub-comment-actions">
+            <button type="button" class="hub-comment-action-btn hub-btn-reply" data-comment-id="${escapeHtml(comment.id)}">Reply</button>
+            <span class="hub-meta-sep">&bull;</span>
+            <span style="font-family:var(--font-mono); font-size:11px; color:#67788c;">${comment.upvotes || 1} upvotes</span>
+          </div>
+
+          <!-- Inline Reply Box (Hidden by default) -->
+          <div class="hub-comment-reply-box" id="reply-box-${escapeHtml(comment.id)}" style="display:none;">
+            <textarea class="hub-textarea" id="reply-text-${escapeHtml(comment.id)}" placeholder="Write a reply..." rows="2"></textarea>
+            <div style="display:flex; justify-content:flex-end; gap:6px; margin-top:6px;">
+              <button type="button" class="hub-btn-secondary" onclick="document.getElementById('reply-box-${escapeHtml(comment.id)}').style.display='none'">Cancel</button>
+              <button type="button" class="hub-btn-primary hub-btn-send-reply" data-comment-id="${escapeHtml(comment.id)}">Send</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Nested Replies (Reddit-style tree) -->
+        ${replies.length > 0 ? `
+          <div class="hub-comment-replies">
+            ${replies.map(r => renderCommentNodeHtml(r, opAuthorName, postId)).join('')}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  function wireCommentReplyButtons(postId, opAuthorName) {
+    document.querySelectorAll('.hub-btn-reply').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const commentId = btn.getAttribute('data-comment-id');
+        const box = document.getElementById(`reply-box-${commentId}`);
+        if (box) {
+          box.style.display = box.style.display === 'none' ? 'block' : 'none';
+          if (box.style.display === 'block') {
+            document.getElementById(`reply-text-${commentId}`)?.focus();
+          }
+        }
+      });
+    });
+
+    document.querySelectorAll('.hub-btn-send-reply').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const commentId = btn.getAttribute('data-comment-id');
+        const text = document.getElementById(`reply-text-${commentId}`)?.value?.trim();
+        if (!text) return;
+
+        const session = getCurrentSession();
+        if (!session || !session.user) {
+          showNotification('Please log in with your developer account to reply.');
+          if (typeof window.VdcAuth?.openLogin === 'function') {
+            window.VdcAuth.openLogin();
+          }
+          return;
+        }
+
+        await submitComment(postId, text, commentId);
+        loadCommentsForThread(postId, opAuthorName);
+      });
+    });
+  }
+
+  async function submitComment(postId, content, parentId = null) {
     const session = getCurrentSession();
     const config = getSupabaseConfig();
     const authorName = session?.user?.user_metadata?.username || session?.user?.email?.split('@')[0] || 'Developer';
@@ -627,6 +762,7 @@
     const newCommentObj = {
       id: 'c-' + Date.now(),
       post_id: postId,
+      parent_id: parentId,
       author_id: authorId,
       author_name: authorName,
       author_role: authorRole,
@@ -647,6 +783,7 @@
           },
           body: JSON.stringify({
             post_id: postId,
+            parent_id: parentId,
             author_id: authorId,
             author_name: authorName,
             author_role: authorRole,
@@ -669,7 +806,11 @@
     showNotification('Comment published.');
   }
 
-  function openNewPostModal() {
+  /* ========================================================================
+     STUDIO-GRADE ARTICLE & THREAD CREATOR (Replaces simple modal)
+     Features: Toolbar (H2, H3, B, I, Code, Pre, Link, Table), Live Preview Tab
+     ======================================================================== */
+  function openStudioArticleCreator() {
     const modalContainer = document.getElementById('hub-modal-container');
     if (!modalContainer) return;
 
@@ -678,69 +819,233 @@
     const displayRole = session?.user?.role || session?.user?.user_metadata?.role || 'user';
 
     modalContainer.innerHTML = `
-      <div class="hub-modal-backdrop" id="new-post-modal-backdrop">
-        <div class="hub-thread-modal">
-          <div class="hub-modal-header">
-            <h3 style="margin:0; font-size:14px; color:#ffffff;">Create Discussion Thread</h3>
-            <button type="button" class="hub-modal-close" id="new-post-modal-close">&times;</button>
+      <div class="hub-modal-backdrop" id="studio-creator-backdrop">
+        <div class="hub-studio-modal">
+          <!-- Top Header -->
+          <div class="hub-studio-header">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="hub-logo-tag" style="background:#66c0f4; color:#0e1218; font-size:10px; font-weight:800; padding:2px 6px; border-radius:2px;">LAB STUDIO</span>
+              <h2 style="margin:0; font-size:15px; font-weight:700; color:#ffffff;">Create Technical Thread / Article</h2>
+            </div>
+            <button type="button" class="hub-modal-close" id="studio-creator-close" aria-label="Close dialog">&times;</button>
           </div>
 
-          <form id="hub-new-post-form" style="padding:16px;">
-            <div style="font-size:11.5px; color:var(--wiki-text-secondary); margin-bottom:12px; background:#10141b; padding:8px 10px; border:1px solid #2a475e; border-radius:3px; display:flex; align-items:center; justify-content:space-between;">
-              <span>Posting as: <strong style="color:#ffffff;">${escapeHtml(displayName)}</strong> <span class="role-badge role-${escapeHtml(displayRole.toLowerCase())}">[${escapeHtml(displayRole.toUpperCase())}]</span></span>
-              <span style="color:var(--wiki-text-muted); font-size:10px;">RLS Verified</span>
+          <!-- Studio Body -->
+          <form id="hub-studio-form" class="hub-studio-body">
+            <!-- Author & Category Meta Bar -->
+            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; background:#10141b; border:1px solid #2a475e; border-radius:4px; padding:10px 14px;">
+              <div>
+                <span style="font-size:11.5px; color:#8da4be;">Author: </span>
+                <strong style="color:#ffffff; font-size:12px;">u/${escapeHtml(displayName)}</strong>
+                <span class="role-badge role-${escapeHtml(displayRole.toLowerCase())}">[${escapeHtml(displayRole.toUpperCase())}]</span>
+              </div>
+              <div style="font-size:11px; color:#67788c;">
+                Format: GitHub Markdown &amp; Wikitext Supported
+              </div>
             </div>
 
-            <div style="margin-bottom:12px;">
-              <label class="hub-form-label">Category / Flair</label>
-              <select id="hub-post-flair-select" class="hub-select" required>
-                <option value="ENGINE">Engine &amp; C++20</option>
-                <option value="FROZEN-LIFE">Frozen-Life SDK</option>
-                <option value="LABHAMMER">LabHammer &amp; Maps</option>
-                <option value="SHOWCASE">Showcase &amp; Demos</option>
-                <option value="HELP">Help &amp; Bugs</option>
-                ${canPostAnnouncement() ? '<option value="ANNOUNCEMENT">Announcement (Dev Only)</option>' : ''}
-              </select>
+            <!-- Category / Flair Picker Pills -->
+            <div>
+              <label class="hub-form-label" style="margin-bottom:6px;">Select Technical Category / Flair</label>
+              <div class="hub-flair-picker" id="studio-flair-picker">
+                <button type="button" class="hub-flair-choice selected" data-flair="ENGINE">Engine &amp; C++20</button>
+                <button type="button" class="hub-flair-choice" data-flair="FROZEN-LIFE">Frozen-Life SDK</button>
+                <button type="button" class="hub-flair-choice" data-flair="LABHAMMER">LabHammer &amp; Maps</button>
+                <button type="button" class="hub-flair-choice" data-flair="SHOWCASE">Showcase &amp; Demos</button>
+                <button type="button" class="hub-flair-choice" data-flair="HELP">Help &amp; Bugs</button>
+                ${canPostAnnouncement() ? '<button type="button" class="hub-flair-choice" data-flair="ANNOUNCEMENT">Official Announcement</button>' : ''}
+              </div>
+              <input type="hidden" id="studio-selected-flair" value="ENGINE">
             </div>
 
-            <div style="margin-bottom:12px;">
-              <label class="hub-form-label">Thread Title</label>
-              <input type="text" id="hub-post-title-input" class="hub-input" placeholder="Clear, concise title summarizing your topic..." required maxlength="150" autofocus>
+            <!-- Article Title -->
+            <div>
+              <label class="hub-form-label" for="studio-title-input">Article Title</label>
+              <input type="text" id="studio-title-input" class="hub-studio-title-input" placeholder="e.g. Creating Custom Weapon Viewmodels &amp; CSG Brushes..." required maxlength="150" autofocus autocomplete="off">
             </div>
 
-            <div style="margin-bottom:14px;">
-              <label class="hub-form-label">Body Content (Supports code blocks and wikitext)</label>
-              <textarea id="hub-post-content-input" class="hub-textarea" rows="8" placeholder="Provide background details, steps to reproduce, or code snippets..." required></textarea>
+            <!-- Editor Section with Toolbar & Tabs -->
+            <div>
+              <div class="hub-studio-toolbar-wrap">
+                <!-- Toolbar Buttons (Matching editor.html style) -->
+                <div class="hub-studio-toolbar">
+                  <button type="button" class="hub-tool-btn" data-act="h2" title="Section Heading">H2</button>
+                  <button type="button" class="hub-tool-btn" data-act="h3" title="Subsection Heading">H3</button>
+                  <button type="button" class="hub-tool-btn" data-act="bold" title="Bold text">B</button>
+                  <button type="button" class="hub-tool-btn" data-act="italic" title="Italic text">I</button>
+                  <button type="button" class="hub-tool-btn" data-act="code" title="Inline code">&lt;code&gt;</button>
+                  <button type="button" class="hub-tool-btn" data-act="pre" title="C++ / Code block">``` Code Block</button>
+                  <button type="button" class="hub-tool-btn" data-act="quote" title="Blockquote">&gt; Quote</button>
+                  <button type="button" class="hub-tool-btn" data-act="list" title="Bullet List">&bull; List</button>
+                  <button type="button" class="hub-tool-btn" data-act="numlist" title="Numbered List">1. List</button>
+                  <button type="button" class="hub-tool-btn" data-act="link" title="Hyperlink">[Link]</button>
+                </div>
+
+                <!-- Write / Live Preview Mode Tabs -->
+                <div class="hub-studio-tabs">
+                  <button type="button" class="hub-tab-btn active" id="tab-btn-write">Write Mode</button>
+                  <button type="button" class="hub-tab-btn" id="tab-btn-preview">Live Preview</button>
+                </div>
+              </div>
+
+              <!-- Editor Textarea -->
+              <textarea id="studio-content-textarea" class="hub-studio-textarea" rows="12" placeholder="Write your guide, code examples, or bug report here... (Supports Markdown and Wikitext)" required></textarea>
+
+              <!-- Live Preview Pane (Hidden in write mode) -->
+              <div id="studio-preview-pane" class="hub-studio-preview hub-thread-full-content" style="display:none;"></div>
             </div>
 
-            <div style="display:flex; justify-content:flex-end; gap:8px;">
-              <button type="button" class="hub-btn-secondary" id="new-post-cancel-btn">Cancel</button>
-              <button type="submit" class="hub-btn-primary" id="new-post-submit-btn">Publish Thread</button>
+            <!-- Footer Actions -->
+            <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #2a475e; padding-top:14px;">
+              <span style="font-size:11px; color:#67788c;">Tip: Press Ctrl+Enter to publish article</span>
+              <div style="display:flex; gap:10px;">
+                <button type="button" class="hub-btn-secondary" id="studio-cancel-btn">Cancel</button>
+                <button type="submit" class="hub-btn-primary" id="studio-submit-btn" style="padding:8px 24px; font-size:13px;">Publish Article</button>
+              </div>
             </div>
           </form>
         </div>
       </div>
     `;
 
-    document.getElementById('new-post-modal-close')?.addEventListener('click', () => modalContainer.innerHTML = '');
-    document.getElementById('new-post-cancel-btn')?.addEventListener('click', () => modalContainer.innerHTML = '');
-    document.getElementById('new-post-modal-backdrop')?.addEventListener('click', (e) => {
-      if (e.target.id === 'new-post-modal-backdrop') modalContainer.innerHTML = '';
+    // Close actions
+    document.getElementById('studio-creator-close')?.addEventListener('click', () => modalContainer.innerHTML = '');
+    document.getElementById('studio-cancel-btn')?.addEventListener('click', () => modalContainer.innerHTML = '');
+    document.getElementById('studio-creator-backdrop')?.addEventListener('click', (e) => {
+      if (e.target.id === 'studio-creator-backdrop') modalContainer.innerHTML = '';
     });
 
-    document.getElementById('hub-new-post-form')?.addEventListener('submit', async (e) => {
+    // Flair choice pill selection
+    document.querySelectorAll('.hub-flair-choice').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.hub-flair-choice').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        document.getElementById('studio-selected-flair').value = btn.getAttribute('data-flair') || 'ENGINE';
+      });
+    });
+
+    // Toolbar formatting actions
+    const textarea = document.getElementById('studio-content-textarea');
+    document.querySelectorAll('.hub-tool-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const act = btn.getAttribute('data-act');
+        insertStudioFormatting(textarea, act);
+      });
+    });
+
+    // Write / Live Preview tab toggling
+    const tabWrite = document.getElementById('tab-btn-write');
+    const tabPreview = document.getElementById('tab-btn-preview');
+    const previewPane = document.getElementById('studio-preview-pane');
+
+    tabWrite?.addEventListener('click', () => {
+      tabWrite.classList.add('active');
+      tabPreview.classList.remove('active');
+      textarea.style.display = 'block';
+      previewPane.style.display = 'none';
+      textarea.focus();
+    });
+
+    tabPreview?.addEventListener('click', () => {
+      tabPreview.classList.add('active');
+      tabWrite.classList.remove('active');
+      textarea.style.display = 'none';
+      previewPane.style.display = 'block';
+      const textVal = textarea.value.trim();
+      previewPane.innerHTML = textVal ? formatPostContentFull(textVal) : '<p style="color:#67788c; font-style:italic;">No content written yet. Switch to Write Mode to compose your article.</p>';
+    });
+
+    // Ctrl+Enter shortcut to submit
+    textarea.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        document.getElementById('hub-studio-form')?.requestSubmit();
+      }
+    });
+
+    // Form submit
+    document.getElementById('hub-studio-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const submitBtn = document.getElementById('new-post-submit-btn');
+      const submitBtn = document.getElementById('studio-submit-btn');
       submitBtn.disabled = true;
       submitBtn.textContent = 'Publishing...';
 
-      const flair = document.getElementById('hub-post-flair-select').value;
-      const title = document.getElementById('hub-post-title-input').value.trim();
-      const content = document.getElementById('hub-post-content-input').value.trim();
+      const flair = document.getElementById('studio-selected-flair').value;
+      const title = document.getElementById('studio-title-input').value.trim();
+      const content = textarea.value.trim();
 
       await createNewPost(title, flair, content);
       modalContainer.innerHTML = '';
     });
+  }
+
+  function insertStudioFormatting(textarea, act) {
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    const sel = text.substring(start, end);
+
+    let before = '', after = '', defaultText = '';
+
+    switch (act) {
+      case 'h2':
+        before = '\n## ';
+        after = '\n';
+        defaultText = 'Section Title';
+        break;
+      case 'h3':
+        before = '\n### ';
+        after = '\n';
+        defaultText = 'Subsection Title';
+        break;
+      case 'bold':
+        before = '**';
+        after = '**';
+        defaultText = 'bold text';
+        break;
+      case 'italic':
+        before = '*';
+        after = '*';
+        defaultText = 'italic text';
+        break;
+      case 'code':
+        before = '`';
+        after = '`';
+        defaultText = 'variable_or_flag';
+        break;
+      case 'pre':
+        before = '\n```cpp\n';
+        after = '\n```\n';
+        defaultText = '// C++20 code snippet\nvoid InitializeSubsystem() {\n    // Code here\n}';
+        break;
+      case 'quote':
+        before = '\n> ';
+        after = '\n';
+        defaultText = 'Quoted technical requirement';
+        break;
+      case 'list':
+        before = '\n- ';
+        after = '\n';
+        defaultText = 'List item';
+        break;
+      case 'numlist':
+        before = '\n1. ';
+        after = '\n';
+        defaultText = 'First step';
+        break;
+      case 'link':
+        before = '[';
+        after = '](https://labenginedev.vercel.app/)';
+        defaultText = 'Link title';
+        break;
+    }
+
+    const insertText = sel || defaultText;
+    textarea.value = text.substring(0, start) + before + insertText + after + text.substring(end);
+    textarea.focus();
+    textarea.selectionStart = start + before.length;
+    textarea.selectionEnd = start + before.length + insertText.length;
   }
 
   async function createNewPost(title, flair, content) {
@@ -794,7 +1099,7 @@
           if (Array.isArray(inserted) && inserted[0]) {
             postsData.unshift(inserted[0]);
             syncedToDb = true;
-            showNotification('Thread published to Supabase database.');
+            showNotification('Article published to Supabase community database.');
           }
         } else {
           const errData = await res.json().catch(() => ({}));
@@ -811,7 +1116,7 @@
       if (!postsData.some(p => p.id === newPost.id)) {
         postsData.unshift(newPost);
       }
-      showNotification('Thread created and saved.');
+      showNotification('Article created and saved to local community feed.');
     }
 
     renderFilteredPosts();
@@ -905,22 +1210,148 @@
 
   function formatPostContentPreview(text) {
     if (!text) return '';
-    const plain = text.substring(0, 240);
-    return escapeHtml(plain) + (text.length > 240 ? '...' : '');
+    // Strip code blocks and markdown symbols for a clean card snippet
+    const clean = text
+      .replace(/```[\s\S]*?```/g, ' [Code Block] ')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/^#{1,6}\s+/gm, '')
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/\*([^*]+)\*/g, '$1')
+      .replace(/\r?\n+/g, ' ')
+      .trim();
+    const plain = clean.substring(0, 240);
+    return escapeHtml(plain) + (clean.length > 240 ? '...' : '');
   }
 
-  function formatPostContentFull(text) {
-    if (!text) return '';
-    return text
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/'''(.+?)'''/g, '<strong>$1</strong>')
-      .replace(/''(.+?)''/g, '<em>$1</em>')
-      .replace(/\[\[(.+?)\|(.+?)\]\]/g, '<a href="$1" style="color:var(--wiki-accent);">$2</a>')
-      .replace(/\[\[(.+?)\]\]/g, '<a href="$1" style="color:var(--wiki-accent);">$1</a>')
-      .replace(/`([^`]+)`/g, '<code class="hub-inline-code">$1</code>')
-      .replace(/```([a-zA-Z]*)\n([\s\S]*?)```/g, '<pre class="hub-code-block"><code>$2</code></pre>')
-      .replace(/\n\n/g, '<p></p>')
-      .replace(/\n/g, '<br>');
+  /* ========================================================================
+     ROBUST GITHUB MARKDOWN & WIKITEXT CONTENT PARSER
+     Solves the broken code blocks and formatting shown in Image 1
+     ======================================================================== */
+  function formatPostContentFull(rawText) {
+    if (!rawText) return '';
+
+    // Step 1: Extract and protect fenced code blocks FIRST
+    const codeBlocks = [];
+    let text = rawText.replace(/```([a-zA-Z0-9_\-]*)\r?\n?([\s\S]*?)```/g, (match, lang, code) => {
+      const idx = codeBlocks.length;
+      codeBlocks.push({ lang: (lang || '').trim(), code: code.replace(/^\r?\n|\r?\n$/g, '') });
+      return `%%HUB_CODE_BLOCK_${idx}%%`;
+    });
+
+    // Step 2: Extract and protect inline code
+    const inlineCodes = [];
+    text = text.replace(/`([^`\r\n]+)`/g, (match, code) => {
+      const idx = inlineCodes.length;
+      inlineCodes.push(code);
+      return `%%HUB_INLINE_CODE_${idx}%%`;
+    });
+
+    // Step 3: Escape HTML for security
+    text = escapeHtml(text);
+
+    // Step 4: Parse Headings (# H1, ## H2, ### H3, == H2 ==, === H3 ===)
+    text = text.replace(/^###\s+(.+)$/gm, '<h3 class="hub-content-h3">$1</h3>');
+    text = text.replace(/^##\s+(.+)$/gm, '<h2 class="hub-content-h2">$1</h2>');
+    text = text.replace(/^#\s+(.+)$/gm, '<h1 class="hub-content-h1">$1</h1>');
+    text = text.replace(/^===\s*(.+?)\s*===$/gm, '<h3 class="hub-content-h3">$1</h3>');
+    text = text.replace(/^==\s*(.+?)\s*==$/gm, '<h2 class="hub-content-h2">$1</h2>');
+
+    // Step 5: Parse Bold & Italic
+    text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    text = text.replace(/'''([^']+)'''/g, '<strong>$1</strong>');
+    text = text.replace(/\*([^*\r\n]+)\*/g, '<em>$1</em>');
+    text = text.replace(/''([^'\r\n]+)''/g, '<em>$1</em>');
+
+    // Step 6: Parse Blockquotes (> text)
+    text = text.replace(/^&gt;\s+(.+)$/gm, '<blockquote class="hub-quote">$1</blockquote>');
+
+    // Step 7: Parse Links
+    text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="hub-content-link">$1</a>');
+    text = text.replace(/\[\[(.+?)\|(.+?)\]\]/g, '<a href="$1" class="hub-content-link">$2</a>');
+    text = text.replace(/\[\[(.+?)\]\]/g, '<a href="$1" class="hub-content-link">$1</a>');
+
+    // Step 8: Parse Lists (ordered & unordered)
+    const lines = text.split('\n');
+    const processedLines = [];
+    let inUl = false;
+    let inOl = false;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trim();
+
+      const mUl = trimmed.match(/^[-*]\s+(.+)$/);
+      const mOl = trimmed.match(/^(\d+)\.\s+(.+)$/);
+
+      if (mUl) {
+        if (!inUl) {
+          if (inOl) { processedLines.push('</ol>'); inOl = false; }
+          processedLines.push('<ul class="hub-content-ul">');
+          inUl = true;
+        }
+        processedLines.push(`<li>${mUl[1]}</li>`);
+      } else if (mOl) {
+        if (!inOl) {
+          if (inUl) { processedLines.push('</ul>'); inUl = false; }
+          processedLines.push('<ol class="hub-content-ol">');
+          inOl = true;
+        }
+        processedLines.push(`<li>${mOl[2]}</li>`);
+      } else {
+        if (inUl) { processedLines.push('</ul>'); inUl = false; }
+        if (inOl) { processedLines.push('</ol>'); inOl = false; }
+        processedLines.push(line);
+      }
+    }
+    if (inUl) processedLines.push('</ul>');
+    if (inOl) processedLines.push('</ol>');
+
+    text = processedLines.join('\n');
+
+    // Step 9: Paragraph separation
+    const paragraphs = text.split(/\n{2,}/);
+    const outputParas = [];
+
+    for (let i = 0; i < paragraphs.length; i++) {
+      const p = paragraphs[i].trim();
+      if (!p) continue;
+
+      if (/^<(h[1-6]|ul|ol|blockquote|div|pre)/i.test(p) || p.startsWith('%%HUB_CODE_BLOCK_')) {
+        outputParas.push(p);
+      } else {
+        const inner = p.replace(/\n/g, '<br>');
+        outputParas.push(`<p class="hub-content-p">${inner}</p>`);
+      }
+    }
+
+    text = outputParas.join('\n');
+
+    // Step 10: Restore Fenced Code Blocks with Container & Copy button
+    for (let i = 0; i < codeBlocks.length; i++) {
+      const block = codeBlocks[i];
+      const langLabel = block.lang ? block.lang.toUpperCase() : 'CODE';
+      const escapedCode = escapeHtml(block.code);
+
+      const blockHtml = `
+        <div class="hub-code-container">
+          <div class="hub-code-header">
+            <span class="hub-code-lang">${langLabel}</span>
+            <button type="button" class="hub-code-copy-btn" onclick="navigator.clipboard.writeText(this.closest('.hub-code-container').querySelector('code').innerText); this.textContent='Copied!'; setTimeout(() => this.textContent='Copy', 1500);">Copy</button>
+          </div>
+          <pre class="hub-code-pre"><code>${escapedCode}</code></pre>
+        </div>
+      `;
+      text = text.replace(`%%HUB_CODE_BLOCK_${i}%%`, blockHtml);
+    }
+
+    // Step 11: Restore Inline Code with crisp styling
+    for (let i = 0; i < inlineCodes.length; i++) {
+      const escapedCode = escapeHtml(inlineCodes[i]);
+      const inlineHtml = `<code class="hub-inline-code">${escapedCode}</code>`;
+      text = text.replace(`%%HUB_INLINE_CODE_${i}%%`, inlineHtml);
+    }
+
+    return text;
   }
 
   function escapeHtml(str) {
