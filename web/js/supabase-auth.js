@@ -683,4 +683,20 @@
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
   }
+
+  // Expose global VdcAuth API for Community Hub & other modules
+  window.VdcAuth = {
+    openLogin: () => openAuthModal('login'),
+    openRegister: () => openAuthModal('register'),
+    getSession: () => {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || currentSession;
+      } catch (e) {
+        return currentSession;
+      }
+    },
+    getConfig: getSupabaseConfig,
+    showToast: showToast
+  };
 })();
+
