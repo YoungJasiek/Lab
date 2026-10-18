@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Lab Developer Community Article Template – Clean boilerplate for authoring new documentation pages.">
+  <meta name="keywords" content="Lab Engine, Documentation, Article Template, SDK">
+  <meta name="author" content="Lab Community">
+
+  <title>Article Title – Lab Developer Community</title>
+
+  <!-- Complete Favicon Set -->
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="manifest" href="site.webmanifest">
+
+  <!-- Core Stylesheet -->
+  <link rel="stylesheet" href="css/style.css?v=4">
+</head>
+<body>
+
+  <!-- Accessibility Skip Link -->
+  <a href="#content" class="skip-link">Skip to main content</a>
+
+  <!-- Top Header -->
+  <header class="vdc-top-header" role="banner">
+    <div class="vdc-header-left">
+      <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
+      <a href="index.html" class="vdc-brand">
+        <span class="vdc-logo-stamp">LAB</span>
+        <div class="vdc-brand-text">
+          <span class="vdc-brand-title">Developer Community</span>
+        </div>
+      </a>
+    </div>
+
+    <div class="vdc-header-right">
+      <div class="vdc-user-tools">
+        <a href="#" id="auth-btn-create" class="user-link">Create account</a>
+        <span class="pipe-sep" style="color:#505967; margin:0 4px;">&bull;</span>
+        <a href="#" id="auth-btn-login" class="user-link">Log in</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Layout Container -->
+  <div class="vdc-page-container">
+
+    <!-- Sidebar Navigation -->
+    <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
+      <div class="sidebar-block">
+        <ul class="sidebar-links">
+          <li><a href="index.html">Main Page</a></li>
+          <li><a href="modules.html">Lab SDK index</a></li>
+          <li><a href="wiki-contents.html">Recent changes</a></li>
+          <li><a href="project-hub.html">Random page</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Lab Engine Subsystems</div>
+        <ul class="sidebar-links">
+          <li><a href="module-core.html">core.dll</a></li>
+          <li><a href="module-render.html">render.dll</a></li>
+          <li><a href="module-physics.html">physics.dll</a></li>
+          <li><a href="module-audio.html">audio.dll</a></li>
+          <li><a href="module-animation.html">animation.dll</a></li>
+          <li><a href="module-world.html">world.dll</a></li>
+          <li><a href="module-network.html">network.dll</a></li>
+          <li><a href="module-ai.html">ai.dll</a></li>
+          <li><a href="module-script.html">script.dll</a></li>
+          <li><a href="module-studio.html">studio.dll</a></li>
+          <li><a href="module-hud.html">hud.dll</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Engine &amp; Toolset</div>
+        <ul class="sidebar-links">
+          <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+          <li><a href="lighting.html">Dynamic Lighting &amp; Lamps</a></li>
+          <li><a href="labeditor.html">LabEditor Suite</a></li>
+          <li><a href="labhammer.html">LabHammer (3D CSG)</a></li>
+          <li><a href="character-studio.html">LabStudio (3D Poser)</a></li>
+          <li><a href="labhud.html">LabHUD (2D Canvas)</a></li>
+          <li><a href="plugins.html">Native C++ Plugins</a></li>
+          <li><a href="lua-scripting.html">Lua 5.4 Scripting</a></li>
+          <li><a href="frozen-life.html">Frozen-Life (Alpha)</a></li>
+          <li><a href="skeletal-animations.html">Skeletal &amp; FBX Rigging</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></li>
+          <li><a href="bot-ai.html">Combat Bot AI</a></li>
+          <li><a href="multiplayer.html">UDP Multiplayer</a></li>
+          <li><a href="audio-synthesizer.html">3D Audio &amp; Synth</a></li>
+          <li><a href="building.html">Building from Source</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Tools</div>
+        <ul class="sidebar-links">
+          <li><a href="editor.html" style="color:var(--wiki-accent); font-weight:bold;">+ Create New Article</a></li>
+          <li><a href="wiki-contents.html">What links here</a></li>
+          <li><a href="project-hub.html">Special pages</a></li>
+          <li><a href="javascript:window.print();">Printable version</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main id="content" class="vdc-main-content" role="main">
+
+      <!-- Navigation Tabs -->
+      <nav class="vdc-page-tabs" aria-label="Namespace tabs">
+        <div class="tabs-left">
+          <a href="#" class="wiki-tab active">Page</a>
+          <a href="talk.html" class="wiki-tab">Discussion</a>
+        </div>
+        <div class="tabs-right">
+          <a href="#" class="wiki-tab active">Read</a>
+          <a href="#" id="vdc-tab-edit" class="wiki-tab">Edit</a>
+          <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="wiki-tab">View source</a>
+          <a href="https://github.com/YoungJasiek/Lab/commits/main" target="_blank" rel="noopener noreferrer" class="wiki-tab">View history</a>
+          <span class="wiki-tab" style="cursor:default;">More &#9662;</span>
+
+          <div class="vdc-tab-search" role="search">
+            <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search Lab Developer Community" aria-label="Search wiki documentation">
+            <span class="vdc-search-icon">&#128269;</span>
+          </div>
+        </div>
+      </nav>
+
+      <!-- Language flag row -->
+      <div class="vdc-flags-bar" aria-label="Language selection">
+        <img class="flag-img flag-active" src="assets/flags/us.png" alt="English" title="English">
+        <img class="flag-img" src="assets/flags/pl.png" alt="Polski" title="Polski">
+        <img class="flag-img" src="assets/flags/de.png" alt="Deutsch" title="Deutsch">
+        <img class="flag-img" src="assets/flags/es.png" alt="Español" title="Español">
+        <img class="flag-img" src="assets/flags/fr.png" alt="Français" title="Français">
+        <img class="flag-img" src="assets/flags/ru.png" alt="Русский" title="Русский">
+        <img class="flag-img" src="assets/flags/cn.png" alt="中文" title="中文">
+      </div>
+
+      <!-- Article Header -->
+      <h1 class="firstHeading">Article Title Goes Here</h1>
+
+      <!-- Technical Notice Callout (Optional) -->
+      <div class="wiki-notice notice-note">
+        <div class="wiki-notice-content">
+          <strong>Notice:</strong> This is an example callout block for notes, technical prerequisites, or warnings.
+        </div>
+      </div>
+
+      <!-- Collapsible Table of Contents (TOC) -->
+      <nav id="toc" class="toc" role="doc-toc" aria-label="Table of contents">
+        <div class="toctitle">
+          <span>Contents</span>
+          <span id="toctogglelink" class="toctoggle">hide</span>
+        </div>
+        <ol id="toc-list" class="toc-list">
+          <li><a href="#sec-overview"><span class="tocnumber">1</span> <span class="toctext">Overview</span></a></li>
+          <li><a href="#sec-architecture"><span class="tocnumber">2</span> <span class="toctext">Architecture &amp; Implementation</span></a></li>
+          <li><a href="#sec-seealso"><span class="tocnumber">3</span> <span class="toctext">See Also</span></a></li>
+        </ol>
+      </nav>
+
+      <!-- Section 1 -->
+      <section id="sec-overview" class="wiki-section-container">
+        <h2><span class="mw-headline">1. Overview</span></h2>
+        <p>
+          Write the introductory section of your article here. You can use standard formatting, bold text, links, and code references like <code>Lab::Engine</code>.
+        </p>
+      </section>
+
+      <!-- Section 2 -->
+      <section id="sec-architecture" class="wiki-section-container">
+        <h2><span class="mw-headline">2. Architecture &amp; Implementation</span></h2>
+        <p>
+          Technical explanations, interfaces, and code snippets:
+        </p>
+        <pre class="code-block"><code class="language-cpp">#include &lt;Lab/Engine.h&gt;
+
+class MyCustomEntity : public IServerEntity {
+public:
+    void Spawn() override;
+    void Think() override;
+};</code></pre>
+      </section>
+
+      <!-- Section 3 -->
+      <section id="sec-seealso" class="wiki-section-container">
+        <h2><span class="mw-headline">3. See Also</span></h2>
+        <ul>
+          <li><a href="architecture.html">Lab Engine Core Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ Direct State Access</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel Ballistics</a></li>
+        </ul>
+      </section>
+
+      <!-- Categories -->
+      <div id="catlinks" class="catlinks">
+        <span class="catlinks-label">Categories:</span>
+        <ul class="catlinks-list">
+          <li><a href="index.html">Lab Developer Community</a></li>
+          <li><a href="modules.html">Lab SDK Documentation</a></li>
+        </ul>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="js/supabase-auth.js"></script>
+  <script src="js/app.js?v=4"></script>
+</body>
+</html>

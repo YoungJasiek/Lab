@@ -560,17 +560,250 @@ pre {
 .role-dev { background: #3b74ad; color: #fff; }
 .role-user { background: #2f855a; color: #fff; }
 
-/* In-Page MediaWiki 2007 Editor */
-.vdc-inpage-editor {
-  display: none;
-  background: #181b20;
-  border: 1px solid var(--wiki-border);
-  border-radius: 2px;
-  padding: 16px;
-  margin: 14px 0 20px 0;
+/* ====================================================================
+   AUTHENTIC MEDIAWIKI / VALVE DEVELOPER COMMUNITY EDIT MODE
+   ==================================================================== */
+.mw-editform-container {
+  width: 100%;
+  margin: 10px 0 24px 0;
 }
-.vdc-inpage-editor.active {
-  display: block;
+
+.mw-editnotice {
+  background: #182230;
+  border: 1px solid #2a475e;
+  border-left: 4px solid var(--wiki-accent);
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  border-radius: 2px;
+  font-size: 12px;
+  color: #b5c0ce;
+  line-height: 1.45;
+}
+
+.mw-editnotice p {
+  margin: 0;
+}
+
+.mw-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  background: #252a33;
+  border: 1px solid #3c434f;
+  border-bottom: none;
+  padding: 4px 6px;
+  border-radius: 2px 2px 0 0;
+  align-items: center;
+}
+
+.mw-toolbar-btn {
+  background: linear-gradient(to bottom, #3a404c 0%, #282c34 100%);
+  border: 1px solid #4a5260;
+  color: #e2e8f0;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11px;
+  font-weight: bold;
+  padding: 3px 8px;
+  border-radius: 2px;
+  cursor: pointer;
+  min-height: 24px;
+}
+
+.mw-toolbar-btn:hover {
+  background: linear-gradient(to bottom, #464e5c 0%, #323741 100%);
+  border-color: var(--wiki-accent);
+  color: #ffffff;
+}
+
+.mw-toolbar-btn.btn-accent {
+  background: linear-gradient(to bottom, #254d75 0%, #1a3450 100%);
+  border-color: #2a5b8c;
+  color: #8ed0f8;
+}
+
+.mw-toolbar-btn.btn-accent:hover {
+  background: linear-gradient(to bottom, #316499 0%, #23466c 100%);
+  color: #ffffff;
+}
+
+.mw-edit-textarea {
+  width: 100%;
+  min-height: 480px;
+  background: #0e1218;
+  border: 1px solid #3c434f;
+  border-radius: 0 0 2px 2px;
+  color: #f0f4f8;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 12px;
+  outline: none;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.mw-edit-textarea:focus {
+  border-color: var(--wiki-accent);
+  box-shadow: 0 0 6px rgba(102, 192, 244, 0.35);
+}
+
+.mw-preview-box {
+  background: #151921;
+  border: 1px solid var(--wiki-accent-border);
+  border-radius: 3px;
+  padding: 16px;
+  margin: 14px 0;
+}
+
+.mw-preview-box .previewnote {
+  background: #192738;
+  border: 1px solid #2a475e;
+  border-left: 4px solid var(--wiki-accent);
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  font-size: 12px;
+  color: #c2dcfa;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mw-preview-rendered {
+  background: transparent;
+  color: #c6d4df;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.mw-edit-options {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.mw-summary-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.mw-summary-label {
+  font-size: 12px;
+  font-weight: bold;
+  color: #b5c0ce;
+  width: 70px;
+  flex-shrink: 0;
+}
+
+.mw-summary-input {
+  flex: 1;
+  height: 28px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid #4a5464;
+  border-radius: 2px;
+  padding: 4px 8px;
+  color: #ffffff;
+  font-size: 12px;
+  outline: none;
+}
+
+.mw-summary-input:focus {
+  border-color: var(--wiki-accent);
+}
+
+.mw-edit-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.vdc-btn-save {
+  background: linear-gradient(to bottom, #326496 0%, #1e3f60 100%);
+  border: 1px solid #142a40;
+  box-shadow: inset 0 1px 0 #528bc4;
+  color: #ffffff;
+  font-weight: bold;
+  font-size: 12px;
+  padding: 6px 18px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.vdc-btn-save:hover {
+  background: linear-gradient(to bottom, #3c78b4 0%, #254d75 100%);
+}
+
+.vdc-btn-preview {
+  background: linear-gradient(to bottom, #3a404c 0%, #262a32 100%);
+  border: 1px solid #454d59;
+  color: #d0d7e2;
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.vdc-btn-preview:hover {
+  background: #333943;
+  color: #ffffff;
+}
+
+.vdc-btn-cancel {
+  background: transparent;
+  border: 1px solid #454d59;
+  color: #8a96a8;
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.vdc-btn-cancel:hover {
+  color: #ffffff;
+  border-color: #6a7482;
+}
+
+.mw-edit-help-link {
+  margin-left: auto;
+  font-size: 11.5px;
+}
+
+.mw-edit-help-link a {
+  color: var(--wiki-accent);
+  text-decoration: none;
+}
+
+.mw-edit-help-link a:hover {
+  text-decoration: underline;
+}
+
+.mw-local-revision-bar {
+  background: #142233;
+  border: 1px solid #254366;
+  padding: 6px 12px;
+  margin: 6px 0 14px 0;
+  border-radius: 2px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11.5px;
+  color: #8ab4f8;
+}
+
+.mw-local-revision-bar button {
+  background: none;
+  border: none;
+  color: #f87171;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 11.5px;
+  padding: 0;
+}
+
+.mw-local-revision-bar button:hover {
+  color: #fca5a5;
 }
 
 /* Article Heading & Subtitle (Authentic MediaWiki) */

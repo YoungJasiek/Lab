@@ -481,13 +481,18 @@
     showToast('You have been logged out.');
 
     // Close in-page editor if active
-    const editor = document.getElementById('vdc-inpage-editor');
+    const editor = document.getElementById('mw-editform-container');
     if (editor) editor.style.display = 'none';
   }
 
   function initInPageEditor() {
     const editTab = document.getElementById('vdc-tab-edit');
     if (!editTab) return;
+
+    // Check if URL specifies action=edit or hash #edit
+    if (window.location.search.includes('action=edit') || window.location.hash === '#edit') {
+      setTimeout(() => openWikiEditor(), 150);
+    }
 
     editTab.addEventListener('click', (e) => {
       e.preventDefault();
@@ -498,113 +503,166 @@
         return;
       }
 
-      const userRole = currentSession.user.role || currentSession.user.user_metadata?.role;
-      if (userRole !== 'admin' && userRole !== 'dev' && userRole !== 'moderator') {
-        showToast(`Role '${userRole.toUpperCase()}' does not have editing privileges. Only Admin, Dev, or Moderator accounts can edit articles.`, 'error');
-        return;
-      }
-
-      toggleInPageEditor();
+      openWikiEditor();
     });
+
+    // Check for saved local article override on page load
+    initArticleOverride();
   }
 
-  function toggleInPageEditor() {
-    let editor = document.getElementById('vdc-inpage-editor');
-    const contentArea = document.querySelector('.vdc-portal-layout') || document.querySelector('.vdc-sdk-banner') || document.querySelector('.firstHeading') || document.querySelector('.vdc-main-content');
-    if (!contentArea) return;
-
-    if (editor) {
-      editor.style.display = editor.style.display === 'none' ? 'block' : 'none';
-      return;
-    }
-
-    editor = document.createElement('div');
-    editor.id = 'vdc-inpage-editor';
-    editor.className = 'vdc-inpage-editor';
-    editor.style.cssText = `
-      background: #171a21; border: 1px solid #2a475e;
-      border-radius: 4px; padding: 16px; margin: 14px 0 20px 0;
-    `;
+  function openWikiEditor() {
+    const heading = document.querySelector('.firstHeading, .page-title, h1');
+    if (!heading) return;
 
     const currentPage = window.location.pathname.split('/').pop() || 'index.html';
-    const userRole = currentSession?.user?.role || 'admin';
+    const editTab = document.getElementById('vdc-tab-edit');
+    const readTab = document.querySelector('.tabs-right a[href$=".html"], .tabs-right .wiki-tab:not(#vdc-tab-edit)');
 
-    editor.innerHTML = `
-      <div style="border-bottom:1px solid #2a475e; padding-bottom:8px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
-        <h2 style="font-size:14px; margin:0; color:#fff;">Editing: <span style="color:#66c0f4;">${escapeHtml(currentPage)}</span> (Valve Developer Community)</h2>
-        <span class="role-badge role-${escapeHtml(userRole)}">${escapeHtml(userRole.toUpperCase())} MODE</span>
-      </div>
+    if (!heading.dataset.origTitle) {
+      heading.dataset.origTitle = heading.textContent.trim();
+    }
+    heading.textContent = 'Editing ' + heading.dataset.origTitle;
 
-      <div class="mw-edit-toolbar" role="toolbar" style="margin-bottom:6px; display:flex; flex-wrap:wrap; gap:3px;">
-        <button type="button" class="mw-btn" data-act="bold" title="Bold">'''B'''</button>
-        <button type="button" class="mw-btn" data-act="italic" title="Italic">''I''</button>
-        <button type="button" class="mw-btn" data-act="link" title="Internal Link">[[Link]]</button>
-        <button type="button" class="mw-btn" data-act="code" title="Code">&lt;code&gt;</button>
-        <button type="button" class="mw-btn" data-act="pre" title="Preformatted block">&lt;pre&gt;</button>
-        <button type="button" class="mw-btn" data-act="infobox" title="Entity Infobox">{{Entity}}</button>
-        <button type="button" class="mw-btn" data-act="note" title="Note callout">{{Note}}</button>
-      </div>
+    if (editTab) editTab.classList.add('active');
+    if (readTab) readTab.classList.remove('active');
 
-      <textarea id="vdc-edit-textarea" class="editor-textarea" style="width:100%; height:220px; background:#181818; border:1px solid #444; border-radius:3px; padding:8px; color:#fff; font-family:Consolas,monospace; font-size:12px;" placeholder="Enter article Wikitext or HTML content here..."></textarea>
+    // Ensure content body is safely wrapped
+    let contentBody = document.getElementById('mw-content-body');
+    if (!contentBody) {
+      contentBody = document.createElement('div');
+      contentBody.id = 'mw-content-body';
+      contentBody.className = 'mw-body-content';
 
-      <div id="vdc-edit-preview" class="mw-preview-box" style="margin-top:10px; display:none; background:#1f1f1f; border:1px solid #444; border-radius:3px; padding:12px;">
-        <div class="mw-preview-title" style="font-size:11px; font-weight:bold; color:#858585; margin-bottom:6px;">Live Article Preview:</div>
-        <div id="vdc-edit-preview-content"></div>
-      </div>
+      let node = heading.nextElementSibling;
+      while (node) {
+        if (node.tagName === 'SCRIPT' || node.id === 'mw-editform-container' || node.id === 'mw-local-revision-bar' || node.classList.contains('vdc-toast')) {
+          node = node.nextElementSibling;
+          continue;
+        }
+        const toMove = node;
+        node = node.nextElementSibling;
+        contentBody.appendChild(toMove);
+      }
+      heading.parentNode.insertBefore(contentBody, heading.nextSibling);
+    }
 
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px;">
-        <div style="display:flex; gap:8px;">
-          <button type="button" id="vdc-btn-save-page" class="vdc-btn-wiki-contents" style="cursor:pointer; border:none; padding:6px 14px;">Save page</button>
-          <button type="button" id="vdc-btn-preview-page" class="vdc-btn-community-portal" style="cursor:pointer; border:none; padding:6px 14px;">Show preview</button>
+    // Hide original content body
+    contentBody.style.display = 'none';
+
+    let editor = document.getElementById('mw-editform-container');
+    if (!editor) {
+      editor = document.createElement('div');
+      editor.id = 'mw-editform-container';
+      editor.className = 'mw-editform-container';
+
+      const userRole = currentSession?.user?.role || currentSession?.user?.user_metadata?.role || 'user';
+
+      editor.innerHTML = `
+        <div class="mw-editnotice">
+          <p><strong>Notice:</strong> You are editing an official Lab Developer Community article. Ensure technical accuracy and adhere to C++20 and OpenGL 4.5+ DSA architectural conventions. (<span class="role-badge role-${escapeHtml(userRole)}">${escapeHtml(userRole.toUpperCase())}</span>)</p>
         </div>
-        <button type="button" id="vdc-btn-cancel-edit" style="background:transparent; border:1px solid #555; color:#aaa; padding:6px 12px; border-radius:3px; cursor:pointer;">Cancel</button>
-      </div>
-    `;
 
-    contentArea.parentNode.insertBefore(editor, contentArea);
+        <div class="mw-toolbar" role="toolbar" aria-label="MediaWiki edit toolbar">
+          <button type="button" class="mw-toolbar-btn" data-act="bold" title="Bold text: '''Bold'''"><strong>B</strong></button>
+          <button type="button" class="mw-toolbar-btn" data-act="italic" title="Italic text: ''Italic''"><em>I</em></button>
+          <button type="button" class="mw-toolbar-btn btn-accent" data-act="link" title="Internal link: [[target.html|Title]]">[[Link]]</button>
+          <button type="button" class="mw-toolbar-btn" data-act="h2" title="Section heading: == Heading ==">== H2 ==</button>
+          <button type="button" class="mw-toolbar-btn" data-act="h3" title="Subsection heading: === Subheading ===">=== H3 ===</button>
+          <button type="button" class="mw-toolbar-btn" data-act="code" title="Inline code: <code>Code</code>">&lt;code&gt;</button>
+          <button type="button" class="mw-toolbar-btn btn-accent" data-act="pre" title="Preformatted code block: <pre>Code</pre>">&lt;pre&gt;</button>
+          <button type="button" class="mw-toolbar-btn" data-act="infobox" title="Infobox template">{{Infobox}}</button>
+          <button type="button" class="mw-toolbar-btn" data-act="note" title="Note notice box">{{Note}}</button>
+          <button type="button" class="mw-toolbar-btn" data-act="warning" title="Warning notice box">{{Warning}}</button>
+        </div>
 
-    const textarea = document.getElementById('vdc-edit-textarea');
-    const previewBox = document.getElementById('vdc-edit-preview');
-    const previewContent = document.getElementById('vdc-edit-preview-content');
+        <div id="mw-preview-box" class="mw-preview-box" style="display:none;">
+          <div class="previewnote">
+            <span><strong>Preview:</strong> This is only a preview; your changes have not yet been saved!</span>
+            <a href="#wpTextbox1" style="color:var(--wiki-accent); text-decoration:none; font-size:11px;">Return to edit box</a>
+          </div>
+          <div id="mw-preview-content" class="mw-preview-rendered"></div>
+        </div>
 
-    // Populate with existing content summary or saved draft
-    const savedDrafts = JSON.parse(localStorage.getItem(STORAGE_EDITS_KEY) || '{}');
-    textarea.value = savedDrafts[currentPage] || `== Article Content ==\n'''Lab Engine''' and '''Frozen-Life SDK''' technical specification.\n\n[[architecture.html|Engine Architecture]] &bull; [[opengl-dsa.html|OpenGL 4.5+ DSA]]\n\n{{Note|Official documentation article.}}`;
+        <textarea id="wpTextbox1" name="wpTextbox1" class="mw-edit-textarea" rows="26" spellcheck="false" placeholder="Enter article content in Wikitext or HTML..."></textarea>
 
-    // Tool buttons
-    editor.querySelectorAll('.mw-btn').forEach(btn => {
+        <div class="mw-edit-options">
+          <div class="mw-summary-row">
+            <label for="wpSummary" class="mw-summary-label">Summary:</label>
+            <input type="text" id="wpSummary" class="mw-summary-input" maxlength="200" placeholder="Briefly summarize your changes">
+          </div>
+
+          <div class="mw-edit-buttons">
+            <button type="button" id="wpSave" class="vdc-btn-save">Save page</button>
+            <button type="button" id="wpPreview" class="vdc-btn-preview">Show preview</button>
+            <button type="button" id="wpCancel" class="vdc-btn-cancel">Cancel</button>
+            <span class="mw-edit-help-link">
+              <a href="editor.html" target="_blank">Editing help (opens in new tab)</a>
+            </span>
+          </div>
+        </div>
+      `;
+
+      heading.parentNode.insertBefore(editor, contentBody);
+      attachEditorEvents(editor, heading, contentBody, currentPage);
+    } else {
+      editor.style.display = 'block';
+    }
+
+    const textarea = editor.querySelector('#wpTextbox1');
+    const saved = localStorage.getItem('lab_page_content_' + currentPage);
+    if (saved) {
+      textarea.value = saved;
+    } else {
+      textarea.value = contentBody.innerHTML.trim();
+    }
+  }
+
+  function attachEditorEvents(editor, heading, contentBody, currentPage) {
+    const textarea = editor.querySelector('#wpTextbox1');
+    const previewBox = editor.querySelector('#mw-preview-box');
+    const previewContent = editor.querySelector('#mw-preview-content');
+    const saveBtn = editor.querySelector('#wpSave');
+    const previewBtn = editor.querySelector('#wpPreview');
+    const cancelBtn = editor.querySelector('#wpCancel');
+
+    editor.querySelectorAll('.mw-toolbar-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const act = btn.getAttribute('data-act');
         if (act === 'bold') insertAtCursor(textarea, "'''", "'''", 'bold text');
         else if (act === 'italic') insertAtCursor(textarea, "''", "''", 'italic text');
-        else if (act === 'link') insertAtCursor(textarea, "[[", "]]", 'architecture.html|Link Title');
-        else if (act === 'code') insertAtCursor(textarea, "<code>", "</code>", 'Engine.dll');
-        else if (act === 'pre') insertAtCursor(textarea, "<pre>\n", "\n</pre>", "// C++20 code snippet");
-        else if (act === 'infobox') insertAtCursor(textarea, "{{EntityInfobox|name=npc_stalker|base=CBaseNPC|game=Frozen-Life}}", "", "");
-        else if (act === 'note') insertAtCursor(textarea, "{{Note|Notice message here}}", "", "");
+        else if (act === 'link') insertAtCursor(textarea, "[[", "]]", 'architecture.html|Target Page');
+        else if (act === 'h2') insertAtCursor(textarea, "\n== ", " ==\n", 'Section Headline');
+        else if (act === 'h3') insertAtCursor(textarea, "\n=== ", " ===\n", 'Subsection Headline');
+        else if (act === 'code') insertAtCursor(textarea, "<code>", "</code>", 'Lab::Engine');
+        else if (act === 'pre') insertAtCursor(textarea, "<pre class=\"code-block\"><code>\n", "\n</code></pre>", "// C++20 source code");
+        else if (act === 'infobox') insertAtCursor(textarea, "{{Entity|name=npc_stalker|base=CBaseNPC|game=Frozen-Life}}", "", "");
+        else if (act === 'note') insertAtCursor(textarea, "{{Note|Technical note goes here}}", "", "");
+        else if (act === 'warning') insertAtCursor(textarea, "{{Warning|Critical compatibility warning goes here}}", "", "");
       });
     });
 
-    document.getElementById('vdc-btn-preview-page').addEventListener('click', () => {
+    previewBtn.addEventListener('click', () => {
+      previewContent.innerHTML = formatWikitextOrHtml(textarea.value);
       previewBox.style.display = 'block';
-      previewContent.innerHTML = formatWikitextSimple(textarea.value);
+      previewBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
-    document.getElementById('vdc-btn-save-page').addEventListener('click', async () => {
-      const config = getSupabaseConfig();
+    saveBtn.addEventListener('click', async () => {
       const content = textarea.value;
+      localStorage.setItem('lab_page_content_' + currentPage, content);
 
-      // 1. Save locally for instantaneous fallback
+      // Save for backward compatibility
       try {
         const edits = JSON.parse(localStorage.getItem(STORAGE_EDITS_KEY) || '{}');
         edits[currentPage] = content;
         localStorage.setItem(STORAGE_EDITS_KEY, JSON.stringify(edits));
       } catch (e) {}
 
-      // 2. If Supabase is connected and user has token, sync to PostgreSQL table wiki_articles
+      // Attempt Supabase sync if connected
+      const config = getSupabaseConfig();
       if (config.url && config.anonKey && currentSession && currentSession.access_token) {
         try {
-          const res = await fetch(`${config.url}/rest/v1/wiki_articles`, {
+          await fetch(`${config.url}/rest/v1/wiki_articles`, {
             method: 'POST',
             headers: {
               'apikey': config.anonKey,
@@ -614,33 +672,112 @@
             },
             body: JSON.stringify({
               slug: currentPage,
-              title: document.title || currentPage,
+              title: heading.dataset.origTitle || document.title,
               wikitext: content,
               updated_by: currentSession.user.id,
               updated_at: new Date().toISOString()
             })
           });
-
-          if (!res.ok) {
-            const errData = await res.json().catch(() => ({}));
-            showToast(`Saved locally. Supabase DB Sync note: ${errData.message || 'Table wiki_articles not created yet or RLS policy prevented write.'}`, 'warn');
-            editor.style.display = 'none';
-            return;
-          }
-        } catch (err) {
-          showToast(`Saved locally. Network error contacting Supabase DB: ${err.message}`, 'warn');
-          editor.style.display = 'none';
-          return;
-        }
+        } catch (e) {}
       }
 
-      showToast(`Page '${currentPage}' saved successfully!`, 'success');
-      editor.style.display = 'none';
+      contentBody.innerHTML = formatWikitextOrHtml(content);
+      closeWikiEditor(heading, contentBody, editor, true, currentPage);
+      showToast('Page saved successfully!', 'success');
     });
 
-    document.getElementById('vdc-btn-cancel-edit').addEventListener('click', () => {
-      editor.style.display = 'none';
+    cancelBtn.addEventListener('click', () => {
+      closeWikiEditor(heading, contentBody, editor, false, currentPage);
     });
+  }
+
+  function closeWikiEditor(heading, contentBody, editor, wasSaved, currentPage) {
+    if (editor) editor.style.display = 'none';
+    if (contentBody) contentBody.style.display = 'block';
+
+    if (heading && heading.dataset.origTitle) {
+      heading.textContent = heading.dataset.origTitle;
+    }
+
+    const editTab = document.getElementById('vdc-tab-edit');
+    const readTab = document.querySelector('.tabs-right a[href$=".html"], .tabs-right .wiki-tab:not(#vdc-tab-edit)');
+    if (editTab) editTab.classList.remove('active');
+    if (readTab) readTab.classList.add('active');
+
+    if (wasSaved) {
+      renderLocalRevisionBar(heading, currentPage);
+    }
+  }
+
+  function initArticleOverride() {
+    const currentPage = window.location.pathname.split('/').pop() || 'index.html';
+    const saved = localStorage.getItem('lab_page_content_' + currentPage);
+    if (!saved) return;
+
+    const heading = document.querySelector('.firstHeading, .page-title, h1');
+    if (!heading) return;
+
+    let contentBody = document.getElementById('mw-content-body');
+    if (!contentBody) {
+      contentBody = document.createElement('div');
+      contentBody.id = 'mw-content-body';
+      contentBody.className = 'mw-body-content';
+
+      let node = heading.nextElementSibling;
+      while (node) {
+        if (node.tagName === 'SCRIPT' || node.id === 'mw-editform-container' || node.id === 'mw-local-revision-bar' || node.classList.contains('vdc-toast')) {
+          node = node.nextElementSibling;
+          continue;
+        }
+        const toMove = node;
+        node = node.nextElementSibling;
+        contentBody.appendChild(toMove);
+      }
+      heading.parentNode.insertBefore(contentBody, heading.nextSibling);
+    }
+
+    contentBody.innerHTML = formatWikitextOrHtml(saved);
+    renderLocalRevisionBar(heading, currentPage);
+  }
+
+  function renderLocalRevisionBar(heading, currentPage) {
+    let bar = document.getElementById('mw-local-revision-bar');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'mw-local-revision-bar';
+      bar.className = 'mw-local-revision-bar';
+      heading.parentNode.insertBefore(bar, heading.nextSibling);
+    }
+
+    bar.innerHTML = `
+      <span>You are viewing a locally edited revision of this page.</span>
+      <button type="button" id="btn-revert-original">Revert to original static page</button>
+    `;
+
+    bar.querySelector('#btn-revert-original').addEventListener('click', () => {
+      localStorage.removeItem('lab_page_content_' + currentPage);
+      try {
+        const edits = JSON.parse(localStorage.getItem(STORAGE_EDITS_KEY) || '{}');
+        delete edits[currentPage];
+        localStorage.setItem(STORAGE_EDITS_KEY, JSON.stringify(edits));
+      } catch (e) {}
+      showToast('Restoring original static page...', 'info');
+      setTimeout(() => window.location.reload(), 400);
+    });
+  }
+
+  function formatWikitextOrHtml(text) {
+    if (!text) return '';
+    let parsed = text
+      .replace(/^== (.+?) ==$/gm, '<section class="wiki-section-container"><h2><span class="mw-headline">$1</span></h2></section>')
+      .replace(/^=== (.+?) ===$/gm, '<h3><span class="mw-headline">$1</span></h3>')
+      .replace(/'''(.+?)'''/g, '<strong>$1</strong>')
+      .replace(/''(.+?)''/g, '<em>$1</em>')
+      .replace(/\[\[(.+?)\|(.+?)\]\]/g, '<a href="$1">$2</a>')
+      .replace(/\[\[(.+?)\]\]/g, '<a href="$1">$1</a>')
+      .replace(/\{\{Note\|(.+?)\}\}/g, '<div class="wiki-notice notice-note"><div class="wiki-notice-content"><strong>Note:</strong> $1</div></div>')
+      .replace(/\{\{Warning\|(.+?)\}\}/g, '<div class="wiki-notice notice-warning"><div class="wiki-notice-content"><strong>Warning:</strong> $1</div></div>');
+    return parsed;
   }
 
   function initFlagNotice() {
