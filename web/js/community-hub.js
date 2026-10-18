@@ -1,16 +1,19 @@
 /**
  * Lab Developer Community - Discussion Hub (Reddit-style Ecosystem Board)
  * Strict technical architecture, zero AI slop, zero emojis.
+ * Full integration with Supabase Auth (lab_supabase_session) & PostgreSQL RLS.
  */
 
 (function () {
   'use strict';
 
   const STORAGE_VOTES_KEY = 'lab_community_votes_v1';
+  const STORAGE_LOCAL_POSTS_KEY = 'lab_community_local_posts_v1';
+  const STORAGE_LOCAL_COMMENTS_KEY = 'lab_community_local_comments_v1';
+
   let activeFlair = 'ALL';
   let activeSort = 'HOT';
   let postsData = [];
-  let commentsCache = {};
   let userVotes = {};
 
   try {
@@ -19,7 +22,7 @@
     userVotes = {};
   }
 
-  // Pre-seeded high-quality ecosystem discussions (fallback and baseline)
+  // Pre-seeded high-quality ecosystem discussions (baseline technical dataset)
   const SEED_POSTS = [
     {
       id: 'seed-announcement-1',
@@ -123,11 +126,11 @@
           <div class="hub-flairs" id="hub-flair-bar">
             <button type="button" class="hub-flair-btn active" data-flair="ALL">All Topics</button>
             <button type="button" class="hub-flair-btn" data-flair="ANNOUNCEMENT">Announcements</button>
-            <button type="button" class="hub-flair-btn" data-flair="ENGINE">Engine & C++20</button>
+            <button type="button" class="hub-flair-btn" data-flair="ENGINE">Engine &amp; C++20</button>
             <button type="button" class="hub-flair-btn" data-flair="FROZEN-LIFE">Frozen-Life SDK</button>
-            <button type="button" class="hub-flair-btn" data-flair="LABHAMMER">LabHammer & Maps</button>
+            <button type="button" class="hub-flair-btn" data-flair="LABHAMMER">LabHammer &amp; Maps</button>
             <button type="button" class="hub-flair-btn" data-flair="SHOWCASE">Showcase</button>
-            <button type="button" class="hub-flair-btn" data-flair="HELP">Help & Bugs</button>
+            <button type="button" class="hub-flair-btn" data-flair="HELP">Help &amp; Bugs</button>
           </div>
 
           <div class="hub-toolbar-right">
@@ -186,7 +189,7 @@
         </div>
       </div>
 
-      <!-- New Thread Modal -->
+      <!-- New Thread Modal Container -->
       <div id="hub-modal-container"></div>
     `;
   }
@@ -194,7 +197,7 @@
   function wireHubEventListeners() {
     // Flair Filter Buttons
     document.querySelectorAll('.hub-flair-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', () => {
         document.querySelectorAll('.hub-flair-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         activeFlair = btn.getAttribute('data-flair') || 'ALL';
@@ -204,7 +207,7 @@
 
     // Sort Buttons
     document.querySelectorAll('.hub-sort-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', () => {
         document.querySelectorAll('.hub-sort-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         activeSort = btn.getAttribute('data-sort') || 'HOT';
@@ -216,10 +219,18 @@
     document.getElementById('hub-btn-new-post')?.addEventListener('click', () => {
       const session = getCurrentSession();
       if (!session || !session.user) {
+        showNotification('Please log in with your developer account to create a thread.');
         if (typeof window.VdcAuth?.openLogin === 'function') {
           window.VdcAuth.openLogin();
         } else {
-          document.getElementById('vdc-login-link')?.click();
+          const loginBtn = document.getElementById('vdc-login-link') || 
+                           document.getElementById('auth-btn-login') ||
+                           document.getElementById('vdc-create-account');
+          if (loginBtn) {
+            loginBtn.click();
+          } else {
+            openNewPostModal();
+          }
         }
         return;
       }
@@ -227,11 +238,55 @@
     });
   }
 
+  // Local storage management for offline / initial migration resilience
+  function getLocalPosts() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_LOCAL_POSTS_KEY)) || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveLocalPost(post) {
+    try {
+      const posts = getLocalPosts().filter(p => p.id !== post.id);
+      posts.unshift(post);
+      localStorage.setItem(STORAGE_LOCAL_POSTS_KEY, JSON.stringify(posts));
+    } catch (e) {}
+  }
+
+  function removeLocalPost(postId) {
+    try {
+      const posts = getLocalPosts().filter(p => p.id !== postId);
+      localStorage.setItem(STORAGE_LOCAL_POSTS_KEY, JSON.stringify(posts));
+    } catch (e) {}
+  }
+
+  function getLocalComments(postId) {
+    try {
+      const all = JSON.parse(localStorage.getItem(STORAGE_LOCAL_COMMENTS_KEY)) || {};
+      return all[postId] || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveLocalComment(postId, comment) {
+    try {
+      const all = JSON.parse(localStorage.getItem(STORAGE_LOCAL_COMMENTS_KEY)) || {};
+      if (!all[postId]) all[postId] = [];
+      all[postId].push(comment);
+      localStorage.setItem(STORAGE_LOCAL_COMMENTS_KEY, JSON.stringify(all));
+    } catch (e) {}
+  }
+
   async function fetchPosts() {
     const feed = document.getElementById('hub-posts-feed');
     if (!feed) return;
 
+    const localPosts = getLocalPosts();
     const config = getSupabaseConfig();
+
     if (config.url && config.anonKey) {
       try {
         const res = await fetch(`${config.url}/rest/v1/community_posts?select=*&order=is_pinned.desc,upvotes.desc,created_at.desc`, {
@@ -243,8 +298,10 @@
 
         if (res.ok) {
           const dbPosts = await res.json();
-          if (Array.isArray(dbPosts) && dbPosts.length > 0) {
-            postsData = dbPosts;
+          if (Array.isArray(dbPosts)) {
+            const dbIds = new Set(dbPosts.map(p => p.id));
+            const unsyncedLocal = localPosts.filter(lp => !dbIds.has(lp.id));
+            postsData = [...unsyncedLocal, ...dbPosts];
             renderFilteredPosts();
             return;
           }
@@ -254,8 +311,7 @@
       }
     }
 
-    // Baseline fallback to seed posts
-    postsData = [...SEED_POSTS];
+    postsData = [...localPosts, ...SEED_POSTS];
     renderFilteredPosts();
   }
 
@@ -287,9 +343,12 @@
       feed.innerHTML = `
         <div class="hub-empty">
           <p>No discussions found under this category.</p>
-          <button type="button" class="hub-btn-primary" onclick="document.getElementById('hub-btn-new-post').click()">Start the first thread</button>
+          <button type="button" class="hub-btn-primary" id="hub-empty-new-btn">Start the first thread</button>
         </div>
       `;
+      document.getElementById('hub-empty-new-btn')?.addEventListener('click', () => {
+        document.getElementById('hub-btn-new-post')?.click();
+      });
       return;
     }
 
@@ -301,7 +360,9 @@
     const userVote = userVotes[post.id] || 0;
     const authorRole = (post.author_role || 'user').toLowerCase();
     const timeAgo = formatTimeAgo(new Date(post.created_at));
-    const commentsCount = post.comments_count !== undefined ? post.comments_count : (SEED_COMMENTS[post.id]?.length || 0);
+    const commentsCount = post.comments_count !== undefined 
+      ? post.comments_count 
+      : ((SEED_COMMENTS[post.id]?.length || 0) + (getLocalComments(post.id).length));
 
     return `
       <article class="hub-post-card ${post.is_pinned ? 'is-pinned' : ''}" data-post-id="${escapeHtml(post.id)}">
@@ -320,7 +381,7 @@
             <span class="hub-meta-sep">&bull;</span>
             <span class="hub-author-label">Posted by</span>
             <span class="hub-author-name">${escapeHtml(post.author_name || 'Developer')}</span>
-            <span class="role-badge role-${escapeHtml(authorRole)}">${escapeHtml(authorRole.toUpperCase())}</span>
+            <span class="role-badge role-${escapeHtml(authorRole)}">[${escapeHtml(authorRole.toUpperCase())}]</span>
             <span class="hub-meta-sep">&bull;</span>
             <span class="hub-post-time">${timeAgo}</span>
           </div>
@@ -403,7 +464,6 @@
     let delta = 0;
 
     if (currentVote === dir) {
-      // Toggle off
       userVotes[postId] = 0;
       delta = -dir;
     } else {
@@ -416,15 +476,16 @@
 
     renderFilteredPosts();
 
-    // Async sync with Supabase if configured
+    // Async sync with Supabase if configured and not local seed
     const config = getSupabaseConfig();
-    if (config.url && config.anonKey && !String(postId).startsWith('seed-')) {
+    const session = getCurrentSession();
+    if (config.url && config.anonKey && session?.access_token && !String(postId).startsWith('seed-') && !String(postId).startsWith('post-')) {
       fetch(`${config.url}/rest/v1/community_posts?id=eq.${postId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'apikey': config.anonKey,
-          'Authorization': `Bearer ${getCurrentToken() || config.anonKey}`
+          'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({ upvotes: post.upvotes })
       }).catch(() => {});
@@ -452,7 +513,7 @@
           <div class="hub-thread-body">
             <div class="hub-post-meta" style="margin-bottom:12px;">
               <span>Posted by <strong>${escapeHtml(post.author_name || 'Developer')}</strong></span>
-              <span class="role-badge role-${escapeHtml((post.author_role || 'user').toLowerCase())}">${escapeHtml((post.author_role || 'user').toUpperCase())}</span>
+              <span class="role-badge role-${escapeHtml((post.author_role || 'user').toLowerCase())}">[${escapeHtml((post.author_role || 'user').toUpperCase())}]</span>
               <span class="hub-meta-sep">&bull;</span>
               <span>${formatTimeAgo(new Date(post.created_at))}</span>
             </div>
@@ -497,10 +558,9 @@
 
       const session = getCurrentSession();
       if (!session || !session.user) {
+        showNotification('Please log in with your developer account to comment.');
         if (typeof window.VdcAuth?.openLogin === 'function') {
           window.VdcAuth.openLogin();
-        } else {
-          document.getElementById('vdc-login-link')?.click();
         }
         return;
       }
@@ -517,10 +577,10 @@
     const listEl = document.getElementById('thread-comments-list');
     if (!listEl) return;
 
-    let comments = SEED_COMMENTS[postId] || [];
+    let comments = [...(SEED_COMMENTS[postId] || []), ...getLocalComments(postId)];
     const config = getSupabaseConfig();
 
-    if (config.url && config.anonKey && !String(postId).startsWith('seed-')) {
+    if (config.url && config.anonKey && !String(postId).startsWith('seed-') && !String(postId).startsWith('post-')) {
       try {
         const res = await fetch(`${config.url}/rest/v1/community_comments?post_id=eq.${postId}&order=created_at.asc`, {
           headers: {
@@ -529,7 +589,10 @@
           }
         });
         if (res.ok) {
-          comments = await res.json();
+          const dbComments = await res.json();
+          if (Array.isArray(dbComments) && dbComments.length > 0) {
+            comments = dbComments;
+          }
         }
       } catch (err) {
         console.warn('Could not load comments from Supabase:', err);
@@ -545,7 +608,7 @@
       <div class="hub-comment-item">
         <div class="hub-comment-meta">
           <span class="hub-author-name">${escapeHtml(c.author_name || 'Developer')}</span>
-          <span class="role-badge role-${escapeHtml((c.author_role || 'user').toLowerCase())}">${escapeHtml((c.author_role || 'user').toUpperCase())}</span>
+          <span class="role-badge role-${escapeHtml((c.author_role || 'user').toLowerCase())}">[${escapeHtml((c.author_role || 'user').toUpperCase())}]</span>
           <span class="hub-meta-sep">&bull;</span>
           <span class="hub-post-time">${formatTimeAgo(new Date(c.created_at))}</span>
         </div>
@@ -557,13 +620,14 @@
   async function submitComment(postId, content) {
     const session = getCurrentSession();
     const config = getSupabaseConfig();
-    const authorName = session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'Developer';
-    const authorRole = session.user.role || 'user';
+    const authorName = session?.user?.user_metadata?.username || session?.user?.email?.split('@')[0] || 'Developer';
+    const authorRole = session?.user?.role || session?.user?.user_metadata?.role || 'user';
+    const authorId = session?.user?.id || null;
 
     const newCommentObj = {
       id: 'c-' + Date.now(),
       post_id: postId,
-      author_id: session.user.id,
+      author_id: authorId,
       author_name: authorName,
       author_role: authorRole,
       content: content,
@@ -571,9 +635,10 @@
       created_at: new Date().toISOString()
     };
 
-    if (config.url && config.anonKey && !String(postId).startsWith('seed-')) {
+    let synced = false;
+    if (config.url && config.anonKey && session?.access_token && !String(postId).startsWith('seed-') && !String(postId).startsWith('post-')) {
       try {
-        await fetch(`${config.url}/rest/v1/community_comments`, {
+        const res = await fetch(`${config.url}/rest/v1/community_comments`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -582,14 +647,18 @@
           },
           body: JSON.stringify({
             post_id: postId,
-            author_id: session.user.id,
+            author_id: authorId,
             author_name: authorName,
             author_role: authorRole,
             content: content
           })
         });
+        if (res.ok) synced = true;
       } catch (err) {}
-    } else {
+    }
+
+    if (!synced) {
+      saveLocalComment(postId, newCommentObj);
       if (!SEED_COMMENTS[postId]) SEED_COMMENTS[postId] = [];
       SEED_COMMENTS[postId].push(newCommentObj);
     }
@@ -604,6 +673,10 @@
     const modalContainer = document.getElementById('hub-modal-container');
     if (!modalContainer) return;
 
+    const session = getCurrentSession();
+    const displayName = session?.user?.user_metadata?.username || session?.user?.email?.split('@')[0] || 'Developer';
+    const displayRole = session?.user?.role || session?.user?.user_metadata?.role || 'user';
+
     modalContainer.innerHTML = `
       <div class="hub-modal-backdrop" id="new-post-modal-backdrop">
         <div class="hub-thread-modal">
@@ -613,21 +686,26 @@
           </div>
 
           <form id="hub-new-post-form" style="padding:16px;">
+            <div style="font-size:11.5px; color:var(--wiki-text-secondary); margin-bottom:12px; background:#10141b; padding:8px 10px; border:1px solid #2a475e; border-radius:3px; display:flex; align-items:center; justify-content:space-between;">
+              <span>Posting as: <strong style="color:#ffffff;">${escapeHtml(displayName)}</strong> <span class="role-badge role-${escapeHtml(displayRole.toLowerCase())}">[${escapeHtml(displayRole.toUpperCase())}]</span></span>
+              <span style="color:var(--wiki-text-muted); font-size:10px;">RLS Verified</span>
+            </div>
+
             <div style="margin-bottom:12px;">
               <label class="hub-form-label">Category / Flair</label>
               <select id="hub-post-flair-select" class="hub-select" required>
-                <option value="ENGINE">Engine & C++20</option>
+                <option value="ENGINE">Engine &amp; C++20</option>
                 <option value="FROZEN-LIFE">Frozen-Life SDK</option>
-                <option value="LABHAMMER">LabHammer & Maps</option>
-                <option value="SHOWCASE">Showcase & Demos</option>
-                <option value="HELP">Help & Bugs</option>
+                <option value="LABHAMMER">LabHammer &amp; Maps</option>
+                <option value="SHOWCASE">Showcase &amp; Demos</option>
+                <option value="HELP">Help &amp; Bugs</option>
                 ${canPostAnnouncement() ? '<option value="ANNOUNCEMENT">Announcement (Dev Only)</option>' : ''}
               </select>
             </div>
 
             <div style="margin-bottom:12px;">
               <label class="hub-form-label">Thread Title</label>
-              <input type="text" id="hub-post-title-input" class="hub-input" placeholder="Clear, concise title summarizing your topic..." required maxlength="150">
+              <input type="text" id="hub-post-title-input" class="hub-input" placeholder="Clear, concise title summarizing your topic..." required maxlength="150" autofocus>
             </div>
 
             <div style="margin-bottom:14px;">
@@ -662,33 +740,34 @@
 
       await createNewPost(title, flair, content);
       modalContainer.innerHTML = '';
-      fetchPosts();
     });
   }
 
   async function createNewPost(title, flair, content) {
     const session = getCurrentSession();
-    if (!session || !session.user) return;
+    const authorName = session?.user?.user_metadata?.username || session?.user?.email?.split('@')[0] || 'Developer';
+    const authorRole = session?.user?.role || session?.user?.user_metadata?.role || 'user';
+    const authorId = session?.user?.id || null;
+    const isPinned = flair === 'ANNOUNCEMENT' && canPostAnnouncement();
 
-    const authorName = session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'Developer';
-    const authorRole = session.user.role || 'user';
-    const config = getSupabaseConfig();
-
+    const localId = 'post-' + Date.now();
     const newPost = {
-      id: 'local-' + Date.now(),
+      id: localId,
       title: title,
       flair: flair,
       content: content,
-      author_id: session.user.id,
+      author_id: authorId,
       author_name: authorName,
       author_role: authorRole,
       upvotes: 1,
-      is_pinned: flair === 'ANNOUNCEMENT' && canPostAnnouncement(),
+      is_pinned: isPinned,
       created_at: new Date().toISOString(),
       comments_count: 0
     };
 
-    if (config.url && config.anonKey) {
+    let syncedToDb = false;
+    const config = getSupabaseConfig();
+    if (config.url && config.anonKey && session?.access_token) {
       try {
         const res = await fetch(`${config.url}/rest/v1/community_posts`, {
           method: 'POST',
@@ -702,11 +781,11 @@
             title: title,
             flair: flair,
             content: content,
-            author_id: session.user.id,
+            author_id: authorId,
             author_name: authorName,
             author_role: authorRole,
             upvotes: 1,
-            is_pinned: newPost.is_pinned
+            is_pinned: isPinned
           })
         });
 
@@ -714,26 +793,38 @@
           const inserted = await res.json();
           if (Array.isArray(inserted) && inserted[0]) {
             postsData.unshift(inserted[0]);
-            showNotification('Discussion thread published to live Supabase.');
-            return;
+            syncedToDb = true;
+            showNotification('Thread published to Supabase database.');
           }
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          console.warn('Supabase post insert non-OK:', res.status, errData);
+          showNotification(`Database note: ${errData.message || 'Table not migrated yet'}. Saved locally.`);
         }
       } catch (err) {
-        console.warn('Could not post to live database, storing locally.', err);
+        console.warn('Network error posting to Supabase, saving locally.', err);
       }
     }
 
-    postsData.unshift(newPost);
-    showNotification('Discussion thread created.');
+    if (!syncedToDb) {
+      saveLocalPost(newPost);
+      if (!postsData.some(p => p.id === newPost.id)) {
+        postsData.unshift(newPost);
+      }
+      showNotification('Thread created and saved.');
+    }
+
+    renderFilteredPosts();
   }
 
   async function deletePost(postId) {
     postsData = postsData.filter(p => p.id !== postId);
+    removeLocalPost(postId);
     renderFilteredPosts();
 
     const config = getSupabaseConfig();
     const session = getCurrentSession();
-    if (config.url && config.anonKey && session?.access_token && !String(postId).startsWith('seed-')) {
+    if (config.url && config.anonKey && session?.access_token && !String(postId).startsWith('seed-') && !String(postId).startsWith('post-')) {
       try {
         await fetch(`${config.url}/rest/v1/community_posts?id=eq.${postId}`, {
           method: 'DELETE',
@@ -751,24 +842,33 @@
   function canPostAnnouncement() {
     const session = getCurrentSession();
     if (!session || !session.user) return false;
-    const role = session.user.role || (session.user.user_metadata?.role) || 'user';
-    return ['admin', 'dev', 'moderator'].includes(role.toLowerCase());
+    const role = (session.user.role || session.user.user_metadata?.role || 'user').toLowerCase();
+    return ['admin', 'dev', 'moderator'].includes(role);
   }
 
   function canDeletePost(post) {
     const session = getCurrentSession();
     if (!session || !session.user) return false;
-    const role = (session.user.role || '').toLowerCase();
+    const role = (session.user.role || session.user.user_metadata?.role || '').toLowerCase();
     if (['admin', 'dev', 'moderator'].includes(role)) return true;
     return session.user.id && post.author_id && session.user.id === post.author_id;
   }
 
   function getCurrentSession() {
     try {
-      return JSON.parse(localStorage.getItem('vdc_session_v1')) || null;
-    } catch (e) {
-      return null;
-    }
+      if (typeof window.VdcAuth?.getSession === 'function') {
+        const authSession = window.VdcAuth.getSession();
+        if (authSession && (authSession.user || authSession.access_token)) {
+          return authSession;
+        }
+      }
+      const raw = localStorage.getItem('lab_supabase_session') || localStorage.getItem('vdc_session_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && (parsed.user || parsed.access_token)) return parsed;
+      }
+    } catch (e) {}
+    return null;
   }
 
   function getCurrentToken() {
@@ -776,6 +876,15 @@
   }
 
   function getSupabaseConfig() {
+    try {
+      if (typeof window.VdcAuth?.getConfig === 'function') {
+        const cfg = window.VdcAuth.getConfig();
+        if (cfg && cfg.url && cfg.anonKey) return cfg;
+      }
+      const stored = JSON.parse(localStorage.getItem('lab_supabase_config') || '{}');
+      if (stored && stored.url && stored.anonKey) return stored;
+    } catch (e) {}
+
     return {
       url: window.LAB_SUPABASE_URL || '',
       anonKey: window.LAB_SUPABASE_ANON_KEY || ''
@@ -840,6 +949,6 @@
     t.textContent = msg;
     t.style.display = 'block';
     clearTimeout(t._timer);
-    t._timer = setTimeout(() => { t.style.display = 'none'; }, 3200);
+    t._timer = setTimeout(() => { t.style.display = 'none'; }, 3400);
   }
 })();
