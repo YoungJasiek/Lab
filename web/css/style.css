@@ -4519,3 +4519,68 @@ textarea:user-invalid {
   border-radius: 4px;
 }
 
+/* Comment Vote Controls */
+.hub-comment-vote-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(10, 14, 20, 0.45);
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid rgba(42, 71, 94, 0.35);
+}
+
+.hub-comment-vote-btn {
+  background: transparent;
+  border: none;
+  color: #67788c;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 3px;
+  border-radius: 2px;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.hub-comment-vote-btn:hover {
+  color: #ffffff;
+  transform: scale(1.15);
+}
+
+.hub-comment-vote-btn.upvote:hover {
+  color: #ff8b60;
+}
+
+.hub-comment-vote-btn.downvote:hover {
+  color: #9494ff;
+}
+
+.hub-comment-vote-btn.upvote.voted {
+  color: #ff5722;
+  font-weight: bold;
+}
+
+.hub-comment-vote-btn.downvote.voted {
+  color: #7193ff;
+  font-weight: bold;
+}
+
+.hub-comment-vote-count {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8da4be;
+  font-family: var(--font-mono);
+  min-width: 14px;
+  text-align: center;
+  padding: 0 2px;
+}
+
+.hub-comment-vote-count.voted-up {
+  color: #ff5722;
+}
+
+.hub-comment-vote-count.voted-down {
+  color: #7193ff;
+}
+
+

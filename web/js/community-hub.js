@@ -8,6 +8,7 @@
   'use strict';
 
   const STORAGE_VOTES_KEY = 'lab_community_votes_v1';
+  const STORAGE_COMMENT_VOTES_KEY = 'lab_community_comment_votes_v1';
   const STORAGE_LOCAL_POSTS_KEY = 'lab_community_local_posts_v1';
   const STORAGE_LOCAL_COMMENTS_KEY = 'lab_community_local_comments_v1';
 
@@ -15,11 +16,19 @@
   let activeSort = 'HOT';
   let postsData = [];
   let userVotes = {};
+  let userCommentVotes = {};
+  let activeCommentMap = new Map();
 
   try {
     userVotes = JSON.parse(localStorage.getItem(STORAGE_VOTES_KEY)) || {};
   } catch (e) {
     userVotes = {};
+  }
+
+  try {
+    userCommentVotes = JSON.parse(localStorage.getItem(STORAGE_COMMENT_VOTES_KEY)) || {};
+  } catch (e) {
+    userCommentVotes = {};
   }
 
   // Community hub discussions are persisted in PostgreSQL Supabase (community_posts & community_comments)
@@ -797,6 +806,7 @@
       }
     });
 
+    activeCommentMap = commentMap;
     listEl.innerHTML = rootComments.map(c => renderCommentNodeHtml(c, opAuthorName, postId)).join('');
     wireCommentReplyButtons(postId, opAuthorName);
   }
@@ -806,6 +816,7 @@
     const timeAgo = formatTimeAgo(new Date(comment.created_at));
     const isOp = comment.author_name && opAuthorName && (comment.author_name.toLowerCase() === opAuthorName.toLowerCase());
     const initial = (comment.author_name || 'D').charAt(0).toUpperCase();
+    const userCommentVote = userCommentVotes[comment.id] || 0;
 
     const replies = comment.replies || [];
 
@@ -832,9 +843,14 @@
           </div>
 
           <div class="hub-comment-actions">
-            <button type="button" class="hub-comment-action-btn hub-btn-reply" data-comment-id="${escapeHtml(comment.id)}">Reply</button>
+            <!-- Comment Vote Cluster -->
+            <div class="hub-comment-vote-cluster" data-comment-id="${escapeHtml(comment.id)}">
+              <button type="button" class="hub-comment-vote-btn upvote ${userCommentVote === 1 ? 'voted' : ''}" data-dir="1" title="Upvote">&#9650;</button>
+              <span class="hub-comment-vote-count ${userCommentVote === 1 ? 'voted-up' : userCommentVote === -1 ? 'voted-down' : ''}" id="comment-vote-count-${escapeHtml(comment.id)}">${comment.upvotes || 0}</span>
+              <button type="button" class="hub-comment-vote-btn downvote ${userCommentVote === -1 ? 'voted' : ''}" data-dir="-1" title="Downvote">&#9660;</button>
+            </div>
             <span class="hub-meta-sep">&bull;</span>
-            <span style="font-family:var(--font-mono); font-size:11px; color:#67788c;">${comment.upvotes || 1} upvotes</span>
+            <button type="button" class="hub-comment-action-btn hub-btn-reply" data-comment-id="${escapeHtml(comment.id)}">Reply</button>
             ${canDeleteComment(comment, opAuthorName) ? `
               <span class="hub-meta-sep">&bull;</span>
               <button type="button" class="hub-comment-action-btn hub-btn-delete-comment text-danger" data-comment-id="${escapeHtml(comment.id)}">Delete</button>
@@ -914,6 +930,93 @@
         await deleteComment(postId, commentId, opAuthorName);
       });
     });
+
+    document.querySelectorAll('.hub-comment-vote-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const cluster = btn.closest('.hub-comment-vote-cluster');
+        const commentId = cluster?.getAttribute('data-comment-id');
+        const dir = parseInt(btn.getAttribute('data-dir'), 10);
+        if (commentId && (dir === 1 || dir === -1)) {
+          handleCommentVote(commentId, dir, postId);
+        }
+      });
+    });
+  }
+
+  async function handleCommentVote(commentId, dir, postId) {
+    const session = getCurrentSession();
+    if (!session || !session.user) {
+      showNotification('Please log in with your developer account to vote on comments.');
+      if (typeof window.VdcAuth?.openLogin === 'function') {
+        window.VdcAuth.openLogin();
+      }
+      return;
+    }
+
+    const currentVote = userCommentVotes[commentId] || 0;
+    let delta = 0;
+
+    if (currentVote === dir) {
+      userCommentVotes[commentId] = 0;
+      delta = -dir;
+    } else {
+      userCommentVotes[commentId] = dir;
+      delta = dir - currentVote;
+    }
+
+    localStorage.setItem(STORAGE_COMMENT_VOTES_KEY, JSON.stringify(userCommentVotes));
+
+    const cObj = activeCommentMap.get(commentId);
+    if (cObj) {
+      cObj.upvotes = Math.max(0, (cObj.upvotes || 0) + delta);
+    }
+
+    // Instant zero-flicker DOM update
+    const cluster = document.querySelector(`.hub-comment-vote-cluster[data-comment-id="${commentId}"]`);
+    if (cluster) {
+      const upBtn = cluster.querySelector('.hub-comment-vote-btn.upvote');
+      const downBtn = cluster.querySelector('.hub-comment-vote-btn.downvote');
+      const countEl = cluster.querySelector('.hub-comment-vote-count');
+
+      const newVote = userCommentVotes[commentId] || 0;
+      if (upBtn) upBtn.classList.toggle('voted', newVote === 1);
+      if (downBtn) downBtn.classList.toggle('voted', newVote === -1);
+      if (countEl) {
+        const newCount = cObj ? cObj.upvotes : Math.max(0, parseInt(countEl.textContent || '0', 10) + delta);
+        countEl.textContent = newCount;
+        countEl.classList.toggle('voted-up', newVote === 1);
+        countEl.classList.toggle('voted-down', newVote === -1);
+      }
+    }
+
+    try {
+      const allLocal = JSON.parse(localStorage.getItem(STORAGE_LOCAL_COMMENTS_KEY)) || {};
+      if (allLocal[postId]) {
+        const found = allLocal[postId].find(c => c.id === commentId);
+        if (found) {
+          found.upvotes = Math.max(0, (found.upvotes || 0) + delta);
+          localStorage.setItem(STORAGE_LOCAL_COMMENTS_KEY, JSON.stringify(allLocal));
+        }
+      }
+    } catch (e) {}
+
+    const config = await ensureSupabaseConfig();
+    const token = getCurrentToken() || session?.access_token || config.anonKey;
+    if (config.url && config.anonKey && token && !String(commentId).startsWith('c-')) {
+      const targetUpvotes = cObj ? cObj.upvotes : undefined;
+      if (targetUpvotes !== undefined) {
+        fetch(`${config.url}/rest/v1/community_comments?id=eq.${commentId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': config.anonKey,
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ upvotes: targetUpvotes })
+        }).catch(() => {});
+      }
+    }
   }
 
   async function submitComment(postId, content, parentId = null) {
