@@ -485,11 +485,147 @@
     if (editor) editor.style.display = 'none';
   }
 
+  function getUserRole() {
+    if (!currentSession || !currentSession.user) return 'guest';
+    return (
+      currentSession.user.app_metadata?.role ||
+      currentSession.user.user_metadata?.role ||
+      currentSession.user.role ||
+      'user'
+    ).toLowerCase();
+  }
+
+  function isPrivilegedRole() {
+    const role = getUserRole();
+    return role === 'admin' || role === 'dev' || role === 'moderator';
+  }
+
+  async function fetchWikiProposals(slugFilter = null) {
+    let proposals = [];
+    const config = getSupabaseConfig();
+    if (config.url && config.anonKey) {
+      try {
+        let query = `${config.url}/rest/v1/wiki_proposals?select=*&status=eq.pending&order=created_at.desc`;
+        if (slugFilter) {
+          query += `&slug=eq.${encodeURIComponent(slugFilter)}`;
+        }
+        const res = await fetch(query, {
+          headers: {
+            'apikey': config.anonKey,
+            'Authorization': currentSession ? `Bearer ${currentSession.access_token}` : `Bearer ${config.anonKey}`
+          }
+        });
+        if (res.ok) {
+          proposals = await res.json();
+        }
+      } catch (e) {}
+    }
+
+    try {
+      const local = JSON.parse(localStorage.getItem('lab_wiki_proposals') || '[]');
+      local.forEach(p => {
+        if (p.status === 'pending' && (!slugFilter || p.slug === slugFilter)) {
+          if (!proposals.some(existing => existing.id === p.id)) {
+            proposals.push(p);
+          }
+        }
+      });
+    } catch (e) {}
+
+    return proposals;
+  }
+
+  async function submitWikiProposal(proposal) {
+    try {
+      const local = JSON.parse(localStorage.getItem('lab_wiki_proposals') || '[]');
+      local.unshift(proposal);
+      localStorage.setItem('lab_wiki_proposals', JSON.stringify(local));
+
+      const myProposals = JSON.parse(localStorage.getItem('lab_my_proposals') || '[]');
+      myProposals.unshift(proposal);
+      localStorage.setItem('lab_my_proposals', JSON.stringify(myProposals));
+    } catch (e) {}
+
+    const config = getSupabaseConfig();
+    if (config.url && config.anonKey && currentSession && currentSession.access_token) {
+      try {
+        await fetch(`${config.url}/rest/v1/wiki_proposals`, {
+          method: 'POST',
+          headers: {
+            'apikey': config.anonKey,
+            'Authorization': `Bearer ${currentSession.access_token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(proposal)
+        });
+      } catch (e) {}
+    }
+  }
+
+  async function updateProposalStatus(proposalId, newStatus, approvedContent = null, slug = null, title = null) {
+    try {
+      const local = JSON.parse(localStorage.getItem('lab_wiki_proposals') || '[]');
+      const item = local.find(p => p.id === proposalId);
+      if (item) {
+        item.status = newStatus;
+        item.reviewed_by = currentSession?.user?.id;
+        item.reviewed_by_name = currentSession?.user?.user_metadata?.username || currentSession?.user?.email;
+        item.reviewed_at = new Date().toISOString();
+        localStorage.setItem('lab_wiki_proposals', JSON.stringify(local));
+      }
+    } catch (e) {}
+
+    if (newStatus === 'approved' && approvedContent && slug) {
+      localStorage.setItem('lab_page_content_' + slug, approvedContent);
+
+      const config = getSupabaseConfig();
+      if (config.url && config.anonKey && currentSession && currentSession.access_token) {
+        try {
+          await fetch(`${config.url}/rest/v1/wiki_articles`, {
+            method: 'POST',
+            headers: {
+              'apikey': config.anonKey,
+              'Authorization': `Bearer ${currentSession.access_token}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'resolution=merge-duplicates'
+            },
+            body: JSON.stringify({
+              slug: slug,
+              title: title || slug,
+              wikitext: approvedContent,
+              updated_by: currentSession.user.id,
+              updated_at: new Date().toISOString()
+            })
+          });
+        } catch (e) {}
+      }
+    }
+
+    const config = getSupabaseConfig();
+    if (config.url && config.anonKey && currentSession && currentSession.access_token) {
+      try {
+        await fetch(`${config.url}/rest/v1/wiki_proposals?id=eq.${encodeURIComponent(proposalId)}`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': config.anonKey,
+            'Authorization': `Bearer ${currentSession.access_token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            status: newStatus,
+            reviewed_by: currentSession.user?.id,
+            reviewed_by_name: currentSession.user?.user_metadata?.username || currentSession.user?.email,
+            reviewed_at: new Date().toISOString()
+          })
+        });
+      } catch (e) {}
+    }
+  }
+
   function initInPageEditor() {
     const editTab = document.getElementById('vdc-tab-edit');
     if (!editTab) return;
 
-    // Check if URL specifies action=edit or hash #edit
     if (window.location.search.includes('action=edit') || window.location.hash === '#edit') {
       setTimeout(() => openWikiEditor(), 150);
     }
@@ -506,8 +642,8 @@
       openWikiEditor();
     });
 
-    // Check for saved local article override on page load
     initArticleOverride();
+    checkPendingProposalsForPage();
   }
 
   function openWikiEditor() {
@@ -526,7 +662,6 @@
     if (editTab) editTab.classList.add('active');
     if (readTab) readTab.classList.remove('active');
 
-    // Ensure content body is safely wrapped
     let contentBody = document.getElementById('mw-content-body');
     if (!contentBody) {
       contentBody = document.createElement('div');
@@ -535,7 +670,7 @@
 
       let node = heading.nextElementSibling;
       while (node) {
-        if (node.tagName === 'SCRIPT' || node.id === 'mw-editform-container' || node.id === 'mw-local-revision-bar' || node.classList.contains('vdc-toast')) {
+        if (node.tagName === 'SCRIPT' || node.id === 'mw-editform-container' || node.id === 'mw-local-revision-bar' || node.id === 'mw-mod-alert-bar' || node.id === 'mw-pending-proposal-banner' || node.classList.contains('vdc-toast')) {
           node = node.nextElementSibling;
           continue;
         }
@@ -546,20 +681,28 @@
       heading.parentNode.insertBefore(contentBody, heading.nextSibling);
     }
 
-    // Hide original content body
     contentBody.style.display = 'none';
 
     let editor = document.getElementById('mw-editform-container');
+    const userRole = getUserRole();
+    const privileged = isPrivilegedRole();
+
     if (!editor) {
       editor = document.createElement('div');
       editor.id = 'mw-editform-container';
       editor.className = 'mw-editform-container';
 
-      const userRole = currentSession?.user?.role || currentSession?.user?.user_metadata?.role || 'user';
+      const noticeHtml = privileged
+        ? `<p><strong>Privileged Author Mode:</strong> You are logged in as <span class="role-badge role-${escapeHtml(userRole)}">${escapeHtml(userRole.toUpperCase())}</span>. Changes saved here will be published immediately to the live documentation.</p>`
+        : `<p><strong>Community Review Notice:</strong> As a contributor (<span class="role-badge role-user">USER</span>), your changes will be submitted as a <strong>Review Proposal (Wiki Pull Request)</strong>. A moderator or developer must review and approve your submission before it goes live.</p>`;
+
+      const saveBtnText = privileged
+        ? 'Save page (Publish live)'
+        : 'Submit change for review';
 
       editor.innerHTML = `
         <div class="mw-editnotice">
-          <p><strong>Notice:</strong> You are editing an official Lab Developer Community article. Ensure technical accuracy and adhere to C++20 and OpenGL 4.5+ DSA architectural conventions. (<span class="role-badge role-${escapeHtml(userRole)}">${escapeHtml(userRole.toUpperCase())}</span>)</p>
+          ${noticeHtml}
         </div>
 
         <div class="mw-toolbar" role="toolbar" aria-label="MediaWiki edit toolbar">
@@ -588,11 +731,11 @@
         <div class="mw-edit-options">
           <div class="mw-summary-row">
             <label for="wpSummary" class="mw-summary-label">Summary:</label>
-            <input type="text" id="wpSummary" class="mw-summary-input" maxlength="200" placeholder="Briefly summarize your changes">
+            <input type="text" id="wpSummary" class="mw-summary-input" maxlength="200" placeholder="${privileged ? 'Briefly summarize your changes' : 'Explain why this change should be approved by moderators'}">
           </div>
 
           <div class="mw-edit-buttons">
-            <button type="button" id="wpSave" class="vdc-btn-save">Save page</button>
+            <button type="button" id="wpSave" class="vdc-btn-save">${saveBtnText}</button>
             <button type="button" id="wpPreview" class="vdc-btn-preview">Show preview</button>
             <button type="button" id="wpCancel" class="vdc-btn-cancel">Cancel</button>
             <span class="mw-edit-help-link">
@@ -624,6 +767,7 @@
     const saveBtn = editor.querySelector('#wpSave');
     const previewBtn = editor.querySelector('#wpPreview');
     const cancelBtn = editor.querySelector('#wpCancel');
+    const summaryInput = editor.querySelector('#wpSummary');
 
     editor.querySelectorAll('.mw-toolbar-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -649,41 +793,73 @@
 
     saveBtn.addEventListener('click', async () => {
       const content = textarea.value;
-      localStorage.setItem('lab_page_content_' + currentPage, content);
+      const summary = summaryInput ? summaryInput.value.trim() : '';
+      const privileged = isPrivilegedRole();
 
-      // Save for backward compatibility
-      try {
-        const edits = JSON.parse(localStorage.getItem(STORAGE_EDITS_KEY) || '{}');
-        edits[currentPage] = content;
-        localStorage.setItem(STORAGE_EDITS_KEY, JSON.stringify(edits));
-      } catch (e) {}
+      if (privileged) {
+        localStorage.setItem('lab_page_content_' + currentPage, content);
 
-      // Attempt Supabase sync if connected
-      const config = getSupabaseConfig();
-      if (config.url && config.anonKey && currentSession && currentSession.access_token) {
         try {
-          await fetch(`${config.url}/rest/v1/wiki_articles`, {
-            method: 'POST',
-            headers: {
-              'apikey': config.anonKey,
-              'Authorization': `Bearer ${currentSession.access_token}`,
-              'Content-Type': 'application/json',
-              'Prefer': 'resolution=merge-duplicates'
-            },
-            body: JSON.stringify({
-              slug: currentPage,
-              title: heading.dataset.origTitle || document.title,
-              wikitext: content,
-              updated_by: currentSession.user.id,
-              updated_at: new Date().toISOString()
-            })
-          });
+          const edits = JSON.parse(localStorage.getItem(STORAGE_EDITS_KEY) || '{}');
+          edits[currentPage] = content;
+          localStorage.setItem(STORAGE_EDITS_KEY, JSON.stringify(edits));
         } catch (e) {}
-      }
 
-      contentBody.innerHTML = formatWikitextOrHtml(content);
-      closeWikiEditor(heading, contentBody, editor, true, currentPage);
-      showToast('Page saved successfully!', 'success');
+        const config = getSupabaseConfig();
+        if (config.url && config.anonKey && currentSession && currentSession.access_token) {
+          try {
+            await fetch(`${config.url}/rest/v1/wiki_articles`, {
+              method: 'POST',
+              headers: {
+                'apikey': config.anonKey,
+                'Authorization': `Bearer ${currentSession.access_token}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'resolution=merge-duplicates'
+              },
+              body: JSON.stringify({
+                slug: currentPage,
+                title: heading.dataset.origTitle || document.title,
+                wikitext: content,
+                updated_by: currentSession.user.id,
+                updated_at: new Date().toISOString()
+              })
+            });
+          } catch (e) {}
+        }
+
+        contentBody.innerHTML = formatWikitextOrHtml(content);
+        closeWikiEditor(heading, contentBody, editor, true, currentPage);
+        showToast('Page changes published live!', 'success');
+      } else {
+        if (!summary) {
+          showToast('Please provide an edit summary explaining your proposed change.', 'warn');
+          if (summaryInput) summaryInput.focus();
+          return;
+        }
+
+        const proposal = {
+          id: 'prop_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+          type: 'edit',
+          slug: currentPage,
+          title: heading.dataset.origTitle || document.title,
+          summary: summary,
+          content: content,
+          status: 'pending',
+          author_id: currentSession?.user?.id || null,
+          author_name: currentSession?.user?.user_metadata?.username || currentSession?.user?.email?.split('@')[0] || 'Contributor',
+          author_role: getUserRole(),
+          created_at: new Date().toISOString()
+        };
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Submitting...';
+
+        await submitWikiProposal(proposal);
+
+        closeWikiEditor(heading, contentBody, editor, false, currentPage);
+        showToast('Change proposal submitted! A moderator or dev will review your submission.', 'success');
+        renderUserPendingBanner(heading, proposal);
+      }
     });
 
     cancelBtn.addEventListener('click', () => {
@@ -709,6 +885,148 @@
     }
   }
 
+  function renderUserPendingBanner(heading, proposal) {
+    let banner = document.getElementById('mw-pending-proposal-banner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'mw-pending-proposal-banner';
+      banner.className = 'mw-pending-proposal-banner';
+      heading.parentNode.insertBefore(banner, heading.nextSibling);
+    }
+    banner.innerHTML = `
+      <strong>Pending Review (Pull Request):</strong> Your proposed change for this page has been submitted for moderation. (Summary: "${escapeHtml(proposal.summary)}")
+    `;
+  }
+
+  async function checkPendingProposalsForPage() {
+    const heading = document.querySelector('.firstHeading, .page-title, h1');
+    if (!heading) return;
+
+    const currentPage = window.location.pathname.split('/').pop() || 'index.html';
+    const contentBody = document.getElementById('mw-content-body');
+    const privileged = isPrivilegedRole();
+
+    if (privileged) {
+      const proposals = await fetchWikiProposals(currentPage);
+      let alertBar = document.getElementById('mw-mod-alert-bar');
+
+      if (proposals.length > 0) {
+        if (!alertBar) {
+          alertBar = document.createElement('div');
+          alertBar.id = 'mw-mod-alert-bar';
+          alertBar.className = 'mw-mod-alert-bar';
+          heading.parentNode.insertBefore(alertBar, heading.nextSibling);
+        }
+        alertBar.innerHTML = `
+          <div>
+            <strong>Moderation Queue:</strong> This article has <strong>${proposals.length}</strong> pending change proposal(s) awaiting review.
+          </div>
+          <button type="button" id="btn-review-proposal" class="mw-btn-review-proposal">Review Proposals (${proposals.length})</button>
+        `;
+        alertBar.querySelector('#btn-review-proposal').addEventListener('click', () => {
+          showProposalReviewModal(proposals, currentPage, heading, contentBody);
+        });
+      } else if (alertBar) {
+        alertBar.remove();
+      }
+    } else {
+      try {
+        const myProps = JSON.parse(localStorage.getItem('lab_my_proposals') || '[]');
+        const pendingForPage = myProps.find(p => p.slug === currentPage && p.status === 'pending');
+        if (pendingForPage) {
+          renderUserPendingBanner(heading, pendingForPage);
+        }
+      } catch (e) {}
+    }
+  }
+
+  function showProposalReviewModal(proposals, currentPage, heading, contentBody) {
+    let modalOverlay = document.getElementById('mw-proposal-modal-overlay');
+    if (modalOverlay) modalOverlay.remove();
+
+    modalOverlay = document.createElement('div');
+    modalOverlay.id = 'mw-proposal-modal-overlay';
+    modalOverlay.className = 'mw-proposal-modal-overlay';
+
+    let itemsHtml = proposals.map(p => `
+      <div class="mw-proposal-item" data-id="${escapeHtml(p.id)}">
+        <div class="mw-proposal-meta">
+          <span><strong>${escapeHtml(p.author_name)}</strong> (<span class="role-badge role-${escapeHtml(p.author_role || 'user')}">${escapeHtml((p.author_role || 'user').toUpperCase())}</span>) &bull; Target: <code>${escapeHtml(p.slug)}</code></span>
+          <span>${new Date(p.created_at).toLocaleString()}</span>
+        </div>
+        <div class="mw-proposal-summary">
+          <strong>Edit Summary:</strong> ${escapeHtml(p.summary || 'No summary provided')}
+        </div>
+        <div class="mw-proposal-content-box">${escapeHtml(p.content)}</div>
+        <div class="mw-proposal-actions">
+          <button type="button" class="btn-approve-pr" data-id="${escapeHtml(p.id)}">Approve &amp; Publish Live</button>
+          <button type="button" class="btn-reject-pr" data-id="${escapeHtml(p.id)}">Reject</button>
+        </div>
+      </div>
+    `).join('');
+
+    if (proposals.length === 0) {
+      itemsHtml = '<p style="text-align:center; color:#8a96a8; padding:20px 0;">No pending change proposals for this page.</p>';
+    }
+
+    modalOverlay.innerHTML = `
+      <div class="mw-proposal-modal" role="dialog" aria-labelledby="mod-modal-title">
+        <div class="mw-proposal-modal-header">
+          <h3 id="mod-modal-title">Wiki Pull Requests &amp; Change Proposals (${proposals.length})</h3>
+          <button type="button" id="btn-close-prop-modal" style="background:none; border:none; color:#8a96a8; font-size:18px; cursor:pointer;">&times;</button>
+        </div>
+        <div class="mw-proposal-modal-body">
+          ${itemsHtml}
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modalOverlay);
+
+    modalOverlay.querySelector('#btn-close-prop-modal').addEventListener('click', () => {
+      modalOverlay.remove();
+    });
+
+    modalOverlay.addEventListener('click', (e) => {
+      if (e.target === modalOverlay) modalOverlay.remove();
+    });
+
+    modalOverlay.querySelectorAll('.btn-approve-pr').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-id');
+        const prop = proposals.find(p => p.id === id);
+        if (!prop) return;
+
+        btn.disabled = true;
+        btn.textContent = 'Publishing...';
+
+        await updateProposalStatus(id, 'approved', prop.content, prop.slug, prop.title);
+        showToast('Proposal approved and published to live documentation!', 'success');
+
+        if (contentBody && prop.slug === currentPage) {
+          contentBody.innerHTML = formatWikitextOrHtml(prop.content);
+        }
+
+        modalOverlay.remove();
+        checkPendingProposalsForPage();
+      });
+    });
+
+    modalOverlay.querySelectorAll('.btn-reject-pr').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-id');
+        btn.disabled = true;
+        btn.textContent = 'Rejecting...';
+
+        await updateProposalStatus(id, 'rejected');
+        showToast('Proposal rejected.', 'info');
+
+        modalOverlay.remove();
+        checkPendingProposalsForPage();
+      });
+    });
+  }
+
   function initArticleOverride() {
     const currentPage = window.location.pathname.split('/').pop() || 'index.html';
     const saved = localStorage.getItem('lab_page_content_' + currentPage);
@@ -725,7 +1043,7 @@
 
       let node = heading.nextElementSibling;
       while (node) {
-        if (node.tagName === 'SCRIPT' || node.id === 'mw-editform-container' || node.id === 'mw-local-revision-bar' || node.classList.contains('vdc-toast')) {
+        if (node.tagName === 'SCRIPT' || node.id === 'mw-editform-container' || node.id === 'mw-local-revision-bar' || node.id === 'mw-mod-alert-bar' || node.id === 'mw-pending-proposal-banner' || node.classList.contains('vdc-toast')) {
           node = node.nextElementSibling;
           continue;
         }
@@ -832,8 +1150,15 @@
         return currentSession;
       }
     },
+    getUserRole: getUserRole,
+    isPrivilegedRole: isPrivilegedRole,
+    fetchWikiProposals: fetchWikiProposals,
+    submitWikiProposal: submitWikiProposal,
+    updateProposalStatus: updateProposalStatus,
+    showProposalReviewModal: showProposalReviewModal,
     getConfig: getSupabaseConfig,
     showToast: showToast
   };
 })();
+
 
