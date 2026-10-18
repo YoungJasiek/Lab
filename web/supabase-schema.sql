@@ -197,3 +197,14 @@ USING (
     OR (auth.jwt() -> 'user_metadata' ->> 'role') IN ('admin', 'dev', 'moderator')
 );
 
+DROP POLICY IF EXISTS "Privileged roles can delete spam proposals" ON public.wiki_proposals;
+CREATE POLICY "Privileged roles can delete spam proposals"
+ON public.wiki_proposals
+FOR DELETE
+TO authenticated
+USING (
+    (auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin', 'dev', 'moderator')
+    OR (auth.jwt() -> 'user_metadata' ->> 'role') IN ('admin', 'dev', 'moderator')
+);
+
+
