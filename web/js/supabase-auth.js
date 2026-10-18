@@ -186,7 +186,7 @@
       toast.id = 'vdc-toast-msg';
       toast.style.cssText = `
         position: fixed; bottom: 20px; right: 20px;
-        background: #1c2736; border: 1px solid #3b5f88; border-left: 4px solid #648cc8;
+        background: #141c26; border: 1px solid #2a475e; border-left: 4px solid #66c0f4;
         color: #ffffff; padding: 10px 16px; border-radius: 3px; font-size: 12px;
         box-shadow: 0 4px 16px rgba(0,0,0,0.6); z-index: 100000;
         transition: opacity 0.3s ease, transform 0.3s ease;
@@ -208,9 +208,9 @@
       toast.style.borderColor = '#685025';
       toast.style.borderLeftColor = '#e0982d';
     } else {
-      toast.style.background = '#1c2736';
-      toast.style.borderColor = '#3b5f88';
-      toast.style.borderLeftColor = '#648cc8';
+      toast.style.background = '#141c26';
+      toast.style.borderColor = '#2a475e';
+      toast.style.borderLeftColor = '#66c0f4';
     }
 
     toast.textContent = message;
@@ -248,8 +248,8 @@
       container.innerHTML = `
         <span style="color:#a8b4c4; font-size:11px;">Logged in as: <strong style="color:#ffffff;">${escapeHtml(displayName)}</strong></span>
         <span class="role-badge role-${escapeHtml(role)}">${escapeHtml(role.toUpperCase())}</span>
-        <span class="pipe-sep" style="color:#4a5260; margin:0 4px;">&bull;</span>
-        <a href="#" id="vdc-logout-link" class="user-link" style="color:#648cc8;">Log out</a>
+        <span class="pipe-sep" style="color:#2a475e; margin:0 4px;">&bull;</span>
+        <a href="#" id="vdc-logout-link" class="user-link" style="color:#66c0f4;">Log out</a>
       `;
 
       document.getElementById('vdc-logout-link')?.addEventListener('click', (e) => {
@@ -259,7 +259,7 @@
     } else {
       container.innerHTML = `
         <a href="#" id="vdc-create-account" class="user-link">Create account</a>
-        <span class="pipe-sep" style="color:#4a5260; margin:0 4px;">&bull;</span>
+        <span class="pipe-sep" style="color:#2a475e; margin:0 4px;">&bull;</span>
         <a href="#" id="vdc-login-link" class="user-link">Log in</a>
       `;
 
@@ -285,22 +285,22 @@
       modal.id = 'vdc-auth-modal';
       modal.style.cssText = `
         position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-        background: rgba(0,0,0,0.82); z-index: 99999;
+        background: rgba(10, 14, 20, 0.88); z-index: 99999;
         display: flex; align-items: center; justify-content: center;
       `;
       document.body.appendChild(modal);
     }
 
     modal.innerHTML = `
-      <div style="background:#262626; border:1px solid rgba(255,255,255,0.22); width:430px; max-width:92vw; border-radius:4px; padding:20px; box-shadow:0 8px 28px rgba(0,0,0,0.85); color:#e2e8f0; font-family:-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Arial, sans-serif;">
-        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.15); padding-bottom:8px; margin-bottom:12px;">
+      <div style="background:#171a21; border:1px solid #2a475e; width:430px; max-width:92vw; border-radius:4px; padding:20px; box-shadow:0 8px 32px rgba(0,0,0,0.9); color:#f0f4f8; font-family:-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Arial, sans-serif;">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #2a475e; padding-bottom:8px; margin-bottom:12px;">
           <h3 style="margin:0; font-size:14px; font-weight:700; color:#ffffff;">
             ${mode === 'register' ? 'Create a Community Account' : 'Log in to Lab Developer Community'}
           </h3>
           <button id="auth-modal-close" style="background:none; border:none; color:#8893a2; font-size:18px; cursor:pointer;" aria-label="Close dialog">&times;</button>
         </div>
 
-        <p style="font-size:11.5px; color:#b9b7b5; margin-bottom:14px; line-height:1.45;">
+        <p style="font-size:11.5px; color:#a8b8c8; margin-bottom:14px; line-height:1.45;">
           ${mode === 'register' 
             ? 'Sign up with your developer e-mail. Documentation editing permissions are managed via Supabase RBAC.' 
             : 'Authenticate with your Supabase community credentials to participate in discussions and manage documentation.'}
@@ -309,26 +309,26 @@
         <form id="auth-modal-form" style="display:flex; flex-direction:column; gap:11px;">
           ${mode === 'register' ? `
             <div>
-              <label style="font-size:11px; font-weight:bold; color:#b5c0ce; display:block; margin-bottom:4px;">Display Username:</label>
-              <input type="text" id="auth-username" class="editor-input" style="width:100%; height:28px; background:rgba(0,0,0,0.35); border:1px solid #555; color:#fff; padding:4px 8px; border-radius:2px;" placeholder="e.g. GordonFreeman" required maxlength="32">
+              <label style="font-size:11px; font-weight:bold; color:#a4b6cb; display:block; margin-bottom:4px;">Display Username:</label>
+              <input type="text" id="auth-username" class="editor-input" style="width:100%; height:28px; background:#0e1218; border:1px solid #2a475e; color:#fff; padding:4px 8px; border-radius:2px;" placeholder="e.g. GordonFreeman" required maxlength="32">
             </div>
           ` : ''}
 
           <div>
-            <label style="font-size:11px; font-weight:bold; color:#b5c0ce; display:block; margin-bottom:4px;">E-mail Address:</label>
-            <input type="email" id="auth-email" class="editor-input" style="width:100%; height:28px; background:rgba(0,0,0,0.35); border:1px solid #555; color:#fff; padding:4px 8px; border-radius:2px;" placeholder="developer@lab-engine.dev" required autocomplete="email">
+            <label style="font-size:11px; font-weight:bold; color:#a4b6cb; display:block; margin-bottom:4px;">E-mail Address:</label>
+            <input type="email" id="auth-email" class="editor-input" style="width:100%; height:28px; background:#0e1218; border:1px solid #2a475e; color:#fff; padding:4px 8px; border-radius:2px;" placeholder="developer@lab-engine.dev" required autocomplete="email">
           </div>
 
           <div>
-            <label style="font-size:11px; font-weight:bold; color:#b5c0ce; display:block; margin-bottom:4px;">Password:</label>
-            <input type="password" id="auth-password" class="editor-input" style="width:100%; height:28px; background:rgba(0,0,0,0.35); border:1px solid #555; color:#fff; padding:4px 8px; border-radius:2px;" placeholder="••••••••••••" required autocomplete="current-password">
+            <label style="font-size:11px; font-weight:bold; color:#a4b6cb; display:block; margin-bottom:4px;">Password:</label>
+            <input type="password" id="auth-password" class="editor-input" style="width:100%; height:28px; background:#0e1218; border:1px solid #2a475e; color:#fff; padding:4px 8px; border-radius:2px;" placeholder="••••••••••••" required autocomplete="current-password">
           </div>
 
           <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
-            <a href="#" id="auth-switch-mode" style="font-size:11px; color:#648cc8; text-decoration:none;">
+            <a href="#" id="auth-switch-mode" style="font-size:11px; color:#66c0f4; text-decoration:none;">
               ${mode === 'register' ? 'Already have an account? Log in' : "Don't have an account? Sign up"}
             </a>
-            <button type="submit" id="auth-submit-btn" class="vdc-btn-wiki-contents" style="cursor:pointer; border:none; padding:7px 18px; font-size:12px;">
+            <button type="submit" id="auth-submit-btn" class="vdc-btn-wiki-contents" style="cursor:pointer; border:none; padding:7px 18px; font-size:12px; background:#2a475e; color:#ffffff;">
               ${mode === 'register' ? 'Create Account' : 'Log In'}
             </button>
           </div>
@@ -522,7 +522,7 @@
     editor.id = 'vdc-inpage-editor';
     editor.className = 'vdc-inpage-editor';
     editor.style.cssText = `
-      background: #262626; border: 1px solid rgba(255,255,255,0.22);
+      background: #171a21; border: 1px solid #2a475e;
       border-radius: 4px; padding: 16px; margin: 14px 0 20px 0;
     `;
 
@@ -530,8 +530,8 @@
     const userRole = currentSession?.user?.role || 'admin';
 
     editor.innerHTML = `
-      <div style="border-bottom:1px solid rgba(255,255,255,0.15); padding-bottom:8px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
-        <h2 style="font-size:14px; margin:0; color:#fff;">Editing: <span style="color:#648cc8;">${escapeHtml(currentPage)}</span> (Valve Developer Community)</h2>
+      <div style="border-bottom:1px solid #2a475e; padding-bottom:8px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+        <h2 style="font-size:14px; margin:0; color:#fff;">Editing: <span style="color:#66c0f4;">${escapeHtml(currentPage)}</span> (Valve Developer Community)</h2>
         <span class="role-badge role-${escapeHtml(userRole)}">${escapeHtml(userRole.toUpperCase())} MODE</span>
       </div>
 
@@ -668,9 +668,9 @@
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/'''(.+?)'''/g, '<strong>$1</strong>')
       .replace(/''(.+?)''/g, '<em>$1</em>')
-      .replace(/\[\[(.+?)\|(.+?)\]\]/g, '<a href="$1" style="color:#648cc8;">$2</a>')
-      .replace(/\[\[(.+?)\]\]/g, '<a href="$1" style="color:#648cc8;">$1</a>')
-      .replace(/\{\{Note\|(.+?)\}\}/g, '<div style="background:#1c2736; border-left:3px solid #648cc8; padding:8px; margin:8px 0; color:#d1e2f7;">$1</div>')
+      .replace(/\[\[(.+?)\|(.+?)\]\]/g, '<a href="$1" style="color:#66c0f4;">$2</a>')
+      .replace(/\[\[(.+?)\]\]/g, '<a href="$1" style="color:#66c0f4;">$1</a>')
+      .replace(/\{\{Note\|(.+?)\}\}/g, '<div style="background:#132235; border-left:3px solid #66c0f4; padding:8px; margin:8px 0; color:#d1e6f9;">$1</div>')
       .replace(/\n\n/g, '<p></p>')
       .replace(/\n/g, '<br>');
   }
