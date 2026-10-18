@@ -835,7 +835,7 @@
             <button type="button" class="hub-comment-action-btn hub-btn-reply" data-comment-id="${escapeHtml(comment.id)}">Reply</button>
             <span class="hub-meta-sep">&bull;</span>
             <span style="font-family:var(--font-mono); font-size:11px; color:#67788c;">${comment.upvotes || 1} upvotes</span>
-            ${canDeleteComment(comment) ? `
+            ${canDeleteComment(comment, opAuthorName) ? `
               <span class="hub-meta-sep">&bull;</span>
               <button type="button" class="hub-comment-action-btn hub-btn-delete-comment text-danger" data-comment-id="${escapeHtml(comment.id)}">Delete</button>
             ` : ''}
@@ -944,7 +944,8 @@
           headers: {
             'Content-Type': 'application/json',
             'apikey': config.anonKey,
-            'Authorization': `Bearer ${token}`
+            'Authorization': `Bearer ${token}`,
+            'Prefer': 'return=representation'
           },
           body: JSON.stringify({
             post_id: postId,
@@ -955,7 +956,13 @@
             content: content
           })
         });
-        if (res.ok) synced = true;
+        if (res.ok) {
+          const inserted = await res.json();
+          if (Array.isArray(inserted) && inserted[0]) {
+            newCommentObj.id = inserted[0].id;
+            synced = true;
+          }
+        }
       } catch (err) {}
     }
 
@@ -1312,19 +1319,16 @@
   async function deleteComment(postId, commentId, opAuthorName) {
     removeLocalComment(postId, commentId);
 
-    if (SEED_COMMENTS[postId]) {
-      SEED_COMMENTS[postId] = SEED_COMMENTS[postId].filter(c => c.id !== commentId && c.parent_id !== commentId);
-    }
-
-    const config = getSupabaseConfig();
+    const config = await ensureSupabaseConfig();
     const session = getCurrentSession();
-    if (config.url && config.anonKey && session?.access_token && !String(commentId).startsWith('c-seed-') && !String(commentId).startsWith('c-1') && !String(commentId).startsWith('c-2') && !String(commentId).startsWith('c-3')) {
+    const token = getCurrentToken() || session?.access_token || config.anonKey;
+    if (config.url && config.anonKey && token && !String(commentId).startsWith('c-')) {
       try {
         await fetch(`${config.url}/rest/v1/community_comments?id=eq.${commentId}`, {
           method: 'DELETE',
           headers: {
             'apikey': config.anonKey,
-            'Authorization': `Bearer ${session.access_token}`
+            'Authorization': `Bearer ${token}`
           }
         });
       } catch (err) {}
@@ -1352,20 +1356,27 @@
     if (!session || !session.user) return false;
     const role = (session.user.role || session.user.user_metadata?.role || '').toLowerCase();
     if (['admin', 'dev', 'moderator'].includes(role)) return true;
-    if (session.user.id && post.author_id && session.user.id === post.author_id) return true;
+    if (session.user.id && post.author_id && String(session.user.id) === String(post.author_id)) return true;
     const currentName = session.user.user_metadata?.username || session.user.email?.split('@')[0];
     if (currentName && post.author_name && currentName.toLowerCase() === post.author_name.toLowerCase()) return true;
     return false;
   }
 
-  function canDeleteComment(comment) {
+  function canDeleteComment(comment, opAuthorName = null) {
     const session = getCurrentSession();
     if (!session || !session.user) return false;
     const role = (session.user.role || session.user.user_metadata?.role || '').toLowerCase();
+    // 1. Staff (admin, dev, moderator) can always delete
     if (['admin', 'dev', 'moderator'].includes(role)) return true;
-    if (session.user.id && comment.author_id && session.user.id === comment.author_id) return true;
+
+    // 2. The author who wrote the comment can always delete it
+    if (session.user.id && comment.author_id && String(session.user.id) === String(comment.author_id)) return true;
     const currentName = session.user.user_metadata?.username || session.user.email?.split('@')[0];
     if (currentName && comment.author_name && currentName.toLowerCase() === comment.author_name.toLowerCase()) return true;
+
+    // 3. Thread OP can moderate/delete comments in their thread
+    if (currentName && opAuthorName && currentName.toLowerCase() === opAuthorName.toLowerCase()) return true;
+
     return false;
   }
 
