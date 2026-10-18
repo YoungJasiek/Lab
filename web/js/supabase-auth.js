@@ -242,15 +242,32 @@
   function renderUserTools(container) {
     if (currentSession && currentSession.user) {
       const user = currentSession.user;
-      const role = user.role || (user.user_metadata && user.user_metadata.role) || 'user';
+      const role = getUserRole();
       const displayName = user.user_metadata?.username || user.email?.split('@')[0] || 'User';
+      const privileged = isPrivilegedRole();
+
+      const modQueueHtml = privileged
+        ? `<span class="pipe-sep" style="color:#2a475e; margin:0 4px;">&bull;</span>
+           <a href="#" id="vdc-mod-queue-btn" class="user-link" style="color:#66c0f4; font-weight:bold;">Review PRs <span id="vdc-pr-counter" class="role-badge role-dev" style="margin-left:2px; font-size:9px;">0</span></a>`
+        : '';
 
       container.innerHTML = `
         <span style="color:#a8b4c4; font-size:11px;">Logged in as: <strong style="color:#ffffff;">${escapeHtml(displayName)}</strong></span>
         <span class="role-badge role-${escapeHtml(role)}">${escapeHtml(role.toUpperCase())}</span>
+        ${modQueueHtml}
         <span class="pipe-sep" style="color:#2a475e; margin:0 4px;">&bull;</span>
-        <a href="#" id="vdc-logout-link" class="user-link" style="color:#66c0f4;">Log out</a>
+        <a href="#" id="vdc-logout-link" class="user-link" style="color:#8a96a8;">Log out</a>
       `;
+
+      if (privileged) {
+        document.getElementById('vdc-mod-queue-btn')?.addEventListener('click', async (e) => {
+          e.preventDefault();
+          const allProposals = await fetchWikiProposals();
+          showProposalReviewModal(allProposals, null, null, null);
+        });
+        updatePrCounters();
+        initSidebarModLink();
+      }
 
       document.getElementById('vdc-logout-link')?.addEventListener('click', (e) => {
         e.preventDefault();
@@ -644,6 +661,8 @@
 
     initArticleOverride();
     checkPendingProposalsForPage();
+    initSidebarModLink();
+    updatePrCounters();
   }
 
   function openWikiEditor() {
@@ -1023,9 +1042,54 @@
 
         modalOverlay.remove();
         checkPendingProposalsForPage();
+        updatePrCounters();
       });
     });
   }
+
+  async function updatePrCounters() {
+    if (!isPrivilegedRole()) return;
+    try {
+      const all = await fetchWikiProposals();
+      const count = all.length;
+      const topCounter = document.getElementById('vdc-pr-counter');
+      if (topCounter) {
+        topCounter.textContent = count;
+        topCounter.style.background = count > 0 ? '#3b82f6' : '#243042';
+      }
+      const sidebarCounter = document.getElementById('sidebar-pr-count');
+      if (sidebarCounter) {
+        sidebarCounter.textContent = count;
+      }
+    } catch (e) {}
+  }
+
+  function initSidebarModLink() {
+    if (!isPrivilegedRole()) return;
+    const toolsBlocks = document.querySelectorAll('.sidebar-block');
+    let toolsUl = null;
+    toolsBlocks.forEach(block => {
+      const title = block.querySelector('.sidebar-title');
+      if (title && title.textContent.trim().toLowerCase() === 'tools') {
+        toolsUl = block.querySelector('.sidebar-links');
+      }
+    });
+
+    if (toolsUl && !document.getElementById('sidebar-mod-li')) {
+      const li = document.createElement('li');
+      li.id = 'sidebar-mod-li';
+      li.innerHTML = `<a href="#" id="sidebar-mod-queue-btn" style="color:var(--wiki-accent); font-weight:bold;">Review Pull Requests (<span id="sidebar-pr-count">0</span>)</a>`;
+      toolsUl.insertBefore(li, toolsUl.firstChild);
+
+      li.querySelector('#sidebar-mod-queue-btn').addEventListener('click', async (e) => {
+        e.preventDefault();
+        const allProposals = await fetchWikiProposals();
+        showProposalReviewModal(allProposals, null, null, null);
+      });
+      updatePrCounters();
+    }
+  }
+
 
   function initArticleOverride() {
     const currentPage = window.location.pathname.split('/').pop() || 'index.html';
