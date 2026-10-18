@@ -33,9 +33,11 @@ modules/
 backups/
 test_build/
 games/
-assets/
+/assets/
+!web/assets/
 insp/
 lab_console/
 docs/FL/
 CounteCode.ps1
 shader_cache/
+
