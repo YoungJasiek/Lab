@@ -352,8 +352,63 @@
           if (Array.isArray(dbPosts)) {
             const dbIds = new Set(dbPosts.map(p => p.id));
             const unsyncedLocal = localPosts.filter(lp => !dbIds.has(lp.id));
-            const seedToInclude = SEED_POSTS.filter(sp => !dbIds.has(sp.id) && !localPosts.some(lp => lp.id === sp.id));
-            postsData = [...unsyncedLocal, ...dbPosts, ...seedToInclude];
+
+            // Auto-sync pending local posts created when DB was offline or unmigrated
+            for (const lp of unsyncedLocal) {
+              if (String(lp.id).startsWith('post-')) {
+                const alreadyInDb = dbPosts.some(dbp => dbp.title === lp.title && dbp.author_name === lp.author_name);
+                if (alreadyInDb) {
+                  removeLocalPost(lp.id);
+                  continue;
+                }
+                try {
+                  const syncRes = await fetch(`${config.url}/rest/v1/community_posts`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'apikey': config.anonKey,
+                      'Authorization': `Bearer ${getCurrentToken() || config.anonKey}`,
+                      'Prefer': 'return=representation'
+                    },
+                    body: JSON.stringify({
+                      title: lp.title,
+                      flair: lp.flair || 'GENERAL',
+                      content: lp.content,
+                      author_id: lp.author_id || null,
+                      author_name: lp.author_name || 'Developer',
+                      author_role: lp.author_role || 'user',
+                      upvotes: lp.upvotes || 1,
+                      is_pinned: lp.is_pinned || false
+                    })
+                  });
+                  if (syncRes.ok) {
+                    const syncedRows = await syncRes.json();
+                    if (Array.isArray(syncedRows) && syncedRows[0]) {
+                      const newDbPost = syncedRows[0];
+                      removeLocalPost(lp.id);
+                      dbPosts.unshift(newDbPost);
+                      dbIds.add(newDbPost.id);
+
+                      // Migrate local comments from local ID to Supabase UUID
+                      try {
+                        const localCommentsMap = JSON.parse(localStorage.getItem(STORAGE_LOCAL_COMMENTS_KEY)) || {};
+                        if (localCommentsMap[lp.id] && localCommentsMap[lp.id].length > 0) {
+                          localCommentsMap[newDbPost.id] = localCommentsMap[lp.id];
+                          delete localCommentsMap[lp.id];
+                          localStorage.setItem(STORAGE_LOCAL_COMMENTS_KEY, JSON.stringify(localCommentsMap));
+                        }
+                      } catch (cErr) {}
+                    }
+                  }
+                } catch (syncErr) {
+                  console.warn('Could not auto-sync local post:', syncErr);
+                }
+              }
+            }
+
+            const remainingUnsynced = getLocalPosts().filter(lp => !dbIds.has(lp.id));
+            const seedToInclude = SEED_POSTS.filter(sp => !dbIds.has(sp.id) && !remainingUnsynced.some(lp => lp.id === sp.id));
+            postsData = [...remainingUnsynced, ...dbPosts, ...seedToInclude];
             if (shouldRender && document.getElementById('hub-posts-feed')) renderFilteredPosts();
             return postsData;
           }
@@ -760,7 +815,40 @@
         });
         if (res.ok) {
           const dbComments = await res.json();
-          if (Array.isArray(dbComments) && dbComments.length > 0) {
+          if (Array.isArray(dbComments)) {
+            const dbCommentIds = new Set(dbComments.map(c => c.id));
+            const pendingComments = getLocalComments(postId).filter(lc => !dbCommentIds.has(lc.id));
+            for (const pc of pendingComments) {
+              if (String(pc.id).startsWith('c-')) {
+                try {
+                  const cRes = await fetch(`${config.url}/rest/v1/community_comments`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'apikey': config.anonKey,
+                      'Authorization': `Bearer ${getCurrentToken() || config.anonKey}`,
+                      'Prefer': 'return=representation'
+                    },
+                    body: JSON.stringify({
+                      post_id: postId,
+                      parent_id: pc.parent_id || null,
+                      author_id: pc.author_id || null,
+                      author_name: pc.author_name || 'Developer',
+                      author_role: pc.author_role || 'user',
+                      content: pc.content
+                    })
+                  });
+                  if (cRes.ok) {
+                    const cRows = await cRes.json();
+                    if (Array.isArray(cRows) && cRows[0]) {
+                      removeLocalComment(postId, pc.id);
+                      dbComments.push(cRows[0]);
+                      dbCommentIds.add(cRows[0].id);
+                    }
+                  }
+                } catch (cErr) {}
+              }
+            }
             dbComments.forEach(c => ingestComment(c, c.parent_id || null));
           }
         }
@@ -932,14 +1020,15 @@
     };
 
     let synced = false;
-    if (config.url && config.anonKey && session?.access_token && !String(postId).startsWith('seed-') && !String(postId).startsWith('post-')) {
+    const token = getCurrentToken() || session?.access_token || config.anonKey;
+    if (config.url && config.anonKey && token && !String(postId).startsWith('seed-') && !String(postId).startsWith('post-')) {
       try {
         const res = await fetch(`${config.url}/rest/v1/community_comments`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'apikey': config.anonKey,
-            'Authorization': `Bearer ${session.access_token}`
+            'Authorization': `Bearer ${token}`
           },
           body: JSON.stringify({
             post_id: postId,
@@ -1229,14 +1318,15 @@
 
     let syncedToDb = false;
     const config = await ensureSupabaseConfig();
-    if (config.url && config.anonKey && session?.access_token) {
+    const token = getCurrentToken() || session?.access_token || config.anonKey;
+    if (config.url && config.anonKey && token) {
       try {
         const res = await fetch(`${config.url}/rest/v1/community_posts`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'apikey': config.anonKey,
-            'Authorization': `Bearer ${session.access_token}`,
+            'Authorization': `Bearer ${token}`,
             'Prefer': 'return=representation'
           },
           body: JSON.stringify({
