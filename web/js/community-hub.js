@@ -260,7 +260,7 @@
 
     if (config.url && config.anonKey) {
       try {
-        const res = await fetch(`${config.url}/rest/v1/community_posts?select=*&order=is_pinned.desc,upvotes.desc,created_at.desc`, {
+        const res = await fetch(`${config.url}/rest/v1/community_posts?select=*,community_comments(count)&order=is_pinned.desc,upvotes.desc,created_at.desc`, {
           headers: {
             'apikey': config.anonKey,
             'Authorization': `Bearer ${getCurrentToken() || config.anonKey}`
@@ -276,6 +276,16 @@
               const c = (p.content || '').trim().toLowerCase();
               return t !== 'test' && c !== 'test' && !t.startsWith('test_');
             });
+
+            // Map PostgREST relation count to post.comments_count
+            dbPosts.forEach(p => {
+              if (Array.isArray(p.community_comments) && p.community_comments[0] && typeof p.community_comments[0].count === 'number') {
+                p.comments_count = p.community_comments[0].count;
+              } else if (p.comments_count === undefined || p.comments_count === null) {
+                p.comments_count = getLocalComments(p.id).length;
+              }
+            });
+
             const dbIds = new Set(dbPosts.map(p => p.id));
             const unsyncedLocal = localPosts.filter(lp => !dbIds.has(lp.id));
 
@@ -393,9 +403,9 @@
     const userVote = userVotes[post.id] || 0;
     const authorRole = (post.author_role || 'user').toLowerCase();
     const timeAgo = formatTimeAgo(new Date(post.created_at));
-    const commentsCount = post.comments_count !== undefined 
+    const commentsCount = (post.comments_count !== undefined && post.comments_count !== null)
       ? post.comments_count 
-      : ((SEED_COMMENTS[post.id]?.length || 0) + (getLocalComments(post.id).length));
+      : getLocalComments(post.id).length;
 
     return `
       <article class="hub-post-card ${post.is_pinned ? 'is-pinned' : ''}" data-post-id="${escapeHtml(post.id)}">
@@ -598,8 +608,8 @@
                 <button type="button" class="hub-vote-btn downvote ${userVote === -1 ? 'voted' : ''}" id="page-vote-down" title="Downvote" style="padding:4px 6px;">&#9660;</button>
               </div>
 
-              <span style="font-size:12px; color:#8da4be; font-weight:600;">
-                Technical Discussion
+              <span style="font-size:12px; color:#8da4be; font-weight:600;" id="page-comments-counter">
+                Comments (${(post.comments_count !== undefined && post.comments_count !== null) ? post.comments_count : 0})
               </span>
 
               <button type="button" class="hub-action-btn" id="page-share-btn">
@@ -784,6 +794,12 @@
 
     if (commentMap.size === 0) {
       listEl.innerHTML = '<div class="hub-no-comments">No responses yet. Be the first to comment.</div>';
+      const heading = document.getElementById('thread-comments-heading');
+      if (heading) heading.textContent = 'All Responses (0)';
+      const pageCounter = document.getElementById('page-comments-counter');
+      if (pageCounter) pageCounter.textContent = 'Comments (0)';
+      const pObj = postsData.find(p => String(p.id) === String(postId));
+      if (pObj) pObj.comments_count = 0;
       return;
     }
 
@@ -807,6 +823,14 @@
     });
 
     activeCommentMap = commentMap;
+    const totalCount = commentMap.size;
+    const heading = document.getElementById('thread-comments-heading');
+    if (heading) heading.textContent = `All Responses (${totalCount})`;
+    const pageCounter = document.getElementById('page-comments-counter');
+    if (pageCounter) pageCounter.textContent = `Comments (${totalCount})`;
+    const pObj = postsData.find(p => String(p.id) === String(postId));
+    if (pObj) pObj.comments_count = totalCount;
+
     listEl.innerHTML = rootComments.map(c => renderCommentNodeHtml(c, opAuthorName, postId)).join('');
     wireCommentReplyButtons(postId, opAuthorName);
   }
@@ -1072,8 +1096,12 @@
     // Save locally into localStorage (deduplicated automatically)
     saveLocalComment(postId, newCommentObj);
 
-    const post = postsData.find(p => p.id === postId);
-    if (post) post.comments_count = (post.comments_count || 0) + 1;
+    const post = postsData.find(p => String(p.id) === String(postId));
+    if (post) {
+      post.comments_count = (post.comments_count || 0) + 1;
+      const pageCounter = document.getElementById('page-comments-counter');
+      if (pageCounter) pageCounter.textContent = `Comments (${post.comments_count})`;
+    }
     renderFilteredPosts();
     showNotification('Comment published.');
   }
@@ -1437,9 +1465,11 @@
       } catch (err) {}
     }
 
-    const post = postsData.find(p => p.id === postId);
+    const post = postsData.find(p => String(p.id) === String(postId));
     if (post && post.comments_count > 0) {
       post.comments_count--;
+      const pageCounter = document.getElementById('page-comments-counter');
+      if (pageCounter) pageCounter.textContent = `Comments (${post.comments_count})`;
       renderFilteredPosts();
     }
 
