@@ -54,11 +54,27 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    fetchVercelConfig();
     handleAuthCallback();
     initAuthUI();
     initInPageEditor();
     initFlagNotice();
   });
+
+  async function fetchVercelConfig() {
+    if (window.LAB_SUPABASE_URL && window.LAB_SUPABASE_ANON_KEY) return;
+    try {
+      const res = await fetch('/api/config');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.url && data.anonKey) {
+          window.LAB_SUPABASE_URL = data.url;
+          window.LAB_SUPABASE_ANON_KEY = data.anonKey;
+          renderUserTools(document.querySelector('.vdc-user-tools'));
+        }
+      }
+    } catch (e) {}
+  }
 
   function handleAuthCallback() {
     if (!window.location.hash || window.location.hash.length <= 1) return;
