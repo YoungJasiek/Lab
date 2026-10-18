@@ -146,3 +146,54 @@ USING (
     OR (auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin', 'dev', 'moderator')
     OR (auth.jwt() -> 'user_metadata' ->> 'role') IN ('admin', 'dev', 'moderator')
 );
+
+-- ============================================================================
+-- 8. Create wiki_proposals table (User Change Proposals / Wiki Pull Requests)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.wiki_proposals (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    type TEXT NOT NULL DEFAULT 'edit', -- 'edit' (page edit) or 'new' (new article)
+    slug TEXT NOT NULL,
+    title TEXT NOT NULL,
+    summary TEXT NOT NULL DEFAULT '',
+    content TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'approved', 'rejected'
+    author_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    author_name TEXT NOT NULL DEFAULT 'Community Contributor',
+    author_role TEXT NOT NULL DEFAULT 'user',
+    reviewed_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    reviewed_by_name TEXT,
+    review_comment TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    reviewed_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX IF NOT EXISTS idx_wiki_proposals_status ON public.wiki_proposals(status);
+CREATE INDEX IF NOT EXISTS idx_wiki_proposals_slug ON public.wiki_proposals(slug);
+
+ALTER TABLE public.wiki_proposals ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public can view wiki proposals" ON public.wiki_proposals;
+CREATE POLICY "Public can view wiki proposals"
+ON public.wiki_proposals
+FOR SELECT
+TO public
+USING (true);
+
+DROP POLICY IF EXISTS "Authenticated users can submit proposals" ON public.wiki_proposals;
+CREATE POLICY "Authenticated users can submit proposals"
+ON public.wiki_proposals
+FOR INSERT
+TO authenticated
+WITH CHECK (auth.uid() IS NOT NULL);
+
+DROP POLICY IF EXISTS "Privileged roles can review proposals" ON public.wiki_proposals;
+CREATE POLICY "Privileged roles can review proposals"
+ON public.wiki_proposals
+FOR UPDATE
+TO authenticated
+USING (
+    (auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin', 'dev', 'moderator')
+    OR (auth.jwt() -> 'user_metadata' ->> 'role') IN ('admin', 'dev', 'moderator')
+);
+

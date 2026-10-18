@@ -263,7 +263,7 @@
 
         <!-- Actions -->
         <div class="editor-actions">
-          <div style="display:flex; gap:8px;">
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
             <button type="button" id="btn-save-article" class="vdc-btn-wiki-contents" style="cursor:pointer; border:none; padding:8px 16px;">Save Article</button>
             <button type="button" id="btn-download-html" class="vdc-btn-community-portal" style="cursor:pointer; border:none; padding:8px 16px;">Export Static HTML</button>
           </div>
@@ -271,6 +271,7 @@
             Auth Status: <span id="auth-status-indicator" class="role-badge role-user">Guest</span>
           </div>
         </div>
+        <div id="editor-permission-notice" style="font-size:11.5px; color:#8a96a8; margin-top:10px; border-top:1px solid rgba(255,255,255,0.08); padding-top:8px;"></div>
 
       </div>
 
@@ -285,6 +286,17 @@
         </div>
       </div>
 
+      <!-- Moderation Queue (Visible to Admins, Devs, and Moderators) -->
+      <div id="mod-queue-container" class="preview-pane" style="display:none; margin-top:20px; border-color:#2a5382;">
+        <div class="preview-header" style="color:#66c0f4;">
+          <span>MODERATION QUEUE: PENDING WIKI PULL REQUESTS &amp; PROPOSALS</span>
+          <span id="mod-queue-count">0 pending</span>
+        </div>
+        <div id="mod-queue-list" style="margin-top:12px;">
+          <!-- Loaded dynamically -->
+        </div>
+      </div>
+
     </main>
   </div>
 
@@ -296,6 +308,87 @@
       const textarea = document.getElementById('article-wikitext');
       const previewContent = document.getElementById('preview-content');
       const authIndicator = document.getElementById('auth-status-indicator');
+      const saveBtn = document.getElementById('btn-save-article');
+      const permNotice = document.getElementById('editor-permission-notice');
+      const modQueue = document.getElementById('mod-queue-container');
+
+      function updateRoleUI() {
+        const session = window.VdcAuth ? window.VdcAuth.getSession() : null;
+        const role = window.VdcAuth ? window.VdcAuth.getUserRole() : 'guest';
+        const isPrivileged = window.VdcAuth ? window.VdcAuth.isPrivilegedRole() : false;
+
+        if (!session || !session.user) {
+          authIndicator.className = 'role-badge role-user';
+          authIndicator.textContent = 'GUEST (Not logged in)';
+          saveBtn.textContent = 'Log in to Propose Article';
+          permNotice.innerHTML = 'You must be logged in to create or propose documentation articles.';
+          modQueue.style.display = 'none';
+          return;
+        }
+
+        authIndicator.className = 'role-badge role-' + role;
+        authIndicator.textContent = role.toUpperCase() + ' (' + (session.user?.user_metadata?.username || session.user?.email) + ')';
+
+        if (isPrivileged) {
+          saveBtn.textContent = 'Save & Publish Article (Privileged)';
+          permNotice.innerHTML = `<strong>Privileged Author Mode:</strong> You are logged in as <strong>${role.toUpperCase()}</strong>. You have direct publishing authority to create official documentation.`;
+          loadModerationQueue();
+        } else {
+          saveBtn.textContent = 'Submit Article Proposal for Review';
+          permNotice.innerHTML = `<strong>Community Review Notice:</strong> As a contributor (<strong>USER</strong>), new articles are submitted as <strong>Article Proposals (Wiki Pull Requests)</strong> and published once approved by a moderator.`;
+          modQueue.style.display = 'none';
+        }
+      }
+
+      async function loadModerationQueue() {
+        if (!window.VdcAuth || !window.VdcAuth.fetchWikiProposals) return;
+        const proposals = await window.VdcAuth.fetchWikiProposals();
+        if (proposals.length > 0) {
+          modQueue.style.display = 'block';
+          document.getElementById('mod-queue-count').textContent = proposals.length + ' pending';
+          const list = document.getElementById('mod-queue-list');
+          list.innerHTML = proposals.map(p => `
+            <div class="mw-proposal-item" data-id="${p.id}" style="margin-bottom:12px; background:#0f141c; border:1px solid #243042; padding:12px; border-radius:3px;">
+              <div class="mw-proposal-meta">
+                <span><strong>${escapeHtml(p.author_name)}</strong> (${escapeHtml((p.author_role || 'user').toUpperCase())}) &bull; Type: <code>${escapeHtml(p.type)}</code> &bull; Target: <code>${escapeHtml(p.slug)}</code></span>
+                <span>${new Date(p.created_at).toLocaleString()}</span>
+              </div>
+              <div class="mw-proposal-summary"><strong>Title:</strong> ${escapeHtml(p.title)} | <strong>Summary:</strong> ${escapeHtml(p.summary || 'None')}</div>
+              <div class="mw-proposal-content-box">${escapeHtml(p.content)}</div>
+              <div class="mw-proposal-actions">
+                <button type="button" class="btn-approve-pr" data-id="${p.id}">Approve &amp; Publish</button>
+                <button type="button" class="btn-reject-pr" data-id="${p.id}">Reject</button>
+              </div>
+            </div>
+          `).join('');
+
+          list.querySelectorAll('.btn-approve-pr').forEach(b => {
+            b.addEventListener('click', async () => {
+              const id = b.getAttribute('data-id');
+              const prop = proposals.find(item => item.id === id);
+              if (!prop) return;
+              b.disabled = true;
+              b.textContent = 'Publishing...';
+              await window.VdcAuth.updateProposalStatus(id, 'approved', prop.content, prop.slug, prop.title);
+              window.VdcAuth.showToast('Article proposal approved and published!', 'success');
+              loadModerationQueue();
+            });
+          });
+
+          list.querySelectorAll('.btn-reject-pr').forEach(b => {
+            b.addEventListener('click', async () => {
+              const id = b.getAttribute('data-id');
+              b.disabled = true;
+              b.textContent = 'Rejecting...';
+              await window.VdcAuth.updateProposalStatus(id, 'rejected');
+              window.VdcAuth.showToast('Proposal rejected.', 'info');
+              loadModerationQueue();
+            });
+          });
+        } else {
+          modQueue.style.display = 'none';
+        }
+      }
 
       // Populate default starter wikitext
       textarea.value = `== Overview ==\nThe '''Frozen-Life SDK''' allows game developers and modders to build tactical first-person combat systems, author weapon ballistics, script combat bots, and configure 64-128Hz client-predicted networking.\n\n== Subsystems & Architecture ==\nAll weapon logic is compiled into <code>client.dll</code> and <code>server.dll</code> with deterministic tick simulation:\n* '''server.dll''': Authoritative projectile traces and damage propagation\n* '''client.dll''': Viewmodel recoil animation, muzzle flash, and audio synthesis\n\n=== C++20 Weapon Interface ===\n<pre>\n#pragma once\n#include <Lab/Engine.h>\n\nclass CBaseWeapon : public IServerEntity {\npublic:\n    virtual void PrimaryAttack() = 0;\n    virtual void SecondaryAttack() = 0;\n    virtual void Reload() = 0;\n};\n</pre>\n\n{{Note|Ensure all OpenGL 4.5+ DSA vertex buffer objects for viewmodels are created via glCreateBuffers().}}\n\n== Related Articles ==\n* [[architecture.html|Engine Architecture]]\n* [[weapons-viewmodel.html|Weapons & Viewmodel Ballistics]]\n* [[opengl-dsa.html|OpenGL 4.5+ Direct State Access]]`;
@@ -330,13 +423,8 @@
       textarea.addEventListener('input', renderPreview);
       titleInput.addEventListener('input', renderPreview);
       renderPreview();
-
-      // Check current session
-      const session = JSON.parse(localStorage.getItem('lab_supabase_session') || 'null');
-      if (session) {
-        authIndicator.className = 'role-badge role-' + (session.role || 'user');
-        authIndicator.textContent = (session.role || 'user').toUpperCase() + ' (' + (session.username || session.email) + ')';
-      }
+      updateRoleUI();
+      setTimeout(updateRoleUI, 300);
 
       // Toolbar actions
       document.querySelectorAll('.mw-btn').forEach(btn => {
@@ -356,10 +444,10 @@
         });
       });
 
-      // Save article
-      document.getElementById('btn-save-article').addEventListener('click', () => {
+      // Save article / Submit proposal
+      saveBtn.addEventListener('click', async () => {
         const title = titleInput.value.trim();
-        const filename = filenameInput.value.trim();
+        let filename = filenameInput.value.trim();
         const content = textarea.value;
 
         if (!title || !filename) {
@@ -367,15 +455,93 @@
           return;
         }
 
-        const articles = JSON.parse(localStorage.getItem('lab_saved_articles') || '{}');
-        articles[filename] = {
-          title,
-          namespace: document.getElementById('article-namespace').value,
-          content,
-          savedAt: new Date().toISOString()
-        };
-        localStorage.setItem('lab_saved_articles', JSON.stringify(articles));
-        alert(`Article "${title}" saved successfully to your community storage!`);
+        if (!filename.endsWith('.html')) {
+          filename += '.html';
+          filenameInput.value = filename;
+        }
+
+        const session = window.VdcAuth ? window.VdcAuth.getSession() : null;
+        if (!session || !session.user) {
+          if (window.VdcAuth) {
+            window.VdcAuth.showToast('Please log in to author or propose articles.', 'error');
+            window.VdcAuth.openLogin();
+          } else {
+            alert('Please log in first.');
+          }
+          return;
+        }
+
+        const isPrivileged = window.VdcAuth ? window.VdcAuth.isPrivilegedRole() : false;
+
+        if (isPrivileged) {
+          // Direct publish
+          const articles = JSON.parse(localStorage.getItem('lab_saved_articles') || '{}');
+          articles[filename] = {
+            title,
+            namespace: document.getElementById('article-namespace').value,
+            content,
+            savedAt: new Date().toISOString()
+          };
+          localStorage.setItem('lab_saved_articles', JSON.stringify(articles));
+          localStorage.setItem('lab_page_content_' + filename, content);
+
+          // Sync to Supabase
+          const config = window.VdcAuth ? window.VdcAuth.getConfig() : null;
+          if (config && config.url && config.anonKey && session.access_token) {
+            try {
+              await fetch(`${config.url}/rest/v1/wiki_articles`, {
+                method: 'POST',
+                headers: {
+                  'apikey': config.anonKey,
+                  'Authorization': `Bearer ${session.access_token}`,
+                  'Content-Type': 'application/json',
+                  'Prefer': 'resolution=merge-duplicates'
+                },
+                body: JSON.stringify({
+                  slug: filename,
+                  title: title,
+                  wikitext: content,
+                  updated_by: session.user.id,
+                  updated_at: new Date().toISOString()
+                })
+              });
+            } catch (e) {}
+          }
+
+          if (window.VdcAuth) {
+            window.VdcAuth.showToast(`Article "${title}" published successfully to live documentation!`, 'success');
+          } else {
+            alert(`Article "${title}" published!`);
+          }
+        } else {
+          // Regular user: Submit Proposal (Wiki Pull Request)
+          const proposal = {
+            id: 'prop_new_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+            type: 'new',
+            slug: filename,
+            title: title,
+            summary: `New article proposal for ${document.getElementById('article-namespace').value}`,
+            content: content,
+            status: 'pending',
+            author_id: session.user.id,
+            author_name: session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'Contributor',
+            author_role: 'user',
+            created_at: new Date().toISOString()
+          };
+
+          saveBtn.disabled = true;
+          saveBtn.textContent = 'Submitting...';
+
+          if (window.VdcAuth && window.VdcAuth.submitWikiProposal) {
+            await window.VdcAuth.submitWikiProposal(proposal);
+            window.VdcAuth.showToast('Article proposal submitted! A moderator will review and publish it.', 'success');
+          } else {
+            alert('Proposal submitted successfully for moderation!');
+          }
+
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Submit Article Proposal for Review';
+        }
       });
 
       // Export static HTML
