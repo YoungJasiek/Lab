@@ -22,98 +22,9 @@
     userVotes = {};
   }
 
-  // Pre-seeded high-quality ecosystem discussions (baseline technical dataset)
-  const SEED_POSTS = [
-    {
-      id: 'seed-announcement-1',
-      title: 'Lab Engine Architecture & Project Hub Roadmap',
-      content: 'Official discussion thread for Lab Engine C++20 core, Direct State Access (OpenGL 4.5+ DSA), and the decoupled VFS architecture separating `engine://` assets from `Documents/LabGames/`.\n\n### Modular Subsystems\nAll subsystem headers are compiled under `/include` and exported via 11 modular dynamic libraries:\n- `Engine.dll` - Core loop and memory management\n- `render.dll` - OpenGL 4.5+ DSA pipeline\n- `audio.dll` - Spatial 3D sound synthesizer\n- `physics.dll` - Rigid body simulation\n\n```powershell\n# Build the full modular engine from source\ncmake -B build -S . -DCMAKE_BUILD_TYPE=Release\ncmake --build build --config Release\n```',
-      flair: 'ANNOUNCEMENT',
-      author_name: 'YoungJasiek',
-      author_role: 'admin',
-      upvotes: 42,
-      is_pinned: true,
-      created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-      comments_count: 3
-    },
-    {
-      id: 'seed-engine-1',
-      title: 'GPU Bindless Textures & Vertex Buffer Storage Performance Benchmarks',
-      content: 'Comparing `glNamedBufferStorage` with persistent mapped flags vs `glBufferSubData` across AMD and NVIDIA hardware.\n\nIn our tests with 10,000 dynamic drawcalls, persistent DSA mapping reduced render-thread CPU driver overhead by 4.2x:\n\n```cpp\n// Direct State Access Persistent Mapping Example\nGLuint vbo = 0;\nglCreateBuffers(1, &vbo);\nGLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;\nglNamedBufferStorage(vbo, bufferSize, nullptr, flags);\nvoid* ptr = glMapNamedBufferRange(vbo, 0, bufferSize, flags);\n```',
-      flair: 'ENGINE',
-      author_name: 'GordonFreeman',
-      author_role: 'admin',
-      upvotes: 28,
-      is_pinned: false,
-      created_at: new Date(Date.now() - 86400000).toISOString(),
-      comments_count: 2
-    },
-    {
-      id: 'seed-fl-1',
-      title: 'Frozen-Life: Tactical Bot AI State Machine Integration',
-      content: 'The 5-state AI finite state machine (Patrol, Alert, Chase, Flank, Retreat) is now fully integrated with skeletal hitboxes and raycast line-of-sight checks.\n\n### How to test:\n1. Open `LabEditor`\n2. Load map `test_multi_bot_waypoints.LABMAP`\n3. Press F5 to simulate bot waypoint navigation with combat decision trees.',
-      flair: 'FROZEN-LIFE',
-      author_name: 'DevTeam',
-      author_role: 'dev',
-      upvotes: 19,
-      is_pinned: false,
-      created_at: new Date(Date.now() - 3600000 * 14).toISOString(),
-      comments_count: 1
-    },
-    {
-      id: 'seed-hammer-1',
-      title: 'LabHammer 3D CSG: Exporting Solid Brushes to .labmap Format',
-      content: 'How are texture coordinates aligned across non-axis-aligned brush planes during CSG carving? Is there a planar projection matrix calculated per polygon face or per brush entity?',
-      flair: 'LABHAMMER',
-      author_name: 'Mapper_X',
-      author_role: 'user',
-      upvotes: 11,
-      is_pinned: false,
-      created_at: new Date(Date.now() - 3600000 * 4).toISOString(),
-      comments_count: 1
-    }
-  ];
-
-  const SEED_COMMENTS = {
-    'seed-announcement-1': [
-      {
-        id: 'c-1',
-        author_name: 'GordonFreeman',
-        author_role: 'admin',
-        content: 'Binary shader cache serialization is confirmed working on both AMD and Intel GPUs. Shader linking time dropped to near zero on warm restart.',
-        upvotes: 9,
-        created_at: new Date(Date.now() - 86400000).toISOString()
-      },
-      {
-        id: 'c-2',
-        author_name: 'Modder_01',
-        author_role: 'user',
-        content: 'Is there an export script for Blender 4.x skeletal models with multiple animation clips?',
-        upvotes: 4,
-        created_at: new Date(Date.now() - 3600000 * 18).toISOString(),
-        replies: [
-          {
-            id: 'c-2-1',
-            author_name: 'YoungJasiek',
-            author_role: 'admin',
-            content: 'Yes, check `scripts/export_t800_animations.py`. It exports bone hierarchies and named keyframe clips directly into the engine format.',
-            upvotes: 6,
-            created_at: new Date(Date.now() - 3600000 * 16).toISOString()
-          }
-        ]
-      }
-    ],
-    'seed-engine-1': [
-      {
-        id: 'c-3',
-        author_name: 'YoungJasiek',
-        author_role: 'admin',
-        content: 'Make sure `GL_MAP_COHERENT_BIT` and `GL_MAP_PERSISTENT_BIT` are strictly coupled with `glMemoryBarrier` before dispatch.',
-        upvotes: 7,
-        created_at: new Date(Date.now() - 3600000 * 10).toISOString()
-      }
-    ]
-  };
+  // Community hub discussions are persisted in PostgreSQL Supabase (community_posts & community_comments)
+  const SEED_POSTS = [];
+  const SEED_COMMENTS = {};
 
   document.addEventListener('DOMContentLoaded', () => {
     initCommunityHub();
@@ -348,8 +259,14 @@
         });
 
         if (res.ok) {
-          const dbPosts = await res.json();
+          let dbPosts = await res.json();
           if (Array.isArray(dbPosts)) {
+            // Filter out dummy test discussions
+            dbPosts = dbPosts.filter(p => {
+              const t = (p.title || '').trim().toLowerCase();
+              const c = (p.content || '').trim().toLowerCase();
+              return t !== 'test' && c !== 'test' && !t.startsWith('test_');
+            });
             const dbIds = new Set(dbPosts.map(p => p.id));
             const unsyncedLocal = localPosts.filter(lp => !dbIds.has(lp.id));
 
@@ -406,9 +323,8 @@
               }
             }
 
-            const remainingUnsynced = getLocalPosts().filter(lp => !dbIds.has(lp.id));
-            const seedToInclude = SEED_POSTS.filter(sp => !dbIds.has(sp.id) && !remainingUnsynced.some(lp => lp.id === sp.id));
-            postsData = [...remainingUnsynced, ...dbPosts, ...seedToInclude];
+            const remainingUnsynced = getLocalPosts().filter(lp => !dbIds.has(lp.id) && (lp.title || '').trim().toLowerCase() !== 'test');
+            postsData = [...remainingUnsynced, ...dbPosts];
             if (shouldRender && document.getElementById('hub-posts-feed')) renderFilteredPosts();
             return postsData;
           }
@@ -418,7 +334,7 @@
       }
     }
 
-    postsData = [...localPosts, ...SEED_POSTS];
+    postsData = [...localPosts.filter(lp => (lp.title || '').trim().toLowerCase() !== 'test')];
     if (shouldRender && document.getElementById('hub-posts-feed')) renderFilteredPosts();
     return postsData;
   }
