@@ -123,34 +123,58 @@
     const hubRoot = document.getElementById('community-hub-root');
     if (!hubRoot) return;
 
-    renderHubLayout(hubRoot);
-    wireHubEventListeners();
-    fetchPosts();
+    window.addEventListener('hashchange', () => handleRoute());
+    handleRoute();
   }
 
-  function renderHubLayout(container) {
-    container.innerHTML = `
+  function handleRoute() {
+    const hubRoot = document.getElementById('community-hub-root');
+    if (!hubRoot) return;
+
+    const hash = window.location.hash || '';
+
+    if (hash === '#new') {
+      const session = getCurrentSession();
+      if (!session || !session.user) {
+        showNotification('Please log in with your developer account to create a thread.');
+        if (typeof window.VdcAuth?.openLogin === 'function') {
+          window.VdcAuth.openLogin();
+        }
+      }
+      renderStudioPage(hubRoot);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (hash.startsWith('#post/')) {
+      const postId = hash.slice(6);
+      renderThreadPage(hubRoot, postId);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      renderFeedPage(hubRoot);
+    }
+  }
+
+  function renderFeedPage(hubRoot) {
+    hubRoot.innerHTML = `
       <div class="hub-container">
         <!-- Top Toolbar: Flair Pills, Sorting, and New Post Button -->
         <div class="hub-toolbar">
           <div class="hub-flairs" id="hub-flair-bar">
-            <button type="button" class="hub-flair-btn active" data-flair="ALL">All Topics</button>
-            <button type="button" class="hub-flair-btn" data-flair="ANNOUNCEMENT">Announcements</button>
-            <button type="button" class="hub-flair-btn" data-flair="ENGINE">Engine &amp; C++20</button>
-            <button type="button" class="hub-flair-btn" data-flair="FROZEN-LIFE">Frozen-Life SDK</button>
-            <button type="button" class="hub-flair-btn" data-flair="LABHAMMER">LabHammer &amp; Maps</button>
-            <button type="button" class="hub-flair-btn" data-flair="SHOWCASE">Showcase</button>
-            <button type="button" class="hub-flair-btn" data-flair="HELP">Help &amp; Bugs</button>
+            <button type="button" class="hub-flair-btn ${activeFlair === 'ALL' ? 'active' : ''}" data-flair="ALL">All Topics</button>
+            <button type="button" class="hub-flair-btn ${activeFlair === 'ANNOUNCEMENT' ? 'active' : ''}" data-flair="ANNOUNCEMENT">Announcements</button>
+            <button type="button" class="hub-flair-btn ${activeFlair === 'ENGINE' ? 'active' : ''}" data-flair="ENGINE">Engine &amp; C++20</button>
+            <button type="button" class="hub-flair-btn ${activeFlair === 'FROZEN-LIFE' ? 'active' : ''}" data-flair="FROZEN-LIFE">Frozen-Life SDK</button>
+            <button type="button" class="hub-flair-btn ${activeFlair === 'LABHAMMER' ? 'active' : ''}" data-flair="LABHAMMER">LabHammer &amp; Maps</button>
+            <button type="button" class="hub-flair-btn ${activeFlair === 'SHOWCASE' ? 'active' : ''}" data-flair="SHOWCASE">Showcase</button>
+            <button type="button" class="hub-flair-btn ${activeFlair === 'HELP' ? 'active' : ''}" data-flair="HELP">Help &amp; Bugs</button>
           </div>
 
           <div class="hub-toolbar-right">
             <div class="hub-sort-group">
               <span class="hub-sort-label">Sort:</span>
-              <button type="button" class="hub-sort-btn active" data-sort="HOT">Hot</button>
-              <button type="button" class="hub-sort-btn" data-sort="NEW">New</button>
-              <button type="button" class="hub-sort-btn" data-sort="TOP">Top</button>
+              <button type="button" class="hub-sort-btn ${activeSort === 'HOT' ? 'active' : ''}" data-sort="HOT">Hot</button>
+              <button type="button" class="hub-sort-btn ${activeSort === 'NEW' ? 'active' : ''}" data-sort="NEW">New</button>
+              <button type="button" class="hub-sort-btn ${activeSort === 'TOP' ? 'active' : ''}" data-sort="TOP">Top</button>
             </div>
-            <button type="button" id="hub-btn-new-post" class="hub-btn-primary">+ Create Thread</button>
+            <a href="#new" id="hub-btn-new-post" class="hub-btn-primary" style="text-decoration:none; display:inline-flex; align-items:center;">+ Create Thread</a>
           </div>
         </div>
 
@@ -198,10 +222,14 @@
           </aside>
         </div>
       </div>
-
-      <!-- Article Studio & Thread Modal Container -->
-      <div id="hub-modal-container"></div>
     `;
+
+    wireHubEventListeners();
+    if (postsData.length === 0) {
+      fetchPosts();
+    } else {
+      renderFilteredPosts();
+    }
   }
 
   function wireHubEventListeners() {
@@ -223,28 +251,6 @@
         activeSort = btn.getAttribute('data-sort') || 'HOT';
         renderFilteredPosts();
       });
-    });
-
-    // Create Thread Button -> Opens Studio Article Creator
-    document.getElementById('hub-btn-new-post')?.addEventListener('click', () => {
-      const session = getCurrentSession();
-      if (!session || !session.user) {
-        showNotification('Please log in with your developer account to create a thread.');
-        if (typeof window.VdcAuth?.openLogin === 'function') {
-          window.VdcAuth.openLogin();
-        } else {
-          const loginBtn = document.getElementById('vdc-login-link') || 
-                           document.getElementById('auth-btn-login') ||
-                           document.getElementById('vdc-create-account');
-          if (loginBtn) {
-            loginBtn.click();
-          } else {
-            openStudioArticleCreator();
-          }
-        }
-        return;
-      }
-      openStudioArticleCreator();
     });
   }
 
@@ -290,10 +296,7 @@
     } catch (e) {}
   }
 
-  async function fetchPosts() {
-    const feed = document.getElementById('hub-posts-feed');
-    if (!feed) return;
-
+  async function fetchPosts(shouldRender = true) {
     const localPosts = getLocalPosts();
     const config = getSupabaseConfig();
 
@@ -312,8 +315,8 @@
             const dbIds = new Set(dbPosts.map(p => p.id));
             const unsyncedLocal = localPosts.filter(lp => !dbIds.has(lp.id));
             postsData = [...unsyncedLocal, ...dbPosts];
-            renderFilteredPosts();
-            return;
+            if (shouldRender && document.getElementById('hub-posts-feed')) renderFilteredPosts();
+            return postsData;
           }
         }
       } catch (err) {
@@ -322,7 +325,8 @@
     }
 
     postsData = [...localPosts, ...SEED_POSTS];
-    renderFilteredPosts();
+    if (shouldRender && document.getElementById('hub-posts-feed')) renderFilteredPosts();
+    return postsData;
   }
 
   function renderFilteredPosts() {
@@ -397,7 +401,7 @@
           </div>
 
           <h2 class="hub-post-title">
-            <a href="#" class="hub-post-link" data-post-id="${escapeHtml(post.id)}">${escapeHtml(post.title)}</a>
+            <a href="#post/${escapeHtml(post.id)}" class="hub-post-link" data-post-id="${escapeHtml(post.id)}">${escapeHtml(post.title)}</a>
           </h2>
 
           <div class="hub-post-snippet">
@@ -405,9 +409,9 @@
           </div>
 
           <div class="hub-post-footer">
-            <button type="button" class="hub-action-btn hub-btn-comments" data-post-id="${escapeHtml(post.id)}">
+            <a href="#post/${escapeHtml(post.id)}" class="hub-action-btn hub-btn-comments" style="text-decoration:none;" data-post-id="${escapeHtml(post.id)}">
               Comments (${commentsCount})
-            </button>
+            </a>
             <button type="button" class="hub-action-btn hub-btn-share" data-post-id="${escapeHtml(post.id)}">
               Copy Link
             </button>
@@ -434,12 +438,13 @@
       });
     });
 
-    // Click on Post Title or Comments Button opens Reddit-style thread view
+    // Click on Post Title or Comments Button opens thread view via hash
     document.querySelectorAll('.hub-post-link, .hub-btn-comments').forEach(el => {
       el.addEventListener('click', (e) => {
-        e.preventDefault();
         const postId = el.getAttribute('data-post-id');
-        openThreadView(postId);
+        if (postId) {
+          window.location.hash = '#post/' + postId;
+        }
       });
     });
 
@@ -448,7 +453,7 @@
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const postId = btn.getAttribute('data-post-id');
-        const shareUrl = `${window.location.origin}${window.location.pathname}#post-${postId}`;
+        const shareUrl = `${window.location.origin}${window.location.pathname}#post/${postId}`;
         navigator.clipboard.writeText(shareUrl).then(() => {
           showNotification('Thread link copied to clipboard.');
         }).catch(() => {});
@@ -503,57 +508,90 @@
   }
 
   /* ========================================================================
-     REDDIT-STYLE THREAD VIEW & HIERARCHICAL COMMENT TREE (Image 2 style)
+     REDDIT-STYLE THREAD VIEW & HIERARCHICAL COMMENT TREE (Variant 1: Full Page)
      ======================================================================== */
-  async function openThreadView(postId) {
-    const post = postsData.find(p => p.id === postId);
-    if (!post) return;
+  async function renderThreadPage(hubRoot, postId) {
+    if (!hubRoot) return;
 
-    const modalContainer = document.getElementById('hub-modal-container');
-    if (!modalContainer) return;
+    if (postsData.length === 0) {
+      await fetchPosts(false);
+    }
+
+    const post = postsData.find(p => String(p.id) === String(postId));
+    if (!post) {
+      hubRoot.innerHTML = `
+        <div class="hub-page-view">
+          <div class="hub-back-nav">
+            <a href="#feed" class="hub-back-link">&larr; Back to Discussions</a>
+          </div>
+          <div class="hub-view-card" style="padding:48px 24px; text-align:center;">
+            <h2 style="color:#ffffff; font-size:18px; margin-bottom:8px;">Thread Not Found</h2>
+            <p style="color:#8da4be; font-size:13px; margin-bottom:18px;">The requested technical discussion thread does not exist or has been removed.</p>
+            <a href="#feed" class="hub-btn-primary" style="display:inline-block; text-decoration:none; padding:8px 18px;">Return to Discussions Feed</a>
+          </div>
+        </div>
+      `;
+      return;
+    }
 
     const authorRole = (post.author_role || 'user').toLowerCase();
     const timeAgo = formatTimeAgo(new Date(post.created_at));
     const userVote = userVotes[post.id] || 0;
 
-    modalContainer.innerHTML = `
-      <div class="hub-modal-backdrop" id="thread-modal-backdrop">
-        <div class="hub-thread-modal">
-          <!-- Header Bar -->
-          <div class="hub-modal-header">
-            <div class="hub-modal-title">
-              <span class="hub-flair-tag flair-${escapeHtml(String(post.flair).toLowerCase())}">${escapeHtml(post.flair)}</span>
-              <span style="color:#67788c; font-size:12px;">&bull; Posted by <strong style="color:#f0f4f8;">u/${escapeHtml(post.author_name || 'Developer')}</strong> <span class="role-badge role-${escapeHtml(authorRole)}">[${escapeHtml(authorRole.toUpperCase())}]</span> &bull; ${timeAgo}</span>
+    hubRoot.innerHTML = `
+      <div class="hub-page-view">
+        <div class="hub-back-nav">
+          <a href="#feed" class="hub-back-link">&larr; Back to Discussions</a>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="hub-flair-tag flair-${escapeHtml(String(post.flair).toLowerCase())}">${escapeHtml(post.flair)}</span>
+            <span style="font-size:11.5px; color:#67788c;">Thread #${escapeHtml(post.id)}</span>
+          </div>
+        </div>
+
+        <article class="hub-view-card">
+          <div class="hub-view-header">
+            <div class="hub-view-title" style="flex-direction:column; align-items:flex-start; gap:4px; width:100%;">
+              <div style="font-size:11.5px; color:#8da4be; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                ${post.is_pinned ? '<span class="hub-pin-badge">PINNED</span>' : ''}
+                <span>Posted by</span>
+                <strong style="color:#ffffff;">u/${escapeHtml(post.author_name || 'Developer')}</strong>
+                <span class="role-badge role-${escapeHtml(authorRole)}">[${escapeHtml(authorRole.toUpperCase())}]</span>
+                <span class="hub-meta-sep">&bull;</span>
+                <span class="hub-post-time">${timeAgo}</span>
+              </div>
+              <h1 style="font-size:22px; font-weight:700; color:#ffffff; margin:6px 0 0 0; line-height:1.35; letter-spacing:-0.01em;">
+                ${escapeHtml(post.title)}
+              </h1>
             </div>
-            <button type="button" class="hub-modal-close" id="thread-modal-close" aria-label="Close dialog">&times;</button>
           </div>
 
-          <div class="hub-thread-body">
-            <!-- Big Bold Title (Reddit Style) -->
-            <h1 style="font-size:22px; font-weight:700; color:#ffffff; margin:4px 0 16px 0; line-height:1.35; letter-spacing:-0.01em;">
-              ${escapeHtml(post.title)}
-            </h1>
-
+          <div class="hub-page-body">
             <!-- Full Article Content Area -->
             <div class="hub-thread-full-content">
               ${formatPostContentFull(post.content)}
             </div>
 
-            <!-- Reddit Action Bar (Vote Pill, Comment count, Share) -->
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:20px; padding-bottom:12px; border-bottom:1px solid #2a475e;">
-              <div style="display:inline-flex; align-items:center; background:#10141b; border:1px solid #2a475e; border-radius:18px; padding:2px 8px;">
-                <button type="button" class="hub-vote-btn upvote ${userVote === 1 ? 'voted' : ''}" id="modal-vote-up" title="Upvote" style="padding:4px 6px;">&#9650;</button>
-                <span class="hub-vote-count ${userVote === 1 ? 'voted-up' : userVote === -1 ? 'voted-down' : ''}" id="modal-vote-val" style="margin:0 6px;">${post.upvotes || 0}</span>
-                <button type="button" class="hub-vote-btn downvote ${userVote === -1 ? 'voted' : ''}" id="modal-vote-down" title="Downvote" style="padding:4px 6px;">&#9660;</button>
+            <!-- Action Bar (Vote Pill, Comment count, Share, Delete) -->
+            <div class="hub-thread-actions-bar">
+              <div class="hub-thread-vote-pill">
+                <button type="button" class="hub-vote-btn upvote ${userVote === 1 ? 'voted' : ''}" id="page-vote-up" title="Upvote" style="padding:4px 6px;">&#9650;</button>
+                <span class="hub-vote-count ${userVote === 1 ? 'voted-up' : userVote === -1 ? 'voted-down' : ''}" id="page-vote-val" style="margin:0 6px;">${post.upvotes || 0}</span>
+                <button type="button" class="hub-vote-btn downvote ${userVote === -1 ? 'voted' : ''}" id="page-vote-down" title="Downvote" style="padding:4px 6px;">&#9660;</button>
               </div>
 
               <span style="font-size:12px; color:#8da4be; font-weight:600;">
-                Discussion
+                Technical Discussion
               </span>
 
-              <button type="button" class="hub-action-btn" id="modal-share-btn">
+              <button type="button" class="hub-action-btn" id="page-share-btn">
                 Copy Thread Link
               </button>
+
+              ${canDeletePost(post) ? `
+                <button type="button" class="hub-action-btn text-danger" id="page-delete-btn">
+                  Delete Thread
+                </button>
+              ` : ''}
             </div>
 
             <!-- Main Comment Input Box -->
@@ -575,33 +613,33 @@
               </div>
             </div>
           </div>
-        </div>
+        </article>
       </div>
     `;
 
-    document.getElementById('thread-modal-close')?.addEventListener('click', () => {
-      modalContainer.innerHTML = '';
-    });
-
-    document.getElementById('thread-modal-backdrop')?.addEventListener('click', (e) => {
-      if (e.target.id === 'thread-modal-backdrop') modalContainer.innerHTML = '';
-    });
-
-    // In-modal voting
-    document.getElementById('modal-vote-up')?.addEventListener('click', () => {
+    // In-page voting
+    document.getElementById('page-vote-up')?.addEventListener('click', () => {
       handleVote(post.id, 1);
-      document.getElementById('modal-vote-val').textContent = post.upvotes || 0;
+      const valEl = document.getElementById('page-vote-val');
+      if (valEl) valEl.textContent = post.upvotes || 0;
     });
-    document.getElementById('modal-vote-down')?.addEventListener('click', () => {
+    document.getElementById('page-vote-down')?.addEventListener('click', () => {
       handleVote(post.id, -1);
-      document.getElementById('modal-vote-val').textContent = post.upvotes || 0;
+      const valEl = document.getElementById('page-vote-val');
+      if (valEl) valEl.textContent = post.upvotes || 0;
     });
 
-    document.getElementById('modal-share-btn')?.addEventListener('click', () => {
-      const shareUrl = `${window.location.origin}${window.location.pathname}#post-${post.id}`;
+    document.getElementById('page-share-btn')?.addEventListener('click', () => {
+      const shareUrl = `${window.location.origin}${window.location.pathname}#post/${post.id}`;
       navigator.clipboard.writeText(shareUrl).then(() => {
         showNotification('Thread link copied to clipboard.');
       }).catch(() => {});
+    });
+
+    document.getElementById('page-delete-btn')?.addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to delete this thread?')) return;
+      await deletePost(post.id);
+      window.location.hash = '#feed';
     });
 
     document.getElementById('hub-submit-comment-btn')?.addEventListener('click', async () => {
@@ -807,113 +845,109 @@
   }
 
   /* ========================================================================
-     STUDIO-GRADE ARTICLE & THREAD CREATOR (Replaces simple modal)
-     Features: Toolbar (H2, H3, B, I, Code, Pre, Link, Table), Live Preview Tab
+     STUDIO-GRADE ARTICLE & THREAD CREATOR (Variant 1: Full Page View)
+     Features: Toolbar (H2, H3, B, I, Code, Pre, Link, List), Live Preview Tab
      ======================================================================== */
-  function openStudioArticleCreator() {
-    const modalContainer = document.getElementById('hub-modal-container');
-    if (!modalContainer) return;
+  function renderStudioPage(hubRoot) {
+    if (!hubRoot) return;
 
     const session = getCurrentSession();
     const displayName = session?.user?.user_metadata?.username || session?.user?.email?.split('@')[0] || 'Developer';
     const displayRole = session?.user?.role || session?.user?.user_metadata?.role || 'user';
 
-    modalContainer.innerHTML = `
-      <div class="hub-modal-backdrop" id="studio-creator-backdrop">
-        <div class="hub-studio-modal">
-          <!-- Top Header -->
-          <div class="hub-studio-header">
-            <div style="display:flex; align-items:center; gap:8px;">
+    hubRoot.innerHTML = `
+      <div class="hub-page-view">
+        <div class="hub-back-nav">
+          <a href="#feed" class="hub-back-link">&larr; Back to Discussions</a>
+          <span style="font-size:11.5px; color:#67788c;">Lab Studio &bull; Article Creator</span>
+        </div>
+
+        <div class="hub-view-card">
+          <div class="hub-view-header">
+            <div class="hub-view-title">
               <span class="hub-logo-tag" style="background:#66c0f4; color:#0e1218; font-size:10px; font-weight:800; padding:2px 6px; border-radius:2px;">LAB STUDIO</span>
-              <h2 style="margin:0; font-size:15px; font-weight:700; color:#ffffff;">Create Technical Thread / Article</h2>
+              <span>Create Technical Thread / Article</span>
             </div>
-            <button type="button" class="hub-modal-close" id="studio-creator-close" aria-label="Close dialog">&times;</button>
           </div>
 
-          <!-- Studio Body -->
-          <form id="hub-studio-form" class="hub-studio-body">
-            <!-- Author & Category Meta Bar -->
-            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; background:#10141b; border:1px solid #2a475e; border-radius:4px; padding:10px 14px;">
+          <div class="hub-page-body">
+            <form id="hub-studio-form" class="hub-studio-body" style="padding:0;">
+              <!-- Author & Category Meta Bar -->
+              <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; background:#10141b; border:1px solid #2a475e; border-radius:4px; padding:10px 14px;">
+                <div>
+                  <span style="font-size:11.5px; color:#8da4be;">Author: </span>
+                  <strong style="color:#ffffff; font-size:12px;">u/${escapeHtml(displayName)}</strong>
+                  <span class="role-badge role-${escapeHtml(displayRole.toLowerCase())}">[${escapeHtml(displayRole.toUpperCase())}]</span>
+                </div>
+                <div style="font-size:11px; color:#67788c;">
+                  Format: GitHub Markdown &amp; Wikitext Supported
+                </div>
+              </div>
+
+              <!-- Category / Flair Picker Pills -->
               <div>
-                <span style="font-size:11.5px; color:#8da4be;">Author: </span>
-                <strong style="color:#ffffff; font-size:12px;">u/${escapeHtml(displayName)}</strong>
-                <span class="role-badge role-${escapeHtml(displayRole.toLowerCase())}">[${escapeHtml(displayRole.toUpperCase())}]</span>
+                <label class="hub-form-label" style="display:block; margin-bottom:6px; font-size:12px; font-weight:700; color:#8da4be; text-transform:uppercase; letter-spacing:0.04em;">Select Technical Category / Flair</label>
+                <div class="hub-flair-picker" id="studio-flair-picker">
+                  <button type="button" class="hub-flair-choice selected" data-flair="ENGINE">Engine &amp; C++20</button>
+                  <button type="button" class="hub-flair-choice" data-flair="FROZEN-LIFE">Frozen-Life SDK</button>
+                  <button type="button" class="hub-flair-choice" data-flair="LABHAMMER">LabHammer &amp; Maps</button>
+                  <button type="button" class="hub-flair-choice" data-flair="SHOWCASE">Showcase &amp; Demos</button>
+                  <button type="button" class="hub-flair-choice" data-flair="HELP">Help &amp; Bugs</button>
+                  ${canPostAnnouncement() ? '<button type="button" class="hub-flair-choice" data-flair="ANNOUNCEMENT">Official Announcement</button>' : ''}
+                </div>
+                <input type="hidden" id="studio-selected-flair" value="ENGINE">
               </div>
-              <div style="font-size:11px; color:#67788c;">
-                Format: GitHub Markdown &amp; Wikitext Supported
+
+              <!-- Article Title -->
+              <div>
+                <label class="hub-form-label" for="studio-title-input" style="display:block; margin-bottom:6px; font-size:12px; font-weight:700; color:#8da4be; text-transform:uppercase; letter-spacing:0.04em;">Article Title</label>
+                <input type="text" id="studio-title-input" class="hub-studio-title-input" placeholder="e.g. Creating Custom Weapon Viewmodels &amp; CSG Brushes..." required maxlength="150" autofocus autocomplete="off">
               </div>
-            </div>
 
-            <!-- Category / Flair Picker Pills -->
-            <div>
-              <label class="hub-form-label" style="margin-bottom:6px;">Select Technical Category / Flair</label>
-              <div class="hub-flair-picker" id="studio-flair-picker">
-                <button type="button" class="hub-flair-choice selected" data-flair="ENGINE">Engine &amp; C++20</button>
-                <button type="button" class="hub-flair-choice" data-flair="FROZEN-LIFE">Frozen-Life SDK</button>
-                <button type="button" class="hub-flair-choice" data-flair="LABHAMMER">LabHammer &amp; Maps</button>
-                <button type="button" class="hub-flair-choice" data-flair="SHOWCASE">Showcase &amp; Demos</button>
-                <button type="button" class="hub-flair-choice" data-flair="HELP">Help &amp; Bugs</button>
-                ${canPostAnnouncement() ? '<button type="button" class="hub-flair-choice" data-flair="ANNOUNCEMENT">Official Announcement</button>' : ''}
-              </div>
-              <input type="hidden" id="studio-selected-flair" value="ENGINE">
-            </div>
+              <!-- Editor Section with Toolbar & Tabs -->
+              <div>
+                <div class="hub-studio-toolbar-wrap">
+                  <!-- Toolbar Buttons (Matching editor.html style) -->
+                  <div class="hub-studio-toolbar">
+                    <button type="button" class="hub-tool-btn" data-act="h2" title="Section Heading">H2</button>
+                    <button type="button" class="hub-tool-btn" data-act="h3" title="Subsection Heading">H3</button>
+                    <button type="button" class="hub-tool-btn" data-act="bold" title="Bold text">B</button>
+                    <button type="button" class="hub-tool-btn" data-act="italic" title="Italic text">I</button>
+                    <button type="button" class="hub-tool-btn" data-act="code" title="Inline code">&lt;code&gt;</button>
+                    <button type="button" class="hub-tool-btn" data-act="pre" title="C++ / Code block">[Code Block]</button>
+                    <button type="button" class="hub-tool-btn" data-act="quote" title="Blockquote">&gt; Quote</button>
+                    <button type="button" class="hub-tool-btn" data-act="list" title="Bullet List">&bull; List</button>
+                    <button type="button" class="hub-tool-btn" data-act="numlist" title="Numbered List">1. List</button>
+                    <button type="button" class="hub-tool-btn" data-act="link" title="Hyperlink">[Link]</button>
+                  </div>
 
-            <!-- Article Title -->
-            <div>
-              <label class="hub-form-label" for="studio-title-input">Article Title</label>
-              <input type="text" id="studio-title-input" class="hub-studio-title-input" placeholder="e.g. Creating Custom Weapon Viewmodels &amp; CSG Brushes..." required maxlength="150" autofocus autocomplete="off">
-            </div>
-
-            <!-- Editor Section with Toolbar & Tabs -->
-            <div>
-              <div class="hub-studio-toolbar-wrap">
-                <!-- Toolbar Buttons (Matching editor.html style) -->
-                <div class="hub-studio-toolbar">
-                  <button type="button" class="hub-tool-btn" data-act="h2" title="Section Heading">H2</button>
-                  <button type="button" class="hub-tool-btn" data-act="h3" title="Subsection Heading">H3</button>
-                  <button type="button" class="hub-tool-btn" data-act="bold" title="Bold text">B</button>
-                  <button type="button" class="hub-tool-btn" data-act="italic" title="Italic text">I</button>
-                  <button type="button" class="hub-tool-btn" data-act="code" title="Inline code">&lt;code&gt;</button>
-                  <button type="button" class="hub-tool-btn" data-act="pre" title="C++ / Code block">[Code Block]</button>
-                  <button type="button" class="hub-tool-btn" data-act="quote" title="Blockquote">&gt; Quote</button>
-                  <button type="button" class="hub-tool-btn" data-act="list" title="Bullet List">&bull; List</button>
-                  <button type="button" class="hub-tool-btn" data-act="numlist" title="Numbered List">1. List</button>
-                  <button type="button" class="hub-tool-btn" data-act="link" title="Hyperlink">[Link]</button>
+                  <!-- Write / Live Preview Mode Tabs -->
+                  <div class="hub-studio-tabs">
+                    <button type="button" class="hub-tab-btn active" id="tab-btn-write">Write Mode</button>
+                    <button type="button" class="hub-tab-btn" id="tab-btn-preview">Live Preview</button>
+                  </div>
                 </div>
 
-                <!-- Write / Live Preview Mode Tabs -->
-                <div class="hub-studio-tabs">
-                  <button type="button" class="hub-tab-btn active" id="tab-btn-write">Write Mode</button>
-                  <button type="button" class="hub-tab-btn" id="tab-btn-preview">Live Preview</button>
+                <!-- Editor Textarea -->
+                <textarea id="studio-content-textarea" class="hub-studio-textarea" rows="14" placeholder="Write your guide, code examples, or bug report here... (Supports Markdown and Wikitext)" required></textarea>
+
+                <!-- Live Preview Pane (Hidden in write mode) -->
+                <div id="studio-preview-pane" class="hub-studio-preview hub-thread-full-content" style="display:none;"></div>
+              </div>
+
+              <!-- Footer Actions -->
+              <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #2a475e; padding-top:14px;">
+                <span style="font-size:11px; color:#67788c;">Tip: Press Ctrl+Enter to publish article</span>
+                <div style="display:flex; gap:10px;">
+                  <a href="#feed" class="hub-btn-secondary" style="text-decoration:none; display:inline-flex; align-items:center;">Cancel</a>
+                  <button type="submit" class="hub-btn-primary" id="studio-submit-btn" style="padding:8px 24px; font-size:13px;">Publish Article</button>
                 </div>
               </div>
-
-              <!-- Editor Textarea -->
-              <textarea id="studio-content-textarea" class="hub-studio-textarea" rows="12" placeholder="Write your guide, code examples, or bug report here... (Supports Markdown and Wikitext)" required></textarea>
-
-              <!-- Live Preview Pane (Hidden in write mode) -->
-              <div id="studio-preview-pane" class="hub-studio-preview hub-thread-full-content" style="display:none;"></div>
-            </div>
-
-            <!-- Footer Actions -->
-            <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #2a475e; padding-top:14px;">
-              <span style="font-size:11px; color:#67788c;">Tip: Press Ctrl+Enter to publish article</span>
-              <div style="display:flex; gap:10px;">
-                <button type="button" class="hub-btn-secondary" id="studio-cancel-btn">Cancel</button>
-                <button type="submit" class="hub-btn-primary" id="studio-submit-btn" style="padding:8px 24px; font-size:13px;">Publish Article</button>
-              </div>
-            </div>
-          </form>
+            </form>
+          </div>
         </div>
       </div>
     `;
-
-    // Close actions
-    document.getElementById('studio-creator-close')?.addEventListener('click', () => modalContainer.innerHTML = '');
-    document.getElementById('studio-cancel-btn')?.addEventListener('click', () => modalContainer.innerHTML = '');
-    document.getElementById('studio-creator-backdrop')?.addEventListener('click', (e) => {
-      if (e.target.id === 'studio-creator-backdrop') modalContainer.innerHTML = '';
-    });
 
     // Flair choice pill selection
     document.querySelectorAll('.hub-flair-choice').forEach(btn => {
@@ -974,8 +1008,12 @@
       const title = document.getElementById('studio-title-input').value.trim();
       const content = textarea.value.trim();
 
-      await createNewPost(title, flair, content);
-      modalContainer.innerHTML = '';
+      const created = await createNewPost(title, flair, content);
+      if (created && created.id) {
+        window.location.hash = '#post/' + created.id;
+      } else {
+        window.location.hash = '#feed';
+      }
     });
   }
 
@@ -1097,6 +1135,7 @@
         if (res.ok) {
           const inserted = await res.json();
           if (Array.isArray(inserted) && inserted[0]) {
+            newPost = inserted[0];
             postsData.unshift(inserted[0]);
             syncedToDb = true;
             showNotification('Article published to Supabase community database.');
@@ -1120,6 +1159,7 @@
     }
 
     renderFilteredPosts();
+    return newPost;
   }
 
   async function deletePost(postId) {
