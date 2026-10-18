@@ -324,6 +324,16 @@
     } catch (e) {}
   }
 
+  function removeLocalComment(postId, commentId) {
+    try {
+      const all = JSON.parse(localStorage.getItem(STORAGE_LOCAL_COMMENTS_KEY)) || {};
+      if (all[postId]) {
+        all[postId] = all[postId].filter(c => c.id !== commentId && c.parent_id !== commentId);
+        localStorage.setItem(STORAGE_LOCAL_COMMENTS_KEY, JSON.stringify(all));
+      }
+    } catch (e) {}
+  }
+
   async function fetchPosts(shouldRender = true) {
     const localPosts = getLocalPosts();
     const config = getSupabaseConfig();
@@ -820,6 +830,10 @@
             <button type="button" class="hub-comment-action-btn hub-btn-reply" data-comment-id="${escapeHtml(comment.id)}">Reply</button>
             <span class="hub-meta-sep">&bull;</span>
             <span style="font-family:var(--font-mono); font-size:11px; color:#67788c;">${comment.upvotes || 1} upvotes</span>
+            ${canDeleteComment(comment) ? `
+              <span class="hub-meta-sep">&bull;</span>
+              <button type="button" class="hub-comment-action-btn hub-btn-delete-comment text-danger" data-comment-id="${escapeHtml(comment.id)}">Delete</button>
+            ` : ''}
           </div>
 
           <!-- Inline Reply Box (Hidden by default) -->
@@ -884,6 +898,15 @@
           btn.textContent = 'Send';
         }
         loadCommentsForThread(postId, opAuthorName);
+      });
+    });
+
+    document.querySelectorAll('.hub-btn-delete-comment').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const commentId = btn.getAttribute('data-comment-id');
+        if (!confirm('Are you sure you want to delete this comment?')) return;
+        await deleteComment(postId, commentId, opAuthorName);
       });
     });
   }
@@ -1279,6 +1302,37 @@
     showNotification('Thread deleted.');
   }
 
+  async function deleteComment(postId, commentId, opAuthorName) {
+    removeLocalComment(postId, commentId);
+
+    if (SEED_COMMENTS[postId]) {
+      SEED_COMMENTS[postId] = SEED_COMMENTS[postId].filter(c => c.id !== commentId && c.parent_id !== commentId);
+    }
+
+    const config = getSupabaseConfig();
+    const session = getCurrentSession();
+    if (config.url && config.anonKey && session?.access_token && !String(commentId).startsWith('c-seed-') && !String(commentId).startsWith('c-1') && !String(commentId).startsWith('c-2') && !String(commentId).startsWith('c-3')) {
+      try {
+        await fetch(`${config.url}/rest/v1/community_comments?id=eq.${commentId}`, {
+          method: 'DELETE',
+          headers: {
+            'apikey': config.anonKey,
+            'Authorization': `Bearer ${session.access_token}`
+          }
+        });
+      } catch (err) {}
+    }
+
+    const post = postsData.find(p => p.id === postId);
+    if (post && post.comments_count > 0) {
+      post.comments_count--;
+      renderFilteredPosts();
+    }
+
+    showNotification('Comment deleted.');
+    loadCommentsForThread(postId, opAuthorName);
+  }
+
   function canPostAnnouncement() {
     const session = getCurrentSession();
     if (!session || !session.user) return false;
@@ -1291,7 +1345,21 @@
     if (!session || !session.user) return false;
     const role = (session.user.role || session.user.user_metadata?.role || '').toLowerCase();
     if (['admin', 'dev', 'moderator'].includes(role)) return true;
-    return session.user.id && post.author_id && session.user.id === post.author_id;
+    if (session.user.id && post.author_id && session.user.id === post.author_id) return true;
+    const currentName = session.user.user_metadata?.username || session.user.email?.split('@')[0];
+    if (currentName && post.author_name && currentName.toLowerCase() === post.author_name.toLowerCase()) return true;
+    return false;
+  }
+
+  function canDeleteComment(comment) {
+    const session = getCurrentSession();
+    if (!session || !session.user) return false;
+    const role = (session.user.role || session.user.user_metadata?.role || '').toLowerCase();
+    if (['admin', 'dev', 'moderator'].includes(role)) return true;
+    if (session.user.id && comment.author_id && session.user.id === comment.author_id) return true;
+    const currentName = session.user.user_metadata?.username || session.user.email?.split('@')[0];
+    if (currentName && comment.author_name && currentName.toLowerCase() === comment.author_name.toLowerCase()) return true;
+    return false;
   }
 
   function getCurrentSession() {

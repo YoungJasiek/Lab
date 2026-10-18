@@ -4499,6 +4499,11 @@ textarea:user-invalid {
   color: #ffffff;
 }
 
+.hub-comment-action-btn.text-danger:hover {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.15);
+}
+
 .hub-comment-replies {
   margin-top: 10px;
   display: flex;
