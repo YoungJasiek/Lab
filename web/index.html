@@ -39,10 +39,7 @@
   <a href="#content" class="skip-link">Skip to main content</a>
 
   <!-- ====================================================================
-       1. TOP HEADER
-       ==================================================================== -->
-  <!-- ====================================================================
-       1. TOP HEADER (2007/2009 VDC TOOLBAR)
+       1. TOP HEADER (EXACT MATCH TO VALVE DEVELOPER COMMUNITY - IMAGE 2)
        ==================================================================== -->
   <header class="vdc-top-header" role="banner">
     <div class="vdc-header-left">
@@ -51,21 +48,15 @@
         <span class="vdc-logo-stamp">LAB</span>
         <div class="vdc-brand-text">
           <span class="vdc-brand-title">Developer Community</span>
-          <span class="vdc-brand-sub">MODERN C++20 &bull; OPENGL 4.5+ DIRECT STATE ACCESS &bull; LABHAMMER</span>
         </div>
       </a>
     </div>
 
-    <div class="vdc-search-bar" role="search">
-      <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search Lab Developer Community" aria-label="Search wiki documentation">
-      <button id="search-go-btn" class="vdc-search-btn" aria-label="Search">Go</button>
-    </div>
-
     <div class="vdc-header-right">
       <div class="vdc-user-tools">
-        <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="user-link">YoungJasiek</a>
-        <span class="pipe-sep">&bull;</span>
-        <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="user-link">Git Source</a>
+        <a href="#" id="auth-btn-create" class="user-link">Create account</a>
+        <span class="pipe-sep" style="color:#505967; margin:0 4px;">&bull;</span>
+        <a href="#" id="auth-btn-login" class="user-link">Log in</a>
       </div>
     </div>
   </header>
@@ -75,56 +66,60 @@
        ==================================================================== -->
   <div class="vdc-page-container">
 
-    <!-- Left Sidebar Navigation -->
-    <!-- Left Sidebar Navigation (2007 MediaWiki Monobook) -->
+    <!-- Left Sidebar Navigation (Authentic MediaWiki Monobook) -->
     <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
       <div class="sidebar-block">
-        <div class="sidebar-title">Navigation</div>
         <ul class="sidebar-links">
           <li><a href="index.html" class="active">Main Page</a></li>
-          <li><a href="modules.html">Lab SDK Index</a></li>
-          <li><a href="wiki-contents.html">Wiki Contents</a></li>
-          <li><a href="project-hub.html">Community &amp; Project Hub</a></li>
-          <li><a href="talk.html">Discussion (Talk)</a></li>
+          <li><a href="modules.html">Lab SDK index</a></li>
+          <li><a href="wiki-contents.html">Recent changes</a></li>
+          <li><a href="project-hub.html">Random page</a></li>
         </ul>
       </div>
 
       <div class="sidebar-block">
-        <div class="sidebar-title"><a href="modules.html" style="color:inherit; text-decoration:none;">Modular Subsystems (.dll)</a></div>
-        <ul class="sidebar-links">
-          <li><a href="module-core.html">Engine.dll</a></li>
-          <li><a href="module-render.html">render.dll</a></li>
-          <li><a href="module-audio.html">audio.dll</a></li>
-          <li><a href="module-physics.html">physics.dll</a></li>
-          <li><a href="module-animation.html">animation.dll</a></li>
-          <li><a href="module-world.html">world.dll</a></li>
-          <li><a href="module-network.html">network.dll</a></li>
-          <li><a href="module-ai.html">ai.dll</a></li>
-          <li><a href="module-script.html">script.dll</a></li>
-          <li><a href="module-studio.html">studio.dll</a></li>
-          <li><a href="module-hud.html">hud.dll</a></li>
-        </ul>
-      </div>
-
-      <div class="sidebar-block">
-        <div class="sidebar-title">Engine &amp; Toolset</div>
+        <div class="sidebar-title">Lab Engine Core</div>
         <ul class="sidebar-links">
           <li><a href="architecture.html">Engine Architecture</a></li>
           <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
-          <li><a href="lighting.html">Dynamic Lighting &amp; Lamps</a></li>
-          <li><a href="labeditor.html">LabEditor Suite</a></li>
-          <li><a href="labhammer.html">LabHammer (3D CSG)</a></li>
-          <li><a href="character-studio.html">LabStudio (3D Poser)</a></li>
-          <li><a href="labhud.html">LabHUD (2D Canvas)</a></li>
-          <li><a href="plugins.html">Native C++ Plugins</a></li>
-          <li><a href="lua-scripting.html">Lua 5.4 Scripting</a></li>
-          <li><a href="frozen-life.html">Frozen-Life (Alpha)</a></li>
-          <li><a href="skeletal-animations.html">Skeletal &amp; FBX Rigging</a></li>
+          <li><a href="modules.html">Modular Subsystems (.dll)</a></li>
+          <li><a href="module-physics.html">physics.dll Dynamics</a></li>
+          <li><a href="module-audio.html">audio.dll 3D Spatial</a></li>
+          <li><a href="module-render.html">render.dll Pipeline</a></li>
+          <li><a href="building.html">Building from Source</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Game SDKs &amp; Tools</div>
+        <ul class="sidebar-links">
+          <li><a href="frozen-life.html">Frozen-Life SDK (Game 1)</a></li>
           <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></li>
           <li><a href="bot-ai.html">Combat Bot AI</a></li>
           <li><a href="multiplayer.html">UDP Multiplayer</a></li>
-          <li><a href="audio-synthesizer.html">3D Audio &amp; Synth</a></li>
-          <li><a href="building.html">Building from Source</a></li>
+          <li><a href="labhammer.html">LabHammer (3D CSG)</a></li>
+          <li><a href="character-studio.html">LabStudio (3D Poser)</a></li>
+          <li><a href="labhud.html">LabHUD (2D Canvas)</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Support &amp; Community</div>
+        <ul class="sidebar-links">
+          <li><a href="project-hub.html">Community portal</a></li>
+          <li><a href="talk.html">Discussion (Talk)</a></li>
+          <li><a href="building.html">Getting help</a></li>
+          <li><a href="wiki-contents.html">Lab SDK FAQ</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Tools</div>
+        <ul class="sidebar-links">
+          <li><a href="editor.html" style="color:var(--wiki-accent); font-weight:bold;">+ Create New Article</a></li>
+          <li><a href="wiki-contents.html">What links here</a></li>
+          <li><a href="project-hub.html">Special pages</a></li>
+          <li><a href="javascript:window.print();">Printable version</a></li>
         </ul>
       </div>
     </aside>
@@ -132,46 +127,58 @@
     <!-- Main Content Area -->
     <main id="content" class="vdc-main-content" role="main">
 
-      <!-- Navigation Tabs (2007 Monobook / Early Vector Style) -->
-      <!-- Navigation Tabs (2007 MediaWiki Monobook) -->
+      <!-- Navigation Tabs (Exact 2007 Valve Developer Community layout matching Image 2) -->
       <nav class="vdc-page-tabs" aria-label="Namespace tabs">
         <div class="tabs-left">
-          <a href="index.html" class="wiki-tab active">Page</a>
+          <a href="index.html" class="wiki-tab active">Main Page</a>
           <a href="talk.html" class="wiki-tab">Discussion</a>
         </div>
         <div class="tabs-right">
           <a href="index.html" class="wiki-tab active">Read</a>
+          <a href="#" id="vdc-tab-edit" class="wiki-tab">Edit</a>
           <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="wiki-tab">View source</a>
           <a href="https://github.com/YoungJasiek/Lab/commits/main" target="_blank" rel="noopener noreferrer" class="wiki-tab">View history</a>
+          <span class="wiki-tab" style="cursor:default;">More &#9662;</span>
+
+          <!-- Tab-aligned search bar matching Image 2 -->
+          <div class="vdc-tab-search" role="search">
+            <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search Lab Developer Community" aria-label="Search wiki documentation">
+            <span class="vdc-search-icon">&#128269;</span>
+          </div>
         </div>
       </nav>
 
-      <!-- Breadcrumbs -->
-      <div class="wiki-breadcrumbs">
-        <span class="crumb-current">Main Page</span>
-      </div>
-
-      <!-- Flags / Platform Bar (VDC Style) -->
-      <div class="vdc-flags-bar">
-        <span class="flag-pill">Windows x64</span>
-        <span class="flag-pill">Linux ELF</span>
-        <span class="flag-pill">WebAssembly</span>
-        <span class="flag-pill">ISO C++20</span>
-        <span class="flag-pill">OpenGL 4.5+ DSA</span>
+      <!-- Language flag row under search bar matching Image 2 -->
+      <div class="vdc-flags-bar" aria-label="Language selection">
+        <img class="flag-img flag-active" src="assets/flags/us.png" alt="English" title="English">
+        <img class="flag-img" src="assets/flags/de.png" alt="Deutsch" title="Deutsch">
+        <img class="flag-img" src="assets/flags/es.png" alt="Español" title="Español">
+        <img class="flag-img" src="assets/flags/fr.png" alt="Français" title="Français">
+        <img class="flag-img" src="assets/flags/fi.png" alt="Suomi" title="Suomi">
+        <img class="flag-img" src="assets/flags/it.png" alt="Italiano" title="Italiano">
+        <img class="flag-img" src="assets/flags/jp.png" alt="日本語" title="日本語">
+        <img class="flag-img" src="assets/flags/nl.png" alt="Nederlands" title="Nederlands">
+        <img class="flag-img" src="assets/flags/br.png" alt="Português (Brasil)" title="Português (Brasil)">
+        <img class="flag-img" src="assets/flags/pl.png" alt="Polski" title="Polski">
+        <img class="flag-img" src="assets/flags/ru.png" alt="Русский" title="Русский">
+        <img class="flag-img" src="assets/flags/sk.png" alt="Slovenčina" title="Slovenčina">
+        <img class="flag-img" src="assets/flags/se.png" alt="Svenska" title="Svenska">
+        <img class="flag-img" src="assets/flags/tr.png" alt="Türkçe" title="Türkçe">
+        <img class="flag-img" src="assets/flags/cn.png" alt="中文" title="中文">
       </div>
 
       <!-- ================================================================
-           VDC MAIN WELCOME HEADER
+           VDC MAIN WELCOME HEADER (MATCHING IMAGE 2 EXACTLY)
            ================================================================ -->
       <div id="welcome" class="vdc-main-welcome">
         <div class="vdc-welcome-sub">Welcome to the</div>
         <h1 class="vdc-welcome-title">Lab Developer Community</h1>
-        <div class="vdc-welcome-count">87 subsystem specifications and architectural articles documenting the engine.</div>
-        <div class="vdc-welcome-cta">
-          <a href="modules.html">Explore the engine architecture and subsystem documentation &raquo;</a>
+        <div class="vdc-welcome-count">87 articles documenting the development process.</div>
+        <div class="vdc-welcome-cta" style="margin-top:6px;">
+          <a href="#" id="welcome-signup-link" style="color:#648cc8; font-size:13px; font-weight:bold;">Sign up to become part of the community!</a>
         </div>
         <p class="vdc-welcome-desc">
-          Whether you're developing high-performance game projects with <strong>Lab Engine</strong>, authoring 3D maps in <strong>LabHammer</strong>, or building custom mods for <strong>Frozen-Life</strong>, this is the official engineering documentation hub and technical reference wiki. Designed with modern C++20 standards, OpenGL 4.5+ Direct State Access (DSA), and Source Engine-style decoupled modular subsystems.
+          Whether you're building a commercial project or a Lab engine modification, you'll want to <a href="#" id="welcome-inline-signup">sign up</a> as a Lab developer today. It's free to join and is open to anyone working with the <a href="architecture.html">Lab engine</a> and its <a href="modules.html">software development kit</a>.
         </p>
       </div>
 
@@ -186,51 +193,33 @@
           <!-- Tier 1: Lab Engine & Modular Subsystems -->
           <div class="vdc-tier-card tier-engine">
             <a href="architecture.html" class="vdc-tier-header">
-              <span class="vdc-tier-icon">L</span>
+              <span class="vdc-tier-emblem">&lambda;</span>
               <span class="vdc-tier-title">Lab Engine and the Modular SDK &raquo;</span>
             </a>
             <div class="vdc-tier-body">
-              <p>If you want to create games with the core engine, inspect Source-modular DLL subsystems (<code>server.dll</code>, <code>client.dll</code>, <code>physics.dll</code>), implement OpenGL 4.5+ Direct State Access (DSA) renderers, or explore C++20 low-level architecture, click above.</p>
-              <ul class="vdc-tier-sublinks">
-                <li><a href="modules.html#sec-source-arch">server.dll Authoritative Simulation &raquo;</a></li>
-                <li><a href="modules.html#sec-source-arch">client.dll Smooth Prediction &raquo;</a></li>
-                <li><a href="module-physics.html">physics.dll Dynamics &amp; Ragdolls &raquo;</a></li>
-                <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA Graphics Pipeline &raquo;</a></li>
-              </ul>
+              <p>If you want to create games with the core engine, inspect Source-modular DLL subsystems (<a href="modules.html#sec-source-arch">server.dll</a>, <a href="modules.html#sec-source-arch">client.dll</a>, <a href="module-physics.html">physics.dll</a>), implement <a href="opengl-dsa.html">OpenGL 4.5+ Direct State Access (DSA)</a> renderers, or explore C++20 low-level architecture, click above.</p>
             </div>
           </div>
 
           <!-- Tier 2: LabHammer & Editor Suite -->
           <div class="vdc-tier-card tier-hammer">
             <a href="labhammer.html" class="vdc-tier-header">
-              <span class="vdc-tier-icon"></span>
+              <span class="vdc-tier-emblem">&#9874;</span>
               <span class="vdc-tier-title">LabHammer and the Editor Suite &raquo;</span>
             </a>
             <div class="vdc-tier-body">
-              <p>If you want to author 3D maps, create CSG brush geometry, place entities, configure dynamic lamps and lighting, or use the multi-workspace LabEditor suite (3D Level, 2D Tilemap, Studio Poser, HUD Designer), click above.</p>
-              <ul class="vdc-tier-sublinks">
-                <li><a href="labhammer.html#sec-tools">6 Core Brush &amp; Entity Tools &raquo;</a></li>
-                <li><a href="labhammer.html#sec-labscene-format">Structured JSON .labscene Format &raquo;</a></li>
-                <li><a href="lighting.html">Dynamic Lamp Tool &amp; 3D Gizmos &raquo;</a></li>
-                <li><a href="labeditor.html">Play-In-Editor (PIE) 64Hz Simulation &raquo;</a></li>
-              </ul>
+              <p>If you want to author 3D maps, create CSG brush geometry, place entities, configure dynamic lamps and lighting, or use the multi-workspace <a href="labeditor.html">LabEditor</a> suite (3D Level, 2D Tilemap, Studio Poser, HUD Designer), click above.</p>
             </div>
           </div>
 
           <!-- Tier 3: Frozen-Life Documentation -->
           <div class="vdc-tier-card tier-fl">
             <a href="frozen-life.html" class="vdc-tier-header">
-              <span class="vdc-tier-icon">FL</span>
+              <span class="vdc-tier-emblem">FL</span>
               <span class="vdc-tier-title">Frozen-Life Documentation &raquo;</span>
             </a>
             <div class="vdc-tier-body">
-              <p>If you want to explore the flagship tactical FPS demonstration game built on the Lab SDK, test playable maps (Cryo &amp; Alpha), inspect weapon ballistics, 64-128Hz multiplayer, or write mods, click above. Otherwise, check out:</p>
-              <ul class="vdc-tier-sublinks">
-                <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel Ballistics &raquo;</a></li>
-                <li><a href="bot-ai.html">Tactical Combat Bot AI &amp; FSM &raquo;</a></li>
-                <li><a href="multiplayer.html">UDP Multiplayer &amp; Client Prediction &raquo;</a></li>
-                <li><a href="frozen-life.html#sec-maps">Playable Maps (Cryo &amp; Alpha) &raquo;</a></li>
-              </ul>
+              <p>If you want to explore the flagship tactical FPS demonstration game built on the Lab SDK, test playable maps (<a href="frozen-life.html#sec-maps">Cryo &amp; Alpha</a>), inspect <a href="weapons-viewmodel.html">weapon ballistics</a>, <a href="multiplayer.html">64-128Hz multiplayer</a>, or write mods, click above.</p>
             </div>
           </div>
 
@@ -238,61 +227,61 @@
 
         <!-- RIGHT COLUMN: Technology Overview & Wiki Hub (MediaWiki Box) -->
         <div class="vdc-portal-right">
-          <div class="vdc-hub-box">
-            
-            <!-- Tech Showcases -->
-            <div class="vdc-hub-tech-list">
-              <div class="vdc-hub-tech-item">
-                <div class="vdc-hub-tech-logo">
-                  <img src="assets/img/LabLogoText.webp" alt="Lab Engine">
+          
+          <!-- Tech Showcases -->
+          <div class="vdc-showcase-card">
+            <div class="vdc-showcase-list">
+              <div class="vdc-showcase-item">
+                <div class="vdc-showcase-logo">
+                  <div class="vdc-tech-mark lab-mark">lab<span class="tech-arc">)</span></div>
                 </div>
-                <p class="vdc-hub-tech-desc">The high-performance C++20 engine under the hood. Modular DLL subsystems, OpenGL 4.5+ DSA, and zero dynamic allocation frame loop.</p>
+                <p class="vdc-showcase-desc">The high-performance C++20 engine under the hood. Modular DLL subsystems, OpenGL 4.5+ DSA, and zero dynamic allocation frame loop so your team can focus on gameplay.</p>
               </div>
 
-              <div class="vdc-hub-tech-item">
-                <div class="vdc-hub-tech-logo">
-                  <span class="vdc-hub-logo-text">LabHammer</span>
+              <div class="vdc-showcase-item">
+                <div class="vdc-showcase-logo">
+                  <div class="vdc-tech-mark hammer-mark">hammer<span class="tech-arc-green">)</span></div>
                 </div>
-                <p class="vdc-hub-tech-desc">Multi-workspace 3D CAD level editor featuring CSG brush geometry, 2D quad-viewports, dynamic lamps, and native .labscene scene graph.</p>
+                <p class="vdc-showcase-desc">Multi-workspace 3D CAD level editor featuring CSG brush geometry, 2D quad-viewports, dynamic lamps, and native .labscene scene graph.</p>
               </div>
 
-              <div class="vdc-hub-tech-item">
-                <div class="vdc-hub-tech-logo">
-                  <img src="assets/img/FL_LogoText.webp" alt="Frozen-Life">
+              <div class="vdc-showcase-item">
+                <div class="vdc-showcase-logo">
+                  <div class="vdc-tech-mark fl-mark"><span class="fl-symbol">&#10052;</span>FL-SDK</div>
                 </div>
-                <p class="vdc-hub-tech-desc">The premier tactical FPS showcase demonstration built on the Lab SDK with viewmodel ballistics, combat bots, and multiplayer.</p>
-              </div>
-
-              <a href="architecture.html" class="vdc-hub-btn-blue">Read about Lab Technology &raquo;</a>
-            </div>
-
-            <!-- For Mod / Game Teams -->
-            <div class="vdc-hub-section">
-              <div class="vdc-hub-section-title">For Game &amp; Mod Developers</div>
-              <ul class="vdc-hub-links">
-                <li><a href="architecture.html">Engine Architecture &amp; C++20 Design</a></li>
-                <li><a href="modules.html">Modular Subsystems (server.dll &amp; client.dll)</a></li>
-                <li><a href="multiplayer.html">Generic ECS Networking &amp; Replication</a></li>
-                <li><a href="lua-scripting.html">Lua 5.4 Scripting &amp; Developer Console</a></li>
-                <li><a href="plugins.html">Modular Drop-in Plugins &amp; Package Manager</a></li>
-                <li><a href="building.html">Building from Source (CMake &amp; MSVC Guide)</a></li>
-                <li><a href="labhammer.html">Creating Custom Maps in LabHammer</a></li>
-              </ul>
-            </div>
-
-            <!-- New to the wiki? -->
-            <div class="vdc-hub-section">
-              <div class="vdc-hub-section-title">New to the wiki?</div>
-              <p class="vdc-hub-section-text">
-                For help with navigating the wiki, see the <a href="architecture.html">Architecture Index</a>. For compiling and running builds, see <a href="building.html">Building from Source</a>. For project development, see our <a href="https://github.com/YoungJasiek/Lab" target="_blank">GitHub Repository</a>.
-              </p>
-              <div class="vdc-hub-action-btns">
-                <a href="wiki-contents.html" class="vdc-hub-btn-blue">Wiki Contents &raquo;</a>
-                <a href="project-hub.html" class="vdc-hub-btn-rust">Community Portal &raquo;</a>
+                <p class="vdc-showcase-desc">The premier tactical FPS showcase demonstration built on the Lab SDK with viewmodel ballistics, combat bots, and 64-128Hz UDP client-predicted multiplayer.</p>
               </div>
             </div>
 
+            <a href="architecture.html" class="vdc-showcase-strip-btn">Read about Lab Technology &raquo;</a>
           </div>
+
+          <!-- For Game & Mod Developers -->
+          <div class="vdc-mod-teams-card">
+            <div class="vdc-card-title">For Game &amp; Mod Developers</div>
+            <ul class="vdc-hub-links">
+              <li><a href="architecture.html">Engine Architecture &amp; C++20 Design</a></li>
+              <li><a href="modules.html">Modular Subsystems (server.dll &amp; client.dll)</a></li>
+              <li><a href="multiplayer.html">Generic ECS Networking &amp; Replication</a></li>
+              <li><a href="lua-scripting.html">Lua 5.4 Scripting &amp; Developer Console</a></li>
+              <li><a href="plugins.html">Modular Drop-in Plugins &amp; Package Manager</a></li>
+              <li><a href="building.html">Building from Source (CMake &amp; MSVC Guide)</a></li>
+              <li><a href="labhammer.html">Creating Custom Maps in LabHammer</a></li>
+            </ul>
+          </div>
+
+          <!-- New to the wiki? 2-column grid -->
+          <div class="vdc-newbie-card">
+            <div class="vdc-newbie-left">
+              <h3>New to the wiki?</h3>
+              <p>For help with navigating the wiki, see the <a href="architecture.html">Architecture Index</a>. For compiling and running builds, see <a href="building.html">Building from Source</a>.</p>
+            </div>
+            <div class="vdc-newbie-right">
+              <a href="wiki-contents.html" class="vdc-btn-wiki-contents">Wiki Contents &raquo;</a>
+              <a href="project-hub.html" class="vdc-btn-community-portal">Community Portal &raquo;</a>
+            </div>
+          </div>
+
         </div>
 
       </div>
@@ -435,6 +424,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Supabase Auth & VDC MediaWiki Editor -->
+  <script src="js/supabase-auth.js"></script>
 
   <!-- Main JavaScript File -->
   <script src="js/app.js?v=3"></script>

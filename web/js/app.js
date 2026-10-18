@@ -455,9 +455,12 @@ function initTalkDiscussionSystem() {
 
   function getSavedAuthor() {
     try {
-      return localStorage.getItem(STORAGE_AUTHOR_KEY) || 'YoungJasiek';
+      const session = JSON.parse(localStorage.getItem('lab_supabase_session') || '{}');
+      if (session?.user?.user_metadata?.username) return session.user.user_metadata.username;
+      if (session?.user?.email) return session.user.email.split('@')[0];
+      return localStorage.getItem(STORAGE_AUTHOR_KEY) || 'Anonymous';
     } catch (e) {
-      return 'YoungJasiek';
+      return 'Anonymous';
     }
   }
 
@@ -488,16 +491,16 @@ function initTalkDiscussionSystem() {
   }
 
   function buildSignatureHtml(author, timestampStr) {
-    const safeAuthor = escapeBasicHtml((author || 'YoungJasiek').trim() || 'YoungJasiek');
+    const safeAuthor = escapeBasicHtml((author || getSavedAuthor()).trim() || 'Anonymous');
     const ts = timestampStr || formatUtcTimestamp(new Date());
-    return `<span class="talk-sig">&mdash;<a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="mw-userlink">${safeAuthor}</a> (<a href="#editor-section" class="mw-usertalk">talk</a>) ${ts}</span>`;
+    return `<span class="talk-sig">&mdash;<span class="mw-userlink">${safeAuthor}</span> (<a href="#editor-section" class="mw-usertalk">talk</a>) ${ts}</span>`;
   }
 
   function parseWikitext(rawText, author, timestampStr) {
     if (!rawText) return '';
     const sigFull = buildSignatureHtml(author, timestampStr);
-    const safeAuthor = escapeBasicHtml((author || 'YoungJasiek').trim() || 'YoungJasiek');
-    const sigNameOnly = `<a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="mw-userlink">${safeAuthor}</a> (<a href="#editor-section" class="mw-usertalk">talk</a>)`;
+    const safeAuthor = escapeBasicHtml((author || getSavedAuthor()).trim() || 'Anonymous');
+    const sigNameOnly = `<span class="mw-userlink">${safeAuthor}</span> (<a href="#editor-section" class="mw-usertalk">talk</a>)`;
 
     const hasTildeSig = /~~~/.test(rawText);
 
@@ -697,7 +700,7 @@ function initTalkDiscussionSystem() {
         bodyTextarea.focus();
         return;
       }
-      const author = (authorInput.value || 'YoungJasiek').trim();
+      const author = (authorInput.value || getSavedAuthor()).trim();
       setSavedAuthor(author);
       const replyObj = {
         sectionId,
@@ -843,7 +846,7 @@ function initTalkDiscussionSystem() {
         bodyInput.focus();
         return;
       }
-      const author = (authInput.value || 'YoungJasiek').trim();
+      const author = (authInput.value || getSavedAuthor()).trim();
       setSavedAuthor(author);
 
       const safeId = subj.replace(/[^a-zA-Z0-9_-]/g, '_') + '_' + Math.floor(Date.now() / 1000);

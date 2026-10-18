@@ -8,57 +8,57 @@
    1. DESIGN TOKENS (CSS VARIABLES) – STREAMLINED PALETTE
    -------------------------------------------------------------------------- */
 :root {
-  /* Dark Theme (Default) - 2007/2009 Valve Developer Community Slate Palette */
-  --wiki-bg-body: #191c21;
-  --wiki-bg-content: #21252b;
-  --wiki-bg-header: #292d35;
-  --wiki-bg-sidebar: #1b1e24;
-  --wiki-bg-card: #1c2026;
-  --wiki-bg-card-hover: #222730;
-  --wiki-bg-inset: #15181d;
-  --wiki-bg-table-header: #2b3038;
-  --wiki-bg-table-zebra: #1e2228;
+  /* Dark Theme (Default) - 2007/2009 Valve Developer Community Warm Charcoal Palette */
+  --wiki-bg-body: #1f1e1d;
+  --wiki-bg-content: #262626;
+  --wiki-bg-header: transparent;
+  --wiki-bg-sidebar: #1f1e1d;
+  --wiki-bg-card: rgba(48, 48, 48, 0.73);
+  --wiki-bg-card-hover: rgba(58, 58, 58, 0.85);
+  --wiki-bg-inset: #1a1a1a;
+  --wiki-bg-table-header: #2f2f2f;
+  --wiki-bg-table-zebra: #232323;
 
-  /* Classic 2007 MediaWiki Blue Accent */
-  --wiki-accent: #5c9fe6;
-  --wiki-accent-hover: #8ec3f8;
-  --wiki-accent-subtle: rgba(92, 159, 230, 0.08);
-  --wiki-accent-border: #3b5a7d;
+  /* Classic Valve Developer Community Blue Accent */
+  --wiki-accent: #648cc8;
+  --wiki-accent-hover: #a0c0f0;
+  --wiki-accent-subtle: rgba(100, 140, 200, 0.1);
+  --wiki-accent-border: #4a6fa5;
 
   /* Status Colors */
-  --wiki-success: #38b274;
-  --wiki-warning: #d97724;
-  --wiki-danger: #d94343;
+  --wiki-success: #4a8a3a;
+  --wiki-warning: #c27c28;
+  --wiki-danger: #c43838;
 
   /* Neutral Text Hierarchy */
-  --wiki-text-primary: #e6ebf2;
-  --wiki-text-secondary: #b5c0ce;
-  --wiki-text-muted: #7d8b9d;
-  --wiki-text-link: #5c9fe6;
-  --wiki-text-link-hover: #8ec3f8;
+  --wiki-text-primary: #e6e6e6;
+  --wiki-text-secondary: #b9b7b5;
+  --wiki-text-muted: #858585;
+  --wiki-text-link: #648cc8;
+  --wiki-text-link-hover: #a0c0f0;
 
   /* Crisp 1px Borders */
-  --wiki-border: #363c46;
-  --wiki-border-light: #48515e;
-  --wiki-border-subtle: rgba(255, 255, 255, 0.06);
+  --wiki-border: rgba(255, 255, 255, 0.15);
+  --wiki-border-light: rgba(255, 255, 255, 0.22);
+  --wiki-border-subtle: rgba(255, 255, 255, 0.08);
 
   /* Notice Boxes */
-  --wiki-note-bg: #152230;
-  --wiki-note-border: #2e557a;
-  --wiki-warning-bg: #291e14;
-  --wiki-warning-border: #804a1f;
-  --wiki-tip-bg: #14261d;
-  --wiki-tip-border: #2b6e49;
+  --wiki-note-bg: #1c2736;
+  --wiki-note-border: #3b5f88;
+  --wiki-warning-bg: #302418;
+  --wiki-warning-border: #805326;
+  --wiki-tip-bg: #1a2c20;
+  --wiki-tip-border: #337a50;
 
   /* Layout dimensions */
-  --sidebar-width: 230px;
+  --sidebar-width: 215px;
   --header-height: 44px;
-  --max-content-width: 1400px;
+  --max-content-width: 1440px;
 
-  /* 2007/2009 Web-Safe Font Families */
-  --font-wiki: Arial, Helvetica, sans-serif;
-  --font-mono: 'Courier New', Courier, monospace, 'Consolas';
-  --font-heading: Arial, Helvetica, sans-serif;
+  /* Authentic Web Font Families */
+  --font-wiki: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, Helvetica, sans-serif;
+  --font-mono: 'Consolas', 'Courier New', Courier, monospace;
+  --font-heading: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, Helvetica, sans-serif;
 }
 
 /* Dark Theme is the sole default theme (Authentic 2007/2009 Valve Developer Community) */
@@ -83,7 +83,10 @@ html {
 
 body {
   min-height: 100vh;
-  background: var(--wiki-bg-body);
+  background-color: #1f1e1d;
+  background-image: 
+    linear-gradient(to bottom, rgba(31, 30, 29, 0.45) 0%, rgba(31, 30, 29, 0.98) 100%),
+    radial-gradient(ellipse at 50% 0%, rgba(70, 65, 60, 0.22) 0%, transparent 65%);
   display: flex;
   flex-direction: column;
 }
@@ -165,17 +168,16 @@ pre {
    3. TOP HEADER (2007/2009 VALVE DEVELOPER COMMUNITY TOOLBAR)
    -------------------------------------------------------------------------- */
 .vdc-top-header {
-  position: sticky;
-  top: 0;
+  position: relative;
   height: var(--header-height);
-  background: linear-gradient(to bottom, #30353e 0%, #22262d 100%);
-  border-bottom: 1px solid #3a4049;
+  background: transparent;
+  border-bottom: none;
   z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 14px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  padding: 8px 24px;
+  box-shadow: none;
 }
 
 .vdc-header-left {
@@ -335,17 +337,15 @@ pre {
   max-width: var(--max-content-width);
   margin: 0 auto;
   flex: 1;
-  border-left: 1px solid var(--wiki-border);
-  border-right: 1px solid var(--wiki-border);
 }
 
-/* Left Navigation Sidebar (2007 MediaWiki Monobook) */
+/* Left Navigation Sidebar */
 .vdc-sidebar {
   width: var(--sidebar-width);
   flex-shrink: 0;
-  background: var(--wiki-bg-sidebar);
-  border-right: 1px solid var(--wiki-border);
-  padding: 12px 10px;
+  background: transparent;
+  border-right: none;
+  padding: 8px 16px 24px 20px;
   font-size: 12px;
 }
 
@@ -401,53 +401,173 @@ pre {
 .vdc-content {
   flex: 1;
   min-width: 0;
-  background: var(--wiki-bg-content);
+  background: #262626;
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
   padding: 0 24px 36px 24px;
 }
 
-/* Navigation Tabs (2007 Monobook / Vector Tabs) */
+/* Navigation Tabs (Vector Style matching Valve Developer Community) */
 .vdc-page-tabs {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  border-bottom: 1px solid var(--wiki-border);
-  margin-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  margin-bottom: 4px;
   padding-top: 10px;
+  gap: 12px;
 }
 
-.tabs-left, .tabs-right {
+.tabs-left {
   display: flex;
-  gap: 2px;
+  gap: 0;
+}
+
+.tabs-right {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-left: auto;
 }
 
 .wiki-tab {
   display: inline-block;
-  padding: 4px 12px;
+  padding: 5px 12px;
   font-size: 11.5px;
-  color: #8893a2;
-  background: #181b20;
-  border: 1px solid var(--wiki-border);
-  border-bottom: 1px solid var(--wiki-border);
-  border-radius: 2px 2px 0 0;
+  color: #8c8c8c;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
   cursor: pointer;
   transition: none;
+  white-space: nowrap;
+  text-decoration: none !important;
+  position: relative;
+}
+
+.wiki-tab:not(.active)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 4px;
+  height: 12px;
+  width: 1px;
+  background: linear-gradient(0deg, rgba(255,255,255,0.18) 0%, transparent 80%);
 }
 
 .wiki-tab:hover {
   color: #e2e8f0;
-  background: #22262d;
   text-decoration: none;
 }
 
 .wiki-tab.active {
-  background: var(--wiki-bg-content);
+  background: #262626;
   color: #ffffff;
   font-weight: bold;
-  border-color: #4a5260;
-  border-top: 2px solid var(--wiki-accent);
-  border-bottom: 1px solid var(--wiki-bg-content);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-bottom: 1px solid #262626;
   position: relative;
   bottom: -1px;
+  border-radius: 0;
+}
+
+/* VDC Tab-aligned Search Bar matching Image 2 */
+.vdc-tab-search {
+  display: flex;
+  align-items: center;
+  position: relative;
+  width: 290px;
+  margin-left: 12px;
+  margin-bottom: 1px;
+}
+
+.vdc-tab-search .vdc-search-input {
+  width: 100%;
+  height: 25px;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid #5a5a5a;
+  border-radius: 2px;
+  padding: 3px 26px 3px 8px;
+  color: #ffffff;
+  font-size: 11.5px;
+  font-family: inherit;
+  outline: none;
+}
+
+.vdc-tab-search .vdc-search-input:focus {
+  border-color: #648cc8;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.vdc-tab-search .vdc-search-icon {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-size: 11px;
+  color: #888888;
+}
+
+/* Row of flags directly under search input matching Image 2 */
+.vdc-flags-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  padding: 2px 0 6px 0;
+  margin-bottom: 4px;
+}
+
+.vdc-flags-bar .flag-img {
+  width: 16px;
+  height: 11px;
+  display: inline-block;
+  cursor: pointer;
+  opacity: 0.82;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  vertical-align: middle;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.vdc-flags-bar .flag-img:hover {
+  opacity: 1;
+  transform: scale(1.15);
+}
+
+.vdc-flags-bar .flag-active {
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.15);
+  padding: 1px;
+  opacity: 1;
+}
+
+/* User Role Badges (Supabase RBAC) */
+.role-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: bold;
+  padding: 1px 5px;
+  border-radius: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-left: 4px;
+}
+.role-admin { background: #b82d2d; color: #fff; }
+.role-moderator { background: #d97724; color: #fff; }
+.role-dev { background: #3b74ad; color: #fff; }
+.role-user { background: #2f855a; color: #fff; }
+
+/* In-Page MediaWiki 2007 Editor */
+.vdc-inpage-editor {
+  display: none;
+  background: #181b20;
+  border: 1px solid var(--wiki-border);
+  border-radius: 2px;
+  padding: 16px;
+  margin: 14px 0 20px 0;
+}
+.vdc-inpage-editor.active {
+  display: block;
 }
 
 /* Article Heading & Subtitle (Authentic MediaWiki) */
@@ -483,25 +603,7 @@ pre {
 /* --------------------------------------------------------------------------
    5. VDC MAIN PAGE WELCOME & TARGET FLAGS (2007/2009 MEDIAWIKI STYLE)
    -------------------------------------------------------------------------- */
-.vdc-flags-bar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-  padding: 2px 0 8px 0;
-  margin-bottom: 6px;
-  font-size: 11px;
-}
 
-.flag-pill {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  padding: 1px 6px;
-  background: #15181d;
-  border: 1px solid #363c46;
-  border-radius: 0;
-  color: #8a96a8;
-}
 
 .vdc-main-welcome {
   text-align: center;
@@ -579,181 +681,216 @@ pre {
 }
 
 .vdc-tier-card {
-  background: #1c2026;
-  border: 1px solid #363c46;
-  border-radius: 2px;
-  overflow: hidden;
+  background-color: #303030ba;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 0.35em;
+  padding: 0.5em;
+  margin-top: 0;
+  margin-bottom: 0.8em;
+  overflow: clip;
 }
 
 .vdc-tier-header {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 6px 12px;
+  border-radius: 0.35em;
+  font-size: 14px;
+  font-weight: 700;
   color: #ffffff !important;
   text-decoration: none !important;
-  font-size: 12.5px;
-  font-weight: bold;
-  text-shadow: 0 1px 1px #000;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
-  font-family: Arial, Helvetica, sans-serif;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  font-family: inherit;
+  margin: 0 0 0.5em 0;
 }
 
-/* 2007 Source SDK style glossy gradients matching screenshot 3 */
+/* Exact Valve Developer Community gradients matching Image 2 */
 .tier-engine .vdc-tier-header {
-  background: linear-gradient(to bottom, #2d5573 0%, #1a354a 100%);
-  border-top: 1px solid #4a80a8;
-  border-bottom: 1px solid #0f2230;
-}
-.tier-hammer .vdc-tier-header {
-  background: linear-gradient(to bottom, #446f23 0%, #284413 100%);
-  border-top: 1px solid #6daf3a;
-  border-bottom: 1px solid #182b0b;
-}
-.tier-fl .vdc-tier-header {
-  background: linear-gradient(to bottom, #8a361c 0%, #572110 100%);
-  border-top: 1px solid #c25330;
-  border-bottom: 1px solid #36140a;
+  background-color: #7A372F;
+  background-image: linear-gradient(90deg, #7A372F, #9c463d);
+  border-bottom: 1px solid #995b5b;
 }
 
-/* Beveled 2007 icon badge box */
-.vdc-tier-icon {
+.tier-hammer .vdc-tier-header {
+  background-color: #4A6821;
+  background-image: linear-gradient(90deg, #4A6821, #638a2c);
+  border-bottom: 1px solid #728952;
+}
+
+.tier-fl .vdc-tier-header {
+  background-color: #656821;
+  background-image: linear-gradient(90deg, #656821, #898a2c);
+  border-bottom: 1px solid #898953;
+}
+
+/* Emblems inside tier headers */
+.vdc-tier-emblem {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
-  background: rgba(0, 0, 0, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(0, 0, 0, 0.5);
-  border-radius: 2px;
-  font-size: 10px;
-  font-weight: bold;
-  font-family: Arial, sans-serif;
-  color: #ffffff;
-}
-
-.vdc-tier-body {
-  padding: 10px 14px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
   font-size: 12px;
-  line-height: 1.48;
-  color: #b5c0ce;
+  font-weight: bold;
+  color: #ffffff;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.5);
 }
 
-.vdc-tier-body p {
-  margin-bottom: 8px;
+.tier-engine .vdc-tier-emblem {
+  background: #e65c19;
+  border: 1.5px solid #ffa366;
+  font-family: Arial, sans-serif;
 }
 
-.vdc-tier-sublinks {
-  list-style: none;
-  padding: 0;
-  margin: 8px 0 0 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 4px;
-  border-top: 1px solid #2d333c;
-  padding-top: 8px;
+.tier-hammer .vdc-tier-emblem {
+  border-radius: 4px;
+  background: #1c2e12;
+  border: 1.5px solid #82aa46;
+  color: #82aa46;
+  font-size: 13px;
 }
 
-.vdc-tier-sublinks li a {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: #5c9fe6;
-  font-size: 11.5px;
-  text-decoration: none;
-}
-.vdc-tier-sublinks li a:hover {
-  color: #8dc3f8;
-  text-decoration: underline;
-}
-.vdc-tier-sublinks li a::before {
-  content: '▪';
-  color: #5c9fe6;
+.tier-fl .vdc-tier-emblem {
+  border-radius: 4px;
+  background: #2b2a14;
+  border: 1.5px solid #baba50;
+  color: #dcdc6c;
   font-size: 11px;
 }
 
-/* Right Column: 2007 MediaWiki Tech Hub Box */
-.vdc-hub-box {
-  background: #1c2026;
-  border: 1px solid #363c46;
-  border-radius: 2px;
-  padding: 12px;
+.vdc-tier-body {
+  padding: 0 0.4em 0.4em 0.4em;
+  font-size: 12.8px;
+  line-height: 1.48;
+  color: #b9b7b5;
+  font-weight: 300;
+}
+
+.vdc-tier-body p {
+  margin-bottom: 6px;
+}
+
+.vdc-tier-body a {
+  color: #648cc8;
+  text-decoration: none;
+}
+.vdc-tier-body a:hover {
+  color: #a0c0f0;
+  text-decoration: underline;
+}
+
+/* Right Column: VDC Style Technology Showcase Card */
+.vdc-showcase-card {
+  background-color: #303030ba;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 0.35em;
+  overflow: clip;
+}
+
+.vdc-showcase-list {
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.vdc-hub-tech-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.vdc-showcase-item {
+  display: grid;
+  grid-template-columns: 85px 1fr;
+  gap: 12px;
+  align-items: center;
 }
 
-.vdc-hub-tech-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #2b3038;
-}
-
-.vdc-hub-tech-logo {
+.vdc-showcase-logo {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-.vdc-hub-tech-logo img {
-  max-height: 24px;
-  width: auto;
-  object-fit: contain;
-}
-.vdc-hub-logo-text {
-  font-family: Arial, Helvetica, sans-serif;
-  font-weight: bold;
-  font-size: 14px;
-  color: #ffffff;
+  justify-content: center;
 }
 
-.vdc-hub-tech-desc {
-  font-size: 11.5px;
-  line-height: 1.45;
-  color: #b0bac8;
+/* Iconic stylized text marks for tech hub */
+.vdc-tech-mark {
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 900;
+  font-size: 17px;
+  letter-spacing: -0.5px;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+}
+
+.lab-mark {
+  color: #ffffff;
+}
+.lab-mark .tech-arc {
+  color: #e65c19;
+  font-size: 20px;
+  margin-left: 1px;
+}
+
+.hammer-mark {
+  font-size: 15px;
+  color: #ffffff;
+}
+.hammer-mark .tech-arc-green {
+  color: #82aa46;
+  font-size: 18px;
+  margin-left: 1px;
+}
+
+.fl-mark {
+  font-size: 14px;
+  color: #8ec3f8;
+  letter-spacing: 0.5px;
+}
+.fl-mark .fl-symbol {
+  color: #648cc8;
+  margin-right: 3px;
+  font-size: 15px;
+}
+
+.vdc-showcase-desc {
+  font-size: 11.8px;
+  line-height: 1.42;
+  color: #b9b7b5;
   margin: 0;
 }
 
-/* 2007 Glossy Beveled Blue Action Button */
-.vdc-hub-btn-blue {
+/* Full-width integrated bottom strip button */
+.vdc-showcase-strip-btn {
   display: block;
+  background-color: #3D69AE78;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 7px 0;
   text-align: center;
-  background: linear-gradient(to bottom, #326496 0%, #1e3f60 100%);
-  border: 1px solid #142a40;
-  box-shadow: inset 0 1px 0 #528bc4, 0 1px 2px rgba(0, 0, 0, 0.45);
   color: #ffffff !important;
-  font-weight: bold;
-  font-size: 12px;
-  padding: 6px 12px;
-  border-radius: 2px;
+  font-weight: 700;
+  font-size: 12.5px;
   text-decoration: none !important;
-  text-shadow: 0 1px 1px #0a1826;
-  cursor: pointer;
+  transition: background-color 0.15s;
 }
-.vdc-hub-btn-blue:hover {
-  background: linear-gradient(to bottom, #3c78b4 0%, #254d75 100%);
-  color: #fff !important;
+.vdc-showcase-strip-btn:hover {
+  background-color: #3D69AEbb;
 }
 
-.vdc-hub-section {
-  border-top: 1px solid #2d333c;
-  padding-top: 10px;
+/* For Mod Teams Widget */
+.vdc-mod-teams-card {
+  background-color: #303030ba;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 0.35em;
+  padding: 0.8em;
+  margin-top: 0.8em;
 }
 
-.vdc-hub-section-title {
-  font-size: 12px;
+.vdc-card-title {
+  font-size: 13px;
   font-weight: bold;
-  color: #e2e8f0;
+  color: #ffffff;
   margin-bottom: 6px;
-  font-family: Arial, sans-serif;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 4px;
 }
 
 .vdc-hub-links {
@@ -767,45 +904,80 @@ pre {
   margin-bottom: 3px;
 }
 .vdc-hub-links a {
-  color: #5c9fe6;
+  color: #648cc8;
   text-decoration: none;
 }
 .vdc-hub-links a:hover {
-  color: #8dc3f8;
+  color: #a0c0f0;
   text-decoration: underline;
 }
 
-.vdc-hub-section-text {
-  font-size: 11.5px;
-  line-height: 1.45;
-  color: #a4b0c2;
-  margin-bottom: 10px;
-}
-
-.vdc-hub-action-btns {
+/* New to the wiki? 2-column grid matching VDC */
+.vdc-newbie-card {
+  background-color: #303030ba;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 0.35em;
+  padding: 0.8em;
+  margin-top: 0.8em;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  grid-template-columns: 3fr 2fr;
+  gap: 1em;
+  align-items: center;
 }
 
-.vdc-hub-btn-rust {
-  display: block;
+.vdc-newbie-left h3 {
+  font-size: 13px;
+  font-weight: bold;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.vdc-newbie-left p {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: #b9b7b5;
+  font-style: italic;
+  margin: 0;
+}
+
+.vdc-newbie-right {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.vdc-btn-wiki-contents {
+  background-color: #198bfc;
+  background-image: linear-gradient(90deg, #2b5886, #4376aa);
+  border-bottom: 1px solid #4080b0;
+  border-radius: .35em;
+  padding: 7px 10px;
   text-align: center;
-  background: linear-gradient(to bottom, #8a361c 0%, #572110 100%);
-  border: 1px solid #36140a;
-  box-shadow: inset 0 1px 0 #b35928, 0 1px 2px rgba(0, 0, 0, 0.45);
-  color: #ffffff !important;
+  color: #fff !important;
   font-weight: bold;
   font-size: 11.5px;
-  padding: 6px 8px;
-  border-radius: 2px;
   text-decoration: none !important;
-  text-shadow: 0 1px 1px #000;
-  cursor: pointer;
+  display: block;
 }
-.vdc-hub-btn-rust:hover {
-  background: linear-gradient(to bottom, #a04122 0%, #682713 100%);
+.vdc-btn-wiki-contents:hover {
+  background-image: linear-gradient(90deg, #356ba3, #508dcb);
+}
+
+.vdc-btn-community-portal {
+  background-color: #ffbf00;
+  background-image: linear-gradient(90deg, #99511b, #bf743a);
+  border-bottom: 1px solid #a46f47;
+  border-radius: .35em;
+  padding: 7px 10px;
+  text-align: center;
   color: #fff !important;
+  font-weight: bold;
+  font-size: 11.5px;
+  text-decoration: none !important;
+  display: block;
+}
+.vdc-btn-community-portal:hover {
+  background-image: linear-gradient(90deg, #b86221, #d68444);
 }
 
 /* --------------------------------------------------------------------------

@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Lab Developer Community Article Editor – Author and edit documentation for Lab Engine, LabHammer, and Frozen-Life SDK.">
+  <title>Create New Article – Lab Developer Community</title>
+
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="stylesheet" href="css/style.css?v=4">
+  <style>
+    .editor-container {
+      background: #22262d;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
+      padding: 16px;
+      margin-top: 14px;
+    }
+    .editor-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 12px;
+      align-items: center;
+    }
+    .editor-label {
+      font-size: 11.5px;
+      font-weight: bold;
+      color: #b5c0ce;
+      width: 130px;
+      flex-shrink: 0;
+    }
+    .editor-input {
+      flex: 1;
+      height: 28px;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid #4a5464;
+      border-radius: 2px;
+      padding: 4px 8px;
+      color: #ffffff;
+      font-size: 12px;
+      font-family: inherit;
+      outline: none;
+    }
+    .editor-input:focus {
+      border-color: #648cc8;
+    }
+    .mw-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+      background: #181b20;
+      border: 1px solid #363c46;
+      border-bottom: none;
+      border-radius: 2px 2px 0 0;
+      padding: 4px;
+    }
+    .mw-btn {
+      background: linear-gradient(to bottom, #3a424e 0%, #252b33 100%);
+      border: 1px solid #1a1e24;
+      border-radius: 2px;
+      color: #e2e8f0;
+      font-size: 11px;
+      font-weight: bold;
+      padding: 3px 8px;
+      cursor: pointer;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    }
+    .mw-btn:hover {
+      background: linear-gradient(to bottom, #4a5464 0%, #303742 100%);
+      color: #fff;
+    }
+    .mw-btn-accent {
+      background: linear-gradient(to bottom, #326496 0%, #1e3f60 100%);
+      border-color: #142a40;
+    }
+    .editor-textarea {
+      width: 100%;
+      height: 380px;
+      background: #14171c;
+      border: 1px solid #363c46;
+      border-radius: 0 0 2px 2px;
+      padding: 10px;
+      color: #e2e8f0;
+      font-family: 'Consolas', monospace;
+      font-size: 12.5px;
+      line-height: 1.5;
+      outline: none;
+      resize: vertical;
+    }
+    .editor-textarea:focus {
+      border-color: #648cc8;
+    }
+    .preview-pane {
+      background: #262626;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 3px;
+      padding: 16px;
+      margin-top: 14px;
+      min-height: 200px;
+    }
+    .preview-header {
+      font-size: 12px;
+      font-weight: bold;
+      color: #648cc8;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      padding-bottom: 4px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .editor-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header class="vdc-top-header" role="banner">
+    <div class="vdc-header-left">
+      <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
+      <a href="index.html" class="vdc-brand">
+        <span class="vdc-logo-stamp">LAB</span>
+        <div class="vdc-brand-text">
+          <span class="vdc-brand-title">Developer Community</span>
+        </div>
+      </a>
+    </div>
+
+    <div class="vdc-header-right">
+      <div class="vdc-user-tools">
+        <a href="#" id="auth-btn-create" class="user-link">Create account</a>
+        <span class="pipe-sep" style="color:#505967; margin:0 4px;">&bull;</span>
+        <a href="#" id="auth-btn-login" class="user-link">Log in</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Container -->
+  <div class="vdc-page-container">
+
+    <!-- Sidebar -->
+    <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
+      <div class="sidebar-block">
+        <ul class="sidebar-links">
+          <li><a href="index.html">Main Page</a></li>
+          <li><a href="modules.html">Lab SDK index</a></li>
+          <li><a href="wiki-contents.html">Recent changes</a></li>
+          <li><a href="project-hub.html">Random page</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Lab Engine Core</div>
+        <ul class="sidebar-links">
+          <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+          <li><a href="modules.html">Modular Subsystems (.dll)</a></li>
+          <li><a href="module-physics.html">physics.dll Dynamics</a></li>
+          <li><a href="building.html">Building from Source</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Game SDKs &amp; Tools</div>
+        <ul class="sidebar-links">
+          <li><a href="frozen-life.html">Frozen-Life SDK (Game 1)</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></li>
+          <li><a href="labhammer.html">LabHammer (3D CSG)</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Tools</div>
+        <ul class="sidebar-links">
+          <li><a href="editor.html" class="active" style="color:var(--wiki-accent); font-weight:bold;">+ Create New Article</a></li>
+          <li><a href="wiki-contents.html">What links here</a></li>
+          <li><a href="project-hub.html">Special pages</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main id="content" class="vdc-main-content" role="main">
+
+      <!-- Navigation Tabs -->
+      <nav class="vdc-page-tabs" aria-label="Namespace tabs">
+        <div class="tabs-left">
+          <span class="wiki-tab active">Create Article</span>
+          <a href="talk.html" class="wiki-tab">Discussion</a>
+        </div>
+        <div class="tabs-right">
+          <span class="wiki-tab active">Edit</span>
+          <a href="#" id="tab-toggle-preview" class="wiki-tab">Live Preview</a>
+          <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="wiki-tab">View source</a>
+          <span class="wiki-tab" style="cursor:default;">More &#9662;</span>
+
+          <div class="vdc-tab-search" role="search">
+            <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search Lab Developer Community" aria-label="Search wiki documentation">
+            <span class="vdc-search-icon">&#128269;</span>
+          </div>
+        </div>
+      </nav>
+
+      <!-- Language flag row -->
+      <div class="vdc-flags-bar" aria-label="Language selection">
+        <img class="flag-img flag-active" src="assets/flags/us.png" alt="English" title="English">
+        <img class="flag-img" src="assets/flags/pl.png" alt="Polski" title="Polski">
+        <img class="flag-img" src="assets/flags/de.png" alt="Deutsch" title="Deutsch">
+        <img class="flag-img" src="assets/flags/es.png" alt="Español" title="Español">
+        <img class="flag-img" src="assets/flags/fr.png" alt="Français" title="Français">
+        <img class="flag-img" src="assets/flags/ru.png" alt="Русский" title="Русский">
+        <img class="flag-img" src="assets/flags/cn.png" alt="中文" title="中文">
+      </div>
+
+      <h1 class="page-title">Create / Edit Documentation Article</h1>
+      <div class="page-subtitle">From Lab Developer Community &bull; Valve Developer Community (VDC) Architecture</div>
+
+      <div class="editor-container">
+        
+        <div class="editor-row">
+          <label class="editor-label" for="article-title">Article Title:</label>
+          <input type="text" id="article-title" class="editor-input" placeholder="e.g. Frozen-Life: Weapon Scripting SDK" value="Frozen-Life: Weapon Scripting SDK">
+        </div>
+
+        <div class="editor-row">
+          <label class="editor-label" for="article-namespace">Namespace / SDK:</label>
+          <select id="article-namespace" class="editor-input" style="cursor:pointer;">
+            <option value="frozen-life">Frozen-Life SDK (Game 1)</option>
+            <option value="lab-engine">Lab Engine Core (.dll Modular Subsystems)</option>
+            <option value="labhammer">LabHammer &amp; Editor Suite</option>
+            <option value="game-sdk">New Game SDK (Custom Mod / Game)</option>
+            <option value="general">General Documentation &amp; Guides</option>
+          </select>
+        </div>
+
+        <div class="editor-row">
+          <label class="editor-label" for="article-filename">Target Filename (.html):</label>
+          <input type="text" id="article-filename" class="editor-input" placeholder="frozen-life-weapons.html" value="frozen-life-weapons.html">
+        </div>
+
+        <!-- MediaWiki 2007 Toolbar -->
+        <div class="mw-toolbar" role="toolbar" aria-label="Wikitext formatting tools">
+          <button type="button" class="mw-btn" data-act="h2" title="Heading 2">== H2 ==</button>
+          <button type="button" class="mw-btn" data-act="h3" title="Heading 3">=== H3 ===</button>
+          <button type="button" class="mw-btn" data-act="bold" title="Bold">'''B'''</button>
+          <button type="button" class="mw-btn" data-act="italic" title="Italic">''I''</button>
+          <button type="button" class="mw-btn mw-btn-accent" data-act="link" title="Internal Link">[[Link]]</button>
+          <button type="button" class="mw-btn" data-act="code" title="Inline Code">&lt;code&gt;</button>
+          <button type="button" class="mw-btn" data-act="pre" title="Preformatted C++ Block">&lt;pre&gt;</button>
+          <button type="button" class="mw-btn mw-btn-accent" data-act="infobox" title="Entity Infobox">{{Entity}}</button>
+          <button type="button" class="mw-btn" data-act="note" title="Note Alert">{{Note}}</button>
+          <button type="button" class="mw-btn" data-act="warning" title="Warning Alert">{{Warning}}</button>
+        </div>
+
+        <!-- Textarea -->
+        <textarea id="article-wikitext" class="editor-textarea" placeholder="Type your Wikitext or Markdown article content here..."></textarea>
+
+        <!-- Actions -->
+        <div class="editor-actions">
+          <div style="display:flex; gap:8px;">
+            <button type="button" id="btn-save-article" class="vdc-btn-wiki-contents" style="cursor:pointer; border:none; padding:8px 16px;">Save Article</button>
+            <button type="button" id="btn-download-html" class="vdc-btn-community-portal" style="cursor:pointer; border:none; padding:8px 16px;">Export Static HTML</button>
+          </div>
+          <div style="font-size:11px; color:#8a96a8;">
+            Auth Status: <span id="auth-status-indicator" class="role-badge role-user">Guest</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Live Preview Pane -->
+      <div class="preview-pane">
+        <div class="preview-header">
+          <span>ARTICLE PREVIEW (Exact Valve Developer Community Style)</span>
+          <span id="preview-updated-time">Live update</span>
+        </div>
+        <div id="preview-content">
+          <!-- Rendered HTML appears here -->
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="js/supabase-auth.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const titleInput = document.getElementById('article-title');
+      const filenameInput = document.getElementById('article-filename');
+      const textarea = document.getElementById('article-wikitext');
+      const previewContent = document.getElementById('preview-content');
+      const authIndicator = document.getElementById('auth-status-indicator');
+
+      // Populate default starter wikitext
+      textarea.value = `== Overview ==\nThe '''Frozen-Life SDK''' allows game developers and modders to build tactical first-person combat systems, author weapon ballistics, script combat bots, and configure 64-128Hz client-predicted networking.\n\n== Subsystems & Architecture ==\nAll weapon logic is compiled into <code>client.dll</code> and <code>server.dll</code> with deterministic tick simulation:\n* '''server.dll''': Authoritative projectile traces and damage propagation\n* '''client.dll''': Viewmodel recoil animation, muzzle flash, and audio synthesis\n\n=== C++20 Weapon Interface ===\n<pre>\n#pragma once\n#include <Lab/Engine.h>\n\nclass CBaseWeapon : public IServerEntity {\npublic:\n    virtual void PrimaryAttack() = 0;\n    virtual void SecondaryAttack() = 0;\n    virtual void Reload() = 0;\n};\n</pre>\n\n{{Note|Ensure all OpenGL 4.5+ DSA vertex buffer objects for viewmodels are created via glCreateBuffers().}}\n\n== Related Articles ==\n* [[architecture.html|Engine Architecture]]\n* [[weapons-viewmodel.html|Weapons & Viewmodel Ballistics]]\n* [[opengl-dsa.html|OpenGL 4.5+ Direct State Access]]`;
+
+      function renderPreview() {
+        const text = textarea.value;
+        const title = titleInput.value;
+        
+        let html = `<h1 class="page-title" style="margin-top:0;">${escapeHtml(title)}</h1>`;
+        
+        let parsed = text
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/^== (.+?) ==$/gm, '<h2 style="font-size:1.35rem; border-bottom:1px solid rgba(255,255,255,0.15); padding-bottom:4px; margin:20px 0 10px 0; color:#fff;">$1</h2>')
+          .replace(/^=== (.+?) ===$/gm, '<h3 style="font-size:1.15rem; margin:16px 0 8px 0; color:#e2e8f0;">$1</h3>')
+          .replace(/'''(.+?)'''/g, '<strong>$1</strong>')
+          .replace(/''(.+?)''/g, '<em>$1</em>')
+          .replace(/\[\[(.+?)\|(.+?)\]\]/g, '<a href="$1" style="color:#648cc8; text-decoration:none;">$2</a>')
+          .replace(/\[\[(.+?)\]\]/g, '<a href="$1" style="color:#648cc8; text-decoration:none;">$1</a>')
+          .replace(/&lt;code&gt;(.+?)&lt;\/code&gt;/g, '<code style="background:#1a1a1a; border:1px solid rgba(255,255,255,0.15); padding:2px 5px; border-radius:3px; color:#648cc8;">$1</code>')
+          .replace(/&lt;pre&gt;([\s\S]*?)&lt;\/pre&gt;/g, '<pre style="background:#181818; border:1px solid rgba(255,255,255,0.15); border-left:3px solid #648cc8; padding:12px; border-radius:3px; overflow-x:auto; color:#d1d5db; font-family:Consolas,monospace;">$1</pre>')
+          .replace(/\{\{Note\|(.+?)\}\}/g, '<div style="background:#1c2736; border:1px solid #3b5f88; border-left:4px solid #648cc8; padding:10px 14px; border-radius:3px; margin:12px 0; color:#d1e2f7; font-size:12.5px;"><strong>Note:</strong> $1</div>')
+          .replace(/\{\{Warning\|(.+?)\}\}/g, '<div style="background:#302418; border:1px solid #805326; border-left:4px solid #c27c28; padding:10px 14px; border-radius:3px; margin:12px 0; color:#fed7aa; font-size:12.5px;"><strong>Warning:</strong> $1</div>')
+          .replace(/^\* (.+)$/gm, '<li style="margin-left:20px; color:#b9b7b5;">$1</li>');
+
+        // Wrap newlines
+        parsed = parsed.replace(/\n\n/g, '<p style="margin-bottom:10px; color:#b9b7b5; line-height:1.5;"></p>');
+        html += parsed;
+        previewContent.innerHTML = html;
+        document.getElementById('preview-updated-time').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+      }
+
+      textarea.addEventListener('input', renderPreview);
+      titleInput.addEventListener('input', renderPreview);
+      renderPreview();
+
+      // Check current session
+      const session = JSON.parse(localStorage.getItem('lab_supabase_session') || 'null');
+      if (session) {
+        authIndicator.className = 'role-badge role-' + (session.role || 'user');
+        authIndicator.textContent = (session.role || 'user').toUpperCase() + ' (' + (session.username || session.email) + ')';
+      }
+
+      // Toolbar actions
+      document.querySelectorAll('.mw-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const act = btn.getAttribute('data-act');
+          if (act === 'h2') insertText(textarea, '\n== ', ' ==\n', 'Section Title');
+          else if (act === 'h3') insertText(textarea, '\n=== ', ' ===\n', 'Subsection Title');
+          else if (act === 'bold') insertText(textarea, "'''", "'''", 'bold text');
+          else if (act === 'italic') insertText(textarea, "''", "''", 'italic text');
+          else if (act === 'link') insertText(textarea, "[[", "]]", 'architecture.html|Target Link');
+          else if (act === 'code') insertText(textarea, '<code>', '</code>', 'Engine.dll');
+          else if (act === 'pre') insertText(textarea, '<pre>\n', '\n</pre>', '// Code block here');
+          else if (act === 'infobox') insertText(textarea, '{{Entity|name=npc_stalker|base=CBaseNPC|game=Frozen-Life}}', '', '');
+          else if (act === 'note') insertText(textarea, '{{Note|Important technical note goes here}}', '', '');
+          else if (act === 'warning') insertText(textarea, '{{Warning|Critical compatibility warning goes here}}', '', '');
+          renderPreview();
+        });
+      });
+
+      // Save article
+      document.getElementById('btn-save-article').addEventListener('click', () => {
+        const title = titleInput.value.trim();
+        const filename = filenameInput.value.trim();
+        const content = textarea.value;
+
+        if (!title || !filename) {
+          alert('Please enter an article title and target filename.');
+          return;
+        }
+
+        const articles = JSON.parse(localStorage.getItem('lab_saved_articles') || '{}');
+        articles[filename] = {
+          title,
+          namespace: document.getElementById('article-namespace').value,
+          content,
+          savedAt: new Date().toISOString()
+        };
+        localStorage.setItem('lab_saved_articles', JSON.stringify(articles));
+        alert(`Article "${title}" saved successfully to your community storage!`);
+      });
+
+      // Export static HTML
+      document.getElementById('btn-download-html').addEventListener('click', () => {
+        const title = titleInput.value.trim();
+        const filename = filenameInput.value.trim();
+        const htmlContent = generateFullHtmlPage(title, previewContent.innerHTML);
+
+        const blob = new Blob([htmlContent], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+
+      function insertText(field, before, after, defaultText) {
+        const start = field.selectionStart;
+        const end = field.selectionEnd;
+        const text = field.value;
+        const selected = text.substring(start, end) || defaultText;
+        field.value = text.substring(0, start) + before + selected + after + text.substring(end);
+        field.focus();
+        field.selectionStart = start + before.length;
+        field.selectionEnd = start + before.length + selected.length;
+      }
+
+      function escapeHtml(str) {
+        return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+
+      function generateFullHtmlPage(title, bodyHtml) {
+        return `<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(title)} – Lab Developer Community</title>
+  <link rel="stylesheet" href="css/style.css?v=4">
+</head>
+<body>
+  <header class="vdc-top-header" role="banner">
+    <div class="vdc-header-left">
+      <a href="index.html" class="vdc-brand">
+        <span class="vdc-logo-stamp">LAB</span>
+        <div class="vdc-brand-text">
+          <span class="vdc-brand-title">Developer Community</span>
+        </div>
+      </a>
+    </div>
+    <div class="vdc-header-right">
+      <div class="vdc-user-tools">
+        <a href="#" class="user-link">Create account</a> &bull; <a href="#" class="user-link">Log in</a>
+      </div>
+    </div>
+  </header>
+  <div class="vdc-page-container">
+    <main class="vdc-main-content" style="max-width:1080px; margin:20px auto; border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:24px;">
+      ${bodyHtml}
+    </main>
+  </div>
+  <script src="js/supabase-auth.js"><\/script>
+</body>
+</html>`;
+      }
+    });
+  </script>
+  <script src="js/supabase-auth.js"></script>
+</body>
+</html>
