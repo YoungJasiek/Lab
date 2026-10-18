@@ -209,8 +209,6 @@
         <span style="color:#a8b4c4; font-size:11px;">Logged in as: <strong style="color:#ffffff;">${escapeHtml(displayName)}</strong></span>
         <span class="role-badge role-${escapeHtml(role)}">${escapeHtml(role.toUpperCase())}</span>
         <span class="pipe-sep" style="color:#4a5260; margin:0 4px;">&bull;</span>
-        <a href="#" id="vdc-config-db-link" class="user-link" style="color:#8ba2c4;" title="Database Settings">&#9881; DB</a>
-        <span class="pipe-sep" style="color:#4a5260; margin:0 4px;">&bull;</span>
         <a href="#" id="vdc-logout-link" class="user-link" style="color:#648cc8;">Log out</a>
       `;
 
@@ -218,18 +216,11 @@
         e.preventDefault();
         logout();
       });
-
-      document.getElementById('vdc-config-db-link')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        openDbConfigModal();
-      });
     } else {
       container.innerHTML = `
         <a href="#" id="vdc-create-account" class="user-link">Create account</a>
         <span class="pipe-sep" style="color:#4a5260; margin:0 4px;">&bull;</span>
         <a href="#" id="vdc-login-link" class="user-link">Log in</a>
-        <span class="pipe-sep" style="color:#4a5260; margin:0 4px;">&bull;</span>
-        <a href="#" id="vdc-config-db-link" class="user-link" style="color:#8ba2c4; font-size:10.5px;" title="Supabase Database Settings">&#9881; DB</a>
       `;
 
       document.getElementById('vdc-create-account')?.addEventListener('click', (e) => {
@@ -240,11 +231,6 @@
       document.getElementById('vdc-login-link')?.addEventListener('click', (e) => {
         e.preventDefault();
         openAuthModal('login');
-      });
-
-      document.getElementById('vdc-config-db-link')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        openDbConfigModal();
       });
     }
   }
@@ -272,19 +258,6 @@
             ${mode === 'register' ? 'Create a Community Account' : 'Log in to Lab Developer Community'}
           </h3>
           <button id="auth-modal-close" style="background:none; border:none; color:#8893a2; font-size:18px; cursor:pointer;" aria-label="Close dialog">&times;</button>
-        </div>
-
-        <!-- Live Database Status Banner -->
-        <div style="display:flex; align-items:center; justify-content:space-between; background:${isConfigured ? 'rgba(56, 178, 116, 0.12)' : 'rgba(224, 152, 45, 0.14)'}; border:1px solid ${isConfigured ? '#295438' : '#72511f'}; padding:6px 10px; border-radius:3px; margin-bottom:12px; font-size:11px;">
-          <div>
-            <span style="color:${isConfigured ? '#38b274' : '#e0982d'}; font-weight:bold;">● ${isConfigured ? 'Connected to Supabase PostgreSQL' : 'Database Not Connected'}</span>
-            <div style="color:#8e9cae; font-size:10px; font-family:monospace; margin-top:2px;">
-              ${isConfigured ? escapeHtml(config.url) : 'Requires Supabase Project URL & Anon Key'}
-            </div>
-          </div>
-          <button id="auth-open-db-config" type="button" style="background:#1b2028; border:1px solid #4a5464; color:#a2b4cb; font-size:10.5px; padding:3px 8px; border-radius:2px; cursor:pointer;">
-            ${isConfigured ? 'Configure' : 'Setup DB'}
-          </button>
         </div>
 
         <p style="font-size:11.5px; color:#b9b7b5; margin-bottom:14px; line-height:1.45;">
@@ -328,11 +301,6 @@
       if (e.target === modal) modal.remove();
     });
 
-    document.getElementById('auth-open-db-config')?.addEventListener('click', () => {
-      modal.remove();
-      openDbConfigModal();
-    });
-
     document.getElementById('auth-switch-mode').addEventListener('click', (e) => {
       e.preventDefault();
       openAuthModal(mode === 'register' ? 'login' : 'register');
@@ -364,105 +332,13 @@
     });
   }
 
-  // Database Connection Configuration Modal
-  function openDbConfigModal() {
-    let modal = document.getElementById('vdc-db-modal');
-    if (!modal) {
-      modal = document.createElement('div');
-      modal.id = 'vdc-db-modal';
-      modal.style.cssText = `
-        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-        background: rgba(0,0,0,0.85); z-index: 100001;
-        display: flex; align-items: center; justify-content: center;
-      `;
-      document.body.appendChild(modal);
-    }
-
-    const currentConf = getSupabaseConfig();
-
-    modal.innerHTML = `
-      <div style="background:#262626; border:1px solid rgba(255,255,255,0.22); width:460px; max-width:92vw; border-radius:4px; padding:22px; box-shadow:0 8px 30px rgba(0,0,0,0.9); color:#e2e8f0; font-family:-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Arial, sans-serif;">
-        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.15); padding-bottom:8px; margin-bottom:14px;">
-          <h3 style="margin:0; font-size:14px; font-weight:700; color:#ffffff;">
-            &#9881; Supabase Database Connection
-          </h3>
-          <button id="db-modal-close" style="background:none; border:none; color:#8893a2; font-size:18px; cursor:pointer;" aria-label="Close dialog">&times;</button>
-        </div>
-
-        <p style="font-size:11.5px; color:#b9b7b5; margin-bottom:14px; line-height:1.45;">
-          Connect Lab Developer Community directly to your live Supabase project to enforce PostgreSQL Row Level Security (RLS) and real authentication.
-        </p>
-
-        <form id="db-config-form" style="display:flex; flex-direction:column; gap:12px;">
-          <div>
-            <label style="font-size:11px; font-weight:bold; color:#b5c0ce; display:block; margin-bottom:4px;">Supabase Project URL:</label>
-            <input type="url" id="db-input-url" class="editor-input" style="width:100%; height:28px; background:rgba(0,0,0,0.35); border:1px solid #555; color:#fff; padding:4px 8px; border-radius:2px;" placeholder="https://your-project.supabase.co" value="${escapeHtml(currentConf.url)}" required>
-          </div>
-
-          <div>
-            <label style="font-size:11px; font-weight:bold; color:#b5c0ce; display:block; margin-bottom:4px;">Supabase Public Anon Key (JWT):</label>
-            <input type="text" id="db-input-key" class="editor-input" style="width:100%; height:28px; background:rgba(0,0,0,0.35); border:1px solid #555; color:#fff; padding:4px 8px; border-radius:2px; font-family:monospace; font-size:11px;" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." value="${escapeHtml(currentConf.anonKey)}" required>
-          </div>
-
-          <div style="background:#1a1e24; border-left:3px solid #648cc8; padding:8px 10px; font-size:10.5px; color:#9cb1cc; line-height:1.4;">
-            <strong>Note:</strong> Keys are stored in your browser's persistent storage and can also be injected via Vercel Environment Variables (<code>PUBLIC_SUPABASE_URL</code>, <code>PUBLIC_SUPABASE_ANON_KEY</code>).
-          </div>
-
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
-            <button type="button" id="db-btn-test" style="background:#202936; border:1px solid #3d5677; color:#8cb2df; padding:6px 12px; font-size:11.5px; border-radius:2px; cursor:pointer;">
-              Test Connection
-            </button>
-            <div style="display:flex; gap:8px;">
-              <button type="submit" class="vdc-btn-wiki-contents" style="cursor:pointer; border:none; padding:7px 18px; font-size:12px;">Save Settings</button>
-            </div>
-          </div>
-        </form>
-      </div>
-    `;
-
-    document.getElementById('db-modal-close').addEventListener('click', () => modal.remove());
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.remove();
-    });
-
-    document.getElementById('db-btn-test').addEventListener('click', async () => {
-      const url = document.getElementById('db-input-url').value.trim();
-      const key = document.getElementById('db-input-key').value.trim();
-      if (!url || !key) {
-        showToast('Please provide both URL and Anon Key before testing.', 'error');
-        return;
-      }
-      try {
-        const res = await fetch(`${url.replace(/\/+$/, '')}/auth/v1/settings`, {
-          headers: { 'apikey': key }
-        });
-        if (res.ok) {
-          showToast('Database connection verified successfully! Supabase Auth is active.', 'success');
-        } else {
-          showToast(`Connection error: HTTP ${res.status}. Please check project URL and key.`, 'error');
-        }
-      } catch (err) {
-        showToast(`Network error: Could not reach Supabase endpoint (${err.message}).`, 'error');
-      }
-    });
-
-    document.getElementById('db-config-form').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const url = document.getElementById('db-input-url').value;
-      const key = document.getElementById('db-input-key').value;
-      setSupabaseConfig(url, key);
-      modal.remove();
-      showToast('Database credentials updated. You can now authenticate against Supabase.', 'success');
-    });
-  }
-
   // Pure Supabase Auth API - Zero client-side bypasses
   async function handleLogin(email, password) {
     const config = getSupabaseConfig();
     
     // Strict requirement: Backend credentials MUST be configured
     if (!config.url || !config.anonKey) {
-      throw new Error('Database is not connected! Please click [⚙ DB] in the top header and configure your Supabase Project URL and Anon Key.');
+      throw new Error('Database connection is not configured. Please ensure PUBLIC_SUPABASE_URL and PUBLIC_SUPABASE_ANON_KEY are set.');
     }
 
     // Input sanitization against malformed input
@@ -511,7 +387,7 @@
     const config = getSupabaseConfig();
 
     if (!config.url || !config.anonKey) {
-      throw new Error('Database is not connected! Please click [⚙ DB] in the top header and configure your Supabase Project URL and Anon Key.');
+      throw new Error('Database connection is not configured. Please ensure PUBLIC_SUPABASE_URL and PUBLIC_SUPABASE_ANON_KEY are set.');
     }
 
     const cleanEmail = email.trim();
