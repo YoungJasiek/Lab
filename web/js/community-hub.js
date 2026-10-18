@@ -336,7 +336,7 @@
 
   async function fetchPosts(shouldRender = true) {
     const localPosts = getLocalPosts();
-    const config = getSupabaseConfig();
+    const config = await ensureSupabaseConfig();
 
     if (config.url && config.anonKey) {
       try {
@@ -352,7 +352,8 @@
           if (Array.isArray(dbPosts)) {
             const dbIds = new Set(dbPosts.map(p => p.id));
             const unsyncedLocal = localPosts.filter(lp => !dbIds.has(lp.id));
-            postsData = [...unsyncedLocal, ...dbPosts];
+            const seedToInclude = SEED_POSTS.filter(sp => !dbIds.has(sp.id) && !localPosts.some(lp => lp.id === sp.id));
+            postsData = [...unsyncedLocal, ...dbPosts, ...seedToInclude];
             if (shouldRender && document.getElementById('hub-posts-feed')) renderFilteredPosts();
             return postsData;
           }
@@ -748,7 +749,7 @@
     getLocalComments(postId).forEach(c => ingestComment(c, c.parent_id || null));
 
     // 3. Ingest Supabase comments if configured
-    const config = getSupabaseConfig();
+    const config = await ensureSupabaseConfig();
     if (config.url && config.anonKey && !String(postId).startsWith('seed-') && !String(postId).startsWith('post-')) {
       try {
         const res = await fetch(`${config.url}/rest/v1/community_comments?post_id=eq.${postId}&order=created_at.asc`, {
@@ -913,7 +914,7 @@
 
   async function submitComment(postId, content, parentId = null) {
     const session = getCurrentSession();
-    const config = getSupabaseConfig();
+    const config = await ensureSupabaseConfig();
     const authorName = session?.user?.user_metadata?.username || session?.user?.email?.split('@')[0] || 'Developer';
     const authorRole = session?.user?.role || session?.user?.user_metadata?.role || 'user';
     const authorId = session?.user?.id || null;
@@ -1227,7 +1228,7 @@
     };
 
     let syncedToDb = false;
-    const config = getSupabaseConfig();
+    const config = await ensureSupabaseConfig();
     if (config.url && config.anonKey && session?.access_token) {
       try {
         const res = await fetch(`${config.url}/rest/v1/community_posts`, {
@@ -1397,6 +1398,26 @@
       url: window.LAB_SUPABASE_URL || '',
       anonKey: window.LAB_SUPABASE_ANON_KEY || ''
     };
+  }
+
+  async function ensureSupabaseConfig() {
+    let cfg = getSupabaseConfig();
+    if (cfg.url && cfg.anonKey) return cfg;
+
+    try {
+      const res = await fetch('/api/config');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.url && data.anonKey) {
+          window.LAB_SUPABASE_URL = data.url;
+          window.LAB_SUPABASE_ANON_KEY = data.anonKey;
+          localStorage.setItem('lab_supabase_config', JSON.stringify({ url: data.url, anonKey: data.anonKey }));
+          return data;
+        }
+      }
+    } catch (e) {}
+
+    return cfg;
   }
 
   function formatTimeAgo(date) {
