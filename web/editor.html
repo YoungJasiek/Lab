@@ -417,11 +417,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(title)} – Lab Developer Community</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
   <link rel="stylesheet" href="css/style.css?v=4">
 </head>
 <body>
   <header class="vdc-top-header" role="banner">
     <div class="vdc-header-left">
+      <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
       <a href="index.html" class="vdc-brand">
         <span class="vdc-logo-stamp">LAB</span>
         <div class="vdc-brand-text">
@@ -431,16 +433,81 @@
     </div>
     <div class="vdc-header-right">
       <div class="vdc-user-tools">
-        <a href="#" class="user-link">Create account</a> &bull; <a href="#" class="user-link">Log in</a>
+        <a href="#" id="auth-btn-create" class="user-link">Create account</a> &bull; <a href="#" id="auth-btn-login" class="user-link">Log in</a>
       </div>
     </div>
   </header>
   <div class="vdc-page-container">
-    <main class="vdc-main-content" style="max-width:1080px; margin:20px auto; border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:24px;">
+    <aside class="vdc-sidebar" role="navigation">
+      <div class="sidebar-block">
+        <ul class="sidebar-links">
+          <li><a href="index.html">Main Page</a></li>
+          <li><a href="modules.html">Lab SDK index</a></li>
+          <li><a href="wiki-contents.html">Recent changes</a></li>
+          <li><a href="project-hub.html">Random page</a></li>
+        </ul>
+      </div>
+      <div class="sidebar-block">
+        <div class="sidebar-title">Lab Engine Core</div>
+        <ul class="sidebar-links">
+          <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+          <li><a href="modules.html">Modular Subsystems (.dll)</a></li>
+          <li><a href="module-physics.html">physics.dll Dynamics</a></li>
+          <li><a href="building.html">Building from Source</a></li>
+        </ul>
+      </div>
+      <div class="sidebar-block">
+        <div class="sidebar-title">Game SDKs &amp; Tools</div>
+        <ul class="sidebar-links">
+          <li><a href="frozen-life.html">Frozen-Life SDK (Game 1)</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></li>
+          <li><a href="labhammer.html">LabHammer (3D CSG)</a></li>
+        </ul>
+      </div>
+      <div class="sidebar-block">
+        <div class="sidebar-title">Tools</div>
+        <ul class="sidebar-links">
+          <li><a href="editor.html" style="color:var(--wiki-accent); font-weight:bold;">+ Create New Article</a></li>
+          <li><a href="wiki-contents.html">What links here</a></li>
+          <li><a href="project-hub.html">Special pages</a></li>
+        </ul>
+      </div>
+    </aside>
+    <main id="content" class="vdc-main-content" role="main">
+      <nav class="vdc-page-tabs" aria-label="Namespace tabs">
+        <div class="tabs-left">
+          <a href="#" class="wiki-tab active">Page</a>
+          <a href="talk.html" class="wiki-tab">Discussion</a>
+        </div>
+        <div class="tabs-right">
+          <a href="#" class="wiki-tab active">Read</a>
+          <a href="#" id="vdc-tab-edit" class="wiki-tab">Edit</a>
+          <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="wiki-tab">View source</a>
+          <span class="wiki-tab" style="cursor:default;">More &#9662;</span>
+          <div class="vdc-tab-search" role="search">
+            <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search Lab Developer Community">
+            <span class="vdc-search-icon">&#128269;</span>
+          </div>
+        </div>
+      </nav>
+      <div class="vdc-flags-bar" aria-label="Language selection">
+        <img class="flag-img flag-active" src="assets/flags/us.png" alt="English" title="English">
+        <img class="flag-img" src="assets/flags/pl.png" alt="Polski" title="Polski">
+        <img class="flag-img" src="assets/flags/de.png" alt="Deutsch" title="Deutsch">
+      </div>
       ${bodyHtml}
+      <div id="catlinks" class="catlinks" style="margin-top:28px;">
+        <span class="catlinks-label">Categories:</span>
+        <ul class="catlinks-list">
+          <li><a href="index.html">Lab Developer Community</a></li>
+          <li><a href="modules.html">Lab SDK Documentation</a></li>
+        </ul>
+      </div>
     </main>
   </div>
   <script src="js/supabase-auth.js"><\/script>
+  <script src="js/app.js?v=4"><\/script>
 </body>
 </html>`;
       }
