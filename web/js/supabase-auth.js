@@ -54,10 +54,73 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    handleAuthCallback();
     initAuthUI();
     initInPageEditor();
     initFlagNotice();
   });
+
+  function handleAuthCallback() {
+    if (!window.location.hash || window.location.hash.length <= 1) return;
+    try {
+      const hash = window.location.hash.substring(1);
+      const params = new URLSearchParams(hash);
+
+      // 1. Check for error in callback
+      if (params.has('error_description') || params.has('error')) {
+        const errorMsg = params.get('error_description') || params.get('error') || 'Authentication callback failed.';
+        const cleanMsg = errorMsg.replace(/\+/g, ' ');
+        showToast(cleanMsg, 'error');
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        return;
+      }
+
+      // 2. Check for successful access_token
+      if (params.has('access_token')) {
+        const token = params.get('access_token');
+        const tokenType = params.get('token_type') || 'bearer';
+        const expiresIn = parseInt(params.get('expires_in') || '3600', 10);
+        const payload = parseJwtPayload(token);
+
+        if (payload) {
+          const verifiedRole = payload.app_metadata?.role || payload.user_metadata?.role || 'user';
+          currentSession = {
+            access_token: token,
+            token_type: tokenType,
+            expires_at: payload.exp || (Math.floor(Date.now() / 1000) + expiresIn),
+            user: {
+              id: payload.sub,
+              email: payload.email,
+              role: verifiedRole,
+              user_metadata: payload.user_metadata || {}
+            }
+          };
+
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(currentSession));
+          showToast(`E-mail verified! Logged in as ${payload.email}.`, 'success');
+        }
+
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+    } catch (e) {
+      console.warn('Auth callback parsing error:', e);
+    }
+  }
+
+  function parseJwtPayload(token) {
+    try {
+      const parts = token.split('.');
+      if (parts.length !== 3) return null;
+      const base64Url = parts[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      return JSON.parse(jsonPayload);
+    } catch (e) {
+      return null;
+    }
+  }
 
   // Non-blocking toast notifications (replaces window.alert)
   function showToast(message, type = 'info') {
