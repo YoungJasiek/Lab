@@ -7,7 +7,8 @@ namespace Lab {
     enum class GameMode {
         FFA,    // Free For All
         DM,     // Deathmatch
-        TDM     // Team Deathmatch
+        TDM,    // Team Deathmatch
+        Campaign // Singleplayer Campaign / Story Map
     };
 
     enum class MenuScreen {
@@ -43,6 +44,7 @@ namespace Lab {
                 case GameMode::FFA: return "FFA (Free For All)";
                 case GameMode::DM:  return "DM (Deathmatch)";
                 case GameMode::TDM: return "TDM (Team Deathmatch)";
+                case GameMode::Campaign: return "Campaign";
                 default: return "FFA";
             }
         }

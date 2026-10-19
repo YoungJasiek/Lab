@@ -447,7 +447,10 @@ namespace Lab {
         getTexture("snow_frost.bmp");
 
         // Load Bot Skeletal Assets for Bot Socket 3D Preview
-        bool loadedBot = GLTFLoader::load("assets/models/t-800_run.glb", _botSkeleton, _botAnimations, _botMesh);
+        bool loadedBot = GLTFLoader::load("assets/models/guard.glb", _botSkeleton, _botAnimations, _botMesh);
+        if (!loadedBot || !_botMesh) {
+            loadedBot = GLTFLoader::load("assets/models/t-800_run.glb", _botSkeleton, _botAnimations, _botMesh);
+        }
         if (!loadedBot || !_botMesh) {
             loadedBot = GLTFLoader::load("assets/inwork/t-800_run.glb", _botSkeleton, _botAnimations, _botMesh);
         }
@@ -457,6 +460,35 @@ namespace Lab {
 
         // Ingest all FBX / binary animations for Bot Studio
         FBXLoader::loadAllFromDirectory("assets/animations", _botAnimations, _botSkeleton.get());
+
+        // Ensure canonical animation clip aliases (Walk, Shoot, Idle) exist
+        bool hasStudioShoot = false, hasStudioWalk = false, hasStudioIdle = false;
+        const AnimationClip* studioAttackSource = nullptr;
+        const AnimationClip* studioWalkSource = nullptr;
+        const AnimationClip* studioIdleSource = nullptr;
+        for (const auto& c : _botAnimations) {
+            if (c.name == "Shoot") hasStudioShoot = true;
+            if (c.name == "Walk") hasStudioWalk = true;
+            if (c.name == "Idle") hasStudioIdle = true;
+            if (c.name == "Attack" || c.name == "Firing Rifle") studioAttackSource = &c;
+            if (c.name == "Walking" || c.name == "Run Forward") studioWalkSource = &c;
+            if (c.name == "Pistol Idle") studioIdleSource = &c;
+        }
+        if (!hasStudioShoot && studioAttackSource) {
+            AnimationClip sc = *studioAttackSource;
+            sc.name = "Shoot";
+            _botAnimations.push_back(sc);
+        }
+        if (!hasStudioWalk && studioWalkSource) {
+            AnimationClip wc = *studioWalkSource;
+            wc.name = "Walk";
+            _botAnimations.push_back(wc);
+        }
+        if (!hasStudioIdle && studioIdleSource) {
+            AnimationClip ic = *studioIdleSource;
+            ic.name = "Idle";
+            _botAnimations.push_back(ic);
+        }
 
         if (_botSkeleton && _botMesh) {
             _botAnimator.setSkeleton(_botSkeleton);
@@ -570,9 +602,9 @@ namespace Lab {
             _cameraTarget = Vec3(0.0f, 1.62f, 0.0f);
             _turntableYaw = 0.0f;
             _turntablePitch = 4.0f;
-        } else if (_activeTab == StudioTab::Appearance) {
+        } else if (_activeTab == StudioTab::Appearance || _activeTab == StudioTab::AnimationTimeline || (_activeTab == StudioTab::GripPoser && _poserSubMode == PoserSubMode::BotWeaponSocket)) {
             _cameraDist = 2.4f;
-            _cameraTarget = Vec3(0.0f, 1.0f, 0.0f);
+            _cameraTarget = Vec3(0.0f, 1.05f, 0.0f);
             _turntableYaw = 15.0f;
             _turntablePitch = 8.0f;
         } else {
@@ -842,6 +874,7 @@ namespace Lab {
                 _dialoguePlaying = false;
                 _dialogueTimer = 0.0f;
                 _lipSyncEvaluator.update(0.0f, dt);
+                _botAnimator.setJawAngle(0.0f);
             } else {
                 int sampleIdx = static_cast<int>((_dialogueTimer / curLine.duration) * _speechTrackSamples.size());
                 sampleIdx = std::clamp(sampleIdx, 0, static_cast<int>(_speechTrackSamples.size()) - 1);
@@ -851,6 +884,7 @@ namespace Lab {
                 if (_facialHead) {
                     _lipSyncEvaluator.applyTo(*_facialHead);
                 }
+                _botAnimator.setJawAngle(_lipSyncEvaluator.getJawOpen() * 0.38f);
 
                 // Record waveform trace for visualizer
                 _dialogueWaveform.push_back(amp);
@@ -858,15 +892,20 @@ namespace Lab {
                     _dialogueWaveform.erase(_dialogueWaveform.begin());
                 }
             }
-        } else if (_facialHead && _activeTab == StudioTab::FaceDialogue) {
-            // Apply manual face sliders when speech is inactive
-            _facialHead->setWeight("Jaw_Open", _faceMorphs.jawOpen);
-            _facialHead->setWeight("Mouth_Narrow", _faceMorphs.mouthNarrow);
-            _facialHead->setWeight("Mouth_Smile", _faceMorphs.mouthSmile);
-            _facialHead->setWeight("Brow_Raise", _faceMorphs.browRaise);
-            _facialHead->setWeight("Eyes_Squint", _faceMorphs.eyesSquint);
-            _facialHead->setWeight("Mouth_Frown", _faceMorphs.mouthFrown);
-            _facialHead->evaluate();
+        } else if (_activeTab == StudioTab::FaceDialogue) {
+            if (_facialHead) {
+                // Apply manual face sliders when speech is inactive
+                _facialHead->setWeight("Jaw_Open", _faceMorphs.jawOpen);
+                _facialHead->setWeight("Mouth_Narrow", _faceMorphs.mouthNarrow);
+                _facialHead->setWeight("Mouth_Smile", _faceMorphs.mouthSmile);
+                _facialHead->setWeight("Brow_Raise", _faceMorphs.browRaise);
+                _facialHead->setWeight("Eyes_Squint", _faceMorphs.eyesSquint);
+                _facialHead->setWeight("Mouth_Frown", _faceMorphs.mouthFrown);
+                _facialHead->evaluate();
+            }
+            _botAnimator.setJawAngle(_faceMorphs.jawOpen * 0.38f);
+        } else {
+            _botAnimator.setJawAngle(0.0f);
         }
 
         if (_animPlaying) {
@@ -878,6 +917,8 @@ namespace Lab {
                     _activeAnimState = StudioAnimState::Idle;
                 }
             }
+        } else if (_botAnimator.getSkeleton() && _activeTab == StudioTab::FaceDialogue) {
+            _botAnimator.update(0.0f);
         }
 
         _lastMouseX = mouseX;
@@ -935,12 +976,7 @@ namespace Lab {
 
         Camera studioCam(60.0f, static_cast<float>(vpW) / static_cast<float>(vpH), 0.01f, 100.0f);
         studioCam.setPosition(camEye);
-
-        Vec3 camForward = (_cameraTarget - camEye).normalized();
-        float yawDeg = std::atan2(camForward.x, camForward.z) * 180.0f / PI;
-        float pitchDeg = std::asin(std::clamp(camForward.y, -1.0f, 1.0f)) * 180.0f / PI;
-        studioCam.setYaw(yawDeg);
-        studioCam.setPitch(pitchDeg);
+        studioCam.lookAt(_cameraTarget);
 
         Renderer::beginFrame(studioCam);
 
@@ -1021,7 +1057,9 @@ namespace Lab {
                 float yOffset = -_botMesh->getMinBounds().y * botScale;
                 Mat4 botModel = Mat4::translate(botPos + Vec3(0.0f, yOffset, 0.0f)) *
                                 Mat4::scale(Vec3(botScale, botScale, botScale));
-                Renderer::drawSkinnedMesh(*_botMesh, botModel, _botAnimator.getSkinMatrices(), Vec3(0.32f, 0.35f, 0.40f), nullptr, true);
+                const Texture* bTex = getTexture("guard.bmp");
+                if (!bTex) bTex = getTexture("guard_body.bmp");
+                Renderer::drawSkinnedMesh(*_botMesh, botModel, _botAnimator.getSkinMatrices(), Vec3(1.0f, 1.0f, 1.0f), bTex, true);
 
                 float invBotScale = (botScale > 0.00001f) ? (1.0f / botScale) : 1.0f;
                 Vec3 sPos = grip.botSocket.offset * invBotScale;
@@ -1155,6 +1193,20 @@ namespace Lab {
         Renderer::drawCube(Vec3(0, 0.03f, 0), Vec3(0, 0, 0), Vec3(0.9f, 0.06f, 0.9f), Vec3(0.18f, 0.20f, 0.24f), nullptr, true);
         Renderer::drawCube(Vec3(0, 0.065f, 0), Vec3(0, 0, 0), Vec3(0.75f, 0.02f, 0.75f), Vec3(0.24f, 0.28f, 0.32f), nullptr, true);
 
+        if (_botMesh && _botAnimator.getSkeleton()) {
+            float botScale = _botMesh->getBaseScale(1.85f);
+            float yOffset = -_botMesh->getMinBounds().y * botScale;
+            Mat4 botModel = Mat4::translate(Vec3(0.0f, yOffset, 0.0f)) *
+                            Mat4::scale(Vec3(botScale, botScale, botScale));
+            Vec3 botColor = Vec3(std::min(1.0f, _appearance.fatiguesColor.x * 3.5f),
+                                 std::min(1.0f, _appearance.fatiguesColor.y * 3.5f),
+                                 std::min(1.0f, _appearance.fatiguesColor.z * 3.5f));
+            const Texture* bTex = getTexture("guard.bmp");
+            if (!bTex) bTex = getTexture("guard_body.bmp");
+            Renderer::drawSkinnedMesh(*_botMesh, botModel, _botAnimator.getSkinMatrices(), botColor, bTex, true);
+            return;
+        }
+
         // Fatigues & Armor Colors
         Vec3 fatCol = _appearance.fatiguesColor;
         Vec3 plateCol = _appearance.armorPlateColor;
@@ -1208,7 +1260,21 @@ namespace Lab {
     }
 
     void CharacterStudio::renderFaceDialogueView() {
-        // Close-up on 3D Combat Head
+        if (_botMesh && _botAnimator.getSkeleton()) {
+            float botScale = _botMesh->getBaseScale(1.85f);
+            float yOffset = -_botMesh->getMinBounds().y * botScale;
+            Mat4 botModel = Mat4::translate(Vec3(0.0f, yOffset, 0.0f)) *
+                            Mat4::scale(Vec3(botScale, botScale, botScale));
+            Vec3 botColor = Vec3(std::min(1.0f, _appearance.fatiguesColor.x * 3.5f),
+                                 std::min(1.0f, _appearance.fatiguesColor.y * 3.5f),
+                                 std::min(1.0f, _appearance.fatiguesColor.z * 3.5f));
+            const Texture* bTex = getTexture("guard.bmp");
+            if (!bTex) bTex = getTexture("guard_body.bmp");
+            Renderer::drawSkinnedMesh(*_botMesh, botModel, _botAnimator.getSkinMatrices(), botColor, bTex, true);
+            return;
+        }
+
+        // Close-up on 3D Combat Head fallback
         Vec3 headPos(0.0f, 1.58f, 0.0f);
         if (_facialHead) {
             _facialHead->evaluate();

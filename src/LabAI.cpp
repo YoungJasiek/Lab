@@ -52,6 +52,13 @@ namespace Lab {
     CombatBot::CombatBot(int botId, const std::string& botName, const Vec3& spawnPos, const Vec3& pEnd, int botTeam, WeaponID weapon)
         : id(botId), name(botName), position(spawnPos), team(botTeam), equippedWeapon(weapon),
           patrolStart(spawnPos), patrolEnd(pEnd) {
+        if (name.find("Guard") != std::string::npos || name.find("guard") != std::string::npos ||
+            name.find("Barney") != std::string::npos || name.find("Security") != std::string::npos ||
+            name.find("Ally") != std::string::npos || name.find("Friendly") != std::string::npos) {
+            isFriendly = true;
+            equippedWeapon = WeaponID::Pistol;
+            moveSpeed = 2.4f;
+        }
         auto stats = getBotWeaponStats(equippedWeapon);
         shootInterval = stats.interval;
         shootCooldown = shootInterval;
@@ -63,6 +70,24 @@ namespace Lab {
 
     void CombatBot::assignWaypoints(const std::vector<Vec3>& pathNodes, bool loopPath) {
         waypoints = pathNodes;
+        waypointData.clear();
+        waypointWaitTimer = 0.0f;
+        currentWaypointIndex = 0;
+        loopWaypoints = loopPath;
+        if (!waypoints.empty()) {
+            patrolStart = waypoints.front();
+            patrolEnd = waypoints.back();
+        }
+    }
+
+    void CombatBot::assignWaypoints(const std::vector<MapWaypoint>& pathNodes, bool loopPath) {
+        waypointData = pathNodes;
+        waypoints.clear();
+        waypoints.reserve(pathNodes.size());
+        for (const auto& wp : pathNodes) {
+            waypoints.push_back(wp.position);
+        }
+        waypointWaitTimer = 0.0f;
         currentWaypointIndex = 0;
         loopWaypoints = loopPath;
         if (!waypoints.empty()) {
@@ -72,6 +97,18 @@ namespace Lab {
     }
 
     void CombatBot::startStoryEvent(const std::string& subtitle, const std::string& audioFile, const std::vector<Vec3>& pathNodes) {
+        std::vector<MapWaypoint> wps;
+        wps.reserve(pathNodes.size());
+        for (size_t i = 0; i < pathNodes.size(); ++i) {
+            MapWaypoint wp;
+            wp.position = pathNodes[i];
+            wp.orderIndex = static_cast<int>(i);
+            wps.push_back(wp);
+        }
+        startStoryEvent(subtitle, audioFile, wps);
+    }
+
+    void CombatBot::startStoryEvent(const std::string& subtitle, const std::string& audioFile, const std::vector<MapWaypoint>& pathNodes) {
         activeSubtitle = subtitle;
         activeAudioPath = audioFile.empty() ? "assets/audio/bot_corridor_dialog.wav" : audioFile;
         state = AIState::Talk;
@@ -88,8 +125,7 @@ namespace Lab {
         AudioEngine::playCustomSound3D(activeAudioPath, position + Vec3(0.0f, 1.65f, 0.0f), 1.0f, 2.0f, 38.0f);
 
         if (!pathNodes.empty()) {
-            waypoints = pathNodes;
-            currentWaypointIndex = 0;
+            assignWaypoints(pathNodes, false);
             storyPathActive = true;
         } else if (!waypoints.empty()) {
             currentWaypointIndex = 0;
@@ -182,29 +218,49 @@ namespace Lab {
                 float synthAmp = 0.5f + 0.5f * std::sin((3.0f - talkTimer) * 18.0f);
                 lipSync.update(synthAmp, dt);
             }
-            if (faceMesh) {
+            if (faceMesh && lodLevel < 2) {
                 lipSync.applyTo(*faceMesh);
                 faceMesh->evaluate();
             }
+            animator.setJawAngle(lipSync.getJawOpen() * 0.38f);
             if (talkTimer <= 0.0f) {
                 talkTimer = 0.0f;
                 activeSubtitle.clear();
+                animator.setJawAngle(0.0f);
                 if (state == AIState::Talk) {
                     state = AIState::Patrol;
                 }
             }
+        } else {
+            animator.setJawAngle(0.0f);
         }
 
         Vec3 vecToPlayer = playerPos - position;
         float distToPlayer = vecToPlayer.length();
+
+        // Level of Detail (LOD) computation based on camera distance
+        if (distToPlayer < 12.0f) {
+            lodLevel = 0; // High detail (<12m): 60/120 FPS full skeletal updates, full lip-sync
+        } else if (distToPlayer < 28.0f) {
+            lodLevel = 1; // Medium detail (12-28m): 2-frame throttled updates
+        } else {
+            lodLevel = 2; // Low detail (>28m): 4-frame throttled updates, shadow/accessory optimization
+        }
+
         Vec3 eyePos = position + Vec3(0.0f, 1.6f, 0.0f);
         Vec3 playerTargetPos = playerPos + Vec3(0.0f, 0.8f, 0.0f);
-
-        bool canSee = (state != AIState::Talk && !storyPathActive) &&
+        bool canSee = (!isFriendly && state != AIState::Talk && !storyPathActive) &&
                       (distToPlayer <= sightRange) && hasLineOfSight(eyePos, playerTargetPos, map);
         bool movedThisStep = false;
 
-        if (canSee) {
+        if (isFriendly && waypoints.empty() && !storyPathActive && distToPlayer <= 7.0f && hasLineOfSight(eyePos, playerTargetPos, map)) {
+            // Half-Life Guard: turns calmly to face the player, does not attack
+            float targetYaw = std::atan2(vecToPlayer.x, vecToPlayer.z) * 180.0f / 3.14159265f;
+            rotation.y = targetYaw;
+            if (state != AIState::Talk && !storyPathActive) {
+                state = AIState::Patrol;
+            }
+        } else if (canSee) {
             // Face player
             float targetYaw = std::atan2(vecToPlayer.x, vecToPlayer.z) * 180.0f / 3.14159265f;
             rotation.y = targetYaw;
@@ -289,12 +345,62 @@ namespace Lab {
                 walkCycle += dt * 6.0f;
                 movedThisStep = true;
             } else {
-                if (currentWaypointIndex + 1 < static_cast<int>(waypoints.size())) {
-                    currentWaypointIndex++;
-                } else if (loopWaypoints) {
-                    currentWaypointIndex = 0;
+                if (wpIdx < static_cast<int>(waypointData.size())) {
+                    const auto& wData = waypointData[wpIdx];
+                    if (waypointWaitTimer > 0.0f) {
+                        waypointWaitTimer -= dt;
+                        rotation.y = wData.facingYaw;
+                        if (animator.getSkeleton() && !wData.animation.empty() && animator.getCurrentAnimationName() != wData.animation) {
+                            animator.playAnimation(wData.animation, true, 0.2f);
+                        }
+                        if (waypointWaitTimer <= 0.0f) {
+                            if (currentWaypointIndex + 1 < static_cast<int>(waypoints.size())) {
+                                currentWaypointIndex++;
+                            } else if (loopWaypoints) {
+                                currentWaypointIndex = 0;
+                            } else {
+                                storyPathActive = false;
+                            }
+                        }
+                    } else {
+                        // Just arrived at waypoint: fire linked trigger if set
+                        if (!wData.targetTrigger.empty()) {
+                            auto& mutableMap = const_cast<LabMap&>(map);
+                            for (auto& tr : mutableMap.triggers) {
+                                if (tr.name == wData.targetTrigger) {
+                                    AIManager::executeTrigger(tr, mutableMap, nullptr);
+                                }
+                            }
+                        }
+
+                        if (wData.waitDuration > 0.05f) {
+                            waypointWaitTimer = wData.waitDuration;
+                            rotation.y = wData.facingYaw;
+                            if (animator.getSkeleton() && !wData.animation.empty()) {
+                                animator.playAnimation(wData.animation, true, 0.2f);
+                            }
+                        } else {
+                            rotation.y = wData.facingYaw;
+                            if (animator.getSkeleton() && !wData.animation.empty()) {
+                                animator.playAnimation(wData.animation, true, 0.2f);
+                            }
+                            if (currentWaypointIndex + 1 < static_cast<int>(waypoints.size())) {
+                                currentWaypointIndex++;
+                            } else if (loopWaypoints) {
+                                currentWaypointIndex = 0;
+                            } else {
+                                storyPathActive = false;
+                            }
+                        }
+                    }
                 } else {
-                    storyPathActive = false;
+                    if (currentWaypointIndex + 1 < static_cast<int>(waypoints.size())) {
+                        currentWaypointIndex++;
+                    } else if (loopWaypoints) {
+                        currentWaypointIndex = 0;
+                    } else {
+                        storyPathActive = false;
+                    }
                 }
             }
         } else {
@@ -343,6 +449,13 @@ namespace Lab {
                 } else {
                     animator.playAnimation(animator.hasClip("Firing Rifle") ? "Firing Rifle" : "Attack", false, 0.05f);
                 }
+            } else if (storyPathActive && waypointWaitTimer > 0.0f && !waypointData.empty()) {
+                int curWp = std::clamp(currentWaypointIndex, 0, static_cast<int>(waypointData.size()) - 1);
+                if (curWp >= 0 && curWp < static_cast<int>(waypointData.size()) && !waypointData[curWp].animation.empty()) {
+                    animator.playAnimation(waypointData[curWp].animation, true, 0.2f);
+                } else {
+                    animator.playAnimation("Idle", true, 0.15f);
+                }
             } else if (state == AIState::Talk && !movedThisStep) {
                 animator.playAnimation("Talk", true, 0.1f);
             } else if (state == AIState::Chase) {
@@ -359,22 +472,27 @@ namespace Lab {
                 } else if (distToPlayer > 8.0f) {
                     animator.playAnimation("Walk", true, 0.1f);
                 } else {
-                    if (equippedWeapon == WeaponID::Pistol) {
+                    if (equippedWeapon == WeaponID::Pistol && animator.hasClip("Pistol Idle")) {
                         animator.playAnimation("Pistol Idle", true, 0.15f);
                     } else {
                         animator.playAnimation("Idle", true, 0.15f);
                     }
                 }
-            } else if (state == AIState::Patrol || (state == AIState::Talk && movedThisStep)) {
+            } else if ((state == AIState::Patrol || state == AIState::Talk) && movedThisStep) {
                 animator.playAnimation("Walk", true, 0.1f);
             } else {
-                if (equippedWeapon == WeaponID::Pistol) {
+                if (equippedWeapon == WeaponID::Pistol && animator.hasClip("Pistol Idle")) {
                     animator.playAnimation("Pistol Idle", true, 0.15f);
                 } else {
                     animator.playAnimation("Idle", true, 0.15f);
                 }
             }
-            animator.update(dt);
+            lodFrameSkip++;
+            int skipThreshold = (lodLevel == 0) ? 1 : ((lodLevel == 1) ? 2 : 4);
+            if (lodFrameSkip >= skipThreshold) {
+                animator.update(dt * static_cast<float>(skipThreshold));
+                lodFrameSkip = 0;
+            }
         }
     }
 
@@ -436,7 +554,8 @@ namespace Lab {
     }
 
     void CombatBot::render(const SkinnedMesh* mesh, const Mesh* weaponMesh,
-                           const BotWeaponConfig* botWepCfg, const Texture* weaponTex) const {
+                           const BotWeaponConfig* botWepCfg, const Texture* weaponTex,
+                           const Texture* botTex) const {
         if (state == AIState::Dead) {
             if (mesh && animator.getSkeleton()) {
                 float botScale = mesh->getBaseScale(1.85f);
@@ -445,7 +564,7 @@ namespace Lab {
                                 Mat4::rotate(rotation.y * 3.14159265f / 180.0f, Vec3(0, 1, 0)) *
                                 Mat4::scale(Vec3(botScale, botScale, botScale));
                 Vec3 corpseCol = Vec3(0.18f, 0.18f, 0.20f);
-                Renderer::drawSkinnedMesh(*mesh, botModel, animator.getSkinMatrices(), corpseCol, nullptr, true);
+                Renderer::drawSkinnedMesh(*mesh, botModel, animator.getSkinMatrices(), corpseCol, botTex, true);
                 return;
             } else {
                 // Fallback cube
@@ -461,14 +580,26 @@ namespace Lab {
             bPos.y = std::max(0.0f, bPos.y - 1.8f);
         }
 
-        // Armor plate colors based on damage and team
-        Vec3 armorCol = Vec3(0.20f, 0.24f, 0.28f);
+        // Appearance and color tint based on archetype & team
+        Vec3 armorCol = Vec3(1.0f, 1.0f, 1.0f);
+        if (archetype == BotArchetype::Guard) {
+            armorCol = Vec3(1.0f, 1.0f, 1.0f); // Full diffuse texture brilliance
+        } else if (archetype == BotArchetype::Scientist) {
+            armorCol = Vec3(0.92f, 0.94f, 0.98f); // Clean white laboratory coat tint
+        } else if (archetype == BotArchetype::Worker) {
+            armorCol = Vec3(0.95f, 0.65f, 0.18f); // Industrial hazard jumpsuit tint
+        } else if (archetype == BotArchetype::CombatSynth) {
+            if (team == 0) {
+                armorCol = Vec3(0.48f, 0.18f, 0.18f); // Red Team Synth
+            } else if (team == 1) {
+                armorCol = Vec3(0.18f, 0.32f, 0.52f); // Blue Team Synth
+            } else {
+                armorCol = Vec3(0.24f, 0.28f, 0.32f); // Charcoal FFA Synth
+            }
+        }
+
         if (hurtTimer > 0.0f) {
-            armorCol = Vec3(0.9f, 0.2f, 0.2f); // Red flash when shot
-        } else if (team == 0) {
-            armorCol = Vec3(0.48f, 0.18f, 0.18f); // Red Team
-        } else if (team == 1) {
-            armorCol = Vec3(0.18f, 0.32f, 0.52f); // Blue Team
+            armorCol = Vec3(0.95f, 0.25f, 0.25f); // Bright red hit flash
         }
 
         // Glowing Visor
@@ -485,7 +616,7 @@ namespace Lab {
             Mat4 botModel = Mat4::translate(bPos + Vec3(0.0f, yOffset, 0.0f)) *
                             Mat4::rotate(rotation.y * 3.14159265f / 180.0f, Vec3(0, 1, 0)) *
                             Mat4::scale(Vec3(botScale, botScale, botScale));
-            Renderer::drawSkinnedMesh(*mesh, botModel, animator.getSkinMatrices(), armorCol, nullptr, true);
+            Renderer::drawSkinnedMesh(*mesh, botModel, animator.getSkinMatrices(), armorCol, botTex, true);
 
             if (weaponMesh) {
                 float invBotScale = (botScale > 0.00001f) ? (1.0f / botScale) : 1.0f;
@@ -576,7 +707,8 @@ namespace Lab {
                             Mat4::rotate(rotation.y * 3.14159265f / 180.0f, Vec3(0, 1, 0)) *
                             Mat4::scale(Vec3(botScale, botScale, botScale));
             Renderer::drawShadowSkinnedMesh(*mesh, botModel, animator.getSkinMatrices());
-            if (weaponMesh) {
+            // At LOD 2 (> 28m), skip small weapon shadow pass to optimize shadow mapping performance
+            if (weaponMesh && lodLevel < 2) {
                 float invBotScale = (botScale > 0.00001f) ? (1.0f / botScale) : 1.0f;
                 Vec3 offset(0.0f, -0.05f, 0.02f);
                 Vec3 rot(5.73f, -11.46f, 0.0f);
@@ -797,7 +929,10 @@ namespace Lab {
 
     void AIManager::initAssets() {
         if (!skinnedMesh) {
-            bool loaded = GLTFLoader::load("assets/models/t-800_run.glb", skeleton, animations, skinnedMesh);
+            bool loaded = GLTFLoader::load("assets/models/guard.glb", skeleton, animations, skinnedMesh);
+            if (!loaded || !skinnedMesh) {
+                loaded = GLTFLoader::load("assets/models/t-800_run.glb", skeleton, animations, skinnedMesh);
+            }
             if (!loaded || !skinnedMesh) {
                 loaded = GLTFLoader::load("assets/inwork/t-800_run.glb", skeleton, animations, skinnedMesh);
             }
@@ -807,6 +942,35 @@ namespace Lab {
 
             // Ingest all FBX / binary animations into the AI bot skeleton
             FBXLoader::loadAllFromDirectory("assets/animations", animations, skeleton.get());
+
+            // Ensure canonical animation clip aliases (Walk, Shoot, Idle) exist
+            bool hasShoot = false, hasWalk = false, hasIdle = false;
+            const AnimationClip* attackSource = nullptr;
+            const AnimationClip* walkSource = nullptr;
+            const AnimationClip* idleSource = nullptr;
+            for (const auto& c : animations) {
+                if (c.name == "Shoot") hasShoot = true;
+                if (c.name == "Walk") hasWalk = true;
+                if (c.name == "Idle") hasIdle = true;
+                if (c.name == "Attack" || c.name == "Firing Rifle") attackSource = &c;
+                if (c.name == "Walking" || c.name == "Run Forward") walkSource = &c;
+                if (c.name == "Pistol Idle") idleSource = &c;
+            }
+            if (!hasShoot && attackSource) {
+                AnimationClip sc = *attackSource;
+                sc.name = "Shoot";
+                animations.push_back(sc);
+            }
+            if (!hasWalk && walkSource) {
+                AnimationClip wc = *walkSource;
+                wc.name = "Walk";
+                animations.push_back(wc);
+            }
+            if (!hasIdle && idleSource) {
+                AnimationClip ic = *idleSource;
+                ic.name = "Idle";
+                animations.push_back(ic);
+            }
 
             // Load bot weapon configuration from studio profile
             loadConfig("assets/configs/character_studio.cfg");
@@ -852,10 +1016,29 @@ namespace Lab {
 
             // Backwards compatibility pointer
             weaponMesh = std::unique_ptr<Mesh>(Mesh::loadSTL("assets/models/pipe.stl"));
+
+            // Character Textures
+            guardTexture = std::make_unique<Texture>("guard.bmp");
+            if (!guardTexture || guardTexture->getId() == 0) {
+                guardTexture = std::make_unique<Texture>("guard_body.bmp");
+            }
+            synthTexture = std::make_unique<Texture>("metal_hull.bmp");
         }
         if (!sharedFaceMesh) {
             sharedFaceMesh = FacialMesh::createProceduralHead();
         }
+    }
+
+    const Texture* AIManager::getBotTexture(BotArchetype type) const {
+        if (type == BotArchetype::Guard || type == BotArchetype::Scientist || type == BotArchetype::Worker) {
+            if (guardTexture && guardTexture->getId() != 0) {
+                return guardTexture.get();
+            }
+        }
+        if (synthTexture && synthTexture->getId() != 0) {
+            return synthTexture.get();
+        }
+        return guardTexture ? guardTexture.get() : nullptr;
     }
 
     void AIManager::spawnBotsForMap(const LabMap* map, int count, GameMode mode) {
@@ -867,7 +1050,10 @@ namespace Lab {
             int botTeam = (mode == GameMode::TDM) ? (i % 2) : -1;
             std::string bName = (i == 0 && map && !map->waypoints.empty() && !map->waypoints[0].botName.empty())
                                 ? map->waypoints[0].botName
-                                : ("Bot #" + std::to_string(i + 1));
+                                : ("Combat Synth #" + std::to_string(i + 1));
+            if (count == 1 || (map && (!map->triggers.empty() || !map->waypoints.empty()) && i == 0)) {
+                bName = "Guard";
+            }
 
             MapSpawnPoint sp;
             if (map) {
@@ -896,20 +1082,79 @@ namespace Lab {
             if (forward.lengthSq() < 0.01f) forward = Vec3(0, 0, 1);
             Vec3 patrolEnd = botSpawnPos + forward * 8.0f;
 
-            // Distribute diverse arsenal across bots: Shotgun, M4A4S, SG553, Minigun, Plasma, Railgun, RPG, Pipe, Pistol
+            // Determine Archetype
+            BotArchetype botArchetype = BotArchetype::CombatSynth;
+            bool isGuard = (bName.find("Guard") != std::string::npos || bName.find("guard") != std::string::npos ||
+                            bName.find("Security") != std::string::npos || bName.find("Barney") != std::string::npos ||
+                            mode == GameMode::Campaign);
+            bool isScientist = (bName.find("Scientist") != std::string::npos || bName.find("scientist") != std::string::npos ||
+                                bName.find("Kleiner") != std::string::npos || bName.find("Doctor") != std::string::npos);
+            bool isWorker = (bName.find("Worker") != std::string::npos || bName.find("worker") != std::string::npos ||
+                             bName.find("Engineer") != std::string::npos || bName.find("Tech") != std::string::npos);
+
             WeaponID assignedWep = static_cast<WeaponID>((i + 2) % 9);
+            float botSpeed = 3.2f;
+            bool friendly = false;
+
+            if (isGuard) {
+                botArchetype = BotArchetype::Guard;
+                botTeam = 1; // Friendly team
+                assignedWep = WeaponID::Pistol; // Half-Life Security Guard pistol
+                botSpeed = 2.4f; // Calm Half-Life patrol pace
+                friendly = true;
+                if (bName.find("Synth") != std::string::npos || bName.find("Bot #") != std::string::npos) {
+                    bName = "Guard";
+                }
+            } else if (isScientist) {
+                botArchetype = BotArchetype::Scientist;
+                botTeam = 1;
+                assignedWep = WeaponID::Pistol;
+                botSpeed = 2.0f;
+                friendly = true;
+            } else if (isWorker) {
+                botArchetype = BotArchetype::Worker;
+                botTeam = 1;
+                assignedWep = WeaponID::Pipe;
+                botSpeed = 2.2f;
+                friendly = true;
+            } else {
+                botArchetype = BotArchetype::CombatSynth;
+                if (bName.rfind("Bot #", 0) == 0) {
+                    bName = "Combat Synth #" + std::to_string(i + 1);
+                }
+            }
+
             bots.emplace_back(i, bName, botSpawnPos, patrolEnd, botTeam, assignedWep);
+            bots.back().archetype = botArchetype;
+            bots.back().isFriendly = friendly;
+            bots.back().moveSpeed = botSpeed;
             bots.back().rotation.y = sp.yaw;
             bots.back().faceMesh = sharedFaceMesh;
             if (skeleton) {
                 bots.back().initAnimation(skeleton, animations);
             }
 
-            // Bind map waypoints assigned to this bot (or first bot if waypoints exist)
+            // Bind map waypoints assigned to this bot (or matching archetype / designation)
             if (map && !map->waypoints.empty()) {
                 std::vector<MapWaypoint> matched;
                 for (const auto& wp : map->waypoints) {
-                    if (wp.botName == bName || (i == 0 && (wp.botName.empty() || wp.botName == "Bot_Guard" || wp.botName == "Bot #1"))) {
+                    bool match = false;
+                    if (wp.botName.empty() || wp.botName == "(any bot)" || wp.botName == "Any") {
+                        if (i == 0) match = true;
+                    } else if (wp.botName == bName) {
+                        match = true;
+                    } else if (botArchetype == BotArchetype::Guard && (wp.botName == "Guard" || wp.botName == "Bot_Guard" || wp.botName == "Security")) {
+                        match = true;
+                    } else if (botArchetype == BotArchetype::Scientist && (wp.botName == "Scientist" || wp.botName == "Doctor" || wp.botName == "Researcher")) {
+                        match = true;
+                    } else if (botArchetype == BotArchetype::Worker && (wp.botName == "Worker" || wp.botName == "Engineer" || wp.botName == "Tech")) {
+                        match = true;
+                    } else if (botArchetype == BotArchetype::CombatSynth) {
+                        if (wp.botName == "CombatSynth" || wp.botName == "Synth" || wp.botName == "Bot") match = true;
+                        if ((wp.botName == "Synth #1" || wp.botName == "Combat Synth #1") && i == 0) match = true;
+                        if ((wp.botName == "Synth #2" || wp.botName == "Combat Synth #2") && i == 1) match = true;
+                    }
+                    if (match) {
                         matched.push_back(wp);
                     }
                 }
@@ -917,10 +1162,7 @@ namespace Lab {
                     return a.orderIndex < b.orderIndex;
                 });
                 if (!matched.empty()) {
-                    std::vector<Vec3> nodes;
-                    nodes.reserve(matched.size());
-                    for (const auto& m : matched) nodes.push_back(m.position);
-                    bots.back().assignWaypoints(nodes, true);
+                    bots.back().assignWaypoints(matched, true);
                 }
             }
         }
@@ -929,6 +1171,40 @@ namespace Lab {
     void AIManager::spawnBotsForMap(const std::string& mapName, int count, GameMode mode) {
         auto loaded = LabMap::loadFromFile(mapName);
         spawnBotsForMap(loaded.get(), count, mode);
+    }
+
+    bool AIManager::executeTrigger(MapTrigger& tr, LabMap& map, LabChat* chat) {
+        if (tr.once && tr.triggered) return false;
+        tr.triggered = true;
+
+        // 1. Target entity manipulation (e.g. Doors, mechanisms)
+        if (!tr.targetEntity.empty()) {
+            for (auto& d : map.doors) {
+                if (d.name == tr.targetEntity) {
+                    if (tr.targetAction == "unlock") {
+                        d.isLocked = false;
+                    } else if (tr.targetAction == "lock") {
+                        d.isLocked = true;
+                        d.isOpen = false;
+                    } else if (tr.targetAction == "close") {
+                        d.isOpen = false;
+                    } else if (tr.targetAction == "toggle") {
+                        d.isOpen = !d.isOpen;
+                        if (d.isOpen) d.isLocked = false;
+                    } else { // "open" default
+                        d.isLocked = false;
+                        d.isOpen = true;
+                    }
+                }
+            }
+        }
+
+        // 2. Chat / Subtitles notification
+        if (!tr.dialogText.empty() && chat) {
+            chat->addMessage("[" + (tr.targetBot.empty() ? "System" : tr.targetBot) + "]", tr.dialogText, Vec3(0.25f, 0.90f, 0.45f));
+        }
+
+        return true;
     }
 
     bool AIManager::triggerStoryEventOnBot(const std::string& targetBotName, const std::string& subtitle,
@@ -940,7 +1216,10 @@ namespace Lab {
 
         int targetIdx = 0;
         for (size_t i = 0; i < bots.size(); ++i) {
-            if (!targetBotName.empty() && bots[i].name == targetBotName) {
+            if (!targetBotName.empty() && (bots[i].name == targetBotName ||
+                (bots[i].archetype == BotArchetype::Guard && targetBotName == "Guard") ||
+                (bots[i].archetype == BotArchetype::Scientist && targetBotName == "Scientist") ||
+                (bots[i].archetype == BotArchetype::Worker && targetBotName == "Worker"))) {
                 targetIdx = static_cast<int>(i);
                 break;
             }
@@ -948,7 +1227,8 @@ namespace Lab {
 
         std::vector<MapWaypoint> matched;
         for (const auto& wp : map.waypoints) {
-            if (wp.botName.empty() || wp.botName == targetBotName || wp.botName == bots[targetIdx].name) {
+            if (wp.botName.empty() || wp.botName == targetBotName || wp.botName == bots[targetIdx].name ||
+                (bots[targetIdx].archetype == BotArchetype::Guard && (wp.botName == "Guard" || wp.botName == "Bot_Guard"))) {
                 matched.push_back(wp);
             }
         }
@@ -959,13 +1239,7 @@ namespace Lab {
             return a.orderIndex < b.orderIndex;
         });
 
-        std::vector<Vec3> pathNodes;
-        pathNodes.reserve(matched.size());
-        for (const auto& m : matched) {
-            pathNodes.push_back(m.position);
-        }
-
-        bots[targetIdx].startStoryEvent(subtitle, audioFile, pathNodes);
+        bots[targetIdx].startStoryEvent(subtitle, audioFile, matched);
         return true;
     }
 
@@ -976,6 +1250,15 @@ namespace Lab {
 
         for (size_t i = 0; i < bots.size(); ++i) {
             auto& bot = bots[i];
+            float distToPlayer = (bot.position - playerPos).length();
+            if (distToPlayer < 12.0f) {
+                bot.lodLevel = 0;
+            } else if (distToPlayer < 28.0f) {
+                bot.lodLevel = 1;
+            } else {
+                bot.lodLevel = 2;
+            }
+
             if (!bot.isAlive()) {
                 if (bot.velocity.lengthSq() > 0.01f) {
                     bot.velocity.y -= 14.5f * dt;
@@ -1072,13 +1355,17 @@ namespace Lab {
                     bot.lipSync.applyTo(*bot.faceMesh);
                     bot.faceMesh->evaluate();
                 }
+                bot.animator.setJawAngle(bot.lipSync.getJawOpen() * 0.38f);
                 if (bot.talkTimer <= 0.0f) {
                     bot.talkTimer = 0.0f;
                     bot.activeSubtitle.clear();
+                    bot.animator.setJawAngle(0.0f);
                     if (bot.state == AIState::Talk) {
                         bot.state = AIState::Patrol;
                     }
                 }
+            } else {
+                bot.animator.setJawAngle(0.0f);
             }
 
             // ==================== MULTI-TARGET SELECTION ====================
@@ -1092,7 +1379,7 @@ namespace Lab {
 
             if (bot.state != AIState::Talk && !bot.storyPathActive) {
                 // 1. Evaluate Player
-                if (isPlayerAlive && (playerTeam == -1 || playerTeam != bot.team)) {
+                if (!bot.isFriendly && isPlayerAlive && (playerTeam == -1 || playerTeam != bot.team)) {
                     Vec3 toPlayer = playerPos - bot.position;
                     float d = toPlayer.length();
                     if (d <= bot.sightRange) {
@@ -1267,12 +1554,61 @@ namespace Lab {
                     bot.walkCycle += dt * 6.0f;
                     movedThisStep = true;
                 } else {
-                    if (bot.currentWaypointIndex + 1 < static_cast<int>(bot.waypoints.size())) {
-                        bot.currentWaypointIndex++;
-                    } else if (bot.loopWaypoints) {
-                        bot.currentWaypointIndex = 0;
+                    if (wpIdx < static_cast<int>(bot.waypointData.size())) {
+                        const auto& wData = bot.waypointData[wpIdx];
+                        if (bot.waypointWaitTimer > 0.0f) {
+                            bot.waypointWaitTimer -= dt;
+                            bot.rotation.y = wData.facingYaw;
+                            if (bot.animator.getSkeleton() && !wData.animation.empty() && bot.animator.getCurrentAnimationName() != wData.animation) {
+                                bot.animator.playAnimation(wData.animation, true, 0.2f);
+                            }
+                            if (bot.waypointWaitTimer <= 0.0f) {
+                                if (bot.currentWaypointIndex + 1 < static_cast<int>(bot.waypoints.size())) {
+                                    bot.currentWaypointIndex++;
+                                } else if (bot.loopWaypoints) {
+                                    bot.currentWaypointIndex = 0;
+                                } else {
+                                    bot.storyPathActive = false;
+                                }
+                            }
+                        } else {
+                            if (!wData.targetTrigger.empty()) {
+                                auto& mutableMap = const_cast<LabMap&>(map);
+                                for (auto& tr : mutableMap.triggers) {
+                                    if (tr.name == wData.targetTrigger) {
+                                        executeTrigger(tr, mutableMap, chat);
+                                    }
+                                }
+                            }
+
+                            if (wData.waitDuration > 0.05f) {
+                                bot.waypointWaitTimer = wData.waitDuration;
+                                bot.rotation.y = wData.facingYaw;
+                                if (bot.animator.getSkeleton() && !wData.animation.empty()) {
+                                    bot.animator.playAnimation(wData.animation, true, 0.2f);
+                                }
+                            } else {
+                                bot.rotation.y = wData.facingYaw;
+                                if (bot.animator.getSkeleton() && !wData.animation.empty()) {
+                                    bot.animator.playAnimation(wData.animation, true, 0.2f);
+                                }
+                                if (bot.currentWaypointIndex + 1 < static_cast<int>(bot.waypoints.size())) {
+                                    bot.currentWaypointIndex++;
+                                } else if (bot.loopWaypoints) {
+                                    bot.currentWaypointIndex = 0;
+                                } else {
+                                    bot.storyPathActive = false;
+                                }
+                            }
+                        }
                     } else {
-                        bot.storyPathActive = false;
+                        if (bot.currentWaypointIndex + 1 < static_cast<int>(bot.waypoints.size())) {
+                            bot.currentWaypointIndex++;
+                        } else if (bot.loopWaypoints) {
+                            bot.currentWaypointIndex = 0;
+                        } else {
+                            bot.storyPathActive = false;
+                        }
                     }
                 }
             } else {
@@ -1329,6 +1665,13 @@ namespace Lab {
                     } else {
                         bot.animator.playAnimation("Attack", false, 0.05f);
                     }
+                } else if (bot.storyPathActive && bot.waypointWaitTimer > 0.0f && !bot.waypointData.empty()) {
+                    int curWp = std::clamp(bot.currentWaypointIndex, 0, static_cast<int>(bot.waypointData.size()) - 1);
+                    if (curWp >= 0 && curWp < static_cast<int>(bot.waypointData.size()) && !bot.waypointData[curWp].animation.empty()) {
+                        bot.animator.playAnimation(bot.waypointData[curWp].animation, true, 0.2f);
+                    } else {
+                        bot.animator.playAnimation("Idle", true, 0.15f);
+                    }
                 } else if (bot.state == AIState::Talk && !movedThisStep) {
                     bot.animator.playAnimation("Talk", true, 0.1f);
                 } else if (bot.state == AIState::Chase) {
@@ -1345,22 +1688,27 @@ namespace Lab {
                     } else if (bestDist > 8.0f) {
                         bot.animator.playAnimation("Walk", true, 0.1f);
                     } else {
-                        if (bot.equippedWeapon == WeaponID::Pistol) {
+                        if (bot.equippedWeapon == WeaponID::Pistol && bot.animator.hasClip("Pistol Idle")) {
                             bot.animator.playAnimation("Pistol Idle", true, 0.15f);
                         } else {
                             bot.animator.playAnimation("Idle", true, 0.15f);
                         }
                     }
-                } else if (bot.state == AIState::Patrol || (bot.state == AIState::Talk && movedThisStep)) {
+                } else if ((bot.state == AIState::Patrol || bot.state == AIState::Talk) && movedThisStep) {
                     bot.animator.playAnimation("Walk", true, 0.1f);
                 } else {
-                    if (bot.equippedWeapon == WeaponID::Pistol) {
+                    if (bot.equippedWeapon == WeaponID::Pistol && bot.animator.hasClip("Pistol Idle")) {
                         bot.animator.playAnimation("Pistol Idle", true, 0.15f);
                     } else {
                         bot.animator.playAnimation("Idle", true, 0.15f);
                     }
                 }
-                bot.animator.update(dt);
+                bot.lodFrameSkip++;
+                int skipThreshold = (bot.lodLevel == 0) ? 1 : ((bot.lodLevel == 1) ? 2 : 4);
+                if (bot.lodFrameSkip >= skipThreshold) {
+                    bot.animator.update(dt * static_cast<float>(skipThreshold));
+                    bot.lodFrameSkip = 0;
+                }
             }
         }
     }
@@ -1423,8 +1771,9 @@ namespace Lab {
                 int wIdx = std::clamp(static_cast<int>(bot.equippedWeapon), 0, 8);
                 const Mesh* wMesh = weaponMeshes[wIdx] ? weaponMeshes[wIdx].get() : weaponMesh.get();
                 const Texture* wTex = weaponTextures[wIdx].get();
+                const Texture* bTex = getBotTexture(bot.archetype);
                 const BotWeaponConfig* bCfg = &botWeaponConfigs[wIdx];
-                bot.render(skinnedMesh.get(), wMesh, bCfg, wTex);
+                bot.render(skinnedMesh.get(), wMesh, bCfg, wTex, bTex);
             }
         }
     }

@@ -1,0 +1,21 @@
+LABMAP_VERSION 1
+
+METADATA
+    name "Multi-Bot Waypoint Designation Map"
+    ambient 0.2 0.25 0.35
+    sun_dir -0.4 -0.8 -0.4
+    sun_color 0.9 0.95 1
+    cubemap assets/textures/cubemap_site14.bmp
+END_METADATA
+
+ENTITIES
+    spawn 0 1.8 0 0
+    waypoint wp_guard_1 -4 0 -2 Guard 0 Idle 0 2
+    waypoint wp_guard_2 -4 0 4 Guard 1 Salute 180 3
+    waypoint wp_sci_1 -1.5 0 -3 Scientist 0 Inspect 90 4
+    waypoint wp_sci_2 -1.5 0 3 Scientist 1 Idle 270 2
+    waypoint wp_work_1 1.5 0 -2 Worker 0 Walk 0 1
+    waypoint wp_work_2 1.5 0 4 Worker 1 Crouch 180 5
+    waypoint wp_synth_1 4 0 -3 "Combat Synth #1" 0 Attack 90 1
+    waypoint wp_synth_2 4 0 3 "Combat Synth #1" 1 Idle 0 2
+END_ENTITIES

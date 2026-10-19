@@ -22,15 +22,26 @@ namespace Lab {
         Talk
     };
 
+    enum class BotArchetype {
+        Guard,         // Security officer (guard.glb), allied NPC in Story/Campaign, speaks dialogue with lip-sync, armed with Pistol
+        Scientist,     // Research scientist / researcher, civilian non-combatant, keycard/terminal operator
+        Worker,        // Facility technician / engineer, hazard suit, armed with Pipe
+        CombatSynth    // Hostile military combat android (clean non-infringing synth design for Deathmatch and enemy campaign waves)
+    };
+
     class CombatBot {
     public:
         int id = 0;
         std::string name = "Combat Synth";
+        BotArchetype archetype = BotArchetype::CombatSynth;
+        int lodLevel = 0; // 0 = Full (<12m), 1 = Medium (12-28m), 2 = Low (>28m)
+        int lodFrameSkip = 0;
         Vec3 position{ 0.0f, 0.0f, 0.0f };
         Vec3 rotation{ 0.0f, 0.0f, 0.0f }; // yaw in rotation.y
         float health = 100.0f;
         float maxHealth = 100.0f;
         int team = -1; // -1 = FFA, 0 = Red Team, 0/1 = TDM
+        bool isFriendly = false; // Half-Life style friendly Guard / Ally (does not attack player on sight)
         AIState state = AIState::Patrol;
         WeaponID equippedWeapon = WeaponID::Pipe;
 
@@ -41,6 +52,8 @@ namespace Lab {
         int patrolDir = 1;
         float moveSpeed = 3.2f;
         std::vector<Vec3> waypoints;
+        std::vector<MapWaypoint> waypointData;
+        float waypointWaitTimer = 0.0f;
         int currentWaypointIndex = 0;
         bool storyPathActive = false;
         bool loopWaypoints = false;
@@ -86,7 +99,9 @@ namespace Lab {
 
         void initAnimation(std::shared_ptr<Skeleton> skel, const std::vector<AnimationClip>& clips);
         void assignWaypoints(const std::vector<Vec3>& pathNodes, bool loopPath = false);
+        void assignWaypoints(const std::vector<MapWaypoint>& pathNodes, bool loopPath = false);
         void startStoryEvent(const std::string& subtitle, const std::string& audioFile = "assets/audio/bot_corridor_dialog.wav", const std::vector<Vec3>& pathNodes = {});
+        void startStoryEvent(const std::string& subtitle, const std::string& audioFile, const std::vector<MapWaypoint>& pathNodes);
         bool isAlive() const { return health > 0.0f && state != AIState::Dead; }
 
         // Bounding boxes for headshot and torso hitscan
@@ -98,7 +113,8 @@ namespace Lab {
         void update(float dt, const Vec3& playerPos, const LabMap& map, std::vector<BulletTracer>& outTracers, float& outDamageToPlayer);
         bool takeDamage(float damage, bool isHeadshot, const Vec3& knockback = Vec3(0.0f, 0.0f, 0.0f));
         void render(const SkinnedMesh* mesh = nullptr, const Mesh* weaponMesh = nullptr,
-                    const BotWeaponConfig* botWepCfg = nullptr, const Texture* weaponTex = nullptr) const;
+                    const BotWeaponConfig* botWepCfg = nullptr, const Texture* weaponTex = nullptr,
+                    const Texture* botTex = nullptr) const;
         void renderShadow(const SkinnedMesh* mesh = nullptr, const Mesh* weaponMesh = nullptr,
                           const BotWeaponConfig* botWepCfg = nullptr) const;
     };
@@ -117,11 +133,16 @@ namespace Lab {
         std::array<std::unique_ptr<Mesh>, 9> weaponMeshes;
         std::array<std::unique_ptr<Texture>, 9> weaponTextures;
         std::array<BotWeaponConfig, 9> botWeaponConfigs;
+        std::unique_ptr<Texture> guardTexture;
+        std::unique_ptr<Texture> synthTexture;
+
+        static bool executeTrigger(MapTrigger& tr, LabMap& map, LabChat* chat = nullptr);
 
         void initAssets();
         void loadConfig(const std::string& path = "assets/configs/character_studio.cfg");
         void setBotWeaponConfig(WeaponID id, const BotWeaponConfig& cfg);
         const BotWeaponConfig& getBotWeaponConfig(WeaponID id) const;
+        const Texture* getBotTexture(BotArchetype type) const;
 
         void clear() { bots.clear(); }
         void spawnBotsForMap(const LabMap* map, int count, GameMode mode);

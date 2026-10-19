@@ -43,7 +43,7 @@ namespace Lab {
 
         // Skeletal Animation / GPU Vertex Skinning
         uniform int uUseSkinning;
-        uniform mat4 uBoneMatrices[64];
+        uniform mat4 uBoneMatrices[128];
 
         void main() {
             vec4 localPos = vec4(aPos, 1.0);
@@ -349,7 +349,7 @@ namespace Lab {
         uniform mat4 model;
         uniform mat4 lightSpaceMatrix;
         uniform int uUseSkinning;
-        uniform mat4 uBoneMatrices[64];
+        uniform mat4 uBoneMatrices[128];
 
         void main() {
             vec4 localPos = vec4(aPos, 1.0);
@@ -1978,7 +1978,7 @@ namespace Lab {
         _shadowDepthShader->setMat4("model", modelTransform);
         if (!boneMatrices.empty()) {
             _shadowDepthShader->setInt("uUseSkinning", 1);
-            int count = std::min(static_cast<int>(boneMatrices.size()), 64);
+            int count = std::min(static_cast<int>(boneMatrices.size()), 128);
             _shadowDepthShader->setMat4Array("uBoneMatrices", boneMatrices.data(), count);
         } else {
             _shadowDepthShader->setInt("uUseSkinning", 0);
@@ -2346,7 +2346,7 @@ namespace Lab {
 
         if (!boneMatrices.empty()) {
             _defaultShader->setInt("uUseSkinning", 1);
-            int count = std::min(static_cast<int>(boneMatrices.size()), 64);
+            int count = std::min(static_cast<int>(boneMatrices.size()), 128);
             _defaultShader->setMat4Array("uBoneMatrices", boneMatrices.data(), count);
         } else {
             _defaultShader->setInt("uUseSkinning", 0);

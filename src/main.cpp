@@ -54,12 +54,13 @@ static void setClipboardText(const std::string&) {}
 class FrozenLife : public Engine {
 
 public:
-    FrozenLife(bool showSplash = true)
-        : Engine("Frozen-Life: Lab FPS", 1280, 720),
-          _showSplash(showSplash),
-          _splashActive(showSplash),
+    FrozenLife(bool showSplash = true, const std::string& directMap = "")
+        : Engine("Frozen-Life", 1280, 720),
+          _showSplash(directMap.empty() ? showSplash : false),
+          _splashActive(directMap.empty() ? showSplash : false),
           _splashTimer(0.0f),
           _splashDuration(2.5f),
+          _initialDirectMap(directMap),
           _camera(75.0f, 16.0f / 9.0f, 0.01f, 1000.0f),
           _velocity{ 0, 0, 0 },
           _isGrounded(false),
@@ -261,7 +262,15 @@ public:
             AudioEngine::init(true);
         };
         _devConsole.onLipsyncTest = [this](const std::string& file) {
-            AudioEngine::playCustomSound(file);
+            std::string text = file.empty() ? "Facility breach detected. Hold your positions!" : file;
+            if (_currentMap) {
+                _aiManager.triggerStoryEventOnBot("", text, "", *_currentMap);
+            }
+            _hud.showCombatMessage(text, 4.5f);
+            _chat.addMessage("[Guard]", text, Vec3(0.3f, 0.9f, 1.0f));
+            if (!file.empty() && std::filesystem::exists(file)) {
+                AudioEngine::playCustomSound(file);
+            }
         };
         _devConsole.onRestartAudio = []() {
             AudioEngine::shutdown();
@@ -406,10 +415,30 @@ public:
         reloadStudioWeapons();
         syncHudWeapon();
 
-        // Start in Main Menu
-        _inMenu = true;
-        _menuScreen = MenuScreen::Main;
-        setCursorCaptured(false);
+        // Start in Main Menu (or immediately load map if specified via +map command line)
+        if (!_initialDirectMap.empty()) {
+            std::string mapPath = _initialDirectMap;
+            if (mapPath.find(".labscene") == std::string::npos && mapPath.find(".labmap") == std::string::npos) {
+                if (mapPath.find('/') == std::string::npos && mapPath.find('\\') == std::string::npos) {
+                    mapPath = "assets/maps/" + mapPath + ".labscene";
+                } else {
+                    mapPath += ".labscene";
+                }
+            }
+            GameSessionConfig cfg;
+            cfg.mapPath = mapPath;
+            cfg.mode = GameMode::Campaign;
+            cfg.enableBots = true;
+            cfg.botCount = 1;
+            startSession(cfg);
+            _inMenu = false;
+            setCursorCaptured(true);
+            LabLog::info("[FrozenLife] Direct map launch active: " + mapPath);
+        } else {
+            _inMenu = true;
+            _menuScreen = MenuScreen::Main;
+            setCursorCaptured(false);
+        }
     }
 
     void reloadStudioWeapons() {
@@ -1009,13 +1038,47 @@ public:
             _netClient.update(fixedDelta, pos, _velocity, _camera.getYaw(), _camera.getPitch(), 0, 0.0f, 0.0f, static_cast<uint8_t>(_weaponSystem.getActiveId()));
         }
 
-        // Procedural Door animations and distance triggers
+        // Procedural Door animations, activator mechanisms and dependencies
         if (_currentMap) {
             for (auto& door : _currentMap->doors) {
-                if (!door.isLocked) {
+                // Dependency check: if door depends on another trigger/power switch
+                bool dependencySatisfied = true;
+                if (!door.dependency.empty()) {
+                    dependencySatisfied = false;
+                    for (const auto& tr : _currentMap->triggers) {
+                        if (tr.name == door.dependency && tr.triggered) {
+                            dependencySatisfied = true;
+                            break;
+                        }
+                    }
+                    if (!dependencySatisfied) {
+                        for (const auto& otherDoor : _currentMap->doors) {
+                            if (otherDoor.name == door.dependency && otherDoor.isOpen) {
+                                dependencySatisfied = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (!door.isLocked && dependencySatisfied && !door.requiresKeycard) {
                     float distSq = (pos - door.position).lengthSq();
                     float triggerRadiusSq = door.triggerRadius * door.triggerRadius;
-                    door.isOpen = (distSq < triggerRadiusSq);
+                    if (door.activator == "proximity" || door.activator.empty()) {
+                        door.isOpen = (distSq < triggerRadiusSq);
+                    } else if (door.activator == "trigger_only") {
+                        // Keeps its triggered open state; closes only if autoClose is true and player left radius
+                        if (door.isOpen && door.autoClose && distSq >= triggerRadiusSq * 1.5f) {
+                            door.isOpen = false;
+                        }
+                    } else if (door.activator == "manual") {
+                        // Interactive key 'E' / use in proximity
+                        if (distSq < triggerRadiusSq && Input::isKeyJustPressed(GLFW_KEY_E)) {
+                            door.isOpen = !door.isOpen;
+                        }
+                    }
+                } else if (!dependencySatisfied || door.isLocked) {
+                    door.isOpen = false;
                 }
 
                 if (door.isOpen && door.currentProgress < 1.0f) {
@@ -1995,11 +2058,11 @@ public:
             auto firedTriggers = LabCollision::checkTriggerVolumes(_camera.getPosition(), *_currentMap);
             for (int trigIdx : firedTriggers) {
                 if (trigIdx >= 0 && trigIdx < (int)_currentMap->triggers.size()) {
-                    const auto& trig = _currentMap->triggers[trigIdx];
+                    auto& trig = _currentMap->triggers[trigIdx];
+                    AIManager::executeTrigger(trig, *_currentMap, &_chat);
                     _aiManager.triggerStoryEventOnBot(trig.targetBot, trig.dialogText, trig.audioPath, *_currentMap);
                     if (!trig.dialogText.empty()) {
                         _hud.showCombatMessage(trig.dialogText, 4.5f);
-                        _chat.addMessage("[" + (trig.targetBot.empty() ? "CorridorBot" : trig.targetBot) + "]", trig.dialogText, Vec3(0.3f, 0.9f, 1.0f));
                     }
                 }
             }
@@ -2245,6 +2308,24 @@ public:
                 _ePressedLast = false;
             }
             _interactiveSystem.update(time.delta, _camera.getPosition(), _camera.getFront(), useJustPressed, _currentMap.get());
+
+            if (useJustPressed && _currentMap) {
+                RaycastHit botHit;
+                if (_aiManager.testRaycast(_camera.getPosition(), _camera.getFront(), botHit) && botHit.distance < 4.5f) {
+                    static const char* guardQuotes[] = {
+                        "Stay sharp, soldier. Sector 14 is on red alert.",
+                        "Command wants full perimeter lockdown. Keep your eyes open.",
+                        "All clear here. Move to your assigned checkpoint.",
+                        "Watch the ventilation shafts. Sensors picked up movement."
+                    };
+                    static size_t qIdx = 0;
+                    std::string speech = guardQuotes[qIdx % 4];
+                    qIdx++;
+                    _aiManager.triggerStoryEventOnBot("Guard", speech, "", *_currentMap);
+                    _hud.showCombatMessage(speech, 4.0f);
+                    _chat.addMessage("[Guard]", speech, Vec3(0.3f, 0.9f, 1.0f));
+                }
+            }
         }
 
         // F1 Wireframe Toggle
@@ -3708,7 +3789,7 @@ public:
                                                                     : (_playerAnimator.getSkeleton() ? _playerAnimator.getSkinMatrices() : std::vector<Mat4>());
                     Renderer::drawSkinnedMesh(*_aiManager.skinnedMesh, pModel,
                                               matrices,
-                                              Vec3(0.35f, 0.65f, 0.95f), nullptr, true);
+                                              Vec3(1.0f, 1.0f, 1.0f), _aiManager.guardTexture.get(), true);
                 } else {
                     Renderer::drawCylinder(pFeet + Vec3(0.0f, 0.92f, 0.0f), Vec3(0.0f, p.yaw, 0.0f), Vec3(0.55f, 1.85f, 0.35f), Vec3(0.2f, 0.5f, 0.85f));
                 }
@@ -3725,10 +3806,10 @@ public:
                 Mat4 pModel = Mat4::translate(pFeet + Vec3(0.0f, yOff, 0.0f)) *
                               Mat4::rotate(modelYaw * 3.14159265f / 180.0f, Vec3(0, 1, 0)) *
                               Mat4::scale(Vec3(pScale, pScale, pScale));
-                Vec3 pColor = (_sessionConfig.mode == GameMode::TDM) ? Vec3(0.2f, 0.6f, 1.0f) : Vec3(0.2f, 0.85f, 0.45f);
+                Vec3 pColor = (_sessionConfig.mode == GameMode::TDM) ? Vec3(0.2f, 0.6f, 1.0f) : Vec3(1.0f, 1.0f, 1.0f);
                 Renderer::drawSkinnedMesh(*_aiManager.skinnedMesh, pModel,
                                           _playerAnimator.getSkinMatrices(),
-                                          pColor, nullptr, true);
+                                          pColor, _aiManager.guardTexture.get(), true);
 
                 // Render equipped weapon in player's hands via hand socket
                 int wIdx = static_cast<int>(_weaponSystem.getActiveWeapon().def.id);
@@ -4142,6 +4223,7 @@ private:
     bool _splashActive = true;
     float _splashTimer = 0.0f;
     float _splashDuration = 2.5f;
+    std::string _initialDirectMap;
 
     static FrozenLife* s_instance;
 };
@@ -4150,13 +4232,22 @@ FrozenLife* FrozenLife::s_instance = nullptr;
 
 int main(int argc, char* argv[]) {
     bool showSplash = true;
+    std::string directMap = "";
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--nosplash" || arg == "-nosplash") {
             showSplash = false;
+        } else if (arg == "+map" || arg == "--map" || arg == "-map") {
+            if (i + 1 < argc) {
+                directMap = argv[++i];
+                showSplash = false;
+            }
+        } else if (!arg.empty() && arg[0] != '-' && arg[0] != '+' && directMap.empty()) {
+            directMap = arg;
+            showSplash = false;
         }
     }
-    FrozenLife game(showSplash);
+    FrozenLife game(showSplash, directMap);
     game.run();
     return 0;
 }

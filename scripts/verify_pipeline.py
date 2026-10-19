@@ -10,9 +10,28 @@ import glob
 from pathlib import Path
 from PIL import Image
 
-ARTIFACT_DIR = Path(r"C:\Users\jancz\.gemini\antigravity\brain\e39fedee-5e4d-4d4c-99cb-9bed9cccefdd")
 ROOT_DIR = Path(__file__).resolve().parent.parent
 BUILD_BIN = ROOT_DIR / "build" / "Release" / "TestVerify.exe"
+
+def get_artifact_dir():
+    if "ARTIFACT_DIR" in os.environ and os.environ["ARTIFACT_DIR"].strip():
+        return Path(os.environ["ARTIFACT_DIR"].strip())
+    
+    brain_root = Path(r"C:\Users\jancz\.gemini\antigravity\brain")
+    active_id = "bc517531-1833-4a47-9817-f51dfc11269b"
+    active_path = brain_root / active_id
+    if active_path.exists():
+        return active_path
+    
+    if brain_root.exists():
+        dirs = [d for d in brain_root.iterdir() if d.is_dir() and not d.name.startswith(".")]
+        if dirs:
+            dirs.sort(key=lambda d: d.stat().st_mtime, reverse=True)
+            return dirs[0]
+            
+    return active_path
+
+ARTIFACT_DIR = get_artifact_dir()
 
 def run_tests():
     if not BUILD_BIN.exists():
@@ -44,7 +63,6 @@ def run_tests():
 
     if proc.returncode != 0 or fail_count > 0:
         print("[BLAD] Testy nie powiodly sie!")
-        # Wypisz ostatnie 40 linii bledu
         lines = output.splitlines()
         print("\n".join(lines[-40:]))
         return False, pass_count, fail_count, skip_count
@@ -52,8 +70,11 @@ def run_tests():
     return True, pass_count, fail_count, skip_count
 
 def convert_screenshots():
-    print("[EXPORT] Konwersja wygenerowanych klatek testowych .bmp do .png...")
+    print(f"[EXPORT] Konwersja wygenerowanych klatek testowych .bmp do .png w {ARTIFACT_DIR}...")
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
+    web_img_dir = ROOT_DIR / "web" / "assets" / "img"
+    if web_img_dir.exists():
+        web_img_dir.mkdir(parents=True, exist_ok=True)
     
     bmp_files = list(ROOT_DIR.glob("test_*.bmp"))
     if not bmp_files:
@@ -64,9 +85,18 @@ def convert_screenshots():
     for bmp_path in bmp_files:
         try:
             im = Image.open(bmp_path)
-            png_name = f"after_{bmp_path.stem}.png"
-            out_path = ARTIFACT_DIR / png_name
-            im.save(out_path, format="PNG")
+            # Save standard name
+            out_standard = ARTIFACT_DIR / f"{bmp_path.stem}.png"
+            im.save(out_standard, format="PNG")
+            
+            # Save after_ name for backward compatibility
+            out_after = ARTIFACT_DIR / f"after_{bmp_path.stem}.png"
+            im.save(out_after, format="PNG")
+
+            if web_img_dir.exists():
+                web_out = web_img_dir / f"{bmp_path.stem}.png"
+                im.save(web_out, format="PNG")
+                
             exported += 1
         except Exception as e:
             print(f"[BLAD] Blad zapisu {bmp_path.name}: {e}")

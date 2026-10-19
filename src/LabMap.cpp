@@ -232,9 +232,39 @@ namespace Lab {
                     lastParsed = LastParsedEntity::Trigger;
                 } else if (token == "waypoint" || token == "path_node") {
                     MapWaypoint wp;
-                    ss >> wp.name >> wp.position.x >> wp.position.y >> wp.position.z
-                       >> wp.botName >> wp.orderIndex;
-                    if (wp.botName == "\"\"") wp.botName = "";
+                    ss >> wp.name >> wp.position.x >> wp.position.y >> wp.position.z;
+                    std::string botToken;
+                    ss >> botToken;
+                    if (!botToken.empty() && botToken.front() == '"') {
+                        if (botToken.back() == '"' && botToken.length() > 1) {
+                            wp.botName = (botToken == "\"\"") ? "" : botToken.substr(1, botToken.length() - 2);
+                        } else {
+                            std::string remaining;
+                            while (ss >> remaining) {
+                                botToken += " " + remaining;
+                                if (!remaining.empty() && remaining.back() == '"') break;
+                            }
+                            if (botToken.length() >= 2 && botToken.back() == '"') {
+                                wp.botName = botToken.substr(1, botToken.length() - 2);
+                            } else {
+                                wp.botName = botToken;
+                            }
+                        }
+                    } else {
+                        wp.botName = (botToken == "\"\"") ? "" : botToken;
+                    }
+                    ss >> wp.orderIndex;
+                    std::string anim;
+                    float yaw = 0.0f, waitDur = 2.0f;
+                    if (ss >> anim) {
+                        if (anim != "\"\"") wp.animation = anim;
+                    }
+                    if (ss >> yaw) {
+                        wp.facingYaw = yaw;
+                    }
+                    if (ss >> waitDur) {
+                        wp.waitDuration = waitDur;
+                    }
                     map->waypoints.push_back(wp);
                     lastParsed = LastParsedEntity::Waypoint;
                 } else if (token == "camera") {
@@ -324,6 +354,57 @@ namespace Lab {
                         } else if (lastParsed == LastParsedEntity::Sprite && !map->sprites.empty()) {
                             map->sprites.back().name = n;
                         }
+                    }
+                } else if (token == "activator") {
+                    std::string act;
+                    if (ss >> act && lastParsed == LastParsedEntity::Door && !map->doors.empty()) {
+                        map->doors.back().activator = act;
+                    }
+                } else if (token == "keycard") {
+                    std::string kc;
+                    if (ss >> kc && lastParsed == LastParsedEntity::Door && !map->doors.empty()) {
+                        map->doors.back().keycardRequired = kc;
+                        map->doors.back().requiresKeycard = true;
+                    }
+                } else if (token == "dependency") {
+                    std::string dep;
+                    if (ss >> dep && lastParsed == LastParsedEntity::Door && !map->doors.empty()) {
+                        map->doors.back().dependency = dep;
+                    }
+                } else if (token == "locked") {
+                    int lk = 0;
+                    if (ss >> lk && lastParsed == LastParsedEntity::Door && !map->doors.empty()) {
+                        map->doors.back().isLocked = (lk != 0);
+                    }
+                } else if (token == "auto_close") {
+                    int ac = 1;
+                    if (ss >> ac && lastParsed == LastParsedEntity::Door && !map->doors.empty()) {
+                        map->doors.back().autoClose = (ac != 0);
+                    }
+                } else if (token == "target_entity") {
+                    std::string te;
+                    if (ss >> te && lastParsed == LastParsedEntity::Trigger && !map->triggers.empty()) {
+                        map->triggers.back().targetEntity = te;
+                    }
+                } else if (token == "target_waypoint") {
+                    std::string tw;
+                    if (ss >> tw && lastParsed == LastParsedEntity::Trigger && !map->triggers.empty()) {
+                        map->triggers.back().targetWaypoint = tw;
+                    }
+                } else if (token == "target_action") {
+                    std::string ta;
+                    if (ss >> ta && lastParsed == LastParsedEntity::Trigger && !map->triggers.empty()) {
+                        map->triggers.back().targetAction = ta;
+                    }
+                } else if (token == "target_trigger") {
+                    std::string tt;
+                    if (ss >> tt && lastParsed == LastParsedEntity::Waypoint && !map->waypoints.empty()) {
+                        map->waypoints.back().targetTrigger = tt;
+                    }
+                } else if (token == "trigger_action") {
+                    std::string tra;
+                    if (ss >> tra && lastParsed == LastParsedEntity::Waypoint && !map->waypoints.empty()) {
+                        map->waypoints.back().triggerAction = tra;
                     }
                 } else if (token == "weapon_spawner") {
                     MapWeaponSpawner ws;
@@ -619,6 +700,21 @@ namespace Lab {
             if (!d.script.empty()) {
                 file << "        script " << d.script << "\n";
             }
+            if (!d.activator.empty() && d.activator != "proximity") {
+                file << "        activator " << d.activator << "\n";
+            }
+            if (d.requiresKeycard) {
+                file << "        keycard " << (d.keycardRequired.empty() ? "keycard_l1" : d.keycardRequired) << "\n";
+            }
+            if (!d.dependency.empty()) {
+                file << "        dependency " << d.dependency << "\n";
+            }
+            if (d.isLocked) {
+                file << "        locked 1\n";
+            }
+            if (!d.autoClose) {
+                file << "        auto_close 0\n";
+            }
         }
 
         for (const auto& tr : triggers) {
@@ -633,13 +729,35 @@ namespace Lab {
             if (!tr.script.empty()) {
                 file << "        script " << tr.script << "\n";
             }
+            if (!tr.targetEntity.empty()) {
+                file << "        target_entity " << tr.targetEntity << "\n";
+            }
+            if (!tr.targetWaypoint.empty()) {
+                file << "        target_waypoint " << tr.targetWaypoint << "\n";
+            }
+            if (!tr.targetAction.empty() && tr.targetAction != "open") {
+                file << "        target_action " << tr.targetAction << "\n";
+            }
         }
 
         for (const auto& wp : waypoints) {
+            std::string bName = wp.botName.empty() ? "\"\"" : wp.botName;
+            if (bName.find(' ') != std::string::npos && bName.front() != '"') {
+                bName = "\"" + bName + "\"";
+            }
             file << "    waypoint " << (wp.name.empty() ? "wp" : wp.name) << " "
                  << wp.position.x << " " << wp.position.y << " " << wp.position.z << " "
-                 << (wp.botName.empty() ? "\"\"" : wp.botName) << " "
-                 << wp.orderIndex << "\n";
+                 << bName << " "
+                 << wp.orderIndex << " "
+                 << (wp.animation.empty() ? "Idle" : wp.animation) << " "
+                 << wp.facingYaw << " "
+                 << wp.waitDuration << "\n";
+            if (!wp.targetTrigger.empty()) {
+                file << "        target_trigger " << wp.targetTrigger << "\n";
+            }
+            if (!wp.triggerAction.empty() && wp.triggerAction != "fire") {
+                file << "        trigger_action " << wp.triggerAction << "\n";
+            }
         }
 
         for (const auto& lt : lights) {

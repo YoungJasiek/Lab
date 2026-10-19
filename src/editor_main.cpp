@@ -38,6 +38,9 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <fstream>
+#include <chrono>
+#include <ctime>
 
 using namespace Lab;
 
@@ -131,15 +134,22 @@ enum class BottomDockTab {
     Timeline
 };
 
+struct HammerSnapshot {
+    std::string description;
+    LabMap mapSnapshot;
+    SelectionType selectionType = SelectionType::None;
+    int selectedIndex = -1;
+};
+
 class LabEditorApp : public Engine {
 public:
     LabEditorApp()
-        : Engine("Lab Engine Studio (LabSDK)", 1600, 900),
+        : Engine("Hammer Editor - Frozen-Life Level Editor", 1600, 900),
           _camera(70.0f, 16.0f / 9.0f, 0.01f, 3000.0f) {
     }
 
     void onInit() override {
-        LabLog::info("Launching Lab Engine Studio (LabSDK)...");
+        LabLog::info("Launching Hammer Level Editor (Frozen-Life SDK)...");
         Renderer::init();
 
         // Load non-hardcoded editor theme from JSON
@@ -197,12 +207,17 @@ public:
         AudioEngine::init(true);
         _decalSystem.init();
         _particleSystem.init();
-        VCSManager::instance().setRepoRoot(".");
-        logMessage("Native Engine Subsystems active: DecalSystem, ParticleSystem, AudioEngine, VCSManager.");
-
-        // Initialize Engine Main Menu / Project Hub
-        refreshProjectHub();
-        setWorkspace(EditorWorkspace::Project_Hub);
+        // Initialize directly into Hammer 3D Level Editor (with %TEMP% crash recovery check)
+        checkPreviousSession();
+        if (!_showRecoveryPrompt) {
+            if (std::filesystem::exists("assets/maps/site14_chapter1.labscene")) {
+                loadMapFromFile("assets/maps/site14_chapter1.labscene");
+            } else {
+                newMap();
+            }
+        }
+        setWorkspace(EditorWorkspace::World3D_Level);
+        logMessage("Hammer Level Editor ready. Press [F9] or click 'Run Map' to play in Frozen-Life.");
     }
 
     void discoverTextures() {
@@ -356,6 +371,216 @@ public:
         }
     }
 
+    // ==================== HAMMER SESSION & %TEMP% JOURNAL ====================
+    std::filesystem::path getTempDir() const {
+        auto dir = std::filesystem::temp_directory_path() / "LabEngine" / "Hammer";
+        std::error_code ec;
+        std::filesystem::create_directories(dir, ec);
+        return dir;
+    }
+
+    std::filesystem::path getAutosavePath() const {
+        return getTempDir() / "session_recovery.labscene";
+    }
+
+    std::filesystem::path getJournalPath() const {
+        return getTempDir() / "session_journal.txt";
+    }
+
+    std::string getTimestampString() const {
+        auto now = std::chrono::system_clock::now();
+        std::time_t t = std::chrono::system_clock::to_time_t(now);
+        std::tm tmNow{};
+#if defined(_WIN32)
+        localtime_s(&tmNow, &t);
+#else
+        localtime_r(&t, &tmNow);
+#endif
+        char buf[64];
+        std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tmNow);
+        return std::string(buf);
+    }
+
+    std::string getSelectedEntityName() const {
+        if (!_map || _selectedIndex < 0) return "Object";
+        switch (_selectionType) {
+            case SelectionType::Brush: return "Brush #" + std::to_string(_selectedIndex);
+            case SelectionType::Prop:  return "Prop #" + std::to_string(_selectedIndex);
+            case SelectionType::Door:  return "Door #" + std::to_string(_selectedIndex);
+            case SelectionType::Spawn: return "Spawn #" + std::to_string(_selectedIndex);
+            case SelectionType::WeaponSpawner: return "Weapon Spawner #" + std::to_string(_selectedIndex);
+            case SelectionType::Light: return "Light #" + std::to_string(_selectedIndex);
+            case SelectionType::Camera: return "Camera #" + std::to_string(_selectedIndex);
+            case SelectionType::Trigger: return "Trigger #" + std::to_string(_selectedIndex);
+            case SelectionType::Waypoint: return "Waypoint #" + std::to_string(_selectedIndex);
+            default: return "Object";
+        }
+    }
+
+    void writeSessionJournal(const std::string& status, const std::string& mapPath, int actions) {
+        auto path = getJournalPath();
+        std::ofstream out(path, std::ios::trunc);
+        if (out.is_open()) {
+            out << "status: " << status << "\n";
+            out << "map: " << mapPath << "\n";
+            out << "time: " << _sessionStartTime << "\n";
+            out << "actions: " << actions << "\n";
+        }
+    }
+
+    void saveSessionAutosave() {
+        if (!_map) return;
+        auto path = getAutosavePath();
+        _map->saveToFile(path.string());
+    }
+
+    void checkPreviousSession() {
+        auto journal = getJournalPath();
+        auto autosave = getAutosavePath();
+        if (std::filesystem::exists(journal) && std::filesystem::exists(autosave)) {
+            std::ifstream in(journal);
+            std::string line;
+            std::string status, mapPath, timeStr;
+            int actCount = 0;
+            while (std::getline(in, line)) {
+                if (line.rfind("status: ", 0) == 0) status = line.substr(8);
+                else if (line.rfind("map: ", 0) == 0) mapPath = line.substr(5);
+                else if (line.rfind("time: ", 0) == 0) timeStr = line.substr(6);
+                else if (line.rfind("actions: ", 0) == 0) actCount = std::atoi(line.substr(9).c_str());
+            }
+            if (status == "in_progress" && actCount > 0) {
+                _showRecoveryPrompt = true;
+                _recoveryMapName = mapPath;
+                _recoveryTimestamp = timeStr;
+                _recoveryActionCount = actCount;
+                logMessage("[Recovery] Wykryto niezapisana poprzednia sesje dla: " + mapPath + " (" + std::to_string(actCount) + " akcji). Wcisnij Y aby przywrocic lub N aby odrzucic.");
+            }
+        }
+    }
+
+    void startNewSession(const std::string& mapPath) {
+        _sessionStartTime = getTimestampString();
+        _sessionActionCounter = 0;
+        _undoStack.clear();
+        _redoStack.clear();
+        _isDirty = false;
+        writeSessionJournal("in_progress", mapPath, 0);
+    }
+
+    void restorePreviousSession() {
+        auto path = getAutosavePath();
+        if (std::filesystem::exists(path)) {
+            auto loaded = LabMap::loadFromFile(path.string());
+            if (loaded) {
+                _map = std::move(loaded);
+                _currentMapPath = _recoveryMapName;
+                if (_map) {
+                    _scriptEngine.setActiveMap(_map.get());
+                }
+                _showRecoveryPrompt = false;
+                _isDirty = true;
+                _sessionStartTime = getTimestampString();
+                _sessionActionCounter = _recoveryActionCount;
+                _undoStack.clear();
+                _redoStack.clear();
+                writeSessionJournal("in_progress", _currentMapPath, _sessionActionCounter);
+                logMessage("[Recovery] Przywrocono poprzednia sesje robocza (" + std::to_string(_recoveryActionCount) + " modyfikacji z %TEMP%)!");
+                return;
+            }
+        }
+        logMessage("[Recovery] Blad: Nie udalo sie wczytac pliku odzyskiwania sesji z %TEMP%!");
+        _showRecoveryPrompt = false;
+    }
+
+    void discardPreviousSession() {
+        std::error_code ec;
+        std::filesystem::remove(getAutosavePath(), ec);
+        writeSessionJournal("discarded", _currentMapPath, 0);
+        _showRecoveryPrompt = false;
+        logMessage("[Recovery] Odrzucono sesje tymczasowa. Wczytuje biezaca mape.");
+        if (std::filesystem::exists("assets/maps/site14_chapter1.labscene")) {
+            loadMapFromFile("assets/maps/site14_chapter1.labscene");
+        } else {
+            newMap();
+        }
+    }
+
+    void recordSnapshot(const std::string& description) {
+        if (!_map) return;
+        HammerSnapshot snap;
+        snap.description = description;
+        snap.mapSnapshot = *_map;
+        snap.selectionType = _selectionType;
+        snap.selectedIndex = _selectedIndex;
+
+        _undoStack.push_back(std::move(snap));
+        if (_undoStack.size() > 64) {
+            _undoStack.erase(_undoStack.begin());
+        }
+        _redoStack.clear();
+        _isDirty = true;
+        _sessionActionCounter++;
+
+        saveSessionAutosave();
+        writeSessionJournal("in_progress", _currentMapPath, _sessionActionCounter);
+    }
+
+    void performUndo() {
+        if (_undoStack.empty() || !_map) {
+            logMessage("Undo: Brak akcji do cofniecia.");
+            return;
+        }
+        HammerSnapshot currentSnap;
+        currentSnap.description = "Biezacy stan";
+        currentSnap.mapSnapshot = *_map;
+        currentSnap.selectionType = _selectionType;
+        currentSnap.selectedIndex = _selectedIndex;
+        _redoStack.push_back(std::move(currentSnap));
+
+        HammerSnapshot prev = std::move(_undoStack.back());
+        _undoStack.pop_back();
+
+        *_map = std::move(prev.mapSnapshot);
+        _selectionType = prev.selectionType;
+        _selectedIndex = prev.selectedIndex;
+        if (_map) {
+            _scriptEngine.setActiveMap(_map.get());
+        }
+
+        _sessionActionCounter++;
+        saveSessionAutosave();
+        writeSessionJournal("in_progress", _currentMapPath, _sessionActionCounter);
+        logMessage("Undo: Cofnieto '" + prev.description + "' (Pozostalo na stosie: " + std::to_string(_undoStack.size()) + ")");
+    }
+
+    void performRedo() {
+        if (_redoStack.empty() || !_map) {
+            logMessage("Redo: Brak akcji do ponowienia.");
+            return;
+        }
+        HammerSnapshot currentSnap;
+        currentSnap.description = "Biezacy stan";
+        currentSnap.mapSnapshot = *_map;
+        currentSnap.selectionType = _selectionType;
+        currentSnap.selectedIndex = _selectedIndex;
+        _undoStack.push_back(std::move(currentSnap));
+
+        HammerSnapshot next = std::move(_redoStack.back());
+        _redoStack.pop_back();
+
+        *_map = std::move(next.mapSnapshot);
+        _selectionType = next.selectionType;
+        _selectedIndex = next.selectedIndex;
+        if (_map) {
+            _scriptEngine.setActiveMap(_map.get());
+        }
+
+        _sessionActionCounter++;
+        saveSessionAutosave();
+        writeSessionJournal("in_progress", _currentMapPath, _sessionActionCounter);
+        logMessage("Redo: Ponowiono '" + next.description + "'");
+    }
+
     void newMap() {
         _map = std::make_unique<LabMap>();
         _map->metadata.name = "untitled_map";
@@ -438,9 +663,10 @@ public:
             _scriptEngine.setActiveMap(_map.get());
         }
 
-        _currentMapPath = "";
+        _currentMapPath = "assets/maps/untitled_map.labscene";
         _selectionType = SelectionType::None;
         _selectedIndex = -1;
+        startNewSession(_currentMapPath);
         logMessage("Created New " + activeDim + " Map (1 Camera, 1 Block, 1 Light).");
     }
 
@@ -468,6 +694,7 @@ public:
                 if (_map) {
                     _scriptEngine.setActiveMap(_map.get());
                 }
+                startNewSession(_currentMapPath);
                 logMessage("Loaded Project Map: " + openPath);
                 return true;
             }
@@ -905,10 +1132,14 @@ public:
             if (!savePath.empty()) {
                 _currentMapPath = savePath;
                 _map->saveToFile(_currentMapPath);
+                _isDirty = false;
+                writeSessionJournal("in_progress", _currentMapPath, _sessionActionCounter);
                 logMessage("Scene saved to: " + _currentMapPath);
             }
         } else {
             _map->saveToFile(_currentMapPath);
+            _isDirty = false;
+            writeSessionJournal("in_progress", _currentMapPath, _sessionActionCounter);
             logMessage("Scene saved to: " + _currentMapPath);
         }
     }
@@ -926,7 +1157,33 @@ public:
         }
     }
 
+    void runMapInGame() {
+        if (_currentMapPath.empty()) {
+            _currentMapPath = "assets/maps/site14_chapter1.labscene";
+        }
+        if (_map) {
+            _map->saveToFile(_currentMapPath);
+        }
+        logMessage("Hammer: Map saved to " + _currentMapPath);
+
+        std::filesystem::path gameExe = "build/Release/FrozenLife.exe";
+        if (!std::filesystem::exists(gameExe)) {
+            gameExe = "FrozenLife.exe";
+        }
+        if (!std::filesystem::exists(gameExe)) {
+            gameExe = "../Release/FrozenLife.exe";
+        }
+
+        std::string launchArgs = "+map " + _currentMapPath;
+        logMessage("Hammer: Launching game -> " + gameExe.string() + " " + launchArgs);
+        ExportPipeline::launchGame(gameExe, launchArgs);
+    }
+
     void buildGameAction(bool runAfterBuild) {
+        if (runAfterBuild) {
+            runMapInGame();
+            return;
+        }
         if (_currentMapPath.empty()) {
             _currentMapPath = "assets/maps/export_game.labmap";
         }
@@ -1496,6 +1753,29 @@ public:
             }
         }
 
+        // Session Crash Recovery Modal keyboard shortcuts (Y / F1 to restore, N / Esc to discard)
+        if (_showRecoveryPrompt) {
+            static bool s_recY = false;
+            static bool s_recN = false;
+            if (Input::isKeyPressed(89) || Input::isKeyPressed(290)) { // Y or F1
+                if (!s_recY) {
+                    restorePreviousSession();
+                }
+                s_recY = true;
+            } else {
+                s_recY = false;
+            }
+
+            if (Input::isKeyPressed(78) || Input::isKeyPressed(256)) { // N or Esc
+                if (!s_recN) {
+                    discardPreviousSession();
+                }
+                s_recN = true;
+            } else {
+                s_recN = false;
+            }
+        }
+
         // Simulation Tick (Lua OnUpdate & in-editor game mechanics)
         if (_simState == EngineSimState::Playing) {
             if (_map) {
@@ -1603,10 +1883,10 @@ public:
             _f1Pressed = false;
         }
 
-        // F9: Toggle Live In-Editor Simulation
+        // F9: Run Map in FrozenLife (Source Hammer standard)
         if (Input::isKeyPressed(298)) { // GLFW_KEY_F9
             if (!_f9Pressed) {
-                toggleSimulation();
+                runMapInGame();
                 _f9Pressed = true;
             }
         } else {
@@ -1677,6 +1957,30 @@ public:
             _ctrlDPressed = false;
         }
 
+        // Ctrl+Z: Undo | Ctrl+Shift+Z: Redo
+        if (ctrlDown && (Input::isKeyPressed('Z') || Input::isKeyPressed('z') || Input::isKeyPressed(90))) {
+            if (!_ctrlZPressed) {
+                if (shiftDown) {
+                    performRedo();
+                } else {
+                    performUndo();
+                }
+                _ctrlZPressed = true;
+            }
+        } else {
+            _ctrlZPressed = false;
+        }
+
+        // Ctrl+Y: Redo
+        if (ctrlDown && (Input::isKeyPressed('Y') || Input::isKeyPressed('y') || Input::isKeyPressed(89))) {
+            if (!_ctrlYPressed) {
+                performRedo();
+                _ctrlYPressed = true;
+            }
+        } else {
+            _ctrlYPressed = false;
+        }
+
         // 3D Map Editing Shortcuts (strictly isolated to 3D workspaces)
         if (is3DMapEditing) {
             // F: Focus camera on selection
@@ -1708,6 +2012,28 @@ public:
             }
         } else {
             _ePressed = false;
+        }
+
+        // B: Cycle Waypoint Target Bot (Guard -> Scientist -> Worker -> Synth #1 -> Synth #2 -> Any)
+        if (!ctrlDown && (Input::isKeyPressed('B') || Input::isKeyPressed('b'))) {
+            if (!_bPressed && _map) {
+                const char* bCycle[] = { "Guard", "Scientist", "Worker", "Combat Synth #1", "Combat Synth #2", "" };
+                int bIdx = 0;
+                for (int k = 0; k < 6; ++k) {
+                    if (_defaultWaypointBotName == bCycle[k]) { bIdx = k; break; }
+                }
+                _defaultWaypointBotName = bCycle[(bIdx + 1) % 6];
+                if (_selectionType == SelectionType::Waypoint && _selectedIndex >= 0 && _selectedIndex < (int)_map->waypoints.size()) {
+                    recordSnapshot("Change Waypoint Target Bot");
+                    _map->waypoints[_selectedIndex].botName = _defaultWaypointBotName;
+                    logMessage("Waypoint #" + std::to_string(_selectedIndex) + " Target Bot set to: " + (_defaultWaypointBotName.empty() ? "(any bot)" : _defaultWaypointBotName));
+                } else {
+                    logMessage("Active Waypoint Target Bot: [" + (_defaultWaypointBotName.empty() ? "(any bot)" : _defaultWaypointBotName) + "] (Press 'B' to cycle)");
+                }
+                _bPressed = true;
+            }
+        } else {
+            _bPressed = false;
         }
 
         // X / Shift+X: Toggle Clip Tool / Cycle Clip Mode
@@ -1744,14 +2070,11 @@ public:
             _enterPressed = false;
         }
 
-        // Backspace / Delete: Delete selected object (or last brush if none selected)
+        // Backspace / Delete: Delete selected object
         if (Input::isKeyPressed(259) || Input::isKeyPressed(261)) { // Backspace or Del
             if (!_delPressed) {
                 if (_selectionType != SelectionType::None) {
                     deleteSelection();
-                } else if (_map && !_map->brushes.empty()) {
-                    _map->brushes.pop_back();
-                    logMessage("Undo: Deleted last brush.");
                 }
                 _delPressed = true;
             }
@@ -1940,6 +2263,7 @@ public:
             Vec3 selPos = getSelectedPosition();
             GizmoAxis hitAxis = testGizmoHit(rayOrigin, rayDir, selPos);
             if (hitAxis != GizmoAxis::None) {
+                recordSnapshot("Transform " + getSelectedEntityName());
                 _isDraggingGizmo = true;
                 _activeGizmoAxis = hitAxis;
                 _dragStartMouse = { mx, my };
@@ -2189,6 +2513,10 @@ public:
             return _map->props[_selectedIndex].rotation;
         } else if (_selectionType == SelectionType::Camera && _selectedIndex >= 0 && _selectedIndex < (int)_map->cameras.size()) {
             return _map->cameras[_selectedIndex].rotation;
+        } else if (_selectionType == SelectionType::Waypoint && _selectedIndex >= 0 && _selectedIndex < (int)_map->waypoints.size()) {
+            return Vec3(0.0f, _map->waypoints[_selectedIndex].facingYaw, 0.0f);
+        } else if (_selectionType == SelectionType::Spawn && _selectedIndex >= 0 && _selectedIndex < (int)_map->spawnPoints.size()) {
+            return Vec3(0.0f, _map->spawnPoints[_selectedIndex].yaw, 0.0f);
         }
         return Vec3(0, 0, 0);
     }
@@ -2216,6 +2544,12 @@ public:
             r.z = std::fmod(r.z + dr, 360.0f);
             logMessage("Rotated Camera [" + _map->cameras[_selectedIndex].name + "] to Pitch=" +
                        std::to_string((int)r.x) + "°, Yaw=" + std::to_string((int)r.y) + "°");
+        } else if (_selectionType == SelectionType::Waypoint && _selectedIndex >= 0 && _selectedIndex < (int)_map->waypoints.size()) {
+            auto& wp = _map->waypoints[_selectedIndex];
+            wp.facingYaw = std::fmod(wp.facingYaw + dy, 360.0f);
+            if (wp.facingYaw < 0.0f) wp.facingYaw += 360.0f;
+            _defaultWaypointYaw = wp.facingYaw;
+            logMessage("Rotated Waypoint [" + wp.name + "] Facing Yaw to " + std::to_string((int)wp.facingYaw) + "°");
         }
     }
 
@@ -2440,7 +2774,8 @@ public:
     }
 
     void duplicateSelection() {
-        if (!_map) return;
+        if (!_map || _selectionType == SelectionType::None) return;
+        recordSnapshot("Duplicate " + getSelectedEntityName());
         if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
             MapBrush b = _map->brushes[_selectedIndex];
             b.position.x += _gridSnap;
@@ -2508,12 +2843,13 @@ public:
             wp.orderIndex = (int)_map->waypoints.size();
             _map->waypoints.push_back(wp);
             _selectedIndex = (int)_map->waypoints.size() - 1;
-            logMessage("Duplicated & Linked Bot Waypoint to #" + std::to_string(_selectedIndex));
+            logMessage("Duplicated & Linked Bot Waypoint to #" + std::to_string(_selectedIndex) + " for [" + (wp.botName.empty() ? "(any bot)" : wp.botName) + "]");
         }
     }
 
     void deleteSelection() {
-        if (!_map) return;
+        if (!_map || _selectionType == SelectionType::None) return;
+        recordSnapshot("Delete " + getSelectedEntityName());
         if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
             _map->brushes.erase(_map->brushes.begin() + _selectedIndex);
             logMessage("Deleted Brush #" + std::to_string(_selectedIndex));
@@ -2566,6 +2902,12 @@ public:
         }
     }
 
+    void deselectAll() {
+        _selectionType = SelectionType::None;
+        _selectedIndex = -1;
+        logMessage("Deselected all.");
+    }
+
     void focusCamera() {
         Vec3 targetPos = _cursorPos;
         if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
@@ -2598,6 +2940,7 @@ public:
             return;
         }
 
+        recordSnapshot("CSG Slice Brush #" + std::to_string(_selectedIndex));
         auto& targetBrush = _map->brushes[_selectedIndex];
         Vec3 planePt = (_clipPointA + _clipPointB) * 0.5f;
         Vec3 planeNormal;
@@ -2983,12 +3326,15 @@ public:
                 MapWaypoint wp;
                 wp.name = "wp_" + std::to_string(_map->waypoints.size() + 1);
                 wp.position = _cursorPos + Vec3(0, 0.5f, 0);
-                wp.botName = "Bot_Guard";
+                wp.botName = _defaultWaypointBotName;
                 wp.orderIndex = (int)_map->waypoints.size();
+                wp.animation = _defaultWaypointAnimation;
+                wp.facingYaw = _defaultWaypointYaw;
+                wp.waitDuration = _defaultWaypointDuration;
                 _map->waypoints.push_back(wp);
                 _selectionType = SelectionType::Waypoint;
                 _selectedIndex = (int)_map->waypoints.size() - 1;
-                logMessage("Placed Bot Waypoint [" + wp.name + "] (Assigned to " + wp.botName + ")");
+                logMessage("Placed Bot Waypoint [" + wp.name + "] for [" + (wp.botName.empty() ? "(any bot)" : wp.botName) + "] (" + wp.animation + ", Facing " + std::to_string((int)wp.facingYaw) + "°)");
                 break;
             }
         }
@@ -2996,6 +3342,7 @@ public:
 
     void placeCurrentObject() {
         if (!_map) return;
+        recordSnapshot("Place Object");
         if (_activeTool == 1) { // Brush Tool
             MapBrush b;
             b.position = _cursorPos;
@@ -3085,6 +3432,10 @@ public:
             CompDef compRegistry[] = {
                 { "Magic Add: Trigger Volume", "Trigger" },
                 { "Magic Add: Bot Waypoint", "Waypoint" },
+                { "Magic Add: Waypoint (Guard)", "Waypoint" },
+                { "Magic Add: Waypoint (Scientist)", "Waypoint" },
+                { "Magic Add: Waypoint (Worker)", "Waypoint" },
+                { "Magic Add: Waypoint (Synth)", "Waypoint" },
                 { "Magic Add: Camera", "Camera" },
                 { "Magic Add: Light", "Light" },
                 { "Magic Add: Spawn", "Spawn" },
@@ -3133,6 +3484,18 @@ public:
                         if (picked == "Magic Add: Trigger Volume") {
                             placePrebuilt(9);
                         } else if (picked == "Magic Add: Bot Waypoint") {
+                            placePrebuilt(18);
+                        } else if (picked == "Magic Add: Waypoint (Guard)") {
+                            _defaultWaypointBotName = "Guard";
+                            placePrebuilt(18);
+                        } else if (picked == "Magic Add: Waypoint (Scientist)") {
+                            _defaultWaypointBotName = "Scientist";
+                            placePrebuilt(18);
+                        } else if (picked == "Magic Add: Waypoint (Worker)") {
+                            _defaultWaypointBotName = "Worker";
+                            placePrebuilt(18);
+                        } else if (picked == "Magic Add: Waypoint (Synth)") {
+                            _defaultWaypointBotName = "Combat Synth #1";
                             placePrebuilt(18);
                         } else if (picked == "Magic Add: Camera") {
                             MapCamera c;
@@ -3572,22 +3935,55 @@ public:
             return;
         }
 
-        // 4. Dropdown File Menu
+        // 3.9. Session Crash Recovery Modal Handling
+        if (_showRecoveryPrompt) {
+            float bw = 580.0f;
+            float bh = 240.0f;
+            float bx = (w - bw) * 0.5f;
+            float by = (h - bh) * 0.5f;
+
+            // Close button [X]
+            if (mx >= bx + bw - 32.0f && mx <= bx + bw - 8.0f && my >= by + 5.0f && my <= by + 27.0f) {
+                discardPreviousSession();
+                return;
+            }
+
+            float btnY = by + bh - 54.0f;
+            float btnW = 200.0f;
+            float btnH = 34.0f;
+
+            // "Przywroc sesje" button
+            float restX = bx + 45.0f;
+            if (mx >= restX && mx <= restX + btnW && my >= btnY && my <= btnY + btnH) {
+                restorePreviousSession();
+                return;
+            }
+
+            // "Odrzuc sesje" button
+            float discX = bx + bw - 45.0f - btnW;
+            if (mx >= discX && mx <= discX + btnW && my >= btnY && my <= btnY + btnH) {
+                discardPreviousSession();
+                return;
+            }
+
+            // Consume click while modal is open
+            return;
+        }
+
+        // 4. Dropdown File Menu (Hammer Level Editor)
         if (_fileMenuOpen) {
             float menuX = 10.0f;
             float menuY = 24.0f;
             float menuW = 240.0f;
-            float menuH = 200.0f;
+            float menuH = 152.0f;
             if (mx >= menuX && mx <= menuX + menuW && my >= menuY && my <= menuY + menuH) {
                 int itemIdx = (int)((my - menuY) / 24.0f);
-                if (itemIdx == 0) setWorkspace(EditorWorkspace::Project_Hub);
-                else if (itemIdx == 1) newMap();
-                else if (itemIdx == 2) openMapDialog();
-                else if (itemIdx == 3) saveMapAction(false);
-                else if (itemIdx == 4) saveMapAction(true);
-                else if (itemIdx == 5) buildGameAction(true);
-                else if (itemIdx == 6) _buildModalOpen = true;
-                else if (itemIdx >= 7) stop();
+                if (itemIdx == 0) newMap();
+                else if (itemIdx == 1) openMapDialog();
+                else if (itemIdx == 2) saveMapAction(false);
+                else if (itemIdx == 3) saveMapAction(true);
+                else if (itemIdx == 4) runMapInGame();
+                else if (itemIdx >= 5) stop();
                 _fileMenuOpen = false;
                 return;
             } else {
@@ -3595,31 +3991,53 @@ public:
             }
         }
 
-        // 4.5. Dropdown Build Menu
-        if (_buildMenuOpen) {
-            float menuX = 137.0f;
+        // 4.1. Dropdown Edit Menu (Undo, Redo, Delete, Duplicate, Deselect)
+        if (_editMenuOpen) {
+            float menuX = 52.0f;
             float menuY = 24.0f;
-            float menuW = 250.0f;
+            float menuW = 260.0f;
+            float menuH = 128.0f;
+            if (mx >= menuX && mx <= menuX + menuW && my >= menuY && my <= menuY + menuH) {
+                int itemIdx = (int)((my - menuY - 3.0f) / 24.0f);
+                if (itemIdx == 0) performUndo();
+                else if (itemIdx == 1) performRedo();
+                else if (itemIdx == 2) deleteSelection();
+                else if (itemIdx == 3) duplicateSelection();
+                else if (itemIdx == 4) deselectAll();
+                _editMenuOpen = false;
+                return;
+            } else {
+                _editMenuOpen = false;
+            }
+        }
+
+        // 4.5. Dropdown Map Menu (Level Settings & Compilation)
+        if (_buildMenuOpen) {
+            float menuX = 138.0f;
+            float menuY = 24.0f;
+            float menuW = 260.0f;
             float menuH = 125.0f;
             if (mx >= menuX && mx <= menuX + menuW && my >= menuY && my <= menuY + menuH) {
                 int itemIdx = (int)((my - menuY - 3.0f) / 24.0f);
-                if (itemIdx == 0) buildGameAction(true); // Test Game (Debug Run F5)
-                else if (itemIdx == 1) { // Export Game (Release Package)
-                    _exportSettings.config = BuildConfiguration::Release;
-                    buildGameAction(false);
-                } else if (itemIdx == 2) { // Export Game (Shipping Bytecode Protected)
-                    _exportSettings.config = BuildConfiguration::Shipping;
-                    buildGameAction(false);
-                } else if (itemIdx == 3) { // Build Settings Dialog
-                    _buildModalOpen = true;
-                } else if (itemIdx == 4) { // Open test_build Folder
-                    #if defined(_WIN32)
-                    std::system("start test_build");
-                    #elif defined(__APPLE__)
-                    std::system("open test_build");
-                    #else
-                    std::system("xdg-open test_build");
-                    #endif
+                if (itemIdx == 0) runMapInGame(); // Run Map in Frozen-Life (F9)
+                else if (itemIdx == 1) { // Darkness Preset
+                    if (_map) {
+                        _map->metadata.ambientColor = Vec3(0.015f, 0.018f, 0.025f);
+                        _map->metadata.sunColor = Vec3(0.0f, 0.0f, 0.0f);
+                        _darknessMode = true;
+                        logMessage("Applied Darkness Preset to Map Metadata");
+                    }
+                } else if (itemIdx == 2) { // Sunlight Preset
+                    if (_map) {
+                        _map->metadata.ambientColor = Vec3(0.25f, 0.28f, 0.32f);
+                        _map->metadata.sunColor = Vec3(0.85f, 0.82f, 0.78f);
+                        _darknessMode = false;
+                        logMessage("Applied Sunlight Preset to Map Metadata");
+                    }
+                } else if (itemIdx == 3) { // Clear Geometry
+                    newMap();
+                } else if (itemIdx == 4) { // Entity Report / Outliner
+                    _sidebarTab = SidebarTab::Hierarchy;
                 }
                 _buildMenuOpen = false;
                 return;
@@ -3707,43 +4125,43 @@ public:
 
         // 5. Top Menu Bar (y: 0..24)
         if (my >= 0.0f && my <= 24.0f) {
-            if (mx >= 10.0f && mx <= 50.0f) {
+            if (mx >= 10.0f && mx <= 50.0f) { // File
                 _fileMenuOpen = !_fileMenuOpen;
+                _editMenuOpen = false;
                 _viewMenuOpen = false;
                 _buildMenuOpen = false;
                 return;
             } else if (mx >= 52.0f && mx <= 90.0f) { // Edit
-                if (_selectionType != SelectionType::None) deleteSelection();
-                else if (_map && !_map->brushes.empty()) { _map->brushes.pop_back(); logMessage("Undo: deleted last brush"); }
-                return;
-            } else if (mx >= 92.0f && mx <= 135.0f) { // View
-                _viewMenuOpen = !_viewMenuOpen;
-                _fileMenuOpen = false;
-                _buildMenuOpen = false;
-                return;
-            } else if (mx >= 137.0f && mx <= 185.0f) { // Build
-                _buildMenuOpen = !_buildMenuOpen;
+                _editMenuOpen = !_editMenuOpen;
                 _fileMenuOpen = false;
                 _viewMenuOpen = false;
+                _buildMenuOpen = false;
                 return;
-            } else if (mx >= 187.0f && mx <= 235.0f) { // Tools
+            } else if (mx >= 92.0f && mx <= 136.0f) { // View
+                _viewMenuOpen = !_viewMenuOpen;
+                _fileMenuOpen = false;
+                _editMenuOpen = false;
+                _buildMenuOpen = false;
+                return;
+            } else if (mx >= 138.0f && mx <= 184.0f) { // Map
+                _buildMenuOpen = !_buildMenuOpen;
+                _fileMenuOpen = false;
+                _editMenuOpen = false;
+                _viewMenuOpen = false;
+                return;
+            } else if (mx >= 186.0f && mx <= 236.0f) { // Tools
                 _browserOpen = !_browserOpen;
                 return;
-            } else if (mx >= 237.0f && mx <= 285.0f) { // Input
-                _inputModalOpen = !_inputModalOpen;
-                return;
-            } else if (mx >= 287.0f && mx <= 360.0f) { // 2D Assets
-                _asset2DModalOpen = !_asset2DModalOpen;
-                return;
-            } else if (mx >= 362.0f && mx <= 405.0f) { // Help
+            } else if (mx >= 238.0f && mx <= 282.0f) { // Help
                 _helpModalOpen = !_helpModalOpen;
                 return;
             }
 
             // Top Workspace Breadcrumb Badge click -> open View menu
-            if (mx >= 415.0f && mx <= 700.0f) {
+            if (mx >= 295.0f && mx <= 600.0f) {
                 _viewMenuOpen = !_viewMenuOpen;
                 _fileMenuOpen = false;
+                _editMenuOpen = false;
                 _buildMenuOpen = false;
                 return;
             }
@@ -3972,6 +4390,16 @@ public:
                     float cy = startY + i * cardSpacing;
                     if (mx >= l.rightX + 10.0f && mx <= l.rightX + l.rightW - 10.0f && my >= cy && my <= cy + cardH) {
                         int prebuiltId = (_prebuiltCategory == 0) ? i : (10 + i);
+                        if (prebuiltId == 18 && isRmb) {
+                            const char* bCycle[] = { "Guard", "Scientist", "Worker", "Combat Synth #1", "Combat Synth #2", "" };
+                            int bIdx = 0;
+                            for (int k = 0; k < 6; ++k) {
+                                if (_defaultWaypointBotName == bCycle[k]) { bIdx = k; break; }
+                            }
+                            _defaultWaypointBotName = bCycle[(bIdx + 1) % 6];
+                            logMessage("Waypoint Placement Target Bot set to: " + (_defaultWaypointBotName.empty() ? "(any bot)" : _defaultWaypointBotName));
+                            return;
+                        }
                         placePrebuilt(prebuiltId);
                         return;
                     }
@@ -4319,9 +4747,439 @@ public:
                     }
                 }
 
-                // Entity Name & Script Assignment buttons
-                float propY = l.rightY + 38.0f;
-                if (my >= propY + 74.0f && my <= propY + 98.0f) {
+                // Trigger Volume Properties Interactions
+                if (_selectionType == SelectionType::Trigger && _selectedIndex >= 0 && _selectedIndex < (int)_map->triggers.size()) {
+                    auto& tr = _map->triggers[_selectedIndex];
+                    float trPropY = l.rightY + 38.0f;
+                    float trEventY = trPropY + 76.0f;
+                    float trTargetY = trEventY + 50.0f;
+                    float trActionY = trTargetY + 26.0f;
+                    float trWpY = trActionY + 50.0f;
+                    float trBotY1 = trWpY + 48.0f;
+                    float trBotY2 = trBotY1 + 22.0f;
+
+                    // Section 1: Event Type: [Dialog] [Open Door] [Unlock] [Waypoint] [Script]
+                    if (my >= trEventY && my <= trEventY + 22.0f) {
+                        const char* evs[5] = { "story_dialog", "door_open", "door_unlock", "waypoint_advance", "script" };
+                        float xs[5] = { l.rightX + 10.0f, l.rightX + 64.0f, l.rightX + 140.0f, l.rightX + 196.0f, l.rightX + 264.0f };
+                        float ws[5] = { 52.0f, 74.0f, 54.0f, 66.0f, 40.0f };
+                        for (int k = 0; k < 5; ++k) {
+                            if (mx >= xs[k] && mx <= xs[k] + ws[k]) {
+                                recordSnapshot("Change Trigger Event");
+                                tr.eventType = evs[k];
+                                logMessage("Set Trigger #" + std::to_string(_selectedIndex) + " Event: " + evs[k]);
+                                return;
+                            }
+                        }
+                    }
+
+                    // Section 2: Target Door / Entity: [Cycle Door] [Clear Target] [Once: YES/NO]
+                    if (my >= trTargetY && my <= trTargetY + 22.0f) {
+                        if (mx >= l.rightX + 10.0f && mx <= l.rightX + 140.0f) {
+                            recordSnapshot("Cycle Target Entity");
+                            if (_map->doors.empty()) {
+                                logMessage("No doors in map to target.");
+                            } else {
+                                int curDoor = -1;
+                                for (size_t d = 0; d < _map->doors.size(); ++d) {
+                                    if (_map->doors[d].name == tr.targetEntity) { curDoor = (int)d; break; }
+                                }
+                                curDoor++;
+                                if (curDoor >= (int)_map->doors.size()) tr.targetEntity = "";
+                                else tr.targetEntity = _map->doors[curDoor].name;
+                                logMessage("Trigger #" + std::to_string(_selectedIndex) + " Target Door: " + (tr.targetEntity.empty() ? "(none)" : tr.targetEntity));
+                            }
+                            return;
+                        } else if (mx >= l.rightX + 144.0f && mx <= l.rightX + 214.0f) {
+                            recordSnapshot("Clear Target Entity");
+                            tr.targetEntity = "";
+                            logMessage("Cleared Trigger #" + std::to_string(_selectedIndex) + " Target Entity");
+                            return;
+                        } else if (mx >= l.rightX + 218.0f && mx <= l.rightX + 294.0f) {
+                            recordSnapshot("Toggle Trigger Once");
+                            tr.once = !tr.once;
+                            logMessage("Trigger Once Mode: " + std::string(tr.once ? "ON (Once)" : "OFF (Repeatable)"));
+                            return;
+                        }
+                    }
+
+                    // Section 2b: Target Action: [Open] [Close] [Toggle] [Unlock] [Lock]
+                    if (my >= trActionY && my <= trActionY + 22.0f) {
+                        const char* acts[5] = { "open", "close", "toggle", "unlock", "lock" };
+                        float xs[5] = { l.rightX + 10.0f, l.rightX + 66.0f, l.rightX + 122.0f, l.rightX + 178.0f, l.rightX + 240.0f };
+                        float ws[5] = { 54.0f, 54.0f, 54.0f, 60.0f, 54.0f };
+                        for (int k = 0; k < 5; ++k) {
+                            if (mx >= xs[k] && mx <= xs[k] + ws[k]) {
+                                recordSnapshot("Set Target Action");
+                                tr.targetAction = acts[k];
+                                logMessage("Set Trigger Target Action: " + std::string(acts[k]));
+                                return;
+                            }
+                        }
+                    }
+
+                    // Section 3: Target Waypoint: [Cycle Waypoint] [Clear WP]
+                    if (my >= trWpY && my <= trWpY + 22.0f) {
+                        if (mx >= l.rightX + 10.0f && mx <= l.rightX + 160.0f) {
+                            recordSnapshot("Cycle Target Waypoint");
+                            if (_map->waypoints.empty()) {
+                                logMessage("No waypoints in map to target.");
+                            } else {
+                                int curWp = -1;
+                                for (size_t wpIdx = 0; wpIdx < _map->waypoints.size(); ++wpIdx) {
+                                    if (_map->waypoints[wpIdx].name == tr.targetWaypoint) { curWp = (int)wpIdx; break; }
+                                }
+                                curWp++;
+                                if (curWp >= (int)_map->waypoints.size()) tr.targetWaypoint = "";
+                                else tr.targetWaypoint = _map->waypoints[curWp].name;
+                                logMessage("Trigger #" + std::to_string(_selectedIndex) + " Target Waypoint: " + (tr.targetWaypoint.empty() ? "(none)" : tr.targetWaypoint));
+                            }
+                            return;
+                        } else if (mx >= l.rightX + 165.0f && mx <= l.rightX + 285.0f) {
+                            recordSnapshot("Clear Target Waypoint");
+                            tr.targetWaypoint = "";
+                            logMessage("Cleared Trigger #" + std::to_string(_selectedIndex) + " Target Waypoint");
+                            return;
+                        }
+                    }
+
+                    // Section 4: Target Bot: Row 1 [Any Bot] [Guard] [Scientist]
+                    if (my >= trBotY1 && my <= trBotY1 + 20.0f) {
+                        float bBtnW1 = 88.0f, bBtnW2 = 88.0f, bBtnW3 = 94.0f;
+                        float bx1 = l.rightX + 10.0f, bx2 = l.rightX + 103.0f, bx3 = l.rightX + 196.0f;
+                        if (mx >= bx1 && mx <= bx1 + bBtnW1) {
+                            recordSnapshot("Set Trigger Bot");
+                            tr.targetBot = "";
+                            logMessage("Set Trigger Target Bot: (Any Bot)");
+                            return;
+                        } else if (mx >= bx2 && mx <= bx2 + bBtnW2) {
+                            recordSnapshot("Set Trigger Bot");
+                            tr.targetBot = "Guard";
+                            logMessage("Set Trigger Target Bot: Guard");
+                            return;
+                        } else if (mx >= bx3 && mx <= bx3 + bBtnW3) {
+                            recordSnapshot("Set Trigger Bot");
+                            tr.targetBot = "Scientist";
+                            logMessage("Set Trigger Target Bot: Scientist");
+                            return;
+                        }
+                    }
+
+                    // Section 4: Target Bot: Row 2 [Worker] [Synth #1] [Synth #2]
+                    if (my >= trBotY2 && my <= trBotY2 + 20.0f) {
+                        float bBtnW1 = 88.0f, bBtnW2 = 88.0f, bBtnW3 = 94.0f;
+                        float bx1 = l.rightX + 10.0f, bx2 = l.rightX + 103.0f, bx3 = l.rightX + 196.0f;
+                        if (mx >= bx1 && mx <= bx1 + bBtnW1) {
+                            recordSnapshot("Set Trigger Bot");
+                            tr.targetBot = "Worker";
+                            logMessage("Set Trigger Target Bot: Worker");
+                            return;
+                        } else if (mx >= bx2 && mx <= bx2 + bBtnW2) {
+                            recordSnapshot("Set Trigger Bot");
+                            tr.targetBot = "Combat Synth #1";
+                            logMessage("Set Trigger Target Bot: Combat Synth #1");
+                            return;
+                        } else if (mx >= bx3 && mx <= bx3 + bBtnW3) {
+                            recordSnapshot("Set Trigger Bot");
+                            tr.targetBot = "Combat Synth #2";
+                            logMessage("Set Trigger Target Bot: Combat Synth #2");
+                            return;
+                        }
+                    }
+                }
+
+                // Door Properties Interactions
+                if (_selectionType == SelectionType::Door && _selectedIndex >= 0 && _selectedIndex < (int)_map->doors.size()) {
+                    auto& d = _map->doors[_selectedIndex];
+                    float doorPropY = l.rightY + 38.0f;
+                    float dActY = doorPropY + 76.0f;
+                    float dKeyY = dActY + 50.0f;
+                    float dDepY = dKeyY + 50.0f;
+
+                    // Section 1: Activator Mode [Proximity] [Trigger] [Manual]
+                    if (my >= dActY && my <= dActY + 22.0f) {
+                        if (mx >= l.rightX + 10.0f && mx <= l.rightX + 98.0f) {
+                            recordSnapshot("Set Door Activator");
+                            d.activator = "proximity";
+                            logMessage("Set Door Activator: Proximity");
+                            return;
+                        } else if (mx >= l.rightX + 103.0f && mx <= l.rightX + 191.0f) {
+                            recordSnapshot("Set Door Activator");
+                            d.activator = "trigger_only";
+                            logMessage("Set Door Activator: Trigger Only");
+                            return;
+                        } else if (mx >= l.rightX + 196.0f && mx <= l.rightX + 290.0f) {
+                            recordSnapshot("Set Door Activator");
+                            d.activator = "manual";
+                            logMessage("Set Door Activator: Manual / Use");
+                            return;
+                        }
+                    }
+
+                    // Section 2: Keycard & Lock [No Keycard] [Keycard L1] [Keycard L2] [Lock]
+                    if (my >= dKeyY && my <= dKeyY + 22.0f) {
+                        float xs[4] = { l.rightX + 10.0f, l.rightX + 80.0f, l.rightX + 155.0f, l.rightX + 230.0f };
+                        float ws[4] = { 68.0f, 72.0f, 72.0f, 60.0f };
+                        if (mx >= xs[0] && mx <= xs[0] + ws[0]) {
+                            recordSnapshot("Set Door Keycard");
+                            d.requiresKeycard = false;
+                            d.keycardRequired = "";
+                            logMessage("Removed Door Keycard requirement");
+                            return;
+                        } else if (mx >= xs[1] && mx <= xs[1] + ws[1]) {
+                            recordSnapshot("Set Door Keycard");
+                            d.requiresKeycard = true;
+                            d.keycardRequired = "keycard_l1";
+                            logMessage("Door requires Keycard Level 1");
+                            return;
+                        } else if (mx >= xs[2] && mx <= xs[2] + ws[2]) {
+                            recordSnapshot("Set Door Keycard");
+                            d.requiresKeycard = true;
+                            d.keycardRequired = "keycard_l2";
+                            logMessage("Door requires Keycard Level 2");
+                            return;
+                        } else if (mx >= xs[3] && mx <= xs[3] + ws[3]) {
+                            recordSnapshot("Toggle Door Lock");
+                            d.isLocked = !d.isLocked;
+                            if (d.isLocked) d.isOpen = false;
+                            logMessage("Door Lock: " + std::string(d.isLocked ? "LOCKED" : "UNLOCKED"));
+                            return;
+                        }
+                    }
+
+                    // Section 3: Dependency & Mechanism [Cycle Dependency] [Clear Dep] [AutoClose]
+                    if (my >= dDepY && my <= dDepY + 22.0f) {
+                        if (mx >= l.rightX + 10.0f && mx <= l.rightX + 130.0f) {
+                            recordSnapshot("Cycle Door Dependency");
+                            if (_map->triggers.empty()) {
+                                logMessage("No triggers in map for dependency.");
+                            } else {
+                                int curTr = -1;
+                                for (size_t t = 0; t < _map->triggers.size(); ++t) {
+                                    if (_map->triggers[t].name == d.dependency) { curTr = (int)t; break; }
+                                }
+                                curTr++;
+                                if (curTr >= (int)_map->triggers.size()) d.dependency = "";
+                                else d.dependency = _map->triggers[curTr].name;
+                                logMessage("Door Dependency: " + (d.dependency.empty() ? "(none)" : d.dependency));
+                            }
+                            return;
+                        } else if (mx >= l.rightX + 134.0f && mx <= l.rightX + 204.0f) {
+                            recordSnapshot("Clear Door Dependency");
+                            d.dependency = "";
+                            logMessage("Cleared Door Dependency");
+                            return;
+                        } else if (mx >= l.rightX + 208.0f && mx <= l.rightX + 294.0f) {
+                            recordSnapshot("Toggle AutoClose");
+                            d.autoClose = !d.autoClose;
+                            logMessage("Door AutoClose: " + std::string(d.autoClose ? "ON" : "OFF"));
+                            return;
+                        }
+                    }
+                }
+
+                // Bot Waypoint Properties Interactions
+                if (_selectionType == SelectionType::Waypoint && _selectedIndex >= 0 && _selectedIndex < (int)_map->waypoints.size()) {
+                    auto& wp = _map->waypoints[_selectedIndex];
+                    float wpPropY = l.rightY + 38.0f;
+                    float wpTrigBtnY = wpPropY + 54.0f;
+
+                    // Linked Trigger Click Handler: [Cycle Trig] [Clear]
+                    if (my >= wpTrigBtnY && my <= wpTrigBtnY + 20.0f) {
+                        if (mx >= l.rightX + 155.0f && mx <= l.rightX + 235.0f) {
+                            recordSnapshot("Cycle Linked Trigger");
+                            if (_map->triggers.empty()) {
+                                logMessage("No triggers in map to link.");
+                            } else {
+                                int curTrig = -1;
+                                for (size_t t = 0; t < _map->triggers.size(); ++t) {
+                                    if (_map->triggers[t].name == wp.targetTrigger) { curTrig = (int)t; break; }
+                                }
+                                curTrig++;
+                                if (curTrig >= (int)_map->triggers.size()) wp.targetTrigger = "";
+                                else wp.targetTrigger = _map->triggers[curTrig].name;
+                                logMessage("Waypoint #" + std::to_string(_selectedIndex) + " Linked Trigger: " + (wp.targetTrigger.empty() ? "(none)" : wp.targetTrigger));
+                            }
+                            return;
+                        } else if (mx >= l.rightX + 240.0f && mx <= l.rightX + 292.0f) {
+                            recordSnapshot("Clear Linked Trigger");
+                            wp.targetTrigger = "";
+                            logMessage("Cleared Waypoint #" + std::to_string(_selectedIndex) + " Linked Trigger");
+                            return;
+                        }
+                    }
+
+                    float wpAnimBoxY = wpPropY + 86.0f;
+                    float wpAnimBtn1Y = wpAnimBoxY + 28.0f;
+                    float wpAnimBtn2Y = wpAnimBtn1Y + 26.0f;
+                    float wpYawBtnY = wpAnimBtn2Y + 48.0f;
+                    float wpDurBtnY = wpYawBtnY + 46.0f;
+
+                    // Animation Row 1: [Idle] [Walk] [Talk] [Attack]
+                    if (my >= wpAnimBtn1Y && my <= wpAnimBtn1Y + 22.0f) {
+                        float aBtnW = 66.0f;
+                        const char* anims[4] = { "Idle", "Walk", "Talk", "Attack" };
+                        float xs[4] = { l.rightX + 10.0f, l.rightX + 81.0f, l.rightX + 152.0f, l.rightX + 223.0f };
+                        for (int k = 0; k < 4; ++k) {
+                            if (mx >= xs[k] && mx <= xs[k] + aBtnW) {
+                                wp.animation = anims[k];
+                                _defaultWaypointAnimation = anims[k];
+                                logMessage("Set Bot Waypoint #" + std::to_string(_selectedIndex) + " Animation: " + anims[k]);
+                                return;
+                            }
+                        }
+                    }
+
+                    // Animation Row 2: [Inspect] [Crouch] [Salute] [Death]
+                    if (my >= wpAnimBtn2Y && my <= wpAnimBtn2Y + 22.0f) {
+                        float aBtnW = 66.0f;
+                        const char* anims[4] = { "Inspect", "Crouch", "Salute", "Death" };
+                        float xs[4] = { l.rightX + 10.0f, l.rightX + 81.0f, l.rightX + 152.0f, l.rightX + 223.0f };
+                        for (int k = 0; k < 4; ++k) {
+                            if (mx >= xs[k] && mx <= xs[k] + aBtnW) {
+                                wp.animation = anims[k];
+                                _defaultWaypointAnimation = anims[k];
+                                logMessage("Set Bot Waypoint #" + std::to_string(_selectedIndex) + " Animation: " + anims[k]);
+                                return;
+                            }
+                        }
+                    }
+
+                    // Facing Yaw Buttons: [-15] [0] [90] [180] [270] [+15]
+                    if (my >= wpYawBtnY && my <= wpYawBtnY + 22.0f) {
+                        float yBtnW = 44.0f;
+                        float xs[6] = { l.rightX + 10.0f, l.rightX + 57.0f, l.rightX + 104.0f, l.rightX + 151.0f, l.rightX + 198.0f, l.rightX + 245.0f };
+                        for (int k = 0; k < 6; ++k) {
+                            if (mx >= xs[k] && mx <= xs[k] + yBtnW) {
+                                if (k == 0) wp.facingYaw = std::fmod(wp.facingYaw - 15.0f + 360.0f, 360.0f);
+                                else if (k == 1) wp.facingYaw = 0.0f;
+                                else if (k == 2) wp.facingYaw = 90.0f;
+                                else if (k == 3) wp.facingYaw = 180.0f;
+                                else if (k == 4) wp.facingYaw = 270.0f;
+                                else if (k == 5) wp.facingYaw = std::fmod(wp.facingYaw + 15.0f, 360.0f);
+                                _defaultWaypointYaw = wp.facingYaw;
+                                logMessage("Set Bot Waypoint #" + std::to_string(_selectedIndex) + " Facing Yaw: " + std::to_string((int)wp.facingYaw) + "°");
+                                return;
+                            }
+                        }
+                    }
+
+                    // Duration Buttons: [0s] [1s] [2s] [5s] [10s]
+                    if (my >= wpDurBtnY && my <= wpDurBtnY + 22.0f) {
+                        float wBtnW = 52.0f;
+                        float durs[5] = { 0.0f, 1.0f, 2.0f, 5.0f, 10.0f };
+                        float xs[5] = { l.rightX + 10.0f, l.rightX + 67.0f, l.rightX + 124.0f, l.rightX + 181.0f, l.rightX + 238.0f };
+                        for (int k = 0; k < 5; ++k) {
+                            if (mx >= xs[k] && mx <= xs[k] + wBtnW) {
+                                wp.waitDuration = durs[k];
+                                _defaultWaypointDuration = durs[k];
+                                logMessage("Set Bot Waypoint #" + std::to_string(_selectedIndex) + " Action Duration: " + std::to_string((int)durs[k]) + "s");
+                                return;
+                            }
+                        }
+                    }
+
+                    // Target Bot Buttons:
+                    float wpBotLabelY = wpDurBtnY + 30.0f;
+                    float wpBotBtn1Y = wpBotLabelY + 16.0f;
+                    float wpBotBtn2Y = wpBotBtn1Y + 22.0f;
+
+                    // Row 1: [Any Bot] [Guard] [Scientist]
+                    if (my >= wpBotBtn1Y && my <= wpBotBtn1Y + 20.0f) {
+                        float bBtnW1 = 88.0f, bBtnW2 = 88.0f, bBtnW3 = 94.0f;
+                        float bx1 = l.rightX + 10.0f, bx2 = l.rightX + 103.0f, bx3 = l.rightX + 196.0f;
+                        if (mx >= bx1 && mx <= bx1 + bBtnW1) {
+                            recordSnapshot("Assign Waypoint Bot");
+                            wp.botName = "";
+                            _defaultWaypointBotName = "";
+                            logMessage("Assigned Bot Waypoint #" + std::to_string(_selectedIndex) + " to: (any bot)");
+                            return;
+                        } else if (mx >= bx2 && mx <= bx2 + bBtnW2) {
+                            recordSnapshot("Assign Waypoint Bot");
+                            wp.botName = "Guard";
+                            _defaultWaypointBotName = "Guard";
+                            logMessage("Assigned Bot Waypoint #" + std::to_string(_selectedIndex) + " to: Guard");
+                            return;
+                        } else if (mx >= bx3 && mx <= bx3 + bBtnW3) {
+                            recordSnapshot("Assign Waypoint Bot");
+                            wp.botName = "Scientist";
+                            _defaultWaypointBotName = "Scientist";
+                            logMessage("Assigned Bot Waypoint #" + std::to_string(_selectedIndex) + " to: Scientist");
+                            return;
+                        }
+                    }
+
+                    // Row 2: [Worker] [Synth #1] [Synth #2]
+                    if (my >= wpBotBtn2Y && my <= wpBotBtn2Y + 20.0f) {
+                        float bBtnW1 = 88.0f, bBtnW2 = 88.0f, bBtnW3 = 94.0f;
+                        float bx1 = l.rightX + 10.0f, bx2 = l.rightX + 103.0f, bx3 = l.rightX + 196.0f;
+                        if (mx >= bx1 && mx <= bx1 + bBtnW1) {
+                            recordSnapshot("Assign Waypoint Bot");
+                            wp.botName = "Worker";
+                            _defaultWaypointBotName = "Worker";
+                            logMessage("Assigned Bot Waypoint #" + std::to_string(_selectedIndex) + " to: Worker");
+                            return;
+                        } else if (mx >= bx2 && mx <= bx2 + bBtnW2) {
+                            recordSnapshot("Assign Waypoint Bot");
+                            wp.botName = "Combat Synth #1";
+                            _defaultWaypointBotName = "Combat Synth #1";
+                            logMessage("Assigned Bot Waypoint #" + std::to_string(_selectedIndex) + " to: Combat Synth #1");
+                            return;
+                        } else if (mx >= bx3 && mx <= bx3 + bBtnW3) {
+                            recordSnapshot("Assign Waypoint Bot");
+                            wp.botName = "Combat Synth #2";
+                            _defaultWaypointBotName = "Combat Synth #2";
+                            logMessage("Assigned Bot Waypoint #" + std::to_string(_selectedIndex) + " to: Combat Synth #2");
+                            return;
+                        }
+                    }
+
+                    // Position Drag Row
+                    for (int axis = 0; axis < 3; ++axis) {
+                        float fx, fy, fw, fh;
+                        dragFieldRect(l, 0, axis, fx, fy, fw, fh);
+                        if (mx >= fx && mx <= fx + fw && my >= fy && my <= fy + fh) {
+                            _dragRow = 0; _dragAxis = axis;
+                            _dragLastX = mx; _dragPressX = mx; _dragCenterX = fx + fw * 0.5f; _dragAccum = 0.0f; _dragMoved = false;
+                            return;
+                        }
+                    }
+
+                    // Elevation Buttons [ ^ UP ] [ v DOWN ] [ Floor ]
+                    if (my >= l.elevUpY && my <= l.elevUpY + l.elevUpH) {
+                        if (mx >= l.elevUpX && mx <= l.elevUpX + l.elevUpW) {
+                            moveSelection(0, _gridSnap, 0);
+                            return;
+                        }
+                        if (mx >= l.elevDwnX && mx <= l.elevDwnX + l.elevDwnW) {
+                            moveSelection(0, -_gridSnap, 0);
+                            return;
+                        }
+                        if (mx >= l.elevGndX && mx <= l.elevGndX + l.elevGndW) {
+                            alignSelectionToGround();
+                            return;
+                        }
+                    }
+
+                    // Deselect button
+                    if (mx >= l.deselX && mx <= l.deselX + l.deselW && my >= l.deselY && my <= l.deselY + l.deselH) {
+                        _selectionType = SelectionType::None;
+                        _selectedIndex = -1;
+                        logMessage("Deselected all");
+                        return;
+                    }
+
+                    // Delete button
+                    if (mx >= l.delX && mx <= l.delX + l.delW && my >= l.delY && my <= l.delY + l.delH) {
+                        deleteSelection();
+                        return;
+                    }
+                    return;
+                }
+
+                // Entity Name & Script Assignment buttons (placed below delete button)
+                float actBtnY = l.delY + l.delH + 10.0f;
+                if (my >= actBtnY && my <= actBtnY + 24.0f) {
                     if (mx >= l.rightX + 10.0f && mx <= l.rightX + 145.0f) {
                         if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
                             _map->brushes[_selectedIndex].name = "Klocek1";
@@ -4582,7 +5440,7 @@ public:
                         }
                         cardY += 42.0f;
                     }
-                } else {
+                } else if (_selectionType == SelectionType::Brush || _selectionType == SelectionType::Door || _selectionType == SelectionType::None) {
                     // UV Scale buttons [0.125] [0.25] [0.5] [1.0]
                     float scales[4] = { 0.125f, 0.25f, 0.5f, 1.0f };
                     for (int i = 0; i < 4; ++i) {
@@ -4703,37 +5561,26 @@ public:
         float vpTabY = 58.0f;
         float tabH = 26.0f;
         if (my >= vpTabY && my <= vpTabY + tabH && mx >= vpTabX && mx <= l.rightX) {
-            float tab0X = vpTabX + 6.0f;
-            float tab0W = 110.0f;
-            float tab1X = tab0X + tab0W + 6.0f;
-            float tab1W = 110.0f;
+            float tab1X = vpTabX + 6.0f;
+            float tab1W = 160.0f;
             float tab2X = tab1X + tab1W + 6.0f;
-            float tab2W = 140.0f;
+            float tab2W = 170.0f;
             float tab3X = tab2X + tab2W + 6.0f;
-            float tab3W = 120.0f;
-            float tab4X = tab3X + tab3W + 6.0f;
-            float tab4W = 135.0f;
-            float tabSetX = tab4X + tab4W + 6.0f;
-            float tabSetW = 125.0f;
+            float tab3W = 150.0f;
+            float tabRunX = tab3X + tab3W + 6.0f;
+            float tabRunW = 220.0f;
 
-            if (mx >= tab0X && mx <= tab0X + tab0W) {
-                setWorkspace(EditorWorkspace::Project_Hub);
-                return;
-            } else if (mx >= tab1X && mx <= tab1X + tab1W) {
-                bool isProj2D = (ProjectManager::get().getProjectInfo(ProjectManager::get().getActiveProjectName()).dimension == "2D");
-                setWorkspace(isProj2D ? EditorWorkspace::Level2D_Tilemap : EditorWorkspace::World3D_Level);
+            if (mx >= tab1X && mx <= tab1X + tab1W) {
+                setWorkspace(EditorWorkspace::World3D_Level);
                 return;
             } else if (mx >= tab2X && mx <= tab2X + tab2W) {
-                setWorkspace(EditorWorkspace::Scripting_Editor);
+                setWorkspace(EditorWorkspace::World3D_ModelViewer);
                 return;
             } else if (mx >= tab3X && mx <= tab3X + tab3W) {
-                setWorkspace(EditorWorkspace::Level2D_HUD);
+                setWorkspace(EditorWorkspace::Scripting_Editor);
                 return;
-            } else if (mx >= tab4X && mx <= tab4X + tab4W) {
-                setWorkspace(EditorWorkspace::Plugins_Manager);
-                return;
-            } else if (mx >= tabSetX && mx <= tabSetX + tabSetW) {
-                setWorkspace(EditorWorkspace::Project_Settings);
+            } else if (mx >= tabRunX && mx <= tabRunX + tabRunW) {
+                runMapInGame();
                 return;
             }
         }
@@ -5525,6 +6372,7 @@ public:
             if (_inputModalOpen) drawInputModal();
             if (_asset2DModalOpen) drawAsset2DModal();
             if (_showConvertMapModal) drawConvertMapModal();
+            if (_showRecoveryPrompt) drawSessionRecoveryModal();
 
             Profiler::instance().endFrame();
             return;
@@ -5693,21 +6541,84 @@ public:
                 Renderer::drawCube(tr.position, Vec3(0.35f, 0.35f, 0.35f), trCol, nullptr, false);
             }
 
-            // Render All Bot Waypoints in Map (Yellow Nodes + Connected Path Lines)
+            // Render All Bot Waypoints in Map (Color-coded by Bot Archetype + Connected Path Lines + Facing Orientation)
             for (size_t i = 0; i < _map->waypoints.size(); ++i) {
                 const auto& wp = _map->waypoints[i];
-                Vec3 wpCol(0.95f, 0.80f, 0.15f);
+                Vec3 wpCol(0.95f, 0.80f, 0.15f); // default yellow for (any bot)
+                if (wp.botName.find("Guard") != std::string::npos || wp.botName.find("Security") != std::string::npos) {
+                    wpCol = Vec3(0.25f, 0.90f, 0.45f); // Emerald green for Guard
+                } else if (wp.botName.find("Scientist") != std::string::npos || wp.botName.find("Doctor") != std::string::npos) {
+                    wpCol = Vec3(0.20f, 0.85f, 1.00f); // Cyan for Scientist
+                } else if (wp.botName.find("Worker") != std::string::npos || wp.botName.find("Engineer") != std::string::npos) {
+                    wpCol = Vec3(0.98f, 0.65f, 0.15f); // Hazard amber for Worker
+                } else if (wp.botName.find("Synth") != std::string::npos || wp.botName.find("Combat") != std::string::npos || wp.botName.find("T800") != std::string::npos) {
+                    wpCol = Vec3(0.95f, 0.35f, 0.85f); // Magenta for Synth
+                }
+
                 Renderer::drawCube(wp.position, Vec3(0.45f, 0.45f, 0.45f), wpCol, nullptr, false);
-                Renderer::drawWireCube(wp.position, Vec3(0.65f, 0.65f, 0.65f), Vec3(1.0f, 0.9f, 0.3f));
-                if (i + 1 < _map->waypoints.size()) {
+                Renderer::drawWireCube(wp.position, Vec3(0.65f, 0.65f, 0.65f), wpCol * 1.2f);
+
+                // Direction pointer showing facing yaw
+                float rad = wp.facingYaw * (3.14159265f / 180.0f);
+                Vec3 fwd(std::sin(rad), 0.0f, std::cos(rad));
+                Vec3 arrowPos = wp.position + fwd * 0.45f;
+                Renderer::drawCube(arrowPos, Vec3(0.0f, wp.facingYaw, 0.0f), Vec3(0.10f, 0.10f, 0.35f), Vec3(0.2f, 0.9f, 1.0f), nullptr, false);
+
+                // Connect to next waypoint in the same bot's patrol path
+                size_t nextWp = (size_t)-1;
+                for (size_t j = i + 1; j < _map->waypoints.size(); ++j) {
+                    if (wp.botName.empty() || _map->waypoints[j].botName.empty() || _map->waypoints[j].botName == wp.botName) {
+                        nextWp = j;
+                        break;
+                    }
+                }
+                if (nextWp != (size_t)-1) {
                     Vec3 pA = wp.position;
-                    Vec3 pB = _map->waypoints[i + 1].position;
+                    Vec3 pB = _map->waypoints[nextWp].position;
                     Vec3 mid = (pA + pB) * 0.5f;
                     Vec3 diff = pB - pA;
                     float len = diff.length();
                     if (len > 0.05f) {
                         float yawDeg = std::atan2(diff.x, diff.z) * (180.0f / 3.14159265f);
-                        Renderer::drawCube(mid, Vec3(0.0f, yawDeg, 0.0f), Vec3(0.08f, 0.08f, len), Vec3(1.0f, 0.85f, 0.2f), nullptr, false);
+                        Renderer::drawCube(mid, Vec3(0.0f, yawDeg, 0.0f), Vec3(0.08f, 0.08f, len), wpCol, nullptr, false);
+                    }
+                }
+
+                // Visual link line from Waypoint to its designated Linked Trigger
+                if (!wp.targetTrigger.empty()) {
+                    for (const auto& tr : _map->triggers) {
+                        if (tr.name == wp.targetTrigger) {
+                            Vec3 pA = wp.position;
+                            Vec3 pB = tr.position;
+                            Vec3 mid = (pA + pB) * 0.5f;
+                            Vec3 diff = pB - pA;
+                            float len = diff.length();
+                            if (len > 0.05f) {
+                                float yawDeg = std::atan2(diff.x, diff.z) * (180.0f / 3.14159265f);
+                                Renderer::drawCube(mid, Vec3(0.0f, yawDeg, 0.0f), Vec3(0.04f, 0.04f, len), Vec3(0.20f, 0.85f, 1.0f), nullptr, false);
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Visual link lines from Triggers to their Target Entity / Door mechanisms
+            for (const auto& tr : _map->triggers) {
+                if (!tr.targetEntity.empty()) {
+                    for (const auto& d : _map->doors) {
+                        if (d.name == tr.targetEntity) {
+                            Vec3 pA = tr.position;
+                            Vec3 pB = d.position;
+                            Vec3 mid = (pA + pB) * 0.5f;
+                            Vec3 diff = pB - pA;
+                            float len = diff.length();
+                            if (len > 0.05f) {
+                                float yawDeg = std::atan2(diff.x, diff.z) * (180.0f / 3.14159265f);
+                                Renderer::drawCube(mid, Vec3(0.0f, yawDeg, 0.0f), Vec3(0.05f, 0.05f, len), Vec3(1.0f, 0.85f, 0.20f), nullptr, false);
+                            }
+                            break;
+                        }
                     }
                 }
             }
@@ -5834,6 +6745,11 @@ public:
         // 9. Render Legacy Map Conversion Modal if open
         if (_showConvertMapModal) {
             drawConvertMapModal();
+        }
+
+        // 10. Render Session Crash Recovery Modal if open
+        if (_showRecoveryPrompt) {
+            drawSessionRecoveryModal();
         }
 
         Renderer::endFrame();
@@ -6046,34 +6962,28 @@ public:
 
         bool hovFile  = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 10.0f && _mouseScreenX <= 50.0f);
         bool hovEdit  = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 52.0f && _mouseScreenX <= 90.0f);
-        bool hovView  = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 92.0f && _mouseScreenX <= 135.0f);
-        bool hovBuild = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 137.0f && _mouseScreenX <= 185.0f);
-        bool hovTools = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 187.0f && _mouseScreenX <= 235.0f);
-        bool hovInput = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 237.0f && _mouseScreenX <= 285.0f);
-        bool hov2D    = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 287.0f && _mouseScreenX <= 360.0f);
-        bool hovHelp  = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 362.0f && _mouseScreenX <= 405.0f);
+        bool hovView  = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 92.0f && _mouseScreenX <= 136.0f);
+        bool hovMap   = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 138.0f && _mouseScreenX <= 184.0f);
+        bool hovTools = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 186.0f && _mouseScreenX <= 236.0f);
+        bool hovHelp  = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= 238.0f && _mouseScreenX <= 282.0f);
 
         if (hovFile)  Renderer::drawRect(10.0f, 2.0f, 40.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
         if (hovEdit)  Renderer::drawRect(52.0f, 2.0f, 38.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
-        if (hovView)  Renderer::drawRect(92.0f, 2.0f, 43.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
-        if (hovBuild) Renderer::drawRect(137.0f, 2.0f, 48.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
-        if (hovTools) Renderer::drawRect(187.0f, 2.0f, 48.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
-        if (hovInput) Renderer::drawRect(237.0f, 2.0f, 48.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
-        if (hov2D)    Renderer::drawRect(287.0f, 2.0f, 73.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
-        if (hovHelp)  Renderer::drawRect(362.0f, 2.0f, 43.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
+        if (hovView)  Renderer::drawRect(92.0f, 2.0f, 44.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
+        if (hovMap)   Renderer::drawRect(138.0f, 2.0f, 46.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
+        if (hovTools) Renderer::drawRect(186.0f, 2.0f, 50.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
+        if (hovHelp)  Renderer::drawRect(238.0f, 2.0f, 44.0f, 20.0f, Vec3(0.24f, 0.28f, 0.36f));
 
         LabFont::drawText(14.0f, 5.0f, "File", 1.8f, hovFile ? orangeGlow : textLight, LabFontType::System);
         LabFont::drawText(54.0f, 5.0f, "Edit", 1.8f, hovEdit ? orangeGlow : textLight, LabFontType::System);
         LabFont::drawText(94.0f, 5.0f, "View", 1.8f, hovView ? orangeGlow : textLight, LabFontType::System);
-        LabFont::drawText(140.0f, 5.0f, "Build", 1.8f, hovBuild ? orangeGlow : (Vec3(0.4f, 0.9f, 0.5f)), LabFontType::System);
-        LabFont::drawText(190.0f, 5.0f, "Tools", 1.8f, hovTools ? orangeGlow : textLight, LabFontType::System);
-        LabFont::drawText(240.0f, 5.0f, "Input", 1.8f, hovInput ? orangeGlow : (Vec3(0.3f, 0.85f, 1.0f)), LabFontType::System);
-        LabFont::drawText(292.0f, 5.0f, "2D Assets", 1.8f, hov2D ? orangeGlow : (Vec3(0.9f, 0.75f, 0.2f)), LabFontType::System);
-        LabFont::drawText(368.0f, 5.0f, "Help", 1.8f, hovHelp ? orangeGlow : textLight, LabFontType::System);
+        LabFont::drawText(140.0f, 5.0f, "Map", 1.8f, hovMap ? orangeGlow : (Vec3(0.4f, 0.9f, 0.5f)), LabFontType::System);
+        LabFont::drawText(188.0f, 5.0f, "Tools", 1.8f, hovTools ? orangeGlow : textLight, LabFontType::System);
+        LabFont::drawText(242.0f, 5.0f, "Help", 1.8f, hovHelp ? orangeGlow : textLight, LabFontType::System);
 
         // Active Workspace Indicator Badge (Clickable to open View menu)
         std::string wsBreadcrumb = "Workspace: " + getWorkspaceBreadcrumb(_workspace);
-        float wsBadgeX = 415.0f;
+        float wsBadgeX = 295.0f;
         float wsBadgeW = 285.0f;
         bool isWsHov = (_mouseScreenY >= 0.0f && _mouseScreenY <= 24.0f && _mouseScreenX >= wsBadgeX && _mouseScreenX <= wsBadgeX + wsBadgeW);
         Renderer::drawRect(wsBadgeX, 2.0f, wsBadgeW, 20.0f, isWsHov ? Vec3(0.18f, 0.22f, 0.30f) : Vec3(0.12f, 0.14f, 0.18f));
@@ -6081,7 +6991,7 @@ public:
         Renderer::drawRect(wsBadgeX, 2.0f, 3.0f, 20.0f, cyanGlow);
         LabFont::drawText(wsBadgeX + 10.0f, 5.0f, wsBreadcrumb, 1.4f, isWsHov ? orangeGlow : cyanGlow, LabFontType::System);
 
-        LabFont::drawText(w - 380.0f, 5.0f, "Lab Engine Editor 2026 (LabSDK)", 1.8f, orangeGlow, LabFontType::GeoSans);
+        LabFont::drawText(w - 380.0f, 5.0f, "Hammer Editor - Frozen-Life SDK", 1.8f, orangeGlow, LabFontType::GeoSans);
 
         // ==================== 2. MAIN TOOLBAR (12 Deduplicated Buttons) ====================
         float tbY = 24.0f;
@@ -6325,8 +7235,11 @@ public:
                 int iconType = isCat0 ? (i == 8 ? 9 : (i == 9 ? 10 : i)) : 8; // 8 = Weapon Silhouette, 9 = Crate, 10 = Barrel
                 Lab::HammerIcons::drawEntityIcon(iconType, l.rightX + 20.0f, cy + (cardH - 26.0f) * 0.5f, activeItems[i].color, Vec3(0.14f, 0.15f, 0.17f));
 
-                LabFont::drawText(l.rightX + 52.0f, cy + 4.0f, activeItems[i].title, 1.5f, isHov ? Vec3(1.0f, 0.95f, 0.70f) : textLight, LabFontType::System);
-                LabFont::drawText(l.rightX + 52.0f, cy + (isCat0 ? 22.0f : 19.0f), activeItems[i].desc, 1.3f, textDim, LabFontType::System);
+                std::string itemDesc = activeItems[i].desc;
+                if (!isCat0 && i == 8) {
+                    itemDesc = "AI patrol [Bot: " + (_defaultWaypointBotName.empty() ? "Any" : _defaultWaypointBotName) + "] (RMB cycle)";
+                }
+                LabFont::drawText(l.rightX + 52.0f, cy + (isCat0 ? 22.0f : 19.0f), itemDesc, 1.3f, textDim, LabFontType::System);
             }
         }
 
@@ -6650,97 +7563,229 @@ public:
                 // Deselect & Delete buttons
                 drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect All");
                 drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete Camera", false, true);
-            } else {
-
-            // Header info on selection
-            std::string selHeader = "Selection: None";
-            if (_selectionType == SelectionType::Brush) selHeader = "Selection: Brush #" + std::to_string(_selectedIndex);
-            else if (_selectionType == SelectionType::Prop) selHeader = "Selection: Prop #" + std::to_string(_selectedIndex);
-            else if (_selectionType == SelectionType::Door) selHeader = "Selection: Door #" + std::to_string(_selectedIndex);
-            else if (_selectionType == SelectionType::Spawn) selHeader = "Selection: Player Spawn";
-            else if (_selectionType == SelectionType::Light) selHeader = "Selection: Lamp Light #" + std::to_string(_selectedIndex);
-            else if (_selectionType == SelectionType::Camera) selHeader = "Selection: Camera #" + std::to_string(_selectedIndex);
-            else if (_selectionType == SelectionType::Trigger) selHeader = "Selection: Trigger Volume #" + std::to_string(_selectedIndex);
-            else if (_selectionType == SelectionType::Waypoint) selHeader = "Selection: Bot Waypoint #" + std::to_string(_selectedIndex);
-
-            LabFont::drawText(l.rightX + 12.0f, propY, selHeader, 1.7f, (_selectionType != SelectionType::None) ? orangeGlow : textLight, LabFontType::System);
-
-            // Coordinates & Dimensions
-            Vec3 pos = _cursorPos;
-            Vec3 dims = _brushSize;
-            Vec3 rot = Vec3(0, 0, 0);
-            if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
-                pos = _map->brushes[_selectedIndex].position;
-                dims = _map->brushes[_selectedIndex].size;
-                rot = _map->brushes[_selectedIndex].rotation;
-            } else if (_selectionType == SelectionType::Prop && _selectedIndex >= 0 && _selectedIndex < (int)_map->props.size()) {
-                pos = _map->props[_selectedIndex].position;
-                dims = _map->props[_selectedIndex].scale;
-                rot = _map->props[_selectedIndex].rotation;
-            } else if (_selectionType == SelectionType::Door && _selectedIndex >= 0 && _selectedIndex < (int)_map->doors.size()) {
-                pos = _map->doors[_selectedIndex].position;
-                dims = _map->doors[_selectedIndex].size;
-            } else if (_selectionType == SelectionType::Spawn && _selectedIndex >= 0 && _selectedIndex < (int)_map->spawnPoints.size()) {
-                pos = _map->spawnPoints[_selectedIndex].position;
-                rot = Vec3(0, _map->spawnPoints[_selectedIndex].yaw, 0);
-            } else if (_selectionType == SelectionType::WeaponSpawner && _selectedIndex >= 0 && _selectedIndex < (int)_map->weaponSpawners.size()) {
-                pos = _map->weaponSpawners[_selectedIndex].position;
-            } else if (_selectionType == SelectionType::Camera && _selectedIndex >= 0 && _selectedIndex < (int)_map->cameras.size()) {
-                pos = _map->cameras[_selectedIndex].position;
-                dims = Vec3(0.5f, 0.5f, 0.5f);
-                rot = _map->cameras[_selectedIndex].rotation;
-            } else if (_selectionType == SelectionType::Trigger && _selectedIndex >= 0 && _selectedIndex < (int)_map->triggers.size()) {
-                pos = _map->triggers[_selectedIndex].position;
-                dims = _map->triggers[_selectedIndex].size;
             } else if (_selectionType == SelectionType::Waypoint && _selectedIndex >= 0 && _selectedIndex < (int)_map->waypoints.size()) {
-                pos = _map->waypoints[_selectedIndex].position;
-                dims = Vec3(0.5f, 0.5f, 0.5f);
-            }
+                auto& wp = _map->waypoints[_selectedIndex];
+                float wpPropY = l.rightY + 38.0f;
+                float wpAnimBoxY = wpPropY + 86.0f;
+                float wpAnimBtn1Y = wpAnimBoxY + 28.0f;
+                float wpAnimBtn2Y = wpAnimBtn1Y + 26.0f;
+                float wpYawBtnY = wpAnimBtn2Y + 48.0f;
+                float wpDurBtnY = wpYawBtnY + 46.0f;
 
-            std::string posStr = "Pos: (" + std::to_string((int)pos.x) + ", " + std::to_string((int)pos.y) + ", " + std::to_string((int)pos.z) + ")";
-            LabFont::drawText(l.rightX + 12.0f, propY + 20.0f, posStr, 1.55f, textLight, LabFontType::System);
+                // Header
+                std::string selHeader = "Selection: Bot Waypoint #" + std::to_string(_selectedIndex);
+                LabFont::drawText(l.rightX + 12.0f, wpPropY, selHeader, 1.7f, orangeGlow, LabFontType::System);
 
-            std::string dimStr = "Size: (" + std::to_string((int)dims.x) + " x " + std::to_string((int)dims.y) + " x " + std::to_string((int)dims.z) + ")";
-            LabFont::drawText(l.rightX + 12.0f, propY + 36.0f, dimStr, 1.5f, textLight, LabFontType::System);
+                // Waypoint Identity
+                std::string roleStr = "Target Bot: " + (wp.botName.empty() ? "(any bot)" : wp.botName) + " | ID: " + wp.name;
+                LabFont::drawText(l.rightX + 12.0f, wpPropY + 18.0f, roleStr, 1.45f, greenAccent, LabFontType::System);
 
-            std::string rotStr = "Rot: (" + std::to_string((int)rot.x) + "°, " + std::to_string((int)rot.y) + "°, " + std::to_string((int)rot.z) + "°)";
-            LabFont::drawText(l.rightX + 12.0f, propY + 52.0f, rotStr, 1.5f, cyanGlow, LabFontType::System);
+                // Coordinates & Step
+                char posBuf[64];
+                std::snprintf(posBuf, sizeof(posBuf), "Pos: (%.1f, %.1f, %.1f) | Step #%d", wp.position.x, wp.position.y, wp.position.z, wp.orderIndex);
+                LabFont::drawText(l.rightX + 12.0f, wpPropY + 34.0f, posBuf, 1.4f, textLight, LabFontType::System);
 
-            // Entity Name / ID & Lua Script Display
-            std::string entName = "";
-            std::string entScript = "";
-            if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
-                entName = _map->brushes[_selectedIndex].name;
-                entScript = _map->brushes[_selectedIndex].script;
-            } else if (_selectionType == SelectionType::Prop && _selectedIndex >= 0 && _selectedIndex < (int)_map->props.size()) {
-                entName = _map->props[_selectedIndex].name;
-                entScript = _map->props[_selectedIndex].script;
-            } else if (_selectionType == SelectionType::Sprite && _selectedIndex >= 0 && _selectedIndex < (int)_map->sprites.size()) {
-                entName = _map->sprites[_selectedIndex].name;
-                entScript = _map->sprites[_selectedIndex].script;
-            } else if (_selectionType == SelectionType::Camera && _selectedIndex >= 0 && _selectedIndex < (int)_map->cameras.size()) {
-                entName = _map->cameras[_selectedIndex].name;
-                entScript = _map->cameras[_selectedIndex].script;
+                // Linked Story/Gameplay Trigger
+                std::string trigStr = "Trig: " + (wp.targetTrigger.empty() ? "(none)" : wp.targetTrigger);
+                LabFont::drawText(l.rightX + 12.0f, wpPropY + 52.0f, trigStr, 1.45f, orangeGlow, LabFontType::System);
+                drawDarkButton(l.rightX + 155.0f, wpPropY + 50.0f, 80.0f, 18.0f, "Cycle Trig", !wp.targetTrigger.empty(), false, !wp.targetTrigger.empty());
+                drawDarkButton(l.rightX + 240.0f, wpPropY + 50.0f, 52.0f, 18.0f, "Clear");
+
+                // Section 1: Bot Animation
+                LabFont::drawText(l.rightX + 12.0f, wpAnimBoxY - 18.0f, "Bot Action / Animation:", 1.6f, cyanGlow, LabFontType::System);
+                Renderer::drawRect(l.rightX + 10.0f, wpAnimBoxY, 280.0f, 22.0f, wellBg);
+                drawDarkBevel(l.rightX + 10.0f, wpAnimBoxY, 280.0f, 22.0f, true);
+                std::string animDisp = "Current: " + (wp.animation.empty() ? "Idle" : wp.animation);
+                LabFont::drawText(l.rightX + 18.0f, wpAnimBoxY + 4.0f, animDisp, 1.45f, Vec3(1.0f, 0.95f, 0.70f), LabFontType::System);
+
+                // Animation Quick Select: Row 1 [Idle] [Walk] [Talk] [Attack]
+                float aBtnW = 66.0f, aBtnH = 22.0f;
+                drawDarkButton(l.rightX + 10.0f, wpAnimBtn1Y, aBtnW, aBtnH, "Idle", wp.animation == "Idle", false, wp.animation == "Idle");
+                drawDarkButton(l.rightX + 81.0f, wpAnimBtn1Y, aBtnW, aBtnH, "Walk", wp.animation == "Walk", false, wp.animation == "Walk");
+                drawDarkButton(l.rightX + 152.0f, wpAnimBtn1Y, aBtnW, aBtnH, "Talk", wp.animation == "Talk", false, wp.animation == "Talk");
+                drawDarkButton(l.rightX + 223.0f, wpAnimBtn1Y, aBtnW, aBtnH, "Attack", wp.animation == "Attack", false, wp.animation == "Attack");
+
+                // Animation Quick Select: Row 2 [Inspect] [Crouch] [Salute] [Death]
+                drawDarkButton(l.rightX + 10.0f, wpAnimBtn2Y, aBtnW, aBtnH, "Inspect", wp.animation == "Inspect", false, wp.animation == "Inspect");
+                drawDarkButton(l.rightX + 81.0f, wpAnimBtn2Y, aBtnW, aBtnH, "Crouch", wp.animation == "Crouch", false, wp.animation == "Crouch");
+                drawDarkButton(l.rightX + 152.0f, wpAnimBtn2Y, aBtnW, aBtnH, "Salute", wp.animation == "Salute", false, wp.animation == "Salute");
+                drawDarkButton(l.rightX + 223.0f, wpAnimBtn2Y, aBtnW, aBtnH, "Death", wp.animation == "Death", false, wp.animation == "Death");
+
+                // Section 2: Facing Rotation (Yaw in degrees)
+                char yawBuf[64];
+                std::snprintf(yawBuf, sizeof(yawBuf), "Facing Rotation: %d deg", (int)wp.facingYaw);
+                LabFont::drawText(l.rightX + 12.0f, wpYawBtnY - 18.0f, yawBuf, 1.6f, orangeGlow, LabFontType::System);
+
+                // Yaw Quick Select: [-15] [0] [90] [180] [270] [+15]
+                float yBtnW = 44.0f, yBtnH = 22.0f;
+                drawDarkButton(l.rightX + 10.0f, wpYawBtnY, yBtnW, yBtnH, "-15");
+                drawDarkButton(l.rightX + 57.0f, wpYawBtnY, yBtnW, yBtnH, "0", std::abs(wp.facingYaw - 0.0f) < 1.0f, false, std::abs(wp.facingYaw - 0.0f) < 1.0f);
+                drawDarkButton(l.rightX + 104.0f, wpYawBtnY, yBtnW, yBtnH, "90", std::abs(wp.facingYaw - 90.0f) < 1.0f, false, std::abs(wp.facingYaw - 90.0f) < 1.0f);
+                drawDarkButton(l.rightX + 151.0f, wpYawBtnY, yBtnW, yBtnH, "180", std::abs(wp.facingYaw - 180.0f) < 1.0f, false, std::abs(wp.facingYaw - 180.0f) < 1.0f);
+                drawDarkButton(l.rightX + 198.0f, wpYawBtnY, yBtnW, yBtnH, "270", std::abs(wp.facingYaw - 270.0f) < 1.0f, false, std::abs(wp.facingYaw - 270.0f) < 1.0f);
+                drawDarkButton(l.rightX + 245.0f, wpYawBtnY, yBtnW, yBtnH, "+15");
+
+                // Section 3: Action Duration / Wait
+                char durBuf[64];
+                std::snprintf(durBuf, sizeof(durBuf), "Action Duration: %.1fs", wp.waitDuration);
+                LabFont::drawText(l.rightX + 12.0f, wpDurBtnY - 18.0f, durBuf, 1.6f, textLight, LabFontType::System);
+
+                // Duration Buttons: [0s] [1s] [2s (Def)] [5s] [10s]
+                float wBtnW = 52.0f, wBtnH = 22.0f;
+                drawDarkButton(l.rightX + 10.0f, wpDurBtnY, wBtnW, wBtnH, "0s", wp.waitDuration == 0.0f, false, wp.waitDuration == 0.0f);
+                drawDarkButton(l.rightX + 67.0f, wpDurBtnY, wBtnW, wBtnH, "1s", wp.waitDuration == 1.0f, false, wp.waitDuration == 1.0f);
+                drawDarkButton(l.rightX + 124.0f, wpDurBtnY, wBtnW, wBtnH, "2s (Def)", wp.waitDuration == 2.0f, false, wp.waitDuration == 2.0f);
+                drawDarkButton(l.rightX + 181.0f, wpDurBtnY, wBtnW, wBtnH, "5s", wp.waitDuration == 5.0f, false, wp.waitDuration == 5.0f);
+                drawDarkButton(l.rightX + 238.0f, wpDurBtnY, wBtnW, wBtnH, "10s", wp.waitDuration == 10.0f, false, wp.waitDuration == 10.0f);
+
+                // Section 4: Target Bot Designation (Archetype / Specific Bot)
+                float wpBotLabelY = wpDurBtnY + 30.0f;
+                float wpBotBtn1Y = wpBotLabelY + 16.0f;
+                float wpBotBtn2Y = wpBotBtn1Y + 22.0f;
+
+                std::string botHeader = "Target Bot: " + (wp.botName.empty() ? "(any bot)" : wp.botName);
+                LabFont::drawText(l.rightX + 12.0f, wpBotLabelY, botHeader, 1.55f, greenAccent, LabFontType::System);
+
+                // Row 1: [Any Bot] [Guard] [Scientist]
+                float bBtnW1 = 88.0f, bBtnW2 = 88.0f, bBtnW3 = 94.0f, bBtnH = 20.0f;
+                float bx1 = l.rightX + 10.0f, bx2 = l.rightX + 103.0f, bx3 = l.rightX + 196.0f;
+                bool isAny = wp.botName.empty() || wp.botName == "(any bot)" || wp.botName == "Any";
+                bool isGuard = wp.botName == "Guard" || wp.botName == "Bot_Guard";
+                bool isScientist = wp.botName == "Scientist";
+                bool isWorker = wp.botName == "Worker";
+                bool isSynth1 = wp.botName == "Combat Synth #1" || wp.botName == "Synth #1";
+                bool isSynth2 = wp.botName == "Combat Synth #2" || wp.botName == "Synth #2";
+
+                drawDarkButton(bx1, wpBotBtn1Y, bBtnW1, bBtnH, "Any Bot", isAny, false, isAny);
+                drawDarkButton(bx2, wpBotBtn1Y, bBtnW2, bBtnH, "Guard", isGuard, false, isGuard);
+                drawDarkButton(bx3, wpBotBtn1Y, bBtnW3, bBtnH, "Scientist", isScientist, false, isScientist);
+
+                // Row 2: [Worker] [Synth #1] [Synth #2]
+                drawDarkButton(bx1, wpBotBtn2Y, bBtnW1, bBtnH, "Worker", isWorker, false, isWorker);
+                drawDarkButton(bx2, wpBotBtn2Y, bBtnW2, bBtnH, "Synth #1", isSynth1, false, isSynth1);
+                drawDarkButton(bx3, wpBotBtn2Y, bBtnW3, bBtnH, "Synth #2", isSynth2, false, isSynth2);
+
+                // Section 5: Move Waypoint Position
+                LabFont::drawText(l.rightX + 12.0f, l.posBtnsY - 18.0f, "Move Waypoint Position (X / Y / Z):", 1.7f, cyanGlow, LabFontType::System);
+                drawDragRow(l, 0);
+
+                // Quick Elevation Action Buttons
+                drawDarkButton(l.elevUpX, l.elevUpY, l.elevUpW, l.elevUpH, "^ UP (+Y)", false, false, true);
+                drawDarkButton(l.elevDwnX, l.elevDwnY, l.elevDwnW, l.elevDwnH, "v DOWN (-Y)");
+                drawDarkButton(l.elevGndX, l.elevGndY, l.elevGndW, l.elevGndH, "Floor (Y=0)");
+
+                // Deselect & Delete buttons
+                drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect All");
+                drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete Bot Waypoint", false, true);
             } else if (_selectionType == SelectionType::Trigger && _selectedIndex >= 0 && _selectedIndex < (int)_map->triggers.size()) {
-                entName = _map->triggers[_selectedIndex].name;
-                entScript = _map->triggers[_selectedIndex].targetBot + " -> " + _map->triggers[_selectedIndex].eventType;
-            } else if (_selectionType == SelectionType::Waypoint && _selectedIndex >= 0 && _selectedIndex < (int)_map->waypoints.size()) {
-                entName = _map->waypoints[_selectedIndex].name;
-                entScript = _map->waypoints[_selectedIndex].botName;
-            }
+                auto& tr = _map->triggers[_selectedIndex];
+                float trPropY = l.rightY + 38.0f;
 
-            if (_selectionType != SelectionType::None) {
-                std::string nameDisplay = "Entity ID: " + (entName.empty() ? "(unnamed)" : entName);
-                LabFont::drawText(l.rightX + 12.0f, propY + 68.0f, nameDisplay, 1.45f, orangeGlow, LabFontType::System);
-                drawDarkButton(l.rightX + 10.0f, propY + 84.0f, 135.0f, 22.0f, "Set \"Klocek1\"", false, false, true);
-                drawDarkButton(l.rightX + 155.0f, propY + 84.0f, 140.0f, 22.0f, "Assign Script");
-            }
+                std::string selHeader = "Selection: Trigger Volume #" + std::to_string(_selectedIndex);
+                LabFont::drawText(l.rightX + 12.0f, trPropY, selHeader, 1.7f, orangeGlow, LabFontType::System);
 
-            if (_selectionType == SelectionType::Prop && _selectedIndex >= 0 && _selectedIndex < (int)_map->props.size()) {
+                std::string roleStr = "Target Bot: " + (tr.targetBot.empty() ? "(any bot)" : tr.targetBot) + " | Type: " + tr.eventType;
+                LabFont::drawText(l.rightX + 12.0f, trPropY + 18.0f, roleStr, 1.45f, greenAccent, LabFontType::System);
+
+                char trStatBuf[128];
+                std::snprintf(trStatBuf, sizeof(trStatBuf), "Pos: (%d, %d, %d) | Size: (%d, %d, %d)", (int)tr.position.x, (int)tr.position.y, (int)tr.position.z, (int)tr.size.x, (int)tr.size.y, (int)tr.size.z);
+                LabFont::drawText(l.rightX + 12.0f, trPropY + 36.0f, trStatBuf, 1.4f, textLight, LabFontType::System);
+
+                float trEventY = trPropY + 76.0f;
+                float trTargetY = trEventY + 50.0f;
+                float trActionY = trTargetY + 26.0f;
+                float trWpY = trActionY + 50.0f;
+                float trBotY1 = trWpY + 48.0f;
+                float trBotY2 = trBotY1 + 22.0f;
+
+                // Section 1: Event Action Type
+                LabFont::drawText(l.rightX + 12.0f, trEventY - 18.0f, "Trigger Event Action:", 1.55f, cyanGlow, LabFontType::System);
+                float evW[5] = { 52.0f, 74.0f, 54.0f, 66.0f, 40.0f };
+                float evX[5] = { l.rightX + 10.0f, l.rightX + 64.0f, l.rightX + 140.0f, l.rightX + 196.0f, l.rightX + 264.0f };
+                const char* evNames[5] = { "Dialog", "Open Door", "Unlock", "Waypoint", "Script" };
+                const char* evKeys[5] = { "story_dialog", "door_open", "door_unlock", "waypoint_advance", "script" };
+                for (int k = 0; k < 5; ++k) {
+                    bool sel = (tr.eventType == evKeys[k]);
+                    drawDarkButton(evX[k], trEventY, evW[k], 22.0f, evNames[k], sel, false, sel);
+                }
+
+                // Section 2: Target Mechanism / Door
+                std::string entLabel = "Target Entity: " + (tr.targetEntity.empty() ? "(none)" : tr.targetEntity) + " [" + tr.targetAction + "]";
+                LabFont::drawText(l.rightX + 12.0f, trTargetY - 18.0f, entLabel, 1.55f, orangeGlow, LabFontType::System);
+                drawDarkButton(l.rightX + 10.0f, trTargetY, 130.0f, 22.0f, "Cycle Door Entity", !tr.targetEntity.empty(), false, !tr.targetEntity.empty());
+                drawDarkButton(l.rightX + 144.0f, trTargetY, 70.0f, 22.0f, "Clear Target");
+                drawDarkButton(l.rightX + 218.0f, trTargetY, 76.0f, 22.0f, tr.once ? "Once: ON" : "Once: OFF", tr.once, false, tr.once);
+
+                // Section 2b: Target Action Buttons: [Open] [Close] [Toggle] [Unlock] [Lock]
+                float actW[5] = { 54.0f, 54.0f, 54.0f, 60.0f, 54.0f };
+                float actX[5] = { l.rightX + 10.0f, l.rightX + 66.0f, l.rightX + 122.0f, l.rightX + 178.0f, l.rightX + 240.0f };
+                const char* actNames[5] = { "Open", "Close", "Toggle", "Unlock", "Lock" };
+                const char* actKeys[5] = { "open", "close", "toggle", "unlock", "lock" };
+                for (int k = 0; k < 5; ++k) {
+                    bool sel = (tr.targetAction == actKeys[k]);
+                    drawDarkButton(actX[k], trActionY, actW[k], 22.0f, actNames[k], sel, false, sel);
+                }
+
+                // Section 3: Target Waypoint Link
+                std::string wpLabel = "Target Waypoint: " + (tr.targetWaypoint.empty() ? "(none)" : tr.targetWaypoint);
+                LabFont::drawText(l.rightX + 12.0f, trWpY - 18.0f, wpLabel, 1.55f, cyanGlow, LabFontType::System);
+                drawDarkButton(l.rightX + 10.0f, trWpY, 150.0f, 22.0f, "Cycle Waypoint", !tr.targetWaypoint.empty(), false, !tr.targetWaypoint.empty());
+                drawDarkButton(l.rightX + 165.0f, trWpY, 120.0f, 22.0f, "Clear WP Link");
+
+                // Section 4: Target Bot Designation
+                std::string botLabel = "Triggered By: " + (tr.targetBot.empty() ? "(Any Bot)" : tr.targetBot);
+                LabFont::drawText(l.rightX + 12.0f, trBotY1 - 18.0f, botLabel, 1.55f, greenAccent, LabFontType::System);
+                float bW1 = 88.0f, bW2 = 88.0f, bW3 = 94.0f, bH = 20.0f;
+                float bx1 = l.rightX + 10.0f, bx2 = l.rightX + 103.0f, bx3 = l.rightX + 196.0f;
+                bool isAnyB = tr.targetBot.empty();
+                bool isGrdB = (tr.targetBot == "Guard" || tr.targetBot == "Bot_Guard");
+                bool isSciB = (tr.targetBot == "Scientist");
+                bool isWrkB = (tr.targetBot == "Worker");
+                bool isSyn1B = (tr.targetBot == "Combat Synth #1");
+                bool isSyn2B = (tr.targetBot == "Combat Synth #2");
+                drawDarkButton(bx1, trBotY1, bW1, bH, "Any Bot", isAnyB, false, isAnyB);
+                drawDarkButton(bx2, trBotY1, bW2, bH, "Guard", isGrdB, false, isGrdB);
+                drawDarkButton(bx3, trBotY1, bW3, bH, "Scientist", isSciB, false, isSciB);
+                drawDarkButton(bx1, trBotY2, bW1, bH, "Worker", isWrkB, false, isWrkB);
+                drawDarkButton(bx2, trBotY2, bW2, bH, "Synth #1", isSyn1B, false, isSyn1B);
+                drawDarkButton(bx3, trBotY2, bW3, bH, "Synth #2", isSyn2B, false, isSyn2B);
+
+                // Position Translation [-] [+]
+                LabFont::drawText(l.rightX + 12.0f, l.posBtnsY - 18.0f, "Move Trigger Position (X / Y / Z):", 1.7f, cyanGlow, LabFontType::System);
+                drawDragRow(l, 0);
+
+                // Quick Elevation Action Buttons
+                drawDarkButton(l.elevUpX, l.elevUpY, l.elevUpW, l.elevUpH, "^ UP (+Y)", false, false, true);
+                drawDarkButton(l.elevDwnX, l.elevDwnY, l.elevDwnW, l.elevDwnH, "v DOWN (-Y)");
+                drawDarkButton(l.elevGndX, l.elevGndY, l.elevGndW, l.elevGndH, "Floor (Y=0)");
+
+                // Dimension Adjusters [-] [+]
+                LabFont::drawText(l.rightX + 12.0f, l.dimBtnsY - 18.0f, "Adjust Size (X / Y / Z):", 1.7f, textLight, LabFontType::System);
+                drawDragRow(l, 1);
+
+                // Deselect button
+                drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect All");
+
+                // Delete Selected button
+                drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete Trigger Volume", false, true);
+
+            } else if (_selectionType == SelectionType::Prop && _selectedIndex >= 0 && _selectedIndex < (int)_map->props.size()) {
                 auto& p = _map->props[_selectedIndex];
 
+                std::string selHeader = "Selection: Prop #" + std::to_string(_selectedIndex);
+                LabFont::drawText(l.rightX + 12.0f, propY, selHeader, 1.7f, orangeGlow, LabFontType::System);
+
+                std::string nameDisplay = "Entity ID: " + (p.name.empty() ? "(unnamed prop)" : p.name);
+                LabFont::drawText(l.rightX + 12.0f, propY + 18.0f, nameDisplay, 1.45f, greenAccent, LabFontType::System);
+
+                std::string posStr = "Pos: (" + std::to_string((int)p.position.x) + ", " + std::to_string((int)p.position.y) + ", " + std::to_string((int)p.position.z) + ")";
+                LabFont::drawText(l.rightX + 12.0f, propY + 34.0f, posStr, 1.45f, textLight, LabFontType::System);
+
+                std::string scaleStr = "Scale: (" + std::to_string((int)p.scale.x) + ", " + std::to_string((int)p.scale.y) + ", " + std::to_string((int)p.scale.z) + ")";
+                LabFont::drawText(l.rightX + 12.0f, propY + 50.0f, scaleStr, 1.45f, textLight, LabFontType::System);
+
                 // 3D Model Picker
-                float mBoxY = propY + 112.0f;
+                float mBoxY = propY + 90.0f;
                 LabFont::drawText(l.rightX + 12.0f, mBoxY - 18.0f, "Entity 3D Mesh Model:", 1.6f, textLight, LabFontType::System);
                 Renderer::drawRect(l.rightX + 10.0f, mBoxY, 280.0f, 22.0f, wellBg);
                 drawDarkBevel(l.rightX + 10.0f, mBoxY, 280.0f, 22.0f, true);
@@ -6841,7 +7886,99 @@ public:
                     drawDarkButton(l.rightX + 242.0f, ppBtnY, 48.0f, 20.0f, "x Del", false, true);
                     cardY += 42.0f;
                 }
+            } else if (_selectionType == SelectionType::Door && _selectedIndex >= 0 && _selectedIndex < (int)_map->doors.size()) {
+                auto& d = _map->doors[_selectedIndex];
+                float doorPropY = l.rightY + 38.0f;
+
+                std::string selHeader = "Selection: Door #" + std::to_string(_selectedIndex);
+                LabFont::drawText(l.rightX + 12.0f, doorPropY, selHeader, 1.7f, orangeGlow, LabFontType::System);
+
+                std::string nameDisplay = "Door Entity ID: " + (d.name.empty() ? "(unnamed door)" : d.name);
+                LabFont::drawText(l.rightX + 12.0f, doorPropY + 18.0f, nameDisplay, 1.45f, greenAccent, LabFontType::System);
+
+                char dStatBuf[128];
+                std::snprintf(dStatBuf, sizeof(dStatBuf), "Pos: (%d, %d, %d) | Size: (%.1f, %.1f, %.1f)", (int)d.position.x, (int)d.position.y, (int)d.position.z, d.size.x, d.size.y, d.size.z);
+                LabFont::drawText(l.rightX + 12.0f, doorPropY + 36.0f, dStatBuf, 1.4f, textLight, LabFontType::System);
+
+                float dActY = doorPropY + 76.0f;
+                float dKeyY = dActY + 50.0f;
+                float dDepY = dKeyY + 50.0f;
+
+                // Section 1: Activator Mode
+                std::string actLabel = "Door Activator: [" + (d.activator.empty() ? "proximity" : d.activator) + "]";
+                LabFont::drawText(l.rightX + 12.0f, dActY - 18.0f, actLabel, 1.55f, cyanGlow, LabFontType::System);
+                bool isProx = (d.activator == "proximity" || d.activator.empty());
+                bool isTrig = (d.activator == "trigger_only");
+                bool isMan = (d.activator == "manual");
+                drawDarkButton(l.rightX + 10.0f, dActY, 88.0f, 22.0f, "Proximity", isProx, false, isProx);
+                drawDarkButton(l.rightX + 103.0f, dActY, 88.0f, 22.0f, "Trigger Only", isTrig, false, isTrig);
+                drawDarkButton(l.rightX + 196.0f, dActY, 94.0f, 22.0f, "Manual/Use", isMan, false, isMan);
+
+                // Section 2: Keycard & Lock Security
+                std::string lockLabel = "Security: " + std::string(d.isLocked ? "[LOCKED] " : "[UNLOCKED] ") + (d.requiresKeycard ? d.keycardRequired : "Public Access");
+                LabFont::drawText(l.rightX + 12.0f, dKeyY - 18.0f, lockLabel, 1.55f, orangeGlow, LabFontType::System);
+                bool noKc = !d.requiresKeycard;
+                bool isKc1 = (d.requiresKeycard && d.keycardRequired == "keycard_l1");
+                bool isKc2 = (d.requiresKeycard && d.keycardRequired == "keycard_l2");
+                drawDarkButton(l.rightX + 10.0f, dKeyY, 68.0f, 22.0f, "No Keycard", noKc, false, noKc);
+                drawDarkButton(l.rightX + 80.0f, dKeyY, 72.0f, 22.0f, "Keycard L1", isKc1, false, isKc1);
+                drawDarkButton(l.rightX + 155.0f, dKeyY, 72.0f, 22.0f, "Keycard L2", isKc2, false, isKc2);
+                drawDarkButton(l.rightX + 230.0f, dKeyY, 60.0f, 22.0f, d.isLocked ? "Unlock" : "Lock", d.isLocked, false, d.isLocked);
+
+                // Section 3: Dependency & Mechanism
+                std::string depLabel = "Dependency: " + (d.dependency.empty() ? "(none / standalone)" : d.dependency);
+                LabFont::drawText(l.rightX + 12.0f, dDepY - 18.0f, depLabel, 1.55f, greenAccent, LabFontType::System);
+                drawDarkButton(l.rightX + 10.0f, dDepY, 120.0f, 22.0f, "Cycle Dependency", !d.dependency.empty(), false, !d.dependency.empty());
+                drawDarkButton(l.rightX + 134.0f, dDepY, 70.0f, 22.0f, "Clear Dep");
+                drawDarkButton(l.rightX + 208.0f, dDepY, 82.0f, 22.0f, d.autoClose ? "AutoClose: ON" : "AutoClose: OFF", d.autoClose, false, d.autoClose);
+
+                // Position Translation [-] [+]
+                LabFont::drawText(l.rightX + 12.0f, l.posBtnsY - 18.0f, "Move Door Position (X / Y / Z):", 1.7f, cyanGlow, LabFontType::System);
+                drawDragRow(l, 0);
+
+                // Quick Elevation Action Buttons
+                drawDarkButton(l.elevUpX, l.elevUpY, l.elevUpW, l.elevUpH, "^ UP (+Y)", false, false, true);
+                drawDarkButton(l.elevDwnX, l.elevDwnY, l.elevDwnW, l.elevDwnH, "v DOWN (-Y)");
+                drawDarkButton(l.elevGndX, l.elevGndY, l.elevGndW, l.elevGndH, "Floor (Y=0)");
+
+                // Dimension Adjusters [-] [+]
+                LabFont::drawText(l.rightX + 12.0f, l.dimBtnsY - 18.0f, "Adjust Door Size (X / Y / Z):", 1.7f, textLight, LabFontType::System);
+                drawDragRow(l, 1);
+
+                // Deselect button
+                drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect All");
+
+                // Delete Selected button
+                drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete Kinematic Door", false, true);
             } else {
+                std::string selHeader = "Selection: None";
+                if (_selectionType == SelectionType::Brush) selHeader = "Selection: Brush #" + std::to_string(_selectedIndex);
+
+                LabFont::drawText(l.rightX + 12.0f, propY, selHeader, 1.7f, (_selectionType != SelectionType::None) ? orangeGlow : textLight, LabFontType::System);
+
+                Vec3 pos = _cursorPos;
+                Vec3 dims = _brushSize;
+                std::string entName = "";
+
+                if (_selectionType == SelectionType::Brush && _selectedIndex >= 0 && _selectedIndex < (int)_map->brushes.size()) {
+                    pos = _map->brushes[_selectedIndex].position;
+                    dims = _map->brushes[_selectedIndex].size;
+                    entName = _map->brushes[_selectedIndex].name;
+                }
+
+                char pBuf[64];
+                std::snprintf(pBuf, sizeof(pBuf), "Pos: (%.1f, %.1f, %.1f)", pos.x, pos.y, pos.z);
+                LabFont::drawText(l.rightX + 12.0f, propY + 18.0f, pBuf, 1.45f, textLight, LabFontType::System);
+
+                char sBuf[64];
+                std::snprintf(sBuf, sizeof(sBuf), "Size: (%.1f, %.1f, %.1f)", dims.x, dims.y, dims.z);
+                LabFont::drawText(l.rightX + 12.0f, propY + 34.0f, sBuf, 1.45f, textLight, LabFontType::System);
+
+                if (!entName.empty()) {
+                    std::string entDisplay = "Entity ID: " + entName;
+                    LabFont::drawText(l.rightX + 12.0f, propY + 50.0f, entDisplay, 1.45f, orangeGlow, LabFontType::System);
+                }
+
                 // UV Scale buttons
                 LabFont::drawText(l.rightX + 12.0f, l.uvBtnY - 18.0f, "Texture UV Tiling Scale:", 1.7f, textLight, LabFontType::System);
 
@@ -6903,8 +8040,12 @@ public:
 
             // Delete Selected button
             drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete Selected", false, true);
+
+            // Dedicated Action Buttons (Set "Klocek1" & Assign Script) cleanly placed below Delete button!
+            float actBtnY = l.delY + l.delH + 10.0f;
+            drawDarkButton(l.rightX + 10.0f, actBtnY, 135.0f, 24.0f, "Set \"Klocek1\"");
+            drawDarkButton(l.rightX + 155.0f, actBtnY, 135.0f, 24.0f, "Assign Script");
         }
-    }
 
         // ==================== CENTRAL VIEWPORT & WORKSPACES ====================
         float vpX = leftW;
@@ -6917,77 +8058,41 @@ public:
         Renderer::drawRect(vpX, vpY, vpW, tabH, Vec3(0.10f, 0.11f, 0.14f));
         drawDarkBevel(vpX, vpY, vpW, tabH, false);
 
-        bool isHub = (_workspace == EditorWorkspace::Project_Hub);
         bool is3D = (_workspace == EditorWorkspace::World3D_Level || _workspace == EditorWorkspace::World3D_Animation);
         bool isScr = (_workspace == EditorWorkspace::Scripting_Editor || _workspace == EditorWorkspace::Scripting_Console);
-        bool isHud = (_workspace == EditorWorkspace::Level2D_HUD);
         bool isMv = (_workspace == EditorWorkspace::World3D_ModelViewer);
-        bool isAnim2D = (_workspace == EditorWorkspace::Level2D_Animation);
-        bool isStud = isStudioWorkspace(_workspace);
 
-        // Tab 0: [ Project Hub ]
-        float tab0X = vpX + 6.0f;
-        float tab0W = 110.0f;
-        Renderer::drawRect(tab0X, vpY + 2.0f, tab0W, tabH - 4.0f, isHub ? Vec3(0.18f, 0.22f, 0.28f) : Vec3(0.12f, 0.13f, 0.16f));
-        drawDarkBevel(tab0X, vpY + 2.0f, tab0W, tabH - 4.0f, isHub);
-        if (isHub) Renderer::drawRect(tab0X, vpY + tabH - 2.0f, tab0W, 2.0f, orangeGlow);
-        LabFont::drawText(tab0X + 12.0f, vpY + 6.0f, "Project Hub", 1.35f, isHub ? Vec3(1, 1, 1) : textDim, LabFontType::System);
+        // Tab 1: [ 3D Level Viewport ]
+        float tab1X = vpX + 6.0f;
+        float tab1W = 160.0f;
+        Renderer::drawRect(tab1X, vpY + 2.0f, tab1W, tabH - 4.0f, is3D ? Vec3(0.20f, 0.24f, 0.30f) : Vec3(0.12f, 0.13f, 0.16f));
+        drawDarkBevel(tab1X, vpY + 2.0f, tab1W, tabH - 4.0f, is3D);
+        if (is3D) Renderer::drawRect(tab1X, vpY + tabH - 2.0f, tab1W, 2.0f, orangeGlow);
+        LabFont::drawText(tab1X + 16.0f, vpY + 6.0f, "3D Level Viewport", 1.35f, is3D ? Vec3(1, 1, 1) : textDim, LabFontType::System);
 
-        // Tab 1: [ 3D Level Scene ] or [ 2D Scene ]
-        bool isProj2D = (ProjectManager::get().getProjectInfo(ProjectManager::get().getActiveProjectName()).dimension == "2D");
-        bool isSceneTabActive = is3D || (_workspace == EditorWorkspace::Level2D_Tilemap);
-        std::string sceneTabTitle = isProj2D ? "2D Scene" : "3D Scene";
-        float tab1X = tab0X + tab0W + 6.0f;
-        float tab1W = 110.0f;
-        Renderer::drawRect(tab1X, vpY + 2.0f, tab1W, tabH - 4.0f, isSceneTabActive ? Vec3(0.18f, 0.22f, 0.28f) : Vec3(0.12f, 0.13f, 0.16f));
-        drawDarkBevel(tab1X, vpY + 2.0f, tab1W, tabH - 4.0f, isSceneTabActive);
-        if (isSceneTabActive) Renderer::drawRect(tab1X, vpY + tabH - 2.0f, tab1W, 2.0f, orangeGlow);
-        LabFont::drawText(tab1X + 16.0f, vpY + 6.0f, sceneTabTitle, 1.35f, isSceneTabActive ? Vec3(1, 1, 1) : textDim, LabFontType::System);
-
-        // Tab 2: [ Lua Script Studio ]
+        // Tab 2: [ Prop / Model Viewer ]
         float tab2X = tab1X + tab1W + 6.0f;
-        float tab2W = 140.0f;
-        Renderer::drawRect(tab2X, vpY + 2.0f, tab2W, tabH - 4.0f, isScr ? Vec3(0.18f, 0.22f, 0.28f) : Vec3(0.12f, 0.13f, 0.16f));
-        drawDarkBevel(tab2X, vpY + 2.0f, tab2W, tabH - 4.0f, isScr);
-        if (isScr) Renderer::drawRect(tab2X, vpY + tabH - 2.0f, tab2W, 2.0f, cyanGlow);
-        LabFont::drawText(tab2X + 10.0f, vpY + 6.0f, "Lua Script Studio", 1.35f, isScr ? Vec3(1, 1, 1) : textDim, LabFontType::System);
+        float tab2W = 170.0f;
+        Renderer::drawRect(tab2X, vpY + 2.0f, tab2W, tabH - 4.0f, isMv ? Vec3(0.20f, 0.24f, 0.30f) : Vec3(0.12f, 0.13f, 0.16f));
+        drawDarkBevel(tab2X, vpY + 2.0f, tab2W, tabH - 4.0f, isMv);
+        if (isMv) Renderer::drawRect(tab2X, vpY + tabH - 2.0f, tab2W, 2.0f, cyanGlow);
+        LabFont::drawText(tab2X + 14.0f, vpY + 6.0f, "Prop / Model Viewer", 1.35f, isMv ? Vec3(1, 1, 1) : textDim, LabFontType::System);
 
-        // Tab 3: [ HUD Canvas ]
+        // Tab 3: [ Lua Script Studio ]
         float tab3X = tab2X + tab2W + 6.0f;
-        float tab3W = 120.0f;
-        Renderer::drawRect(tab3X, vpY + 2.0f, tab3W, tabH - 4.0f, isHud ? Vec3(0.18f, 0.22f, 0.28f) : Vec3(0.12f, 0.13f, 0.16f));
-        drawDarkBevel(tab3X, vpY + 2.0f, tab3W, tabH - 4.0f, isHud);
-        if (isHud) Renderer::drawRect(tab3X, vpY + tabH - 2.0f, tab3W, 2.0f, cyanGlow);
-        LabFont::drawText(tab3X + 10.0f, vpY + 6.0f, "HUD Canvas", 1.35f, isHud ? Vec3(1, 1, 1) : textDim, LabFontType::System);
+        float tab3W = 150.0f;
+        Renderer::drawRect(tab3X, vpY + 2.0f, tab3W, tabH - 4.0f, isScr ? Vec3(0.20f, 0.24f, 0.30f) : Vec3(0.12f, 0.13f, 0.16f));
+        drawDarkBevel(tab3X, vpY + 2.0f, tab3W, tabH - 4.0f, isScr);
+        if (isScr) Renderer::drawRect(tab3X, vpY + tabH - 2.0f, tab3W, 2.0f, cyanGlow);
+        LabFont::drawText(tab3X + 14.0f, vpY + 6.0f, "Lua Script Studio", 1.35f, isScr ? Vec3(1, 1, 1) : textDim, LabFontType::System);
 
-        // Tab 4: [ Plugins & Add-ons ]
-        bool isPlug = (_workspace == EditorWorkspace::Plugins_Manager);
-        float tab4X = tab3X + tab3W + 6.0f;
-        float tab4W = 135.0f;
-        Renderer::drawRect(tab4X, vpY + 2.0f, tab4W, tabH - 4.0f, isPlug ? Vec3(0.18f, 0.22f, 0.28f) : Vec3(0.12f, 0.13f, 0.16f));
-        drawDarkBevel(tab4X, vpY + 2.0f, tab4W, tabH - 4.0f, isPlug);
-        if (isPlug) Renderer::drawRect(tab4X, vpY + tabH - 2.0f, tab4W, 2.0f, cyanGlow);
-        LabFont::drawText(tab4X + 10.0f, vpY + 6.0f, "Plugins & Add-ons", 1.35f, isPlug ? Vec3(1, 1, 1) : textDim, LabFontType::System);
-
-        // Tab 5: [ Project Settings ]
-        bool isSettings = (_workspace == EditorWorkspace::Project_Settings);
-        float tabSetX = tab4X + tab4W + 6.0f;
-        float tabSetW = 125.0f;
-        Renderer::drawRect(tabSetX, vpY + 2.0f, tabSetW, tabH - 4.0f, isSettings ? Vec3(0.18f, 0.22f, 0.28f) : Vec3(0.12f, 0.13f, 0.16f));
-        drawDarkBevel(tabSetX, vpY + 2.0f, tabSetW, tabH - 4.0f, isSettings);
-        if (isSettings) Renderer::drawRect(tabSetX, vpY + tabH - 2.0f, tabSetW, 2.0f, cyanGlow);
-        LabFont::drawText(tabSetX + 10.0f, vpY + 6.0f, "Project Settings", 1.35f, isSettings ? Vec3(1, 1, 1) : textDim, LabFontType::System);
-
-        // Tab 6 (Contextual: 3D Model Viewer / Studio / 2D Anim if active)
-        if (isMv || isStud || isAnim2D) {
-            float tab6X = tabSetX + tabSetW + 6.0f;
-            float tab6W = 155.0f;
-            std::string tab6Title = isMv ? "3D Model Viewer" : (isAnim2D ? "2D Animation" : "Character Studio");
-            Renderer::drawRect(tab6X, vpY + 2.0f, tab6W, tabH - 4.0f, Vec3(0.18f, 0.22f, 0.28f));
-            drawDarkBevel(tab6X, vpY + 2.0f, tab6W, tabH - 4.0f, true);
-            Renderer::drawRect(tab6X, vpY + tabH - 2.0f, tab6W, 2.0f, orangeGlow);
-            LabFont::drawText(tab6X + 10.0f, vpY + 6.0f, tab6Title, 1.35f, Vec3(1, 1, 1), LabFontType::System);
-        }
+        // Tab 4: [ RUN MAP IN FROZEN-LIFE (F9) ]
+        float tabRunX = tab3X + tab3W + 6.0f;
+        float tabRunW = 220.0f;
+        Renderer::drawRect(tabRunX, vpY + 2.0f, tabRunW, tabH - 4.0f, Vec3(0.16f, 0.32f, 0.20f));
+        drawDarkBevel(tabRunX, vpY + 2.0f, tabRunW, tabH - 4.0f, false);
+        Renderer::drawRect(tabRunX, vpY + tabH - 2.0f, tabRunW, 2.0f, Vec3(0.25f, 0.85f, 0.40f));
+        LabFont::drawText(tabRunX + 16.0f, vpY + 6.0f, "RUN MAP IN GAME (F9)", 1.35f, Vec3(0.40f, 1.0f, 0.55f), LabFontType::System);
 
         float contentY = vpY + tabH;
         float contentH = vpH - tabH;
@@ -7632,35 +8737,79 @@ public:
 
             struct MenuItem { std::string name; std::string shortcut; };
             MenuItem items[] = {
-                { "Project Hub (Main Menu)", "F1" },
                 { "New Map", "Ctrl+N" },
                 { "Open Map...", "Ctrl+O" },
                 { "Save Map", "Ctrl+S" },
-                { "Save Map As...", "" },
-                { "Build & Run Game", "F5 / Ctrl+B" },
-                { "Build Settings...", "Ctrl+Shift+B" },
+                { "Save Map As...", "Ctrl+Shift+S" },
+                { "Run Map in Frozen-Life", "F9" },
                 { "Exit", "Alt+F4" }
             };
 
-            for (int i = 0; i < 8; ++i) {
+            for (int i = 0; i < 6; ++i) {
                 float iy = menuY + 3.0f + i * 24.0f;
                 bool isHov = (_mouseScreenX >= menuX && _mouseScreenX <= menuX + menuW && _mouseScreenY >= iy && _mouseScreenY <= iy + 22.0f);
                 if (isHov) {
                     Renderer::drawRect(menuX + 2.0f, iy, menuW - 4.0f, 22.0f, Vec3(0.24f, 0.28f, 0.36f));
                 }
-                if (i == 1 || i == 5 || i == 7) Renderer::drawRect(menuX + 6.0f, iy - 2.0f, menuW - 12.0f, 1.0f, menuBorder);
-                LabFont::drawText(menuX + 14.0f, iy + 4.0f, items[i].name, 1.6f, (i == 0) ? (isHov ? cyanGlow : Vec3(0.3f, 0.8f, 1.0f)) : ((i == 5) ? (isHov ? Vec3(0.4f, 1.0f, 0.5f) : Vec3(0.3f, 0.9f, 0.4f)) : (isHov ? orangeGlow : textLight)), LabFontType::System);
+                if (i == 4 || i == 5) Renderer::drawRect(menuX + 6.0f, iy - 2.0f, menuW - 12.0f, 1.0f, menuBorder);
+                LabFont::drawText(menuX + 14.0f, iy + 4.0f, items[i].name, 1.6f, (i == 4) ? (isHov ? Vec3(0.4f, 1.0f, 0.5f) : Vec3(0.3f, 0.9f, 0.4f)) : (isHov ? orangeGlow : textLight), LabFontType::System);
                 if (!items[i].shortcut.empty()) {
                     LabFont::drawText(menuX + menuW - 95.0f, iy + 4.0f, items[i].shortcut, 1.4f, textDim, LabFontType::System);
                 }
             }
         }
 
-        // ==================== 8. DROPDOWN BUILD MENU ====================
-        if (_buildMenuOpen) {
-            float menuX = 137.0f;
+        // ==================== 7.5. DROPDOWN EDIT MENU ====================
+        if (_editMenuOpen) {
+            float menuX = 52.0f;
             float menuY = 24.0f;
-            float menuW = 270.0f;
+            float menuW = 260.0f;
+            float menuH = 128.0f;
+            Vec3 menuBg{ 0.16f, 0.17f, 0.20f };
+            Vec3 menuBorder{ 0.35f, 0.38f, 0.44f };
+
+            Renderer::drawRect(menuX, menuY, menuW, menuH, menuBg);
+            drawDarkBevel(menuX, menuY, menuW, menuH, false);
+
+            std::string undoLabel = "Undo";
+            if (!_undoStack.empty()) {
+                undoLabel += " (" + _undoStack.back().description + ")";
+            }
+            std::string redoLabel = "Redo";
+            if (!_redoStack.empty()) {
+                redoLabel += " (" + _redoStack.back().description + ")";
+            }
+
+            struct EditMenuItem { std::string name; std::string shortcut; bool enabled; };
+            EditMenuItem eItems[] = {
+                { undoLabel, "Ctrl+Z", !_undoStack.empty() },
+                { redoLabel, "Ctrl+Y", !_redoStack.empty() },
+                { "Delete Selection", "Del", _selectionType != SelectionType::None },
+                { "Duplicate Selection", "Ctrl+D", _selectionType != SelectionType::None },
+                { "Deselect All", "Esc", _selectionType != SelectionType::None }
+            };
+
+            for (int i = 0; i < 5; ++i) {
+                float iy = menuY + 3.0f + i * 24.0f;
+                bool isHov = (_mouseScreenX >= menuX && _mouseScreenX <= menuX + menuW && _mouseScreenY >= iy && _mouseScreenY <= iy + 22.0f);
+                if (isHov && eItems[i].enabled) {
+                    Renderer::drawRect(menuX + 2.0f, iy, menuW - 4.0f, 22.0f, Vec3(0.24f, 0.28f, 0.36f));
+                }
+                if (i == 2) Renderer::drawRect(menuX + 6.0f, iy - 2.0f, menuW - 12.0f, 1.0f, menuBorder);
+
+                Vec3 col = eItems[i].enabled ? (isHov ? orangeGlow : textLight) : Vec3(0.45f, 0.47f, 0.50f);
+                LabFont::drawText(menuX + 14.0f, iy + 4.0f, eItems[i].name, 1.45f, col, LabFontType::System);
+                if (!eItems[i].shortcut.empty()) {
+                    LabFont::drawText(menuX + menuW - 75.0f, iy + 4.0f, eItems[i].shortcut, 1.35f, textDim, LabFontType::System);
+                }
+            }
+        }
+
+        // ==================== 8. DROPDOWN MAP MENU ====================
+        if (_buildMenuOpen) {
+            float menuX = 138.0f;
+            float menuY = 24.0f;
+            float menuW = 260.0f;
             float menuH = 125.0f;
             Vec3 menuBg{ 0.16f, 0.17f, 0.20f };
             Vec3 menuBorder{ 0.35f, 0.38f, 0.44f };
@@ -7668,13 +8817,13 @@ public:
             Renderer::drawRect(menuX, menuY, menuW, menuH, menuBg);
             drawDarkBevel(menuX, menuY, menuW, menuH, false);
 
-            struct BuildMenuItem { std::string name; std::string shortcut; };
-            BuildMenuItem bItems[] = {
-                { "Test Game (Debug)", "F5" },
-                { "Build & Export Game...", "Ctrl+Shift+B" },
-                { "Export Release Bytecode (.luac)", "" },
-                { "Export Shipping Bytecode (Stripped)", "" },
-                { "Open test_build Folder", "" }
+            struct MapMenuItem { std::string name; std::string shortcut; };
+            MapMenuItem mItems[] = {
+                { "Run Map in Frozen-Life", "F9" },
+                { "Apply Darkness Preset", "" },
+                { "Apply Sunlight Preset", "" },
+                { "Clear All Map Geometry", "" },
+                { "Entity Outliner / Spawns", "" }
             };
 
             for (int i = 0; i < 5; ++i) {
@@ -7683,10 +8832,9 @@ public:
                 if (isHov) {
                     Renderer::drawRect(menuX + 2.0f, iy, menuW - 4.0f, 22.0f, Vec3(0.24f, 0.28f, 0.36f));
                 }
-                if (i == 2 || i == 4) Renderer::drawRect(menuX + 6.0f, iy - 2.0f, menuW - 12.0f, 1.0f, menuBorder);
-                LabFont::drawText(menuX + 14.0f, iy + 4.0f, bItems[i].name, 1.5f, (i == 0) ? (isHov ? Vec3(0.4f, 1.0f, 0.5f) : Vec3(0.3f, 0.9f, 0.4f)) : (isHov ? orangeGlow : textLight), LabFontType::System);
-                if (!bItems[i].shortcut.empty()) {
-                    LabFont::drawText(menuX + menuW - 90.0f, iy + 4.0f, bItems[i].shortcut, 1.4f, textDim, LabFontType::System);
+                LabFont::drawText(menuX + 14.0f, iy + 4.0f, mItems[i].name, 1.5f, (i == 0) ? (isHov ? Vec3(0.4f, 1.0f, 0.5f) : Vec3(0.3f, 0.9f, 0.4f)) : (isHov ? orangeGlow : textLight), LabFontType::System);
+                if (!mItems[i].shortcut.empty()) {
+                    LabFont::drawText(menuX + menuW - 80.0f, iy + 4.0f, mItems[i].shortcut, 1.4f, textDim, LabFontType::System);
                 }
             }
         }
@@ -7857,11 +9005,11 @@ public:
             // Filter components
             std::vector<std::string> filtered;
             std::string q = _contextMenuSearch;
-            std::transform(q.begin(), q.end(), q.begin(), ::tolower);
+            std::transform(q.begin(), q.end(), q.begin(), [](unsigned char ch) { return (char)::tolower(ch); });
             for (const auto* c : allComponents) {
                 std::string s(c);
                 std::string sLow = s;
-                std::transform(sLow.begin(), sLow.end(), sLow.begin(), ::tolower);
+                std::transform(sLow.begin(), sLow.end(), sLow.begin(), [](unsigned char ch) { return (char)::tolower(ch); });
                 if (q.empty() || sLow.find(q) != std::string::npos) {
                     filtered.push_back(s);
                 }
@@ -8347,7 +9495,66 @@ public:
         Renderer::endUI();
     }
 
+    // Modal Session Crash Recovery Dialog (%TEMP% Session Restoration)
+    void drawSessionRecoveryModal() {
+        int fbW = 0, fbH = 0;
+        getFramebufferSize(fbW, fbH);
+        float w = (fbW > 0) ? (float)fbW : (float)getWidth();
+        float h = (fbH > 0) ? (float)fbH : (float)getHeight();
+
+        Renderer::beginUI((int)w, (int)h);
+
+        // Dark modal overlay
+        Renderer::drawRect(0, 0, w, h, Vec3(0.03f, 0.04f, 0.06f));
+
+        float bw = 580.0f;
+        float bh = 240.0f;
+        float bx = (w - bw) * 0.5f;
+        float by = (h - bh) * 0.5f;
+
+        LabTheme::drawPanel(bx, by, bw, bh, "Przywracanie Poprzedniej Sesji (Crash Recovery)");
+        drawDarkButton(bx + bw - 32.0f, by + 5.0f, 24.0f, 22.0f, "X", false, true);
+
+        std::string fname = std::filesystem::path(_recoveryMapName).filename().string();
+        if (fname.empty()) fname = "Niezapisana mapa (Untitled)";
+
+        LabFont::drawText(bx + 24.0f, by + 46.0f, "Wykryto niezapisana poprzednia sesje programu Hammer:", 1.45f, Vec3(1.0f, 0.85f, 0.35f), LabFontType::System);
+        LabFont::drawText(bx + 24.0f, by + 72.0f, "Mapa: " + fname + " | Data: " + _recoveryTimestamp, 1.45f, Vec3(0.4f, 0.85f, 1.0f), LabFontType::System);
+        LabFont::drawText(bx + 24.0f, by + 98.0f, "Liczba zarejestrowanych operacji w sesji: " + std::to_string(_recoveryActionCount), 1.35f, Vec3(0.85f, 0.88f, 0.92f), LabFontType::System);
+        LabFont::drawText(bx + 24.0f, by + 124.0f, "Czy chcesz przywrocic stan z pliku tymczasowego %TEMP%?", 1.35f, Vec3(0.95f, 0.95f, 0.98f), LabFontType::System);
+
+        // Buttons
+        float btnY = by + bh - 54.0f;
+        float btnW = 200.0f;
+        float btnH = 34.0f;
+
+        // "Przywróć sesję (Y / F1)"
+        float restX = bx + 45.0f;
+        Renderer::drawRect(restX, btnY, btnW, btnH, Vec3(0.18f, 0.50f, 0.28f));
+        drawDarkBevel(restX, btnY, btnW, btnH, false);
+        LabFont::drawText(restX + 22.0f, btnY + 8.0f, "Przywroc sesje [Y]", 1.45f, Vec3(1, 1, 1), LabFontType::System);
+
+        // "Odrzuć sesję (N / Esc)"
+        float discX = bx + bw - 45.0f - btnW;
+        Renderer::drawRect(discX, btnY, btnW, btnH, Vec3(0.48f, 0.18f, 0.18f));
+        drawDarkBevel(discX, btnY, btnW, btnH, false);
+        LabFont::drawText(discX + 28.0f, btnY + 8.0f, "Odrzuc sesje [N]", 1.45f, Vec3(1, 1, 1), LabFontType::System);
+
+        Renderer::endUI();
+    }
+
     void onShutdown() override {
+        // Record clean exit in session journal & cleanup autosave if not dirty
+        if (!_isDirty) {
+            writeSessionJournal("clean_exit", _currentMapPath, _sessionActionCounter);
+            auto autoPath = getAutosavePath();
+            std::error_code ec;
+            std::filesystem::remove(autoPath, ec);
+        } else {
+            // Keep autosave so next launch can offer to restore it
+            saveSessionAutosave();
+            writeSessionJournal("in_progress", _currentMapPath, _sessionActionCounter);
+        }
         _decalSystem.shutdown();
         _particleSystem.shutdown();
         AudioEngine::shutdown();
@@ -8376,6 +9583,20 @@ private:
     bool _asset2DModalOpen = false;
     bool _showConvertMapModal = false;
     std::string _pendingMapPath = "";
+
+    // Session Crash Recovery & %TEMP% Journal
+    bool _showRecoveryPrompt = false;
+    std::string _recoveryMapName = "";
+    std::string _recoveryTimestamp = "";
+    int _recoveryActionCount = 0;
+    int _sessionActionCounter = 0;
+    std::string _sessionStartTime = "";
+    bool _isDirty = false;
+
+    // Undo / Redo Stacks (C++20 Value Snapshotting)
+    std::vector<HammerSnapshot> _undoStack;
+    std::vector<HammerSnapshot> _redoStack;
+
     SpriteSheet2D _editorSpriteSheet;
     int _sliceCols = 4;
     int _sliceRows = 4;
@@ -8384,6 +9605,7 @@ private:
     std::string _lastBuildLog = "";
     bool _buildSuccess = false;
     bool _fileMenuOpen = false;
+    bool _editMenuOpen = false;
     bool _buildMenuOpen = false;
     bool _viewMenuOpen = false;
     bool _wireframeMode = false;
@@ -8392,6 +9614,10 @@ private:
     // Selection State
     SelectionType _selectionType = SelectionType::None;
     int _selectedIndex = -1;
+    std::string _defaultWaypointAnimation = "Idle";
+    float _defaultWaypointYaw = 0.0f;
+    float _defaultWaypointDuration = 2.0f;
+    std::string _defaultWaypointBotName = "Guard";
 
     // Engine Simulation & Viewport State
     EngineSimState _simState = EngineSimState::Stopped;
@@ -8589,11 +9815,14 @@ private:
     bool _ctrlOPressed = false;
     bool _ctrlNPressed = false;
     bool _ctrlDPressed = false;
+    bool _ctrlZPressed = false;
+    bool _ctrlYPressed = false;
     bool _delPressed = false;
     bool _fPressed = false;
     bool _f9Pressed = false;
     bool _f5Pressed = false;
     bool _ctrlBPressed = false;
+    bool _bPressed = false;
     bool _arrowLeftPressed = false;
     bool _arrowRightPressed = false;
     bool _arrowUpPressed = false;

@@ -175,7 +175,9 @@ namespace Lab {
         float getCurrentTime() const { return _currentTime; }
         float getProgress() const;
         bool isPlaying() const { return !_currentClipName.empty() && (_looping || getProgress() < 1.0f); }
-        bool isLooping() const { return _looping; }
+        // Procedural Lip-Sync & Jaw driving
+        void setJawAngle(float angle) { _jawAngle = angle; }
+        float getJawAngle() const { return _jawAngle; }
 
         // Attaches an STL weapon model to a bone socket on this animated character
         Mat4 getSocketTransform(const std::string& boneName,
@@ -193,6 +195,7 @@ namespace Lab {
         float _blendTimer = 0.0f;
         float _blendDuration = 0.0f;
         bool _looping = true;
+        float _jawAngle = 0.0f;
 
         std::vector<Mat4> _globalTransforms;
         std::vector<Mat4> _skinMatrices;

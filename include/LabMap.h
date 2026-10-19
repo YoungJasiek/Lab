@@ -97,6 +97,13 @@ namespace Lab {
         float openSpeed = 3.0f;
         float triggerRadius = 4.0f;
 
+        // Mechanism & Activator Configuration
+        std::string activator = "proximity"; // "proximity", "trigger_only", "manual"
+        std::string keycardRequired = "";    // "", "keycard_l1", "keycard_l2"
+        bool requiresKeycard = false;
+        std::string dependency = "";        // Name of required activator/generator/switch entity
+        bool autoClose = true;
+
         // Runtime animation state
         float currentProgress = 0.0f;
         bool isOpen = false;
@@ -107,8 +114,11 @@ namespace Lab {
         std::string name = "trigger_story";
         Vec3 position = { 0.0f, 1.5f, 0.0f };
         Vec3 size = { 4.0f, 3.0f, 4.0f };
-        std::string eventType = "story_dialog"; // e.g. "story_dialog", "door_unlock", "script"
+        std::string eventType = "story_dialog"; // e.g. "story_dialog", "door_open", "door_unlock", "script"
         std::string targetBot = "Bot_Guard";
+        std::string targetEntity = "";          // Target door or mechanism entity to manipulate (e.g. "door_0")
+        std::string targetWaypoint = "";        // Target waypoint to direct bot or story path to
+        std::string targetAction = "open";      // "open", "close", "toggle", "unlock", "lock", "fire"
         std::string dialogText = "WARNING: Sector 14 containment breach detected! Follow me to the airlock!";
         std::string audioPath = "assets/audio/bot_corridor_dialog.wav";
         std::string script = "";
@@ -121,6 +131,13 @@ namespace Lab {
         Vec3 position = { 0.0f, 0.0f, 0.0f };
         std::string botName = "Bot_Guard";
         int orderIndex = 0;
+        std::string animation = "Idle";
+        float facingYaw = 0.0f;
+        float waitDuration = 2.0f;
+
+        // Linked Story & Gameplay Trigger
+        std::string targetTrigger = "";         // Trigger name to execute when bot arrives at this node
+        std::string triggerAction = "fire";     // "fire", "enable", "disable"
     };
 
     struct MapCamera {
