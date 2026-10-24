@@ -2015,11 +2015,8 @@ public:
         // Ctrl+B: Build & Run Game | Ctrl+Shift+B: Build Settings Dialog
         if (ctrlDown && (Input::isKeyPressed('B') || Input::isKeyPressed('b'))) {
             if (!_ctrlBPressed) {
-                if (shiftDown) {
-                    _buildModalOpen = !_buildModalOpen;
-                } else {
-                    buildGameAction(true);
-                }
+                bakeMapAction();
+                runMapInGame();
                 _ctrlBPressed = true;
             }
         } else {
@@ -4375,7 +4372,8 @@ public:
             }
             // 2. [ BUILD... ]
             if (mx >= 562.0f && mx <= 618.0f) {
-                _buildModalOpen = true;
+                bakeMapAction();
+                runMapInGame();
                 return;
             }
             // 3. [ Bake ]
@@ -6890,9 +6888,7 @@ public:
         }
 
         // 6. Render Modal Build & Export if open
-        if (_buildModalOpen) {
-            drawBuildModal();
-        }
+        // Build modal removed - Hammer uses Run Map / Bake directly
 
         // 7. Render Input Actions & Controller Bindings Modal if open
         if (_inputModalOpen) {
@@ -10085,46 +10081,6 @@ int main(int argc, char** argv) {
                 VFS::get().mountAddonLayer(argv[++i]);
             }
             continue;
-        }
-        if (arg == "--create-mod" || arg == "--create-addon" || arg == "-create-mod") {
-            if (i + 1 < argc) {
-                std::string modName = argv[i + 1];
-                std::filesystem::path addonPath = std::filesystem::path("addons") / modName;
-                std::filesystem::create_directories(addonPath / "maps");
-                std::filesystem::create_directories(addonPath / "models");
-                std::filesystem::create_directories(addonPath / "materials");
-                std::filesystem::create_directories(addonPath / "scripts");
-                std::filesystem::create_directories(addonPath / "sound");
-
-                // Write standard addon.json metadata
-                std::ofstream fJson(addonPath / "addon.json");
-                if (fJson.is_open()) {
-                    fJson << "{\n";
-                    fJson << "  \"title\": \"" << modName << "\",\n";
-                    fJson << "  \"version\": \"1.0.0\",\n";
-                    fJson << "  \"author\": \"Community Modder\",\n";
-                    fJson << "  \"description\": \"Source-style mod addon for Frozen-Life\",\n";
-                    fJson << "  \"tags\": [\"maps\", \"weapons\", \"props\"]\n";
-                    fJson << "}\n";
-                    fJson.close();
-                }
-
-                // Write scripts/startup.lua
-                std::ofstream fLua(addonPath / "scripts" / "startup.lua");
-                if (fLua.is_open()) {
-                    fLua << "-- Addon startup hook for " << modName << "\n";
-                    fLua << "print(\"[Addon] Initialized mod: " << modName << "\")\n";
-                    fLua.close();
-                }
-
-                std::cout << "[LabHammer] Successfully created addon scaffold: " << addonPath.string() << "\n";
-                std::cout << "[LabHammer] Subdirectories: maps/, models/, materials/, scripts/, sound/\n";
-                std::cout << "[LabHammer] Test in Frozen-Life with: game.exe -game " << addonPath.string() << "\n";
-                return 0;
-            } else {
-                std::cerr << "Error: Missing addon name! Usage: editor --create-mod <name>\n";
-                return 1;
-            }
         }
     }
 

@@ -1,4 +1,6 @@
+#include "LabCore.h"
 #include "LabConVar.h"
+#include "LabProject.h"
 #include <sstream>
 #include <fstream>
 #include <algorithm>
@@ -623,7 +625,59 @@ bool ConVarRegistry::loadConfigFile(const std::string& filepath) {
         registerConCommand("reset", [](const std::vector<std::string>& args) {
             (void)args;
         }, FCVAR_NONE, "Reset a cvar to its default value");
-        registerConCommand("host_writeconfig", [](const std::vector<std::string>& args) {
+        
+        registerConCommand("create_project", [](const std::vector<std::string>& args) {
+            if (args.size() < 2) {
+                LabLog::error("Usage: create_project <projectName>");
+                return;
+            }
+            std::string msg;
+            if (CreateStandaloneGameProject(args[1], msg)) {
+                LabLog::info(msg);
+            } else {
+                LabLog::error(msg);
+            }
+        }, FCVAR_NONE, "Create a standalone C++ game project in games/<projectName>/");
+
+        registerConCommand("create_game", [](const std::vector<std::string>& args) {
+            if (args.size() < 2) {
+                LabLog::error("Usage: create_game <gameName>");
+                return;
+            }
+            std::string msg;
+            if (CreateStandaloneGameProject(args[1], msg)) {
+                LabLog::info(msg);
+            } else {
+                LabLog::error(msg);
+            }
+        }, FCVAR_NONE, "Create a standalone C++ game project in games/<gameName>/");
+
+        registerConCommand("create_addon", [](const std::vector<std::string>& args) {
+            if (args.size() < 2) {
+                LabLog::error("Usage: create_addon <addonName>");
+                return;
+            }
+            std::string msg;
+            if (CreateAssetAddon(args[1], msg)) {
+                LabLog::info(msg);
+            } else {
+                LabLog::error(msg);
+            }
+        }, FCVAR_NONE, "Create a data-only asset addon in addons/<addonName>/");
+
+        registerConCommand("create_mod", [](const std::vector<std::string>& args) {
+            if (args.size() < 2) {
+                LabLog::error("Usage: create_mod <modName>");
+                return;
+            }
+            std::string msg;
+            if (CreateAssetAddon(args[1], msg)) {
+                LabLog::info(msg);
+            } else {
+                LabLog::error(msg);
+            }
+        }, FCVAR_NONE, "Create a data-only asset addon in addons/<modName>/");
+registerConCommand("host_writeconfig", [](const std::vector<std::string>& args) {
             (void)args;
         }, FCVAR_NONE, "Store current archived convars to config.cfg");
         registerConCommand("god", [](const std::vector<std::string>& args) {

@@ -628,12 +628,12 @@ namespace Lab {
             }
         }
 
-        // 2. Check for LabPlayer runner with game.config
+        // 2. Check for FrozenLife runner with game.config
         std::filesystem::path cfgPath = target->rootPath / "game.config";
         std::vector<std::filesystem::path> runners = {
-            m_engineRoot / "build" / "Release" / "LabPlayer.exe",
-            m_engineRoot / "build" / "Debug" / "LabPlayer.exe",
-            m_engineRoot / "LabPlayer.exe"
+            m_engineRoot / "build" / "Release" / "FrozenLife.exe",
+            m_engineRoot / "build" / "Debug" / "FrozenLife.exe",
+            m_engineRoot / "FrozenLife.exe"
         };
         for (const auto& runner : runners) {
             if (std::filesystem::exists(runner)) {
@@ -752,6 +752,165 @@ namespace Lab {
         ExportSettings s = settings;
         s.gameTitle = projectName;
         return ExportPipeline::exportProject(s);
+    }
+
+
+    bool CreateStandaloneGameProject(const std::string& projectName, std::string& outMessage) {
+        if (projectName.empty()) {
+            outMessage = "Error: Project name cannot be empty!";
+            return false;
+        }
+
+        std::string safeName = projectName;
+        std::replace(safeName.begin(), safeName.end(), ' ', '_');
+        std::replace(safeName.begin(), safeName.end(), '-', '_');
+
+        std::filesystem::path projDir = std::filesystem::path("games") / safeName;
+        std::error_code ec;
+        std::filesystem::create_directories(projDir / "src", ec);
+        std::filesystem::create_directories(projDir / "assets" / "maps", ec);
+        std::filesystem::create_directories(projDir / "assets" / "scripts", ec);
+        std::filesystem::create_directories(projDir / "assets" / "hud", ec);
+        std::filesystem::create_directories(projDir / "assets" / "textures", ec);
+
+        // 1. Standalone C++20 game source code
+        std::ofstream fMain(projDir / "src" / "main.cpp");
+        if (fMain.is_open()) {
+            fMain << "#include \"Lab.h\"\n\n"
+                  << "using namespace Lab;\n\n"
+                  << "class " << safeName << "App : public Engine {\n"
+                  << "public:\n"
+                  << "    " << safeName << "App()\n"
+                  << "        : Engine(\"" << safeName << " - Powered by Lab Engine\", 1600, 900) {}\n\n"
+                  << "    void onInit() override {\n"
+                  << "        Renderer::init();\n"
+                  << "        LabLog::info(\"Launching standalone game project: " << safeName << "\");\n"
+                  << "    }\n\n"
+                  << "    void onUpdate(const Time& time) override {\n"
+                  << "        (void)time;\n"
+                  << "    }\n\n"
+                  << "    void onRender() override {\n"
+                  << "        // Custom game rendering & UI overlay\n"
+                  << "    }\n"
+                  << "};\n\n"
+                  << "int main(int argc, char** argv) {\n"
+                  << "    (void)argc; (void)argv;\n"
+                  << "    " << safeName << "App app;\n"
+                  << "    app.run();\n"
+                  << "    return 0;\n"
+                  << "}\n";
+            fMain.close();
+        }
+
+        // 2. Local CMakeLists.txt
+        std::ofstream fCmake(projDir / "CMakeLists.txt");
+        if (fCmake.is_open()) {
+            fCmake << "cmake_minimum_required(VERSION 3.20)\n"
+                   << "project(" << safeName << " CXX)\n"
+                   << "set(CMAKE_CXX_STANDARD 20)\n\n"
+                   << "add_executable(" << safeName << " src/main.cpp)\n"
+                   << "target_link_libraries(" << safeName << " PRIVATE LabEngineLib)\n";
+            fCmake.close();
+        }
+
+        // 3. game.config
+        std::ofstream fCfg(projDir / "game.config");
+        if (fCfg.is_open()) {
+            fCfg << "title=" << safeName << "\n"
+                 << "scene=assets/maps/start.labscene\n"
+                 << "hud=assets/hud/hud.labhud\n"
+                 << "rules=assets/scripts/startup.lua\n"
+                 << "width=1600\n"
+                 << "height=900\n"
+                 << "fullscreen=0\n";
+            fCfg.close();
+        }
+
+        // 4. Starter Lua rules script
+        std::ofstream fLua(projDir / "assets" / "scripts" / "startup.lua");
+        if (fLua.is_open()) {
+            fLua << "-- Standalone Game Startup Script: " << safeName << "\n"
+                 << "print(\"[" << safeName << "] Standalone rules loaded successfully!\")\n\n"
+                 << "console.register_command(\"game_status\", function(args)\n"
+                 << "    console.print(\"[" << safeName << "] Game engine status: ONLINE (FPS Mode)\", 0.2, 0.9, 0.4)\n"
+                 << "end, \"Print game status\")\n";
+            fLua.close();
+        }
+
+        // 5. Starter 3D Scene
+        std::ofstream fMap(projDir / "assets" / "maps" / "start.labscene");
+        if (fMap.is_open()) {
+            fMap << "LABSCENE_VERSION 1\n"
+                 << "MAP_NAME " << safeName << " Starter Arena\n"
+                 << "SPAWN 0.0 1.8 0.0 0.0 FFA\n"
+                 << "BRUSH 0.0 -0.5 0.0 20.0 1.0 20.0 dev_floor.bmp 1.0 1.0 1.0\n"
+                 << "LIGHT 0.0 5.0 0.0 1.0 1.0 1.0 12.0 1.5 1\n";
+            fMap.close();
+        }
+
+        std::stringstream ss;
+        ss << "[Engine] Successfully generated standalone game project: " << projDir.string() << "\n"
+           << "[Engine] - C++20 Entry: " << (projDir / "src" / "main.cpp").string() << "\n"
+           << "[Engine] - Configuration: " << (projDir / "game.config").string() << "\n"
+           << "[Engine] - Assets: " << (projDir / "assets").string() << "\n"
+           << "[Engine] To build the standalone executable:\n"
+           << "         cmake --build build --config Release --target " << safeName << "\n"
+           << "[Engine] Executable: build/Release/" << safeName << ".exe";
+        outMessage = ss.str();
+        return true;
+    }
+
+    bool CreateAssetAddon(const std::string& addonName, std::string& outMessage) {
+        if (addonName.empty()) {
+            outMessage = "Error: Addon name cannot be empty!";
+            return false;
+        }
+
+        std::string safeName = addonName;
+        std::replace(safeName.begin(), safeName.end(), ' ', '_');
+        std::replace(safeName.begin(), safeName.end(), '-', '_');
+
+        std::filesystem::path addonPath = std::filesystem::path("addons") / safeName;
+        std::error_code ec;
+        std::filesystem::create_directories(addonPath / "maps", ec);
+        std::filesystem::create_directories(addonPath / "models", ec);
+        std::filesystem::create_directories(addonPath / "materials", ec);
+        std::filesystem::create_directories(addonPath / "scripts", ec);
+        std::filesystem::create_directories(addonPath / "sound", ec);
+
+        // 1. addon.json
+        std::ofstream fJson(addonPath / "addon.json");
+        if (fJson.is_open()) {
+            fJson << "{\n"
+                  << "  \"title\": \"" << safeName << "\",\n"
+                  << "  \"version\": \"1.0.0\",\n"
+                  << "  \"author\": \"Community Modder\",\n"
+                  << "  \"description\": \"Source-style asset addon for Frozen-Life / Lab Engine\",\n"
+                  << "  \"tags\": [\"maps\", \"weapons\", \"props\", \"scripts\", \"sound\"]\n"
+                  << "}\n";
+            fJson.close();
+        }
+
+        // 2. scripts/startup.lua
+        std::ofstream fLua(addonPath / "scripts" / "startup.lua");
+        if (fLua.is_open()) {
+            fLua << "-- Addon startup hook for " << safeName << "\n"
+                 << "print(\"[Addon] Initialized mod: " << safeName << "\")\n\n"
+                 << "console.register_command(\"addon_info\", function(args)\n"
+                 << "    console.print(\"[Addon " << safeName << "] Loaded and active in VFS layer!\", 0.2, 0.8, 1.0)\n"
+                 << "end, \"Display active addon info\")\n";
+            fLua.close();
+        }
+
+        std::stringstream ss;
+        ss << "[Engine] Successfully generated asset addon: " << addonPath.string() << "\n"
+           << "[Engine] - Subdirectories: maps/, models/, materials/, scripts/, sound/\n"
+           << "[Engine] - Script hook: " << (addonPath / "scripts" / "startup.lua").string() << "\n"
+           << "[Engine] - Metadata: " << (addonPath / "addon.json").string() << "\n"
+           << "[Engine] To run game with this addon mounted:\n"
+           << "         game.exe -game " << addonPath.string();
+        outMessage = ss.str();
+        return true;
     }
 
 } // namespace Lab

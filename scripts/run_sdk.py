@@ -17,7 +17,6 @@ TOOLS = {
     "editor": BUILD_DIR / "LabEditor.exe",
     "studio": BUILD_DIR / "LabStudio.exe",
     "server": BUILD_DIR / "LabServer.exe",
-    "player": BUILD_DIR / "LabPlayer.exe",
     "verify": ROOT_DIR / "scripts" / "verify_pipeline.py"
 }
 
@@ -62,7 +61,6 @@ def main():
     parser.add_argument("--editor", action="store_true", help="Uruchom edytor poziomow (LabEditor.exe)")
     parser.add_argument("--studio", action="store_true", help="Uruchom podglad modeli i animacji (LabStudio.exe)")
     parser.add_argument("--server", action="store_true", help="Uruchom serwer dedykowany (LabServer.exe)")
-    parser.add_argument("--player", action="store_true", help="Uruchom odtwarzacz paczek (LabPlayer.exe)")
     parser.add_argument("--verify", action="store_true", help="Uruchom zestaw weryfikacyjny i wyeksportuj klatki")
     parser.add_argument("extra", nargs="*", help="Dodatkowe argumenty przekazywane do programu")
 
@@ -88,8 +86,6 @@ def main():
         run_target("studio", args.extra)
     elif args.server:
         run_target("server", args.extra)
-    elif args.player:
-        run_target("player", args.extra)
 
 if __name__ == "__main__":
     main()

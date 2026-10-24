@@ -368,16 +368,25 @@ target_compile_options(LabEditor PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabEditor PRIVATE LabEngineLib)
 set_target_properties(LabEditor PROPERTIES OUTPUT_NAME "lhmr")
 
-# 2. Standalone Universal Game Player / Runner (LabPlayer.exe - Used for Exported Games)
-add_executable(LabPlayer src/player_main.cpp)
-target_compile_options(LabPlayer PRIVATE ${COMPILER_FLAGS})
-target_link_libraries(LabPlayer PRIVATE LabEngineLib)
-
-# 3. Frozen-Life Flagship FPS Demo Game Executable (game.exe)
+# 2. Frozen-Life Flagship FPS Demo Game Executable (game.exe)
 add_executable(FrozenLife src/main.cpp)
 target_compile_options(FrozenLife PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(FrozenLife PRIVATE LabEngineLib)
 set_target_properties(FrozenLife PROPERTIES OUTPUT_NAME "game")
+
+# Dynamic auto-registration of standalone game projects in games/*
+file(GLOB GAME_PROJECT_DIRS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}/games" "${CMAKE_CURRENT_SOURCE_DIR}/games/*")
+foreach(gname ${GAME_PROJECT_DIRS})
+    if(IS_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/games/${gname}" 
+       AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/games/${gname}/src/main.cpp" 
+       AND NOT TARGET ${gname}
+       AND NOT "${gname}" STREQUAL "frozen_life")
+        add_executable(${gname} "games/${gname}/src/main.cpp")
+        target_compile_options(${gname} PRIVATE ${COMPILER_FLAGS})
+        target_link_libraries(${gname} PRIVATE LabEngineLib)
+        add_dependencies(${gname} LabAssets)
+    endif()
+endforeach()
 
 # 4. Lab FilmMaker Cinematic Sequencer Executable (lfm.exe)
 add_executable(lfm
@@ -428,7 +437,7 @@ add_custom_target(LabAssets ALL
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/SyncAssets.cmake"
     COMMENT "Synchronizing clean runtime assets, fonts, and logos to output directory"
 )
-set(ASSET_TARGETS LabEditor LabPlayer FrozenLife LabStudio LabServer TestVerify lfm)
+set(ASSET_TARGETS LabEditor FrozenLife LabStudio LabServer TestVerify lfm)
 foreach(tgt ${ASSET_TARGETS})
     add_dependencies(${tgt} LabAssets)
 endforeach()

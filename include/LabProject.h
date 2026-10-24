@@ -112,4 +112,10 @@ namespace Lab {
         bool m_vfsConfigured{false};
     };
 
+    /// @brief Creates a standalone executable game project in games/<projectName>/
+    LAB_CORE_API bool CreateStandaloneGameProject(const std::string& projectName, std::string& outMessage);
+
+    /// @brief Creates a data-only asset addon in addons/<addonName>/
+    LAB_CORE_API bool CreateAssetAddon(const std::string& addonName, std::string& outMessage);
+
 } // namespace Lab

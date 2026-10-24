@@ -239,13 +239,13 @@ namespace Lab {
 
         // 2. Platform specific binaries & wrappers
         if (settings.platform == TargetPlatform::Windows_x64) {
-            // Find LabPlayer.exe runner or fallback
+            // Find FrozenLife.exe runner or fallback
             std::vector<std::filesystem::path> runnerSearch = {
-                "LabPlayer.exe",
-                "build/Release/LabPlayer.exe",
-                "build/Debug/LabPlayer.exe",
-                "Release/LabPlayer.exe",
-                "Debug/LabPlayer.exe",
+                "FrozenLife.exe",
+                "build/Release/FrozenLife.exe",
+                "build/Debug/FrozenLife.exe",
+                "Release/FrozenLife.exe",
+                "Debug/FrozenLife.exe",
                 "build/Export/FrozenLife_Standalone/FrozenLife.exe",
                 "build/Release/FrozenLife.exe",
                 "build/Debug/FrozenLife.exe"
@@ -506,36 +506,36 @@ namespace Lab {
         if (std::filesystem::exists(root / "CMakeLists.txt")) {
 #if !defined(_WIN32)
             std::filesystem::path buildLinuxDir = std::filesystem::exists(root / "build-linux") ? (root / "build-linux") : buildDir;
-            std::string buildCmd = "cmake --build \"" + buildLinuxDir.string() + "\" --target LabPlayer";
+            std::string buildCmd = "cmake --build \"" + buildLinuxDir.string() + "\" --target FrozenLife";
             std::system(buildCmd.c_str());
 #else
-            std::string buildCmd = "cmake --build \"" + buildDir.string() + "\" --config Debug --target LabPlayer";
+            std::string buildCmd = "cmake --build \"" + buildDir.string() + "\" --config Debug --target FrozenLife";
             std::system(buildCmd.c_str());
 #endif
         }
 
-        // 2. Find LabPlayer runner from candidate directories across Windows and Linux
+        // 2. Find FrozenLife runner from candidate directories across Windows and Linux
 #if !defined(_WIN32)
         std::vector<std::filesystem::path> debugRunnerCandidates = {
-            root / "build-linux" / "LabPlayer",
-            root / "build" / "LabPlayer",
-            std::filesystem::current_path() / "build-linux" / "LabPlayer",
-            std::filesystem::current_path() / "build" / "LabPlayer",
-            root / "LabPlayer",
-            std::filesystem::current_path() / "LabPlayer"
+            root / "build-linux" / "FrozenLife",
+            root / "build" / "FrozenLife",
+            std::filesystem::current_path() / "build-linux" / "FrozenLife",
+            std::filesystem::current_path() / "build" / "FrozenLife",
+            root / "FrozenLife",
+            std::filesystem::current_path() / "FrozenLife"
         };
         std::string baseExeName = (gameTitle.empty() ? "LabGame" : gameTitle) + "_Test";
         std::string exeName = baseExeName;
 #else
         std::vector<std::filesystem::path> debugRunnerCandidates = {
-            buildDir / "Debug" / "LabPlayer.exe",
-            buildDir / "Release" / "LabPlayer.exe",
-            root / "Debug" / "LabPlayer.exe",
-            root / "Release" / "LabPlayer.exe",
-            root / "LabPlayer.exe",
-            std::filesystem::current_path() / "build" / "Debug" / "LabPlayer.exe",
-            std::filesystem::current_path() / "build" / "Release" / "LabPlayer.exe",
-            std::filesystem::current_path() / "LabPlayer.exe"
+            buildDir / "Debug" / "FrozenLife.exe",
+            buildDir / "Release" / "FrozenLife.exe",
+            root / "Debug" / "FrozenLife.exe",
+            root / "Release" / "FrozenLife.exe",
+            root / "FrozenLife.exe",
+            std::filesystem::current_path() / "build" / "Debug" / "FrozenLife.exe",
+            std::filesystem::current_path() / "build" / "Release" / "FrozenLife.exe",
+            std::filesystem::current_path() / "FrozenLife.exe"
         };
         std::string baseExeName = (gameTitle.empty() ? "LabGame" : gameTitle) + "_Test";
         std::string exeName = baseExeName + ".exe";

@@ -6,6 +6,7 @@
 #include "LabDevConsole.h"
 #include "LabVFS.h"
 #include "LabProfile.h"
+#include "LabProject.h"
 #include "../games/frozen_life/include/FrozenLifeAnim.h"
 #include <iostream>
 #include <algorithm>
@@ -5413,7 +5414,37 @@ int main(int argc, char* argv[]) {
     std::string directMap = "";
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
-        if (arg == "--nosplash" || arg == "-nosplash") {
+        if (arg == "--create-project" || arg == "-create-project" || arg == "--create-game" || arg == "-create-game") {
+            if (i + 1 < argc) {
+                std::string projName = argv[++i];
+                std::string msg;
+                if (Lab::CreateStandaloneGameProject(projName, msg)) {
+                    std::cout << msg << std::endl;
+                    return 0;
+                } else {
+                    std::cerr << msg << std::endl;
+                    return 1;
+                }
+            } else {
+                std::cerr << "Error: Missing project name! Usage: game.exe --create-project <name>" << std::endl;
+                return 1;
+            }
+        } else if (arg == "--create-addon" || arg == "-create-addon" || arg == "--create-mod" || arg == "-create-mod") {
+            if (i + 1 < argc) {
+                std::string modName = argv[++i];
+                std::string msg;
+                if (Lab::CreateAssetAddon(modName, msg)) {
+                    std::cout << msg << std::endl;
+                    return 0;
+                } else {
+                    std::cerr << msg << std::endl;
+                    return 1;
+                }
+            } else {
+                std::cerr << "Error: Missing addon name! Usage: game.exe --create-addon <name>" << std::endl;
+                return 1;
+            }
+        } else if (arg == "--nosplash" || arg == "-nosplash") {
             showSplash = false;
         } else if (arg == "-game" || arg == "--game") {
             if (i + 1 < argc) {
