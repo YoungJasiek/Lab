@@ -1,4 +1,5 @@
 #include "LabRenderer.h"
+#include "LabGraphics.h"
 #include "LabCore.h"
 #include "LabVFS.h"
 #include "LabSkeletal.h"
@@ -14,6 +15,7 @@
 #include <filesystem>
 #include <unordered_map>
 #include <unordered_set>
+#include <cstring>
 
 namespace Lab {
 
@@ -132,6 +134,11 @@ namespace Lab {
         uniform int enableShadows;
         uniform sampler2D shadowMap;
 
+        // Static Baked Lightmaps
+        uniform sampler2D lightMap;
+        uniform int uUseLightMap;
+        uniform vec4 uLightmapBounds;
+
         // Atmospheric Distance & Height Fog
         uniform int uEnableFog;
         uniform vec3 uFogColor;
@@ -140,6 +147,11 @@ namespace Lab {
         uniform int uEnableHeightFog;
         uniform float uHeightFogBase;
         uniform float uHeightFogDensity;
+
+        // Source Engine Eye Shader (Corneal Specular Glint & Iris Depth) + Fresnel Water
+        uniform int uEnableEyeShader;
+        uniform int uEnableWaterShader;
+        uniform float uWaterTime;
 
         // Analytic Orthonormal Tangent Frame (Gram-Schmidt aligned with Source Tri-Planar axes, zero derivative seams)
         vec3 perturbNormal(vec3 N, vec3 worldPos, vec2 uv, vec3 mapN) {
@@ -223,7 +235,14 @@ namespace Lab {
             // Tangent-space Normal Map + Specular Mask (Texture Unit 2)
             float specMask = 0.35;
             float shininess = 36.0;
-            if (uUseNormalMap == 1) {
+            if (uEnableWaterShader == 1) {
+                float w1 = sin(FragPos.x * 2.4 + uWaterTime * 2.2) * cos(FragPos.z * 2.1 - uWaterTime * 1.7);
+                float w2 = cos(FragPos.x * 4.8 - uWaterTime * 3.1) * sin(FragPos.z * 5.2 + uWaterTime * 2.6);
+                vec3 rippleN = normalize(vec3((w1 + w2 * 0.5) * 0.16, 1.0, (w2 - w1 * 0.5) * 0.16));
+                norm = normalize(mix(geomNorm, rippleN, 0.85));
+                specMask = 0.92;
+                shininess = 96.0;
+            } else if (uUseNormalMap == 1) {
                 vec4 normSample = texture(normalMap, TexCoords);
                 vec3 mapN = normSample.xyz * 2.0 - 1.0;
                 float strength = (uNormalStrength > 0.001) ? uNormalStrength : 1.35;
@@ -249,6 +268,13 @@ namespace Lab {
             float floorContactAO = clamp(0.76 + 0.24 * clamp(FragPos.y * 1.4, 0.0, 1.0), 0.76, 1.0);
             float normalCavityAO = clamp(dot(norm, geomNorm), 0.65, 1.0);
             vec3 ambient = ambientCube * albedo * (floorContactAO * normalCavityAO);
+
+            // Baked Lightmap integration (Source style: lightmap modulates ambient and adds static indirect irradiance)
+            if (uUseLightMap == 1) {
+                vec2 lmUV = clamp((FragPos.xz - uLightmapBounds.xy) / max(uLightmapBounds.zw, vec2(0.001)), 0.0, 1.0);
+                vec3 lmColor = texture(lightMap, lmUV).rgb;
+                ambient = mix(ambient, ambient * lmColor * 1.25, 0.70);
+            }
 
             // Half-Lambert wrapped diffuse (Valve HL2 signature lighting for richer surface volume)
             float nDotL = dot(norm, lDir);
@@ -323,6 +349,23 @@ namespace Lab {
             }
 
             vec3 result = baseLighting + spotResult + pointLightsResult;
+
+            // Source Engine Eye Shader: Corneal Specular Glint + Wet Scleral Sheen
+            if (uEnableEyeShader == 1) {
+                vec3 eyeHalf = normalize(lDir + viewDir);
+                float cornealGlint = pow(max(dot(geomNorm, eyeHalf), 0.0), 256.0) * 1.45;
+                float rimWetness = pow(1.0 - max(dot(geomNorm, viewDir), 0.0), 3.0) * 0.18;
+                result += lightColor * cornealGlint + sampleSourceEnvMap(reflect(-viewDir, geomNorm), ambientColor) * rimWetness;
+            }
+
+            // Source Engine Fresnel Water Refraction & Reflection Blending
+            if (uEnableWaterShader == 1) {
+                float waterFresnel = clamp(0.12 + 0.82 * pow(1.0 - max(dot(norm, viewDir), 0.0), 4.0), 0.12, 0.94);
+                vec3 skyRefl = sampleSourceEnvMap(reflect(-viewDir, norm), ambientColor) * 1.35;
+                vec3 deepScatter = objectColor * (0.45 + 0.55 * max(dot(norm, lDir), 0.0));
+                result = mix(deepScatter, skyRefl, waterFresnel) + specular * 1.4 + spotResult + pointLightsResult;
+                outAlpha = mix(0.68, 0.92, waterFresnel);
+            }
 
             // Volumetric Distance & Height Fog
             if (uEnableFog == 1) {
@@ -595,6 +638,10 @@ namespace Lab {
 
     void Shader::setVec4(const std::string& name, float x, float y, float z, float w) const {
         glUniform4f(getUniformLocation(name), x, y, z, w);
+    }
+
+    void Shader::setVec4(const std::string& name, const Vec4& vec) const {
+        glUniform4f(getUniformLocation(name), vec.x, vec.y, vec.z, vec.w);
     }
 
     void Shader::setVec3(const std::string& name, const Vec3& vec) const {
@@ -874,15 +921,32 @@ namespace Lab {
             } else if (isDebris) {
                 baseR = 120; baseG = 85; baseB = 50;  // Splintered wood
             } else {
-                // Generic deterministic hash-based metallic surface fallback (zero game-specific weapon names)
-                uint32_t h = 2166136261u;
-                for (unsigned char c : lowerPath) {
-                    h = (h ^ c) * 16777619u;
+                // Authentic Source Engine Error Checkerboard (#FF00FF / #000000, 32x32)
+                _width = 32;
+                _height = 32;
+                delete[] procData;
+                procData = new unsigned char[_width * _height * 3];
+                for (int cy = 0; cy < _height; ++cy) {
+                    for (int cx = 0; cx < _width; ++cx) {
+                        int cidx = (cy * _width + cx) * 3;
+                        bool isMagenta = (((cx / 16) + (cy / 16)) % 2 == 0);
+                        if (isMagenta) {
+                            procData[cidx + 0] = 255; // #FF00FF Magenta
+                            procData[cidx + 1] = 0;
+                            procData[cidx + 2] = 255;
+                        } else {
+                            procData[cidx + 0] = 0;   // #000000 Black
+                            procData[cidx + 1] = 0;
+                            procData[cidx + 2] = 0;
+                        }
+                    }
                 }
-                baseR = static_cast<unsigned char>(45 + (h & 0x3F));
-                baseG = static_cast<unsigned char>(48 + ((h >> 8) & 0x3F));
-                baseB = static_cast<unsigned char>(52 + ((h >> 16) & 0x3F));
+                data = procData;
             }
+
+            if (data == procData) {
+                // Already populated by error checkerboard branch
+            } else
 
             for (int y = 0; y < _height; ++y) {
                 for (int x = 0; x < _width; ++x) {
@@ -1455,6 +1519,371 @@ namespace Lab {
         return new Mesh(vertices, indices);
     }
 
+    namespace {
+        enum class GlbJsonType { Null, Bool, Number, String, Array, Object };
+        struct GlbJsonVal {
+            GlbJsonType type{GlbJsonType::Null};
+            double num{0.0};
+            std::string str;
+            std::vector<GlbJsonVal> arr;
+            std::unordered_map<std::string, GlbJsonVal> obj;
+
+            const GlbJsonVal& operator[](const std::string& k) const {
+                static const GlbJsonVal s_null;
+                auto it = obj.find(k);
+                return (it != obj.end()) ? it->second : s_null;
+            }
+            const GlbJsonVal& operator[](size_t i) const {
+                static const GlbJsonVal s_null;
+                return (i < arr.size()) ? arr[i] : s_null;
+            }
+            bool contains(const std::string& k) const { return obj.contains(k); }
+            int asInt(int def = 0) const { return type == GlbJsonType::Number ? static_cast<int>(num) : def; }
+            float asFloat(float def = 0.0f) const { return type == GlbJsonType::Number ? static_cast<float>(num) : def; }
+            bool isNull() const { return type == GlbJsonType::Null; }
+        };
+
+        GlbJsonVal parseGlbJsonVal(const std::string& s, size_t& i) {
+            auto skip = [&]() {
+                while (i < s.size() && (s[i] == ' ' || s[i] == '\t' || s[i] == '\r' || s[i] == '\n' || s[i] == ',' || s[i] == ':')) i++;
+            };
+            skip();
+            if (i >= s.size()) return {};
+            if (s[i] == '\"') {
+                i++;
+                std::string val;
+                while (i < s.size() && s[i] != '\"') {
+                    if (s[i] == '\\' && i + 1 < s.size()) i++;
+                    val += s[i++];
+                }
+                if (i < s.size()) i++;
+                GlbJsonVal j; j.type = GlbJsonType::String; j.str = std::move(val);
+                return j;
+            }
+            if (s[i] == '{') {
+                i++;
+                GlbJsonVal j; j.type = GlbJsonType::Object;
+                while (i < s.size()) {
+                    skip();
+                    if (i < s.size() && s[i] == '}') { i++; break; }
+                    if (i < s.size() && s[i] == '\"') {
+                        GlbJsonVal key = parseGlbJsonVal(s, i);
+                        skip();
+                        GlbJsonVal val = parseGlbJsonVal(s, i);
+                        j.obj[key.str] = std::move(val);
+                    } else { i++; }
+                }
+                return j;
+            }
+            if (s[i] == '[') {
+                i++;
+                GlbJsonVal j; j.type = GlbJsonType::Array;
+                while (i < s.size()) {
+                    skip();
+                    if (i < s.size() && s[i] == ']') { i++; break; }
+                    j.arr.push_back(parseGlbJsonVal(s, i));
+                }
+                return j;
+            }
+            if (s[i] == 't' || s[i] == 'f' || s[i] == 'n') {
+                std::string token;
+                while (i < s.size() && isalpha(static_cast<unsigned char>(s[i]))) token += s[i++];
+                GlbJsonVal j;
+                if (token == "true") { j.type = GlbJsonType::Bool; j.num = 1.0; }
+                else if (token == "false") { j.type = GlbJsonType::Bool; j.num = 0.0; }
+                return j;
+            }
+            char* endPtr = nullptr;
+            double num = std::strtod(&s[i], &endPtr);
+            if (endPtr > &s[i]) {
+                i = static_cast<size_t>(endPtr - &s[0]);
+                GlbJsonVal j; j.type = GlbJsonType::Number; j.num = num;
+                return j;
+            }
+            i++;
+            return {};
+        }
+    } // anonymous namespace
+
+    Mesh* Mesh::loadGLB(const std::string& path) {
+        static std::unordered_set<std::string> s_missingGLB;
+        if (s_missingGLB.contains(path)) return nullptr;
+
+        std::string resolved = resolveAssetPath(path);
+        std::ifstream file(resolved, std::ios::binary | std::ios::ate);
+        if (!file.is_open()) {
+            s_missingGLB.insert(path);
+            return nullptr;
+        }
+
+        std::streamsize fileSize = file.tellg();
+        if (fileSize < 20) {
+            s_missingGLB.insert(path);
+            return nullptr;
+        }
+        file.seekg(0);
+
+        uint32_t header[3]{0, 0, 0};
+        if (!file.read(reinterpret_cast<char*>(header), 12)) return nullptr;
+        // magic = 0x46546C67 ("glTF"), version = 2
+        if (header[0] != 0x46546C67 || header[1] != 2) {
+            s_missingGLB.insert(path);
+            return nullptr;
+        }
+
+        // Chunk 0: JSON
+        uint32_t c0Hdr[2]{0, 0};
+        if (!file.read(reinterpret_cast<char*>(c0Hdr), 8)) return nullptr;
+        if (c0Hdr[1] != 0x4E4F534A) { // "JSON"
+            s_missingGLB.insert(path);
+            return nullptr;
+        }
+        std::string jsonStr(c0Hdr[0], '\0');
+        if (!file.read(jsonStr.data(), c0Hdr[0])) return nullptr;
+
+        // Chunk 1: BIN
+        std::vector<uint8_t> binData;
+        if (file.tellg() < fileSize) {
+            uint32_t c1Hdr[2]{0, 0};
+            if (file.read(reinterpret_cast<char*>(c1Hdr), 8)) {
+                if (c1Hdr[1] == 0x004E4942) { // "BIN\0"
+                    binData.resize(c1Hdr[0]);
+                    file.read(reinterpret_cast<char*>(binData.data()), c1Hdr[0]);
+                }
+            }
+        }
+
+        size_t jsonIdx = 0;
+        GlbJsonVal root = parseGlbJsonVal(jsonStr, jsonIdx);
+        if (root.type != GlbJsonType::Object) {
+            s_missingGLB.insert(path);
+            return nullptr;
+        }
+
+        const auto& accessors = root["accessors"];
+        const auto& bufferViews = root["bufferViews"];
+        const auto& meshes = root["meshes"];
+        const auto& nodes = root["nodes"];
+        if (meshes.arr.empty() || accessors.arr.empty() || bufferViews.arr.empty() || binData.empty()) {
+            s_missingGLB.insert(path);
+            return nullptr;
+        }
+
+        struct AccessorDesc {
+            int bufferView{-1};
+            size_t byteOffset{0};
+            int componentType{0};
+            size_t count{0};
+            std::string type;
+        };
+        std::vector<AccessorDesc> accList;
+        accList.reserve(accessors.arr.size());
+        for (const auto& a : accessors.arr) {
+            AccessorDesc d;
+            d.bufferView = a["bufferView"].asInt(-1);
+            d.byteOffset = static_cast<size_t>(a["byteOffset"].asInt(0));
+            d.componentType = a["componentType"].asInt(0);
+            d.count = static_cast<size_t>(a["count"].asInt(0));
+            d.type = a["type"].str;
+            accList.push_back(d);
+        }
+
+        struct BufferViewDesc {
+            size_t byteOffset{0};
+            size_t byteLength{0};
+            size_t byteStride{0};
+        };
+        std::vector<BufferViewDesc> bvList;
+        bvList.reserve(bufferViews.arr.size());
+        for (const auto& bv : bufferViews.arr) {
+            BufferViewDesc d;
+            d.byteOffset = static_cast<size_t>(bv["byteOffset"].asInt(0));
+            d.byteLength = static_cast<size_t>(bv["byteLength"].asInt(0));
+            d.byteStride = static_cast<size_t>(bv["byteStride"].asInt(0));
+            bvList.push_back(d);
+        }
+
+        std::vector<Vertex> vertices;
+        std::vector<unsigned int> indices;
+
+        auto extractMeshGeometry = [&](int meshIdx, const Mat4& transform) {
+            if (meshIdx < 0 || meshIdx >= static_cast<int>(meshes.arr.size())) return;
+            const auto& meshObj = meshes.arr[static_cast<size_t>(meshIdx)];
+            const auto& prims = meshObj["primitives"];
+            for (const auto& prim : prims.arr) {
+                const auto& attrs = prim["attributes"];
+                int posAccIdx = attrs["POSITION"].asInt(-1);
+                if (posAccIdx < 0 || posAccIdx >= static_cast<int>(accList.size())) continue;
+                const auto& posAcc = accList[static_cast<size_t>(posAccIdx)];
+                if (posAcc.bufferView < 0 || posAcc.bufferView >= static_cast<int>(bvList.size())) continue;
+                const auto& posBv = bvList[static_cast<size_t>(posAcc.bufferView)];
+
+                int normAccIdx = attrs["NORMAL"].asInt(-1);
+                int uvAccIdx = attrs["TEXCOORD_0"].asInt(-1);
+                int indAccIdx = prim["indices"].asInt(-1);
+
+                const AccessorDesc* normAcc = (normAccIdx >= 0 && normAccIdx < static_cast<int>(accList.size())) ? &accList[static_cast<size_t>(normAccIdx)] : nullptr;
+                const AccessorDesc* uvAcc = (uvAccIdx >= 0 && uvAccIdx < static_cast<int>(accList.size())) ? &accList[static_cast<size_t>(uvAccIdx)] : nullptr;
+                const BufferViewDesc* normBv = (normAcc && normAcc->bufferView >= 0 && normAcc->bufferView < static_cast<int>(bvList.size())) ? &bvList[static_cast<size_t>(normAcc->bufferView)] : nullptr;
+                const BufferViewDesc* uvBv = (uvAcc && uvAcc->bufferView >= 0 && uvAcc->bufferView < static_cast<int>(bvList.size())) ? &bvList[static_cast<size_t>(uvAcc->bufferView)] : nullptr;
+
+                size_t vertCount = posAcc.count;
+                size_t baseVertIndex = vertices.size();
+                size_t posStride = posBv.byteStride ? posBv.byteStride : 12;
+                size_t normStride = (normBv && normBv->byteStride) ? normBv->byteStride : 12;
+                size_t uvStride = (uvBv && uvBv->byteStride) ? uvBv->byteStride : 8;
+
+                for (size_t v = 0; v < vertCount; ++v) {
+                    size_t posByte = posBv.byteOffset + posAcc.byteOffset + v * posStride;
+                    Vec3 pos(0, 0, 0);
+                    if (posByte + 12 <= binData.size()) {
+                        const float* f = reinterpret_cast<const float*>(&binData[posByte]);
+                        pos = Vec3(f[0], f[1], f[2]);
+                    }
+                    pos = Mat4::transformPoint(transform, pos);
+
+                    Vec3 norm(0, 1, 0);
+                    if (normAcc && normBv) {
+                        size_t normByte = normBv->byteOffset + normAcc->byteOffset + v * normStride;
+                        if (normByte + 12 <= binData.size()) {
+                            const float* f = reinterpret_cast<const float*>(&binData[normByte]);
+                            norm = Vec3(f[0], f[1], f[2]);
+                        }
+                        norm = Mat4::transformVector(transform, norm).normalized();
+                    }
+
+                    Vec2 uv(0, 0);
+                    if (uvAcc && uvBv) {
+                        size_t uvByte = uvBv->byteOffset + uvAcc->byteOffset + v * uvStride;
+                        if (uvByte + 8 <= binData.size()) {
+                            const float* f = reinterpret_cast<const float*>(&binData[uvByte]);
+                            uv = Vec2(f[0], f[1]);
+                        }
+                    }
+
+                    vertices.push_back(Vertex(pos, norm, uv, Vec3(1, 1, 1)));
+                }
+
+                if (indAccIdx >= 0 && indAccIdx < static_cast<int>(accList.size())) {
+                    const auto& indAcc = accList[static_cast<size_t>(indAccIdx)];
+                    if (indAcc.bufferView >= 0 && indAcc.bufferView < static_cast<int>(bvList.size())) {
+                        const auto& indBv = bvList[static_cast<size_t>(indAcc.bufferView)];
+                        size_t indOffset = indBv.byteOffset + indAcc.byteOffset;
+                        for (size_t k = 0; k < indAcc.count; ++k) {
+                            unsigned int idx = 0;
+                            if (indAcc.componentType == 5123) { // GL_UNSIGNED_SHORT
+                                size_t b = indOffset + k * 2;
+                                if (b + 2 <= binData.size()) {
+                                    idx = *reinterpret_cast<const uint16_t*>(&binData[b]);
+                                }
+                            } else if (indAcc.componentType == 5125) { // GL_UNSIGNED_INT
+                                size_t b = indOffset + k * 4;
+                                if (b + 4 <= binData.size()) {
+                                    idx = *reinterpret_cast<const uint32_t*>(&binData[b]);
+                                }
+                            } else if (indAcc.componentType == 5121) { // GL_UNSIGNED_BYTE
+                                size_t b = indOffset + k;
+                                if (b + 1 <= binData.size()) {
+                                    idx = *reinterpret_cast<const uint8_t*>(&binData[b]);
+                                }
+                            }
+                            indices.push_back(static_cast<unsigned int>(baseVertIndex + idx));
+                        }
+                    }
+                } else {
+                    for (size_t k = 0; k < vertCount; ++k) {
+                        indices.push_back(static_cast<unsigned int>(baseVertIndex + k));
+                    }
+                }
+            }
+        };
+
+        struct NodeInfo {
+            int mesh{-1};
+            Mat4 localMat;
+            std::vector<int> children;
+        };
+        std::vector<NodeInfo> nodeList;
+        nodeList.reserve(nodes.arr.size());
+        std::vector<bool> isChild(nodes.arr.size(), false);
+
+        for (const auto& nd : nodes.arr) {
+            NodeInfo ni;
+            ni.mesh = nd["mesh"].asInt(-1);
+            if (nd.contains("matrix") && nd["matrix"].arr.size() == 16) {
+                for (int mIdx = 0; mIdx < 16; ++mIdx) {
+                    ni.localMat.m[mIdx] = nd["matrix"].arr[static_cast<size_t>(mIdx)].asFloat(0.0f);
+                }
+            } else {
+                Vec3 t(0, 0, 0);
+                if (nd.contains("translation") && nd["translation"].arr.size() == 3) {
+                    t.x = nd["translation"].arr[0].asFloat(0.0f);
+                    t.y = nd["translation"].arr[1].asFloat(0.0f);
+                    t.z = nd["translation"].arr[2].asFloat(0.0f);
+                }
+                Quat r = Quat::identity();
+                if (nd.contains("rotation") && nd["rotation"].arr.size() == 4) {
+                    r.x = nd["rotation"].arr[0].asFloat(0.0f);
+                    r.y = nd["rotation"].arr[1].asFloat(0.0f);
+                    r.z = nd["rotation"].arr[2].asFloat(0.0f);
+                    r.w = nd["rotation"].arr[3].asFloat(1.0f);
+                }
+                Vec3 s(1, 1, 1);
+                if (nd.contains("scale") && nd["scale"].arr.size() == 3) {
+                    s.x = nd["scale"].arr[0].asFloat(1.0f);
+                    s.y = nd["scale"].arr[1].asFloat(1.0f);
+                    s.z = nd["scale"].arr[2].asFloat(1.0f);
+                }
+                ni.localMat = Mat4::translate(t) * r.toMat4() * Mat4::scale(s);
+            }
+            if (nd.contains("children")) {
+                for (const auto& ch : nd["children"].arr) {
+                    int cIdx = ch.asInt(-1);
+                    if (cIdx >= 0) {
+                        ni.children.push_back(cIdx);
+                        if (static_cast<size_t>(cIdx) < isChild.size()) isChild[static_cast<size_t>(cIdx)] = true;
+                    }
+                }
+            }
+            nodeList.push_back(ni);
+        }
+
+        std::vector<bool> visitedMeshes(meshes.arr.size(), false);
+        auto traverseNode = [&](auto& self, int nodeIdx, const Mat4& parentMat) -> void {
+            if (nodeIdx < 0 || nodeIdx >= static_cast<int>(nodeList.size())) return;
+            const auto& nd = nodeList[static_cast<size_t>(nodeIdx)];
+            Mat4 curMat = parentMat * nd.localMat;
+            if (nd.mesh >= 0 && nd.mesh < static_cast<int>(meshes.arr.size())) {
+                extractMeshGeometry(nd.mesh, curMat);
+                visitedMeshes[static_cast<size_t>(nd.mesh)] = true;
+            }
+            for (int childIdx : nd.children) {
+                self(self, childIdx, curMat);
+            }
+        };
+
+        if (!nodeList.empty()) {
+            for (size_t n = 0; n < nodeList.size(); ++n) {
+                if (!isChild[n]) {
+                    traverseNode(traverseNode, static_cast<int>(n), Mat4());
+                }
+            }
+        }
+        // Fallback for any meshes not referenced in nodes
+        for (size_t m = 0; m < meshes.arr.size(); ++m) {
+            if (!visitedMeshes[m]) {
+                extractMeshGeometry(static_cast<int>(m), Mat4());
+            }
+        }
+
+        if (vertices.empty()) {
+            s_missingGLB.insert(path);
+            return nullptr;
+        }
+
+        return new Mesh(vertices, indices);
+    }
+
     void Mesh::draw() const {
         glBindVertexArray(_vao);
         glDrawElements(GL_TRIANGLES, _indexCount, GL_UNSIGNED_INT, 0);
@@ -1495,6 +1924,10 @@ namespace Lab {
     Mat4 Renderer::_lightSpaceMatrix;
     unsigned int Renderer::_shadowDepthTexture = 0;
 
+    bool Renderer::_enableLightmap = false;
+    unsigned int Renderer::_lightmapTexture = 0;
+    Vec4 Renderer::_lightmapBounds = { -20.0f, -20.0f, 40.0f, 40.0f };
+
     bool Renderer::_enableFog = true;
     Vec3 Renderer::_fogColor = { 0.05f, 0.07f, 0.10f };
     float Renderer::_fogStart = 12.0f;
@@ -1511,6 +1944,9 @@ namespace Lab {
         shader->setVec3("ambientColor", Renderer::_ambientColor);
         shader->setFloat("uAlpha", 1.0f);
         shader->setFloat("uEnvReflectionStrength", 0.38f);
+        shader->setInt("uEnableEyeShader", 0);
+        shader->setInt("uEnableWaterShader", 0);
+        shader->setFloat("uWaterTime", 0.0f);
 
         shader->setMat4("lightSpaceMatrix", Renderer::_lightSpaceMatrix);
         shader->setInt("enableShadows", Renderer::_enableShadows ? 1 : 0);
@@ -1537,6 +1973,14 @@ namespace Lab {
         if (Renderer::_enableShadows && Renderer::_shadowDepthTexture) {
             glBindTextureUnit(1, Renderer::_shadowDepthTexture);
             shader->setInt("shadowMap", 1);
+        }
+
+        // Static Baked Lightmaps (Texture Slot 3)
+        shader->setInt("uUseLightMap", (Renderer::_enableLightmap && Renderer::_lightmapTexture != 0) ? 1 : 0);
+        shader->setVec4("uLightmapBounds", Renderer::_lightmapBounds);
+        if (Renderer::_enableLightmap && Renderer::_lightmapTexture != 0) {
+            glBindTextureUnit(3, Renderer::_lightmapTexture);
+            shader->setInt("lightMap", 3);
         }
 
         // Dynamic Point Lights upload (pre-formatted uniform names to avoid heap allocations per draw call)
@@ -1868,6 +2312,34 @@ namespace Lab {
     void Renderer::disableShadowMap() {
         _enableShadows = false;
         _shadowDepthTexture = 0;
+    }
+
+    void Renderer::setLightmap(const BakedLightmap* lightmap, const Vec4& bounds) {
+        if (lightmap && lightmap->getTextureId() != 0) {
+            _enableLightmap = true;
+            _lightmapTexture = lightmap->getTextureId();
+            _lightmapBounds = bounds;
+        } else {
+            _enableLightmap = false;
+            _lightmapTexture = 0;
+        }
+    }
+
+    void Renderer::disableLightmap() {
+        _enableLightmap = false;
+        _lightmapTexture = 0;
+    }
+
+    bool Renderer::isLightmapEnabled() {
+        return _enableLightmap;
+    }
+
+    unsigned int Renderer::getLightmapTexture() {
+        return _lightmapTexture;
+    }
+
+    Vec4 Renderer::getLightmapBounds() {
+        return _lightmapBounds;
     }
 
     void Renderer::setPointLights(const std::vector<PointLight>& lights) {
@@ -2381,6 +2853,7 @@ namespace Lab {
         _defaultShader->setVec3("objectColor", color);
         _defaultShader->setInt("enableLighting", enableLighting ? 1 : 0);
         applyLightingAndShadowUniforms(_defaultShader);
+        _defaultShader->setInt("uEnableEyeShader", 1);
         bindMaterialTextures(_defaultShader, texture);
 
         recordDraw(static_cast<uint32_t>(mesh.getIndexCount()));
@@ -2388,9 +2861,38 @@ namespace Lab {
         mesh.draw();
         glEnable(GL_CULL_FACE);
 
+        _defaultShader->setInt("uEnableEyeShader", 0);
         if (texture && texture->getId() != 0) {
             texture->unbind();
         }
+    }
+
+    void Renderer::drawWaterVolume(const Vec3& position, const Vec3& size, float timeSeconds, const Vec3& waterColor) {
+        if (!_cubeMesh) return;
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        _defaultShader->use();
+        _defaultShader->setMat4("projection", _projMatrix);
+        _defaultShader->setMat4("view", _viewMatrix);
+        _defaultShader->setMat4("model", getTransform(position, { 0.0f, 0.0f, 0.0f }, size));
+        _defaultShader->setVec3("brushSize", size);
+        _defaultShader->setVec2("uvTiling", { 0.25f, 0.25f });
+        _defaultShader->setInt("uvMode", 1);
+        _defaultShader->setInt("uUseSkinning", 0);
+        _defaultShader->setVec3("objectColor", waterColor);
+        _defaultShader->setInt("enableLighting", 1);
+        applyLightingAndShadowUniforms(_defaultShader);
+        _defaultShader->setInt("uEnableWaterShader", 1);
+        _defaultShader->setFloat("uWaterTime", timeSeconds);
+        _defaultShader->setInt("useTexture", 0);
+        _defaultShader->setInt("uUseNormalMap", 0);
+
+        recordDraw(36);
+        _cubeMesh->draw();
+
+        _defaultShader->setInt("uEnableWaterShader", 0);
+        glDisable(GL_BLEND);
     }
 
     void Renderer::drawBaseplate(float size, const Texture* texture) {

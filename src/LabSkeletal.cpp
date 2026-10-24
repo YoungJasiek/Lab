@@ -141,6 +141,8 @@ namespace Lab {
             if (p != std::string::npos) s.erase(p, 10);
             p = s.find("mixamorig_");
             if (p != std::string::npos) s.erase(p, 10);
+            p = s.find("ValveBiped.Bip01_");
+            if (p != std::string::npos) s.erase(p, 17);
 
             // Strip Cinema 4D joint index suffix ONLY: e.g. "_01", "_02", "_012", "_024"
             // That is, an underscore followed by digits at the very end of the string.
@@ -161,6 +163,37 @@ namespace Lab {
         std::string target = cleanName(name);
         for (const auto& pair : _nameToIndex) {
             if (cleanName(pair.first) == target) {
+                return pair.second;
+            }
+        }
+
+        // Cross-standard humanoid 3D rig alias mapping (Mixamo / glTF / ValveBiped / Unreal / Lab)
+        auto canonicalAlias = [](const std::string& s) -> std::string {
+            if (s == "Root" || s == "Hips" || s == "Pelvis") return "Hips";
+            if (s == "Spine") return "Spine";
+            if (s == "Chest" || s == "Spine1" || s == "Spine2") return "Chest";
+            if (s == "Neck" || s == "Neck1") return "Neck";
+            if (s == "Head" || s == "Head1") return "Head";
+            if (s == "Shoulder_L" || s == "LeftShoulder" || s == "Clavicle_L" || s == "L_Clavicle") return "LeftShoulder";
+            if (s == "Arm_L" || s == "LeftArm" || s == "UpperArm_L" || s == "L_UpperArm") return "LeftArm";
+            if (s == "Forearm_L" || s == "LeftForeArm" || s == "LowerArm_L" || s == "L_Forearm") return "LeftForeArm";
+            if (s == "Hand_L" || s == "LeftHand" || s == "L_Hand") return "LeftHand";
+            if (s == "Shoulder_R" || s == "RightShoulder" || s == "Clavicle_R" || s == "R_Clavicle") return "RightShoulder";
+            if (s == "Arm_R" || s == "RightArm" || s == "UpperArm_R" || s == "R_UpperArm") return "RightArm";
+            if (s == "Forearm_R" || s == "RightForeArm" || s == "LowerArm_R" || s == "R_Forearm") return "RightForeArm";
+            if (s == "Hand_R" || s == "RightHand" || s == "R_Hand") return "RightHand";
+            if (s == "Thigh_L" || s == "LeftUpLeg" || s == "UpperLeg_L" || s == "L_Thigh") return "LeftUpLeg";
+            if (s == "Shin_L" || s == "LeftLeg" || s == "Calf_L" || s == "L_Calf") return "LeftLeg";
+            if (s == "Foot_L" || s == "LeftFoot" || s == "L_Foot") return "LeftFoot";
+            if (s == "Thigh_R" || s == "RightUpLeg" || s == "UpperLeg_R" || s == "R_Thigh") return "RightUpLeg";
+            if (s == "Shin_R" || s == "RightLeg" || s == "Calf_R" || s == "R_Calf") return "RightLeg";
+            if (s == "Foot_R" || s == "RightFoot" || s == "R_Foot") return "RightFoot";
+            return s;
+        };
+
+        std::string canonicalTarget = canonicalAlias(target);
+        for (const auto& pair : _nameToIndex) {
+            if (canonicalAlias(cleanName(pair.first)) == canonicalTarget) {
                 return pair.second;
             }
         }
@@ -573,6 +606,13 @@ namespace Lab {
         _skeleton->evaluate(curTransforms, _globalTransforms, _skinMatrices);
     }
 
+    void Animator::setCurrentTime(float t) {
+        _currentTime = t;
+        _previousClipName.clear();
+        _blendDuration = 0.0f;
+        update(0.0f);
+    }
+
     float Animator::getProgress() const {
         const AnimationClip* clip = getClip(_currentClipName);
         if (clip && clip->duration > 0.0f) {
@@ -599,46 +639,50 @@ namespace Lab {
             unsigned int bIDs[4] = { bone0, bone1, 0, 0 };
             float bWeights[4] = { weight0, weight1, 0.0f, 0.0f };
 
-            // 6 faces * 4 vertices = 24 vertices
-            static const Vec3 normals[6] = {
-                {  0,  0,  1 }, {  0,  0, -1 },
-                { -1,  0,  0 }, {  1,  0,  0 },
-                {  0,  1,  0 }, {  0, -1,  0 }
-            };
+            // Generate smooth 12-segment anatomical ellipsoid/capsule limb instead of rectangular box
+            const int rings = 6;
+            const int sectors = 12;
+            unsigned int baseVert = static_cast<unsigned int>(verts.size());
 
-            static const float faceVerts[6][4][3] = {
-                // Front (+Z)
-                { { -1, -1,  1 }, {  1, -1,  1 }, {  1,  1,  1 }, { -1,  1,  1 } },
-                // Back (-Z)
-                { {  1, -1, -1 }, { -1, -1, -1 }, { -1,  1, -1 }, {  1,  1, -1 } },
-                // Left (-X)
-                { { -1, -1, -1 }, { -1, -1,  1 }, { -1,  1,  1 }, { -1,  1, -1 } },
-                // Right (+X)
-                { {  1, -1,  1 }, {  1, -1, -1 }, {  1,  1, -1 }, {  1,  1,  1 } },
-                // Top (+Y)
-                { { -1,  1,  1 }, {  1,  1,  1 }, {  1,  1, -1 }, { -1,  1, -1 } },
-                // Bottom (-Y)
-                { { -1, -1, -1 }, {  1, -1, -1 }, {  1, -1,  1 }, { -1, -1,  1 } }
-            };
+            for (int r = 0; r <= rings; ++r) {
+                float v = static_cast<float>(r) / static_cast<float>(rings);
+                float phi = (v - 0.5f) * 3.14159265f;
+                float cosPhi = std::cos(phi);
+                float sinPhi = std::sin(phi);
 
-            static const Vec2 uvs[4] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } };
+                for (int s = 0; s <= sectors; ++s) {
+                    float u = static_cast<float>(s) / static_cast<float>(sectors);
+                    float theta = u * 2.0f * 3.14159265f;
+                    float cosTheta = std::cos(theta);
+                    float sinTheta = std::sin(theta);
 
-            for (int f = 0; f < 6; ++f) {
-                unsigned int fStart = static_cast<unsigned int>(verts.size());
-                for (int v = 0; v < 4; ++v) {
+                    Vec3 unitDir = { cosPhi * cosTheta, sinPhi, cosPhi * sinTheta };
                     Vec3 pos = {
-                        center.x + faceVerts[f][v][0] * halfSize.x,
-                        center.y + faceVerts[f][v][1] * halfSize.y,
-                        center.z + faceVerts[f][v][2] * halfSize.z
+                        center.x + unitDir.x * halfSize.x,
+                        center.y + unitDir.y * halfSize.y,
+                        center.z + unitDir.z * halfSize.z
                     };
-                    verts.emplace_back(pos, normals[f], uvs[v], color, bIDs, bWeights);
+                    Vec3 norm = {
+                        unitDir.x / (std::max)(0.001f, halfSize.x),
+                        unitDir.y / (std::max)(0.001f, halfSize.y),
+                        unitDir.z / (std::max)(0.001f, halfSize.z)
+                    };
+                    verts.emplace_back(pos, norm.normalized(), Vec2{ u, v }, color, bIDs, bWeights);
                 }
-                idxs.push_back(fStart + 0);
-                idxs.push_back(fStart + 1);
-                idxs.push_back(fStart + 2);
-                idxs.push_back(fStart + 0);
-                idxs.push_back(fStart + 2);
-                idxs.push_back(fStart + 3);
+            }
+
+            for (int r = 0; r < rings; ++r) {
+                for (int s = 0; s < sectors; ++s) {
+                    unsigned int cur = baseVert + r * (sectors + 1) + s;
+                    unsigned int next = cur + (sectors + 1);
+                    idxs.push_back(cur);
+                    idxs.push_back(next);
+                    idxs.push_back(cur + 1);
+
+                    idxs.push_back(cur + 1);
+                    idxs.push_back(next);
+                    idxs.push_back(next + 1);
+                }
             }
         }
     }

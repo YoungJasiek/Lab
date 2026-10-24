@@ -167,6 +167,7 @@ namespace Lab {
 
         void playAnimation(const std::string& name, bool loop = true, float blendDuration = 0.15f);
         void update(float dt);
+        void setCurrentTime(float t);
 
         const std::vector<Mat4>& getSkinMatrices() const { return _skinMatrices; }
         const std::vector<Mat4>& getGlobalTransforms() const { return _globalTransforms; }

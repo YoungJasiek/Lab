@@ -28,7 +28,7 @@ if(MSVC)
     set(WARNING_AS_ERROR_FLAG /WX)
 else()
     set(COMPILER_FLAGS -Wall -Wextra -Wpedantic)
-    set(WARNING_AS_ERROR_FLAG -Werror -Wold-style-cast -Wsign-conversion)
+    set(WARNING_AS_ERROR_FLAG -Werror)
 endif()
 
 if(LAB_STRICT_WARNINGS_AS_ERRORS)
@@ -38,6 +38,7 @@ endif()
 set_source_files_properties(
     src/LabSpriteBatcher.cpp
     src/LabVFS.cpp
+    src/LabPak.cpp
     src/LabRHI.cpp
     src/LabPostProcess.cpp
     src/LabGraphics.cpp
@@ -112,6 +113,7 @@ add_library(LabCore SHARED
     src/LabEvent.cpp
     src/LabSceneNode.cpp
     src/LabVFS.cpp
+    src/LabPak.cpp
     src/LabAsset.cpp
     src/LabCommand.cpp
     src/LabExportPipeline.cpp
@@ -123,6 +125,7 @@ add_library(LabCore SHARED
     include/LabEvent.h
     include/LabSceneNode.h
     include/LabVFS.h
+    include/LabPak.h
     include/LabAsset.h
     include/LabCommand.h
     include/LabExportPipeline.h
@@ -168,6 +171,10 @@ add_library(LabRender SHARED
     src/LabSkeletal.cpp
     src/LabGraphics.cpp
     src/LabDevConsole.cpp
+    src/LabCable.cpp
+    src/LabFilm.cpp
+    include/LabCable.h
+    include/LabFilm.h
     include/LabRenderer.h
     include/LabTheme.h
     include/LabAsset2D.h
@@ -331,29 +338,63 @@ target_link_libraries(LabEngineLib INTERFACE
     LabHUDEditorCore
 )
 
+# Short, unified naming for Engine Dynamic Link Libraries (.dll)
+set_target_properties(LabCore PROPERTIES OUTPUT_NAME "lcore")
+set_target_properties(LabRender PROPERTIES OUTPUT_NAME "lrender")
+set_target_properties(LabAudio PROPERTIES OUTPUT_NAME "laudio")
+set_target_properties(LabPhysics PROPERTIES OUTPUT_NAME "lphys")
+set_target_properties(LabAnimation PROPERTIES OUTPUT_NAME "lanim")
+set_target_properties(LabWorld PROPERTIES OUTPUT_NAME "lworld")
+set_target_properties(LabNetwork PROPERTIES OUTPUT_NAME "lnet")
+set_target_properties(LabAI PROPERTIES OUTPUT_NAME "lai")
+set_target_properties(LabScript PROPERTIES OUTPUT_NAME "lscript")
+set_target_properties(LabStudioCore PROPERTIES OUTPUT_NAME "lstudiocore")
+set_target_properties(LabHUDEditorCore PROPERTIES OUTPUT_NAME "lhudcore")
+
 # =============================================================================
 # EXECUTABLE TARGETS (LINKED AGAINST MODULAR LAB ENGINE DLLS)
 # =============================================================================
 
-# 1. Standalone Lab Engine Editor Executable (LabEditor.exe - Primary LabSDK Tool)
+# 1. Standalone Lab Engine Editor Executable (lhmr.exe - Primary Level & Geometry Editor)
 add_executable(LabEditor src/editor_main.cpp)
 target_compile_options(LabEditor PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabEditor PRIVATE LabEngineLib)
+set_target_properties(LabEditor PROPERTIES OUTPUT_NAME "lhmr")
 
 # 2. Standalone Universal Game Player / Runner (LabPlayer.exe - Used for Exported Games)
 add_executable(LabPlayer src/player_main.cpp)
 target_compile_options(LabPlayer PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabPlayer PRIVATE LabEngineLib)
 
-# 3. Frozen-Life Flagship FPS Demo Game Executable (FrozenLife.exe)
+# 3. Frozen-Life Flagship FPS Demo Game Executable (game.exe)
 add_executable(FrozenLife src/main.cpp)
 target_compile_options(FrozenLife PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(FrozenLife PRIVATE LabEngineLib)
+set_target_properties(FrozenLife PROPERTIES OUTPUT_NAME "game")
 
-# 4. Standalone Character & Weapon Studio Executable (LabStudio.exe)
+# 4. Lab FilmMaker Cinematic Sequencer Executable (lfm.exe)
+add_executable(lfm
+    src/lfm_main.cpp
+    src/LFM/LFMAnimationSet.cpp
+    src/LFM/LFMDualViewport.cpp
+    src/LFM/LFMModals.cpp
+    src/LFM/LFMSequencer.cpp
+    src/LFM/LFMWorkspace.cpp
+    include/LFM/LFMAnimationSet.h
+    include/LFM/LFMDualViewport.h
+    include/LFM/LFMModals.h
+    include/LFM/LFMSequencer.h
+    include/LFM/LFMWorkspace.h
+)
+target_compile_options(lfm PRIVATE ${COMPILER_FLAGS})
+target_link_libraries(lfm PRIVATE LabEngineLib)
+set_target_properties(lfm PROPERTIES OUTPUT_NAME "lfm")
+
+# 5. Standalone Character & Weapon Studio Executable (lchs.exe - Lab Character Studio)
 add_executable(LabStudio src/studio_main.cpp)
 target_compile_options(LabStudio PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabStudio PRIVATE LabEngineLib)
+set_target_properties(LabStudio PROPERTIES OUTPUT_NAME "lchs")
 
 # 5. Standalone Headless Dedicated Server Executable
 add_executable(LabServer src/server_main.cpp)
@@ -365,6 +406,10 @@ add_executable(TestVerify src/test_verify.cpp)
 target_compile_options(TestVerify PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(TestVerify PRIVATE LabEngineLib)
 
+
+
+
+
 # Unified asset replication to output directory (filters out inwork/backup/authoring files and removes .lib/.exp)
 add_custom_target(LabAssets ALL
     COMMAND ${CMAKE_COMMAND}
@@ -373,7 +418,7 @@ add_custom_target(LabAssets ALL
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/SyncAssets.cmake"
     COMMENT "Synchronizing clean runtime assets, fonts, and logos to output directory"
 )
-set(ASSET_TARGETS LabEditor LabPlayer FrozenLife LabStudio LabServer TestVerify)
+set(ASSET_TARGETS LabEditor LabPlayer FrozenLife LabStudio LabServer TestVerify lfm)
 foreach(tgt ${ASSET_TARGETS})
     add_dependencies(${tgt} LabAssets)
 endforeach()

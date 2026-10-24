@@ -15,6 +15,8 @@
 #include <algorithm>
 #include <iomanip>
 #include <cctype>
+#include <cstring>
+#include <charconv>
 
 namespace Lab {
 
@@ -29,6 +31,7 @@ namespace Lab {
         isOpen = true;
         _cursorBlink = 0.0f;
         isDragging = false;
+        isResizing = false;
         updateAutocomplete();
     }
 
@@ -38,6 +41,7 @@ namespace Lab {
         _cursorPos = 0;
         _historyIndex = -1;
         isDragging = false;
+        isResizing = false;
         _activeSuggestions.clear();
         _selectedSuggestion = -1;
     }
@@ -160,8 +164,51 @@ namespace Lab {
             "mp_a_bots", "mp_b_bots", "mp_bot_kick_all", "mp_bot_freeze", "mp_restart", "mp_friendly_fire",
             "net_status", "net_fake_lag", "net_fake_loss", "net_connect", "net_disconnect",
             "sys_copylog", "sys_clear", "sys_help", "sys_bind", "sys_quit",
+            "save", "save_async", "save_asyncdelay", "save_console", "save_disable", "save_finish_async", "save_history_count", "save_huddelayframes", "save_in_memory", "save_noxsave",
+            "map", "restart", "disconnect", "connect", "status", "version", "ping", "sv_cheats",
             "god", "noclip", "bhop", "clear", "copylog", "condump", "help", "quit", "exit"
         };
+    }
+
+    std::string LabDevConsole::getCvarValue(const std::string& cmd) const {
+        if (cmd == "sp_cheats" || cmd == "sv_cheats") return sp_cheats ? "1" : "0";
+        if (cmd == "sp_god" || cmd == "god") return sp_god ? "1" : "0";
+        if (cmd == "sp_noclip" || cmd == "noclip") return sp_noclip ? "1" : "0";
+        if (cmd == "sp_bhop" || cmd == "bhop") return sp_bhop ? "1" : "0";
+        if (cmd == "sp_speed") return std::to_string((int)sp_speed);
+        if (cmd == "sp_jump") return std::to_string((int)sp_jump);
+        if (cmd == "cam_fov") return std::to_string((int)cam_fov);
+        if (cmd == "cam_viewmodel_fov") return std::to_string((int)cam_viewmodel_fov);
+        if (cmd == "cam_thirdperson") return cam_thirdperson ? "1" : "0";
+        if (cmd == "cam_bob") return cam_bob ? "1" : "0";
+        if (cmd == "r_bloom") return r_bloom ? "1" : "0";
+        if (cmd == "r_fxaa") return r_fxaa ? "1" : "0";
+        if (cmd == "r_vsync") return r_vsync ? "1" : "0";
+        if (cmd == "r_shadows") return r_shadows ? "1" : "0";
+        if (cmd == "r_shadow_res") return std::to_string(r_shadow_res);
+        if (cmd == "wrd_wireframe") return wrd_wireframe ? "1" : "0";
+        if (cmd == "wrd_fog") return wrd_fog ? "1" : "0";
+        if (cmd == "wrd_timescale") return std::to_string((int)wrd_timescale);
+        if (cmd == "phys_gravity") return std::to_string((int)phys_gravity);
+        if (cmd == "phys_friction") return std::to_string((int)phys_friction);
+        if (cmd == "phys_air_accel") return std::to_string((int)phys_air_accel);
+        if (cmd == "phys_bhop_window") return "0.08";
+        if (cmd == "phys_max_bhop_speed") return "11.5";
+        if (cmd == "phys_debug") return phys_debug ? "1" : "0";
+        if (cmd == "snd_volume") return std::to_string((int)(snd_volume * 100.0f)) + "%";
+        if (cmd == "snd_music") return std::to_string((int)(snd_music * 100.0f)) + "%";
+        if (cmd == "snd_sfx") return std::to_string((int)(snd_sfx * 100.0f)) + "%";
+        if (cmd == "ui_crosshair") return ui_crosshair ? "1" : "0";
+        if (cmd == "ui_scale") return "1.0";
+        if (cmd == "save_async") return "1";
+        if (cmd == "save_asyncdelay") return "0";
+        if (cmd == "save_console") return "0";
+        if (cmd == "save_disable") return "0";
+        if (cmd == "save_history_count") return "1";
+        if (cmd == "save_huddelayframes") return "1";
+        if (cmd == "save_in_memory") return "0";
+        if (cmd == "save_noxsave") return "0";
+        return "";
     }
 
     void LabDevConsole::updateAutocomplete() {
@@ -169,17 +216,16 @@ namespace Lab {
         _selectedSuggestion = -1;
         if (_currentInput.empty()) return;
 
+        // If there's a space, hide suggestions (user is typing arguments)
+        if (_currentInput.find(' ') != std::string::npos) return;
+
         std::string query = _currentInput;
         std::transform(query.begin(), query.end(), query.begin(), [](unsigned char c) { return (char)std::tolower(c); });
 
-        // Only search first token
-        size_t spacePos = query.find(' ');
-        std::string token = (spacePos != std::string::npos) ? query.substr(0, spacePos) : query;
-
         for (const auto& cmd : _knownCommands) {
-            if (cmd.find(token) == 0) { // prefix match
+            if (cmd.find(query) == 0) { // prefix match
                 _activeSuggestions.push_back(cmd);
-                if (_activeSuggestions.size() >= 5) break;
+                if (_activeSuggestions.size() >= 10) break;
             }
         }
         if (!_activeSuggestions.empty()) {
@@ -311,19 +357,47 @@ namespace Lab {
         };
 
         // =====================================================================
-        // SP_ (SUPER / CHEATS & PLAYER)
+        // SP_ / SV_ (SUPER / CHEATS & PLAYER)
         // =====================================================================
         if (p == "sp" || p == "sv") {
             if (n == "cheats") {
+                if (isPublicMultiplayerServer && !sv_cheats) {
+                    sp_cheats = false;
+                    print("Can't change sp_cheats on a public/official multiplayer server (authoritative sv_cheats is 0).",
+                          Vec3(1.0f, 0.35f, 0.35f));
+                    return;
+                }
                 int b = parseBool(args);
-                if (b >= 0) sp_cheats = (b == 1);
+                if (b >= 0) {
+                    sp_cheats = (b == 1);
+                    if (!isPublicMultiplayerServer) {
+                        sv_cheats = sp_cheats;
+                    }
+                }
                 print(std::string("sp_cheats set to ") + (sp_cheats ? "1" : "0"),
                       sp_cheats ? Vec3(0.92f, 0.92f, 0.92f) : Vec3(0.90f, 0.45f, 0.45f));
                 return;
             }
 
-            // Commands below require sp_cheats 1 warning
-            if (!sp_cheats) {
+            if (n == "bhop") {
+                int b = parseBool(args);
+                sp_bhop = (b >= 0) ? (b == 1) : !sp_bhop;
+                print(std::string("bhop ") + (sp_bhop ? "ENABLED" : "DISABLED"), Vec3(0.92f, 0.92f, 0.92f));
+                return;
+            }
+            if (n == "respawn") {
+                if (onRespawn) onRespawn();
+                print("Respawning player...", Vec3(0.85f, 0.85f, 0.85f));
+                return;
+            }
+            if (n == "suicide" || n == "kill") {
+                if (onSuicide) onSuicide();
+                print("Player killed.", Vec3(1.0f, 0.35f, 0.35f));
+                return;
+            }
+
+            // Commands below require sp_cheats 1 AND (if on public server) authoritative sv_cheats 1
+            if (!sp_cheats || (isPublicMultiplayerServer && !sv_cheats)) {
                 print("Can't use cheat cvar " + p + "_" + n + " in multiplayer, unless the server has sp_cheats set to 1.",
                       Vec3(1.0f, 0.35f, 0.35f));
                 return;
@@ -337,10 +411,6 @@ namespace Lab {
                 int b = parseBool(args);
                 sp_noclip = (b >= 0) ? (b == 1) : !sp_noclip;
                 print(std::string("noclip ") + (sp_noclip ? "ON" : "OFF"), Vec3(0.92f, 0.92f, 0.92f));
-            } else if (n == "bhop") {
-                int b = parseBool(args);
-                sp_bhop = (b >= 0) ? (b == 1) : !sp_bhop;
-                print(std::string("bhop ") + (sp_bhop ? "ENABLED" : "DISABLED"), Vec3(0.92f, 0.92f, 0.92f));
             } else if (n == "speed") {
                 try {
                     float s = std::stof(args);
@@ -383,12 +453,6 @@ namespace Lab {
             } else if (n == "give_all" || n == "impulse101") {
                 if (onGiveAll) onGiveAll();
                 print("All weapons and maximum ammunition unlocked!", Vec3(0.92f, 0.92f, 0.92f));
-            } else if (n == "respawn") {
-                if (onRespawn) onRespawn();
-                print("Respawning player...", Vec3(0.85f, 0.85f, 0.85f));
-            } else if (n == "suicide" || n == "kill") {
-                if (onSuicide) onSuicide();
-                print("Player killed.", Vec3(1.0f, 0.35f, 0.35f));
             } else {
                 print("Unknown command '" + p + "_" + n + "'", Vec3(1.0f, 0.35f, 0.35f));
             }
@@ -1329,132 +1393,146 @@ namespace Lab {
     bool LabDevConsole::onMouseButton(int button, int action, float mx, float my) {
         if (!isOpen) return false;
 
-        // If mouse button is released, always cancel dragging unconditionally
         if (button == 0 && action == 0) {
             isDragging = false;
+            isResizing = false;
         }
 
-        float titleH = 34.0f;
-        float inputAreaH = 46.0f;
-        float textX = windowX + 8.0f;
-        float inputY = windowY + windowH - inputAreaH + 4.0f;
-        float submitW = 90.0f;
-        float inputW = windowW - submitW - 24.0f;
-        float submitX = textX + inputW + 8.0f;
+        float titleH = 26.0f;
+        float inputAreaH = 32.0f;
+        float textX = windowX + 6.0f;
+        float inputY = windowY + windowH - 28.0f;
+        float submitW = 62.0f;
+        float inputW = windowW - submitW - 20.0f;
+        float submitX = textX + inputW + 6.0f;
 
-        float popW = 380.0f;
-        float popItemH = 26.0f;
-        float popH = (float)_activeSuggestions.size() * popItemH + 8.0f;
-        float popY = inputY + 36.0f;
+        float popW = 320.0f;
+        float popItemH = 20.0f;
+        float popH = (float)_activeSuggestions.size() * popItemH + 4.0f;
+        float popY = inputY + 26.0f;
+        if (lastScreenH > 0 && popY + popH > (float)lastScreenH) {
+            popY = inputY - popH - 2.0f;
+        }
 
-        // Check if click is inside the console window
         bool insideWindow = (mx >= windowX && mx <= windowX + windowW &&
                              my >= windowY && my <= windowY + windowH);
-
-        // Check suggestion popup click (if rendered below input)
         bool insidePopup = (!_activeSuggestions.empty() &&
                             mx >= textX && mx <= textX + popW &&
                             my >= popY && my <= popY + popH);
 
         if (!insideWindow && !insidePopup) {
-            if (action == 1) { // Click outside
+            if (action == 1) {
                 isDragging = false;
+                isResizing = false;
             }
             return false;
         }
 
         float closeBtnX = windowX + windowW - 26.0f;
-        float closeBtnY = windowY + 6.0f;
+        float closeBtnY = windowY + 4.0f;
         float clearBtnX = closeBtnX - 58.0f;
-        float clearBtnY = windowY + 6.0f;
+        float clearBtnY = windowY + 4.0f;
         float copyBtnX = clearBtnX - 86.0f;
-        float copyBtnY = windowY + 6.0f;
+        float copyBtnY = windowY + 4.0f;
 
-        if (button == 0) { // Left Mouse Button
+        if (button == 0) {
             if (action == 1) { // Pressed
                 // 1. Close button [X]
-                if (mx >= closeBtnX && mx <= closeBtnX + 22.0f && my >= closeBtnY && my <= closeBtnY + 22.0f) {
+                if (mx >= closeBtnX - 4.0f && mx <= windowX + windowW && my >= closeBtnY && my <= closeBtnY + 18.0f) {
                     close();
                     return true;
                 }
 
-                // 1b. Clear Log button [Clear]
-                if (mx >= clearBtnX && mx <= clearBtnX + 54.0f && my >= clearBtnY && my <= clearBtnY + 22.0f) {
+                // 1b. Clear button
+                if (mx >= clearBtnX - 4.0f && mx <= clearBtnX + 54.0f && my >= clearBtnY && my <= clearBtnY + 18.0f) {
                     _entries.clear();
-                    print("[INFO] Console log cleared.", Vec3(0.7f, 0.75f, 0.7f));
                     return true;
                 }
 
-                // 1c. Copy Log button [Copy Log]
-                if (mx >= copyBtnX && mx <= copyBtnX + 82.0f && my >= copyBtnY && my <= copyBtnY + 22.0f) {
+                // 1c. Copy Log button
+                if (mx >= copyBtnX - 4.0f && mx <= copyBtnX + 82.0f && my >= copyBtnY && my <= copyBtnY + 18.0f) {
                     copyLogToClipboard();
                     return true;
                 }
 
                 // 2. Submit Button
-                if (mx >= submitX && mx <= submitX + submitW && my >= inputY && my <= inputY + 34.0f) {
+                if (mx >= submitX && mx <= submitX + submitW && my >= inputY && my <= inputY + 24.0f) {
                     if (!_currentInput.empty()) {
                         execute(_currentInput);
                         _currentInput.clear();
                         _cursorPos = 0;
+                        _activeSuggestions.clear();
+                        _selectedSuggestion = -1;
                     }
-                    return true;
-                }
-
-                // 2b. Input Box Click (Focus & place cursor at end)
-                if (mx >= textX && mx <= textX + inputW && my >= inputY && my <= inputY + 34.0f) {
-                    _cursorPos = static_cast<int>(_currentInput.size());
                     return true;
                 }
 
                 // 3. Autocomplete popup click
                 if (insidePopup) {
-                    int clickedIdx = static_cast<int>((my - (popY + 4.0f)) / popItemH);
+                    int clickedIdx = static_cast<int>((my - (popY + 2.0f)) / popItemH);
                     if (clickedIdx >= 0 && clickedIdx < static_cast<int>(_activeSuggestions.size())) {
                         _currentInput = _activeSuggestions[clickedIdx] + " ";
                         _cursorPos = static_cast<int>(_currentInput.size());
+                        _activeSuggestions.clear();
                         _selectedSuggestion = -1;
-                        updateAutocomplete();
                         return true;
                     }
                 }
 
-                // 4. Title bar dragging (anywhere on title bar except the buttons area)
-                if (my >= windowY && my <= windowY + titleH && mx >= windowX && mx < copyBtnX - 6.0f) {
+                // 4. Resize Grip bottom-right corner (16x16)
+                if (mx >= windowX + windowW - 16.0f && mx <= windowX + windowW &&
+                    my >= windowY + windowH - 16.0f && my <= windowY + windowH) {
+                    isResizing = true;
+                    resizeStartW = windowW;
+                    resizeStartH = windowH;
+                    resizeStartMX = mx;
+                    resizeStartMY = my;
+                    return true;
+                }
+
+                // 5. Input Box Click
+                if (mx >= textX && mx <= textX + inputW && my >= inputY && my <= inputY + 24.0f) {
+                    _cursorPos = static_cast<int>(_currentInput.size());
+                    return true;
+                }
+
+                // 6. Title bar dragging
+                if (my >= windowY && my <= windowY + titleH && mx >= windowX && mx < copyBtnX - 4.0f) {
                     isDragging = true;
                     dragOffsetX = mx - windowX;
                     dragOffsetY = my - windowY;
                     return true;
                 }
 
-                // 5. Scrollbar click
-                float textW = windowW - 16.0f;
-                float textH = windowH - titleH - inputAreaH - 14.0f;
-                float textY = windowY + titleH + 6.0f;
-                float sbW = 16.0f;
-                float sbX = textX + textW - sbW - 2.0f;
-                float sbY = textY + 2.0f;
-                float sbH = textH - 4.0f;
+                // 7. Scrollbar click
+                float textW = windowW - 12.0f;
+                float textH = windowH - titleH - inputAreaH - 2.0f;
+                float textY = windowY + titleH + 2.0f;
+                float sbW = 14.0f;
+                float sbX = textX + textW - sbW - 1.0f;
+                float sbY = textY + 1.0f;
+                float sbH = textH - 2.0f;
                 if (mx >= sbX && mx <= sbX + sbW && my >= sbY && my <= sbY + sbH) {
                     float clickRatio = (my - sbY) / sbH;
                     int total = static_cast<int>(_entries.size());
-                    float lineH = 26.0f;
+                    float lineH = 16.5f;
                     int maxLines = static_cast<int>(textH / lineH) - 1;
                     int maxScroll = std::max(0, total - maxLines);
                     _scrollOffset = static_cast<int>((1.0f - clickRatio) * static_cast<float>(maxScroll));
                     _scrollOffset = std::clamp(_scrollOffset, 0, maxScroll);
                     return true;
                 }
-            } else if (action == 0) { // Released
+            } else if (action == 0) {
                 isDragging = false;
+                isResizing = false;
             }
-        } else if (button == 1 && action == 1) { // Right Mouse Button: Copy clicked line
-            float textW = windowW - 16.0f;
-            float textH = windowH - titleH - inputAreaH - 14.0f;
-            float textY = windowY + titleH + 6.0f;
+        } else if (button == 1 && action == 1) { // Right Click: Copy line
+            float textW = windowW - 12.0f;
+            float textH = windowH - titleH - inputAreaH - 2.0f;
+            float textY = windowY + titleH + 2.0f;
             if (mx >= textX && mx <= textX + textW && my >= textY && my <= textY + textH) {
-                float lineH = 26.0f;
-                int clickedRow = static_cast<int>((my - (textY + 6.0f)) / lineH);
+                float lineH = 16.5f;
+                int clickedRow = static_cast<int>((my - (textY + 4.0f)) / lineH);
                 int maxLines = (int)(textH / lineH) - 1;
                 int total = (int)_entries.size();
                 int endIdx = total - _scrollOffset;
@@ -1466,7 +1544,6 @@ namespace Lab {
                 }
             }
         }
-
         return true;
     }
 
@@ -1475,23 +1552,31 @@ namespace Lab {
         if (isDragging) {
             windowX = mx - dragOffsetX;
             windowY = my - dragOffsetY;
-            float maxW = (lastScreenW > 0) ? (float)lastScreenW : 1920.0f;
-            float maxH = (lastScreenH > 0) ? (float)lastScreenH : 1080.0f;
-            float titleH = 34.0f;
+            float maxW = (lastScreenW > 0) ? (float)lastScreenW : 1280.0f;
+            float maxH = (lastScreenH > 0) ? (float)lastScreenH : 720.0f;
+            float titleH = 26.0f;
             windowX = std::clamp(windowX, 0.0f, std::max(0.0f, maxW - 80.0f));
             windowY = std::clamp(windowY, 0.0f, std::max(0.0f, maxH - titleH));
+        } else if (isResizing) {
+            float newW = resizeStartW + (mx - resizeStartMX);
+            float newH = resizeStartH + (my - resizeStartMY);
+            float maxW = (lastScreenW > 0) ? (float)lastScreenW : 1280.0f;
+            float maxH = (lastScreenH > 0) ? (float)lastScreenH : 720.0f;
+            windowW = std::clamp(newW, 440.0f, maxW - windowX);
+            windowH = std::clamp(newH, 260.0f, maxH - windowY);
         }
     }
 
     void LabDevConsole::onMouseScroll(float yoffset) {
         if (!isOpen) return;
-        int maxScroll = std::max(0, (int)_entries.size() - 20);
-        _scrollOffset = std::clamp(_scrollOffset + (int)(yoffset * 3.0f), 0, maxScroll);
+        int maxScroll = std::max(0, (int)_entries.size() - 15);
+        _scrollOffset = std::clamp(_scrollOffset + (int)(yoffset * 4.0f), 0, maxScroll);
     }
 
     bool LabDevConsole::onKey(int key, int action, bool shift, bool ctrl) {
+        (void)shift;
         if (!isOpen) return false;
-        if (action != 1 && action != 2) return false; // Press or Repeat
+        if (action != 1 && action != 2) return false;
 
         // Tilde (`~`, key 96) or Escape (256) closes console
         if (key == 96 || key == 256) {
@@ -1500,7 +1585,7 @@ namespace Lab {
         }
 
         // Clipboard: Ctrl+V (Paste)
-        if (ctrl && (key == 86 || key == 'v' || key == 'V')) { // GLFW_KEY_V = 86
+        if (ctrl && (key == 86 || key == 'v' || key == 'V')) {
             GLFWwindow* win = glfwGetCurrentContext();
             if (win) {
                 const char* clip = glfwGetClipboardString(win);
@@ -1518,37 +1603,22 @@ namespace Lab {
             return true;
         }
 
-        // Clipboard: Ctrl+Shift+C (Copy Full Console Log)
-        if (ctrl && shift && (key == 67 || key == 'c' || key == 'C')) {
-            copyLogToClipboard();
-            return true;
-        }
-
-        // Clipboard: Ctrl+C (Copy current input, or copy full log if input is empty)
-        if (ctrl && !shift && (key == 67 || key == 'c' || key == 'C')) {
+        // Clipboard: Ctrl+C (Copy)
+        if (ctrl && (key == 67 || key == 'c' || key == 'C')) {
             if (!_currentInput.empty()) {
                 GLFWwindow* win = glfwGetCurrentContext();
                 if (win) {
                     glfwSetClipboardString(win, _currentInput.c_str());
                 }
-#if defined(_WIN32)
-                if (OpenClipboard(nullptr)) {
-                    EmptyClipboard();
-                    HGLOBAL hGlob = GlobalAlloc(GMEM_MOVEABLE, _currentInput.size() + 1);
-                    if (hGlob) {
-                        void* p = GlobalLock(hGlob);
-                        if (p) {
-                            memcpy(p, _currentInput.c_str(), _currentInput.size() + 1);
-                            GlobalUnlock(hGlob);
-                            SetClipboardData(CF_TEXT, hGlob);
-                        }
-                    }
-                    CloseClipboard();
-                }
-#endif
             } else {
                 copyLogToClipboard();
             }
+            return true;
+        }
+
+        // Ctrl+A: move cursor to end
+        if (ctrl && (key == 65 || key == 'a' || key == 'A')) {
+            _cursorPos = static_cast<int>(_currentInput.size());
             return true;
         }
 
@@ -1559,18 +1629,26 @@ namespace Lab {
                           ? _selectedSuggestion : 0;
                 _currentInput = _activeSuggestions[idx] + " ";
                 _cursorPos = static_cast<int>(_currentInput.size());
+                _activeSuggestions.clear();
                 _selectedSuggestion = -1;
-                updateAutocomplete();
                 return true;
             }
         }
 
         // Enter: execute command
         if (key == 257 || key == 335) { // GLFW_KEY_ENTER or Keypad Enter
+            if (!_activeSuggestions.empty() && _selectedSuggestion >= 0 && _selectedSuggestion < static_cast<int>(_activeSuggestions.size()) && _currentInput != _activeSuggestions[_selectedSuggestion]) {
+                _currentInput = _activeSuggestions[_selectedSuggestion] + " ";
+                _cursorPos = static_cast<int>(_currentInput.size());
+                _activeSuggestions.clear();
+                _selectedSuggestion = -1;
+                return true;
+            }
             if (!_currentInput.empty()) {
                 execute(_currentInput);
                 _currentInput.clear();
                 _cursorPos = 0;
+                _activeSuggestions.clear();
                 _selectedSuggestion = -1;
             }
             return true;
@@ -1663,11 +1741,11 @@ namespace Lab {
         // PageUp / PageDown: scroll output
         if (key == 266) { // PageUp
             int maxScroll = std::max(0, static_cast<int>(_entries.size()) - 15);
-            _scrollOffset = std::min(maxScroll, _scrollOffset + 5);
+            _scrollOffset = std::min(maxScroll, _scrollOffset + 6);
             return true;
         }
         if (key == 267) { // PageDown
-            _scrollOffset = std::max(0, _scrollOffset - 5);
+            _scrollOffset = std::max(0, _scrollOffset - 6);
             return true;
         }
 
@@ -1675,6 +1753,8 @@ namespace Lab {
         char c = '\0';
         if (key >= 65 && key <= 90) { // A-Z
             c = shift ? static_cast<char>(key) : static_cast<char>(key + 32);
+        } else if (key >= 97 && key <= 122) { // a-z
+            c = shift ? static_cast<char>(key - 32) : static_cast<char>(key);
         } else if (key >= 48 && key <= 57) { // 0-9
             if (shift) {
                 const char shiftNums[] = ")!@#$%^&*(";
@@ -1744,6 +1824,10 @@ namespace Lab {
         }
 
         if (c != '\0') {
+            if (_charHandledThisFrame) {
+                // Character was already inserted by onChar in the same frame
+                return true;
+            }
             _currentInput.insert(_currentInput.begin() + _cursorPos, c);
             _cursorPos++;
             _lastCharHandledKey = static_cast<int>(c);
@@ -1758,46 +1842,21 @@ namespace Lab {
     void LabDevConsole::onChar(unsigned int codepoint) {
         if (!isOpen) return;
         if (codepoint == '`' || codepoint == '~') return;
+        if (codepoint < 32 || codepoint > 126) return;
 
-        // Prevent double typing if onKey already processed this character (or converted '-' to '_')
-        if (_lastCharHandledKey == static_cast<int>(codepoint) ||
-            (_lastCharHandledKey == '_' && (codepoint == '-' || codepoint == '_'))) {
-            _lastCharHandledKey = -1;
-            return;
-        }
-        _lastCharHandledKey = -1;
-
-        if (codepoint >= 32 && codepoint < 127) {
-            char ch = static_cast<char>(codepoint);
-            if (ch == '-') {
-                char prev = (_cursorPos > 0) ? _currentInput[_cursorPos - 1] : ' ';
-                if (prev != ' ' && prev != '\t' && prev != '=') {
-                    ch = '_';
-                }
-            } else if (ch == ' ') {
-                size_t wordStart = _cursorPos;
-                while (wordStart > 0 && _currentInput[wordStart - 1] != ' ') wordStart--;
-                std::string word = _currentInput.substr(wordStart, _cursorPos - wordStart);
-                std::transform(word.begin(), word.end(), word.begin(), [](unsigned char c) { return (char)std::tolower(c); });
-                static const char* const knownPrefixes[] = {
-                    "sp", "sv", "log", "wrd", "cam", "r", "phys", "ai", "snd", "ui", "dcl", "mp", "net", "sys"
-                };
-                for (const auto& p : knownPrefixes) {
-                    if (word == p) {
-                        ch = '_';
-                        break;
-                    }
-                }
-            }
-            _currentInput.insert(_currentInput.begin() + _cursorPos, ch);
-            _cursorPos++;
-            _selectedSuggestion = -1;
-            updateAutocomplete();
-        }
+        char ch = static_cast<char>(codepoint);
+        _currentInput.insert(_currentInput.begin() + _cursorPos, ch);
+        _cursorPos++;
+        _charHandledThisFrame = true;
+        _lastCharHandledKey = static_cast<int>(codepoint);
+        _selectedSuggestion = -1;
+        updateAutocomplete();
     }
 
     void LabDevConsole::update(float dt) {
         _cursorBlink += dt * 4.0f;
+        _charHandledThisFrame = false;
+        _lastCharHandledKey = -1;
     }
 
     void LabDevConsole::render(int screenW, int screenH) {
@@ -1808,159 +1867,159 @@ namespace Lab {
 
         Renderer::beginUI(screenW, screenH);
 
-        float titleH = 34.0f;
-        float inputAreaH = 46.0f;
+        float titleH = 24.0f;
+        float inputAreaH = 32.0f;
 
         // Ensure title bar remains visible within screen viewport
         windowX = std::clamp(windowX, 0.0f, std::max(0.0f, (float)screenW - 80.0f));
         windowY = std::clamp(windowY, 0.0f, std::max(0.0f, (float)screenH - titleH));
 
-        // ==================== CLEAN VGUI CONSOLE THEME ====================
-        Vec3 frameBg(0.25f, 0.26f, 0.27f);      // Clean neutral medium dark-grey (#404245)
-        Vec3 titleBg(0.22f, 0.23f, 0.24f);      // Clean neutral title bar (#383a3d)
-        Vec3 borderLight(0.42f, 0.43f, 0.45f);  // Crisp metallic bevel highlight
-        Vec3 borderDark(0.12f, 0.12f, 0.13f);   // Clean bevel shadow
-        Vec3 textAreaBg(0.13f, 0.13f, 0.14f);   // Clean dark charcoal text area (#212124)
-        Vec3 inputBg(0.16f, 0.17f, 0.17f);      // Clean dark sunken input field (#292b2c)
-        Vec3 buttonBg(0.30f, 0.31f, 0.32f);     // Clean neutral button (#4d4f52)
+        // ==================== AUTHENTIC SOURCE VGUI2 THEME ====================
+        Vec3 frameBg(0.24f, 0.25f, 0.26f);      // Clean neutral medium dark-grey (#3d4043)
+        Vec3 borderLight(0.40f, 0.42f, 0.44f);  // Crisp metallic bevel highlight
+        Vec3 borderDark(0.11f, 0.12f, 0.13f);   // Clean bevel shadow
+        Vec3 textAreaBg(0.12f, 0.13f, 0.14f);   // Dark sunken text area (#1f2124)
+        Vec3 inputBg(0.10f, 0.11f, 0.12f);      // Dark sunken input field (#1a1b1d)
+        Vec3 buttonBg(0.28f, 0.29f, 0.31f);     // Neutral button (#474a4f)
 
-        // 1. Window Outer Frame & 3D Bevel
-        Renderer::drawRect(windowX, windowY, windowW, windowH, frameBg);
+        // 1. Window Outer Frame & 3D Bevel (Translucent dark grey)
+        Renderer::drawRect(windowX, windowY, windowW, windowH, frameBg, 0.94f);
         Renderer::drawRect(windowX, windowY, windowW, 1.0f, borderLight);
         Renderer::drawRect(windowX, windowY, 1.0f, windowH, borderLight);
         Renderer::drawRect(windowX, windowY + windowH - 1.0f, windowW, 1.0f, borderDark);
         Renderer::drawRect(windowX + windowW - 1.0f, windowY, 1.0f, windowH, borderDark);
 
-        // 2. Title Bar
-        Renderer::drawRect(windowX + 2.0f, windowY + 2.0f, windowW - 4.0f, titleH, titleBg);
-        LabFont::drawText(windowX + 10.0f, windowY + 7.0f, "Console", 1.8f, Vec3(0.92f, 0.92f, 0.92f), LabFontType::System);
+        // 2. Title Bar: "Konsola" / "Console"
+        LabFont::drawText(windowX + 8.0f, windowY + 5.0f, "Konsola", 1.35f, Vec3(0.90f, 0.92f, 0.94f), LabFontType::GeoSans);
 
-        // Close Button [X] on top right
-        float closeBtnX = windowX + windowW - 26.0f;
-        float closeBtnY = windowY + 6.0f;
-        Renderer::drawRect(closeBtnX, closeBtnY, 20.0f, 20.0f, buttonBg);
-        Renderer::drawRect(closeBtnX, closeBtnY, 20.0f, 1.0f, borderLight);
-        Renderer::drawRect(closeBtnX, closeBtnY + 19.0f, 20.0f, 1.0f, borderDark);
-        LabFont::drawText(closeBtnX + 6.0f, closeBtnY + 2.0f, "x", 1.5f, Vec3(0.90f, 0.90f, 0.90f), LabFontType::System);
-
-        // Clear Button [Clear] next to [X]
-        float clearBtnX = closeBtnX - 58.0f;
-        float clearBtnY = windowY + 6.0f;
-        Renderer::drawRect(clearBtnX, clearBtnY, 52.0f, 20.0f, buttonBg);
-        Renderer::drawRect(clearBtnX, clearBtnY, 52.0f, 1.0f, borderLight);
-        Renderer::drawRect(clearBtnX, clearBtnY + 19.0f, 52.0f, 1.0f, borderDark);
-        LabFont::drawText(clearBtnX + 8.0f, clearBtnY + 2.0f, "Clear", 1.4f, Vec3(0.90f, 0.90f, 0.90f), LabFontType::System);
-
-        // Copy Log Button [Copy Log] next to [Clear]
-        float copyBtnX = clearBtnX - 86.0f;
-        float copyBtnY = windowY + 6.0f;
-        Renderer::drawRect(copyBtnX, copyBtnY, 80.0f, 20.0f, buttonBg);
-        Renderer::drawRect(copyBtnX, copyBtnY, 80.0f, 1.0f, borderLight);
-        Renderer::drawRect(copyBtnX, copyBtnY + 19.0f, 80.0f, 1.0f, borderDark);
-        LabFont::drawText(copyBtnX + 7.0f, copyBtnY + 2.0f, "Copy Log", 1.4f, Vec3(0.90f, 0.90f, 0.90f), LabFontType::System);
+        // Close Button [x] on top right
+        float closeBtnX = windowX + windowW - 20.0f;
+        float closeBtnY = windowY + 4.0f;
+        Renderer::drawRect(closeBtnX, closeBtnY, 16.0f, 16.0f, buttonBg);
+        Renderer::drawRect(closeBtnX, closeBtnY, 16.0f, 1.0f, borderLight);
+        Renderer::drawRect(closeBtnX, closeBtnY, 1.0f, 16.0f, borderLight);
+        Renderer::drawRect(closeBtnX, closeBtnY + 15.0f, 16.0f, 1.0f, borderDark);
+        Renderer::drawRect(closeBtnX + 15.0f, closeBtnY, 1.0f, 16.0f, borderDark);
+        LabFont::drawText(closeBtnX + 4.0f, closeBtnY + 1.0f, "x", 1.25f, Vec3(0.90f, 0.90f, 0.90f), LabFontType::System);
 
         // 3. Inner Log Text Area (Sunken)
-        float textX = windowX + 8.0f;
-        float textY = windowY + titleH + 6.0f;
-        float textW = windowW - 16.0f;
-        float textH = windowH - titleH - inputAreaH - 14.0f;
+        float textX = windowX + 6.0f;
+        float textY = windowY + titleH + 2.0f;
+        float textW = windowW - 12.0f;
+        float textH = windowH - titleH - inputAreaH - 2.0f;
 
-        Renderer::drawRect(textX, textY, textW, textH, textAreaBg);
-        // Sunken borders
+        Renderer::drawRect(textX, textY, textW, textH, textAreaBg, 0.96f);
         Renderer::drawRect(textX, textY, textW, 1.0f, borderDark);
         Renderer::drawRect(textX, textY, 1.0f, textH, borderDark);
         Renderer::drawRect(textX, textY + textH - 1.0f, textW, 1.0f, borderLight);
         Renderer::drawRect(textX + textW - 1.0f, textY, 1.0f, textH, borderLight);
 
-        // Render visible text lines with clipping
-        float lineH = 26.0f;
+        // Render visible text lines with authentic Source console scale
+        float lineH = 16.5f;
         int maxLines = (int)(textH / lineH) - 1;
         int total = (int)_entries.size();
         int endIdx = total - _scrollOffset;
         int startIdx = std::max(0, endIdx - maxLines);
 
-        float curY = textY + 6.0f;
+        float curY = textY + 4.0f;
         for (int i = startIdx; i < endIdx && i < total; ++i) {
             const auto& entry = _entries[i];
-            LabFont::drawText(textX + 8.0f, curY, entry.text, 1.85f, entry.color, LabFontType::Monospace);
+            LabFont::drawText(textX + 6.0f, curY, entry.text, 1.22f, entry.color, LabFontType::Monospace);
             curY += lineH;
         }
 
         // Vertical Scrollbar on the right of text area
-        float sbW = 16.0f;
-        float sbX = textX + textW - sbW - 2.0f;
-        float sbY = textY + 2.0f;
-        float sbH = textH - 4.0f;
-        Renderer::drawRect(sbX, sbY, sbW, sbH, Vec3(0.09f, 0.09f, 0.10f));
+        float sbW = 14.0f;
+        float sbX = textX + textW - sbW - 1.0f;
+        float sbY = textY + 1.0f;
+        float sbH = textH - 2.0f;
+        Renderer::drawRect(sbX, sbY, sbW, sbH, Vec3(0.10f, 0.11f, 0.12f));
 
         if (total > maxLines && total > 0) {
-            float thumbRatio = std::clamp((float)maxLines / (float)total, 0.15f, 1.0f);
+            float thumbRatio = std::clamp((float)maxLines / (float)total, 0.12f, 1.0f);
             float thumbH = sbH * thumbRatio;
             int maxScroll = total - maxLines;
             float scrollProgress = (maxScroll > 0) ? (float)(maxScroll - _scrollOffset) / (float)maxScroll : 1.0f;
             float thumbY = sbY + (sbH - thumbH) * scrollProgress;
 
-            Renderer::drawRect(sbX + 1.0f, thumbY, sbW - 2.0f, thumbH, Vec3(0.32f, 0.33f, 0.34f));
+            Renderer::drawRect(sbX + 1.0f, thumbY, sbW - 2.0f, thumbH, Vec3(0.26f, 0.28f, 0.30f));
             Renderer::drawRect(sbX + 1.0f, thumbY, sbW - 2.0f, 1.0f, borderLight);
+            Renderer::drawRect(sbX + 1.0f, thumbY, 1.0f, thumbH, borderLight);
             Renderer::drawRect(sbX + 1.0f, thumbY + thumbH - 1.0f, sbW - 2.0f, 1.0f, borderDark);
+            Renderer::drawRect(sbX + sbW - 2.0f, thumbY, 1.0f, thumbH, borderDark);
         }
 
         // 4. Command Input Field (Sunken)
-        float inputY = windowY + windowH - inputAreaH + 4.0f;
-        float submitW = 90.0f;
-        float inputW = windowW - submitW - 24.0f;
+        float inputY = windowY + windowH - 28.0f;
+        float submitW = 62.0f;
+        float inputW = windowW - submitW - 20.0f;
 
-        Renderer::drawRect(textX, inputY, inputW, 34.0f, inputBg);
+        Renderer::drawRect(textX, inputY, inputW, 24.0f, inputBg);
         Renderer::drawRect(textX, inputY, inputW, 1.0f, borderDark);
-        Renderer::drawRect(textX, inputY, 1.0f, 34.0f, borderDark);
-        Renderer::drawRect(textX, inputY + 33.0f, inputW, 1.0f, borderLight);
-        Renderer::drawRect(textX + inputW - 1.0f, inputY, 1.0f, 34.0f, borderLight);
+        Renderer::drawRect(textX, inputY, 1.0f, 24.0f, borderDark);
+        Renderer::drawRect(textX, inputY + 23.0f, inputW, 1.0f, borderLight);
+        Renderer::drawRect(textX + inputW - 1.0f, inputY, 1.0f, 24.0f, borderLight);
 
         // Prompt "] " in clean neutral off-white
-        LabFont::drawText(textX + 8.0f, inputY + 7.0f, "] ", 1.9f, Vec3(0.90f, 0.90f, 0.90f), LabFontType::Monospace);
-        float promptW = LabFont::getTextWidth("] ", 1.9f, LabFontType::Monospace);
+        LabFont::drawText(textX + 6.0f, inputY + 4.0f, "] ", 1.25f, Vec3(0.85f, 0.85f, 0.85f), LabFontType::Monospace);
+        float promptW = LabFont::getTextWidth("] ", 1.25f, LabFontType::Monospace);
 
-        // User typed command text in clear monospace
-        LabFont::drawText(textX + 8.0f + promptW, inputY + 7.0f, _currentInput, 1.9f, Vec3(0.96f, 0.96f, 0.96f), LabFontType::Monospace);
+        // User typed command text
+        LabFont::drawText(textX + 6.0f + promptW, inputY + 4.0f, _currentInput, 1.25f, Vec3(0.96f, 0.96f, 0.96f), LabFontType::Monospace);
 
-        // Clean standard blinking text caret
+        // Standard blinking text caret
         bool blink = (std::fmod(_cursorBlink, 2.0f) < 1.0f);
         if (blink) {
-            float cursorXOffset = LabFont::getTextWidth(_currentInput.substr(0, _cursorPos), 1.9f, LabFontType::Monospace);
-            float curDrawX = textX + 8.0f + promptW + cursorXOffset;
-            Renderer::drawRect(curDrawX, inputY + 7.0f, 2.0f, 20.0f, Vec3(0.96f, 0.96f, 0.96f));
+            float cursorXOffset = LabFont::getTextWidth(_currentInput.substr(0, _cursorPos), 1.25f, LabFontType::Monospace);
+            float curDrawX = textX + 6.0f + promptW + cursorXOffset;
+            Renderer::drawRect(curDrawX, inputY + 4.0f, 1.5f, 15.0f, Vec3(0.96f, 0.96f, 0.96f));
         }
 
-        // 5. Submit Button (Raised Bevel)
-        float submitX = textX + inputW + 8.0f;
-        Renderer::drawRect(submitX, inputY, submitW, 34.0f, Vec3(0.33f, 0.34f, 0.35f));
+        // 5. Submit Button ("Wyślij")
+        float submitX = textX + inputW + 6.0f;
+        Renderer::drawRect(submitX, inputY, submitW, 24.0f, buttonBg);
         Renderer::drawRect(submitX, inputY, submitW, 1.0f, borderLight);
-        Renderer::drawRect(submitX, inputY, 1.0f, 34.0f, borderLight);
-        Renderer::drawRect(submitX, inputY + 33.0f, submitW, 1.0f, borderDark);
-        Renderer::drawRect(submitX + submitW - 1.0f, inputY, 1.0f, 34.0f, borderDark);
-        LabFont::drawText(submitX + 16.0f, inputY + 7.0f, "Submit", 1.6f, Vec3(0.92f, 0.92f, 0.92f), LabFontType::System);
+        Renderer::drawRect(submitX, inputY, 1.0f, 24.0f, borderLight);
+        Renderer::drawRect(submitX, inputY + 23.0f, submitW, 1.0f, borderDark);
+        Renderer::drawRect(submitX + submitW - 1.0f, inputY, 1.0f, 24.0f, borderDark);
+        float submitTextW = LabFont::getTextWidth("Wyślij", 1.25f, LabFontType::System);
+        LabFont::drawText(submitX + (submitW - submitTextW) * 0.5f, inputY + 4.0f, "Wyślij", 1.25f, Vec3(0.90f, 0.92f, 0.94f), LabFontType::System);
 
-        // 6. Autocomplete Suggestion Popup (Rendered right below input)
+        // 6. Resize Grip in bottom-right corner (Source VGUI style diagonal lines)
+        float gripX = windowX + windowW - 12.0f;
+        float gripY = windowY + windowH - 12.0f;
+        Renderer::drawRect(gripX + 6.0f, gripY + 8.0f, 3.0f, 1.0f, borderLight);
+        Renderer::drawRect(gripX + 4.0f, gripY + 5.0f, 5.0f, 1.0f, borderLight);
+        Renderer::drawRect(gripX + 2.0f, gripY + 2.0f, 7.0f, 1.0f, borderLight);
+
+        // 7. Autocomplete Suggestion Popup (Rendered right below or above input)
         if (!_activeSuggestions.empty()) {
-            float popW = 380.0f;
-            float popItemH = 26.0f;
-            float popH = (float)_activeSuggestions.size() * popItemH + 8.0f;
-            float popY = inputY + 36.0f;
+            float popW = 320.0f;
+            float popItemH = 20.0f;
+            float popH = (float)_activeSuggestions.size() * popItemH + 4.0f;
+            float popY = inputY + 26.0f;
+            if (lastScreenH > 0 && popY + popH > (float)lastScreenH) {
+                popY = inputY - popH - 2.0f;
+            }
 
-            Renderer::drawRect(textX, popY, popW, popH, Vec3(0.18f, 0.19f, 0.20f));
+            Renderer::drawRect(textX, popY, popW, popH, Vec3(0.18f, 0.19f, 0.21f));
             Renderer::drawRect(textX, popY, popW, 1.0f, borderLight);
             Renderer::drawRect(textX, popY, 1.0f, popH, borderLight);
             Renderer::drawRect(textX, popY + popH - 1.0f, popW, 1.0f, borderDark);
             Renderer::drawRect(textX + popW - 1.0f, popY, 1.0f, popH, borderDark);
 
-            float curSugY = popY + 4.0f;
+            float curSugY = popY + 2.0f;
             for (size_t s = 0; s < _activeSuggestions.size(); ++s) {
                 bool isSel = ((int)s == _selectedSuggestion);
                 if (isSel) {
-                    Renderer::drawRect(textX + 2.0f, curSugY - 1.0f, popW - 4.0f, popItemH, Vec3(0.30f, 0.34f, 0.40f));
+                    Renderer::drawRect(textX + 2.0f, curSugY, popW - 4.0f, popItemH, Vec3(0.25f, 0.33f, 0.45f));
                 }
-                LabFont::drawText(textX + 8.0f, curSugY + 4.0f, _activeSuggestions[s], 1.8f,
-                                  isSel ? Vec3(1.0f, 1.0f, 1.0f) : Vec3(0.85f, 0.85f, 0.85f), LabFontType::Monospace);
+                const std::string& cmdName = _activeSuggestions[s];
+                std::string cval = getCvarValue(cmdName);
+                std::string fullDisplay = cval.empty() ? cmdName : (cmdName + " " + cval);
+
+                LabFont::drawText(textX + 6.0f, curSugY + 2.0f, fullDisplay, 1.20f,
+                                  isSel ? Vec3(1.0f, 1.0f, 1.0f) : Vec3(0.85f, 0.88f, 0.90f), LabFontType::Monospace);
                 curSugY += popItemH;
             }
         }

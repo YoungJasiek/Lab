@@ -220,10 +220,7 @@ namespace Lab {
             float luma = dot(mapped, vec3(0.299, 0.587, 0.114));
             mapped = clamp(mix(vec3(luma), mapped, uSaturation), 0.0, 1.0);
 
-            // 3. Subtle film grain
-            float grain = (hash(vTexCoords * vec2(1280.0, 720.0) + vec2(uTime * 13.0, uTime * 37.0)) - 0.5) * 0.015;
-            mapped = clamp(mapped + vec3(grain), 0.0, 1.0);
-
+            // Clean output without artificial noise or film grain
             FragColor = vec4(mapped, 1.0);
         }
     )";
@@ -538,7 +535,7 @@ namespace Lab {
         float effectiveOverlay = _postProcessEnabled ? ((frostIntensity > 0.0f) ? frostIntensity : _overlayIntensity) : 0.0f;
         _compositeShader->setFloat("uFrostIntensity", effectiveOverlay);
         _compositeShader->setFloat("uTime", timeSeconds);
-        _compositeShader->setInt("uTonemapper", (int)tonemapper);
+        _compositeShader->setInt("uTonemapper", static_cast<int>(tonemapper));
         _compositeShader->setFloat("uContrast", _postProcessEnabled ? _contrast : 1.0f);
         _compositeShader->setFloat("uSaturation", _postProcessEnabled ? _saturation : 1.0f);
         _compositeShader->setInt("uEnableFXAA", (_postProcessEnabled && _fxaaEnabled) ? 1 : 0);

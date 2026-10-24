@@ -1226,7 +1226,7 @@ namespace Lab {
             Renderer::drawRect(x + 5.0f, btmY, w - 10.0f, 1.0f, Vec3(0.3f, 0.3f, 0.3f));
             btmY += 6.0f;
             float hw = (w - 25.0f) * 0.5f;
-            if (drawHammerButton(x + 10.0f, btmY, hw, 26.0f, "+ Add Root")) {
+            if (drawHammerButton(x + 10.0f, btmY, hw, 26.0f, "+ Root")) {
                 HUDElement el;
                 el.id = "Element_" + std::to_string(_project.rootElements.size() + 1);
                 el.w = 120.0f; el.h = 40.0f; el.type = HUDElementType::Rect;
@@ -1236,7 +1236,7 @@ namespace Lab {
                 _selectedRef = _selectedRefs[0];
                 _projectDirty = true;
             }
-            if (drawHammerButton(x + 15.0f + hw, btmY, hw, 26.0f, "+ Add Child")) {
+            if (drawHammerButton(x + 15.0f + hw, btmY, hw, 26.0f, "+ Child")) {
                 if (!_selectedRefs.empty() && _selectedRefs[0].isRoot()) {
                     int rIdx = _selectedRefs[0].rootIndex;
                     HUDElement child;
@@ -1272,7 +1272,7 @@ namespace Lab {
                 }
             }
         } else if (_sidebarTab == HUDSidebarTab::Assets) {
-            if (drawHammerButton(x + 10, py, w - 20, 40, "+ IMPORT ASSET FROM DISK...")) {
+            if (drawHammerButton(x + 10, py, w - 20, 40, "+ Import")) {
                 importCustomAsset();
             }
             py += 50;
@@ -1426,7 +1426,7 @@ namespace Lab {
         LabFont::drawText(x + 10, py, "LUA SCRIPTING", 1.2f, Vec3(1, 0.5f, 0), LabFontType::System);
         py += 18;
 
-        if (drawHammerButton(x + 10, py, w - 20, 26, "Edit Lua Script...")) {
+        if (drawHammerButton(x + 10, py, w - 20, 26, "Edit Lua")) {
             openModal(ModalType::EditLua, "Edit Lua", "Enter script:", elem->luaCustom, [elem, this](const std::string& v){ elem->luaCustom = v; _projectDirty = true; });
         }
         py += 30;
@@ -1886,7 +1886,7 @@ namespace Lab {
         }
 
         py = by + bannerH - 70.0f;
-        if (drawHammerButton(bx + 40.0f, py, 190.0f, 40.0f, "+ NEW .LABUI")) {
+        if (drawHammerButton(bx + 40.0f, py, 190.0f, 40.0f, "+ New")) {
             _project = HUDProject::createMainMenuPreset();
             _project.name = "New UI Screen";
             _projectFilePath = "assets/ui/custom_screen.labui";
@@ -1894,7 +1894,7 @@ namespace Lab {
             _projectDirty = true;
             scanAssets();
         }
-        if (drawHammerButton(bx + 265.0f, py, 190.0f, 40.0f, "OPEN .LABUI...")) {
+        if (drawHammerButton(bx + 265.0f, py, 190.0f, 40.0f, "Open")) {
             std::string chosen = LabDialogs::openFileDialog(_window, "Lab UI Files (*.labui;*.labhud)\0*.labui;*.labhud\0All Files (*.*)\0*.*\0", "assets\\ui");
             if (!chosen.empty()) {
                 auto loaded = HUDProject::loadFromFile(chosen);
@@ -1933,7 +1933,7 @@ namespace Lab {
             mx += 72.0f;
         }
 
-        if (drawHammerButton(w - 180.0f, 3.0f, 170.0f, 26.0f, "< Back to SDK Editor")) {
+        if (drawHammerButton(w - 180.0f, 3.0f, 170.0f, 26.0f, "< Back")) {
             _requestExit = true;
         }
     }

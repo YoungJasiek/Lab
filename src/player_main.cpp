@@ -142,6 +142,17 @@ public:
         discoverTextures();
         discoverModels();
 
+        // Initialize 70-bone Guard player skeletal model & animations
+        std::vector<AnimationClip> playerClips;
+        if (GLTFLoader::load("assets/models/guard.glb", _playerSkeleton, playerClips, _playerMesh) && _playerSkeleton) {
+            FBXLoader::loadAllFromDirectory("assets/animations", playerClips, _playerSkeleton.get());
+            _playerAnimator.setSkeleton(_playerSkeleton);
+            for (const auto& c : playerClips) {
+                _playerAnimator.addClip(c);
+            }
+            _playerAnimator.playAnimation("Idle", true);
+        }
+
         // Load scene map
         loadScene();
 
@@ -689,11 +700,25 @@ public:
                 }
             }
 
-            // In TPP mode: render third-person player avatar model / avatar silhouette
+            // In TPP mode: render third-person 70-bone Guard skeletal model for the player
             if (_activeCamera && _activeCamera->follow_target == "player") {
-                float pYaw = _camera.getYaw() + 90.0f;
-                Renderer::drawCube(_playerPos + Vec3(0, -0.1f, 0), Vec3(0.0f, -pYaw, 0.0f), Vec3(0.7f, 1.6f, 0.5f), Vec3(0.2f, 0.45f, 0.8f), nullptr, true);
-                Renderer::drawCube(_playerPos + Vec3(0, 0.95f, 0), Vec3(0.0f, -pYaw, 0.0f), Vec3(0.42f, 0.45f, 0.42f), Vec3(0.85f, 0.75f, 0.65f), nullptr, true);
+                float pYaw = -(_camera.getYaw() + 90.0f);
+                if (_playerMesh && _playerAnimator.getSkeleton()) {
+                    float hSpeed = std::sqrt(_playerVel.x * _playerVel.x + _playerVel.z * _playerVel.z);
+                    if (hSpeed > 5.0f) _playerAnimator.playAnimation("Run Forward", true, 0.15f);
+                    else if (hSpeed > 0.3f) _playerAnimator.playAnimation("Walking", true, 0.15f);
+                    else _playerAnimator.playAnimation("Idle", true, 0.2f);
+                    _playerAnimator.update(0.016f);
+
+                    float pScale = _playerMesh->getBaseScale(1.85f);
+                    float yOff = -_playerMesh->getMinBounds().y * pScale;
+                    Vec3 pFeet = _playerPos - Vec3(0.0f, 1.70f, 0.0f);
+                    Mat4 pModel = Mat4::translate(pFeet + Vec3(0.0f, yOff, 0.0f)) *
+                                  Mat4::rotate(pYaw * 3.14159265f / 180.0f, Vec3(0, 1, 0)) *
+                                  Mat4::scale(Vec3(pScale, pScale, pScale));
+                    Renderer::drawSkinnedMesh(*_playerMesh, pModel, _playerAnimator.getSkinMatrices(),
+                                              Vec3(1.0f, 1.0f, 1.0f), getTexture("guard.bmp"), true);
+                }
             }
 
             // Render Props
@@ -1078,9 +1103,9 @@ private:
 
     // Retro CRT & Post-Process FX
     bool _retroFX = false;
-    bool _retroScanlines = true;
-    bool _retroVignette = true;
-    bool _retroAberration = true;
+    bool _retroScanlines = false;
+    bool _retroVignette = false;
+    bool _retroAberration = false;
     int _retroPixelScale = 2;
     int _retroColorTheme = 0;
     float _retroScanlinePhase = 0.0f;
@@ -1114,6 +1139,10 @@ private:
     std::string _missionMessage;
     std::vector<bool> _weaponPadCollected;
 
+    std::shared_ptr<Skeleton> _playerSkeleton;
+    std::unique_ptr<SkinnedMesh> _playerMesh;
+    Animator _playerAnimator;
+
     std::unordered_map<std::string, std::unique_ptr<Texture>> _textures;
     std::unordered_map<std::string, std::unique_ptr<Mesh>> _meshes;
 };
@@ -1130,9 +1159,9 @@ struct GameLaunchConfig {
     bool fullscreen = false;
     std::string dimension = "3D";
     bool retroFX = false;
-    bool retroScanlines = true;
-    bool retroVignette = true;
-    bool retroAberration = true;
+    bool retroScanlines = false;
+    bool retroVignette = false;
+    bool retroAberration = false;
     int retroPixelScale = 2;
     int retroColorTheme = 0;
     bool showSplash = true;

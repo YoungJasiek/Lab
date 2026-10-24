@@ -22,6 +22,7 @@ namespace Lab {
 
     class SkinnedMesh;
     class FacialMesh;
+    class BakedLightmap;
 
     class Shader {
     public:
@@ -43,6 +44,7 @@ namespace Lab {
         void setMat4(const std::string& name, const Mat4& mat) const;
         void setMat4Array(const std::string& name, const Mat4* mats, int count) const;
         void setVec4(const std::string& name, float x, float y, float z, float w) const;
+        void setVec4(const std::string& name, const Vec4& vec) const;
         void setVec3(const std::string& name, const Vec3& vec) const;
         void setVec2(const std::string& name, const Vec2& vec) const;
         void setInt(const std::string& name, int value) const;
@@ -94,6 +96,7 @@ namespace Lab {
         Mesh& operator=(Mesh&& other) noexcept;
 
         static Mesh* loadSTL(const std::string& path);
+        static Mesh* loadGLB(const std::string& path);
         void draw() const;
         int getIndexCount() const { return _indexCount; }
 
@@ -180,6 +183,13 @@ namespace Lab {
         static void setShadowMap(const Mat4& lightSpaceMatrix, unsigned int depthTexture);
         static void disableShadowMap();
 
+        // Static Baked Lightmaps
+        static void setLightmap(const BakedLightmap* lightmap, const Vec4& bounds = { -20.0f, -20.0f, 40.0f, 40.0f });
+        static void disableLightmap();
+        static bool isLightmapEnabled();
+        static unsigned int getLightmapTexture();
+        static Vec4 getLightmapBounds();
+
         // Dynamic Point Lights / Omni Lamps
         static void setPointLights(const std::vector<PointLight>& lights);
         static void addPointLight(const Vec3& pos, const Vec3& color, float intensity = 2.0f, float radius = 14.0f);
@@ -223,6 +233,7 @@ namespace Lab {
         static void drawMesh(const Mesh& mesh, const Mat4& modelTransform, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true, float uvScale = 1.0f);
         static void drawSkinnedMesh(const SkinnedMesh& mesh, const Mat4& modelTransform, const std::vector<Mat4>& boneMatrices, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true);
         static void drawFacialMesh(const FacialMesh& mesh, const Mat4& modelTransform, const Vec3& color = { 1, 1, 1 }, const Texture* texture = nullptr, bool enableLighting = true);
+        static void drawWaterVolume(const Vec3& position, const Vec3& size, float timeSeconds = 0.0f, const Vec3& waterColor = { 0.08f, 0.28f, 0.36f });
         static void drawBaseplate(float size, const Texture* texture = nullptr);
         static std::string resolveModelTexture(const std::string& modelPath, const std::string& fallbackTexture = "");
 
@@ -269,6 +280,11 @@ namespace Lab {
         static bool _enableShadows;
         static Mat4 _lightSpaceMatrix;
         static unsigned int _shadowDepthTexture;
+
+        // Static Baked Lightmaps
+        static bool _enableLightmap;
+        static unsigned int _lightmapTexture;
+        static Vec4 _lightmapBounds;
 
         // Atmospheric Distance & Height Fog State
         static bool _enableFog;

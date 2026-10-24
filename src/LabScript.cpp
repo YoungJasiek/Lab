@@ -169,6 +169,28 @@ namespace Lab {
         }
     }
 
+    bool ScriptEngine::executeStartupHook(const std::string& scriptPath) {
+        if (!_L || scriptPath.empty()) return false;
+        if (scriptPath.find("..") != std::string::npos) return false;
+        std::ifstream ifs(scriptPath);
+        if (!ifs.is_open()) return false;
+        std::string code((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+        if (!executeString(code)) return false;
+
+        lua_getglobal(_L, "OnGameStartup");
+        if (lua_isfunction(_L, -1)) {
+            if (lua_pcall(_L, 0, 0, 0) != LUA_OK) {
+                const char* err = lua_tostring(_L, -1);
+                LabLog::error(std::string("[Lua OnGameStartup Error] ") + (err ? err : "unknown"));
+                lua_pop(_L, 1);
+                return false;
+            }
+        } else {
+            lua_pop(_L, 1);
+        }
+        return true;
+    }
+
     // --- HUD Lua Callbacks ---
     static int lua_HUDSetText(lua_State* L) {
         const char* id = luaL_checkstring(L, 1);
@@ -925,20 +947,32 @@ namespace Lab {
         lua_setfield(_L, -2, "loadBindings");
         lua_setglobal(_L, "Input");
 
-        // Register table 'HUD'
+        // Register table 'HUD' (both camelCase and PascalCase for addon compatibility)
         lua_newtable(_L);
         lua_pushcfunction(_L, lua_HUDSetText);
         lua_setfield(_L, -2, "setText");
+        lua_pushcfunction(_L, lua_HUDSetText);
+        lua_setfield(_L, -2, "SetText");
         lua_pushcfunction(_L, lua_HUDGetText);
         lua_setfield(_L, -2, "getText");
+        lua_pushcfunction(_L, lua_HUDGetText);
+        lua_setfield(_L, -2, "GetText");
         lua_pushcfunction(_L, lua_HUDSetValue);
         lua_setfield(_L, -2, "setValue");
+        lua_pushcfunction(_L, lua_HUDSetValue);
+        lua_setfield(_L, -2, "SetValue");
         lua_pushcfunction(_L, lua_HUDGetValue);
         lua_setfield(_L, -2, "getValue");
+        lua_pushcfunction(_L, lua_HUDGetValue);
+        lua_setfield(_L, -2, "GetValue");
         lua_pushcfunction(_L, lua_HUDSetVisible);
         lua_setfield(_L, -2, "setVisible");
+        lua_pushcfunction(_L, lua_HUDSetVisible);
+        lua_setfield(_L, -2, "SetVisible");
         lua_pushcfunction(_L, lua_HUDIsVisible);
         lua_setfield(_L, -2, "isVisible");
+        lua_pushcfunction(_L, lua_HUDIsVisible);
+        lua_setfield(_L, -2, "IsVisible");
         lua_setglobal(_L, "HUD");
 
         // Register table 'World'

@@ -744,11 +744,11 @@ namespace Lab {
         int w = (optionalSettings ? optionalSettings->width : 1280);
         int h = (optionalSettings ? optionalSettings->height : 720);
         bool fs = (optionalSettings ? optionalSettings->fullscreen : false);
-        bool retro = (optionalSettings ? optionalSettings->retroFX : true);
-        bool retroScan = (optionalSettings ? optionalSettings->retroScanlines : true);
-        bool retroVig = (optionalSettings ? optionalSettings->retroVignette : true);
-        bool retroAber = (optionalSettings ? optionalSettings->retroAberration : true);
-        int retroScale = (optionalSettings ? optionalSettings->retroPixelScale : 2);
+        bool retro = (optionalSettings ? optionalSettings->retroFX : false);
+        bool retroScan = (optionalSettings ? optionalSettings->retroScanlines : false);
+        bool retroVig = (optionalSettings ? optionalSettings->retroVignette : false);
+        bool retroAber = (optionalSettings ? optionalSettings->retroAberration : false);
+        int retroScale = (optionalSettings ? optionalSettings->retroPixelScale : 1);
         int retroTheme = (optionalSettings ? optionalSettings->retroColorTheme : 0);
 
         std::ofstream cfg(testDir / "game.config");

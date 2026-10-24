@@ -37,10 +37,10 @@ namespace Lab {
         std::string rulesPath{""};
         std::string hudPath{""};
         bool retroFX{false};
-        bool retroScanlines{true};
-        bool retroVignette{true};
-        bool retroAberration{true};
-        int retroPixelScale{2};
+        bool retroScanlines{false};
+        bool retroVignette{false};
+        bool retroAberration{false};
+        int retroPixelScale{1};
         int retroColorTheme{0};
     };
 

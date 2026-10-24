@@ -1,4 +1,5 @@
 #include "Lab.h"
+#include "LabGraphics.h"
 #include "LabScene.h"
 #include "LabTheme.h"
 #include "LabFont.h"
@@ -23,6 +24,7 @@
 #include "LabVCS.h"
 #include "LabCCD.h"
 #include "LabComponents.h"
+#include "LabVFS.h"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #if defined(_WIN32)
@@ -1179,6 +1181,116 @@ public:
         ExportPipeline::launchGame(gameExe, launchArgs);
     }
 
+    void bakeMapAction() {
+        if (!_map) {
+            logMessage("Bake: No active map to bake!");
+            return;
+        }
+
+        // Determine destination production path (.lmap), preserving project workspace directory
+        std::filesystem::path outPath = _currentMapPath;
+        if (outPath.empty()) {
+            auto projAssets = ProjectManager::get().getActiveProjectAssetsPath();
+            std::filesystem::path mapsDir = std::filesystem::exists(projAssets) ? (projAssets / "maps") : std::filesystem::path("assets/maps");
+            _currentMapPath = (mapsDir / "untitled_map.labscene").string();
+            outPath = mapsDir / "untitled_map.lmap";
+        } else {
+            std::filesystem::path parentDir = outPath.parent_path();
+            std::string stem = outPath.stem().string();
+            if (parentDir.empty()) {
+                parentDir = "assets/maps";
+            }
+            outPath = parentDir / (stem + ".lmap");
+        }
+
+        // 1. Save active working map (dev/modding non-destructive text format) so no work is lost
+        _map->saveToFile(_currentMapPath);
+        _isDirty = false;
+        logMessage("Bake: Synced authoring scene to " + _currentMapPath);
+
+        // 2. Perform static lightmap baking (direct diffuse + ambient + point lights)
+        logMessage("Bake: Calculating static radiosity & direct lightmaps...");
+        _bakedLightmap = LightmapBaker::bake(
+            *_map,
+            _map->metadata.sunDir,
+            _map->metadata.sunColor,
+            _map->metadata.ambientColor,
+            256
+        );
+        if (_bakedLightmap) {
+            std::filesystem::path lmPath = outPath;
+            lmPath.replace_extension(".lightmap");
+            _bakedLightmap->saveToFile(lmPath.string());
+            Renderer::setLightmap(_bakedLightmap.get());
+            logMessage("Bake: Lightmap baked and applied to viewport (" + lmPath.filename().string() + ")");
+        }
+
+        // 3. Collect all unique level assets referenced by this map for the embedded production package (.lpak)
+        std::vector<std::pair<std::string, std::filesystem::path>> embeddedAssets;
+        std::unordered_set<std::string> visited;
+
+        auto addAsset = [&](const std::string& vpath) {
+            if (vpath.empty() || visited.count(vpath)) return;
+            visited.insert(vpath);
+
+            // Resolve asset path respecting Decoupled Projects, Documents/LabGames, and VFS
+            std::filesystem::path diskPath = ProjectManager::get().resolveAssetPath(vpath);
+            if (!std::filesystem::exists(diskPath)) {
+                diskPath = std::filesystem::path("assets") / vpath;
+            }
+            if (!std::filesystem::exists(diskPath)) {
+                diskPath = vpath;
+            }
+
+            if (std::filesystem::exists(diskPath) && !std::filesystem::is_directory(diskPath)) {
+                embeddedAssets.emplace_back(vpath, diskPath);
+            }
+        };
+
+        // Collect from all map entity types:
+        // Brushes (textures, normal maps, scripts)
+        for (const auto& b : _map->brushes) {
+            addAsset(b.texturePath);
+            addAsset(b.normalMapPath);
+            addAsset(b.script);
+        }
+        // Props (models, custom textures, normal maps, scripts, audio)
+        for (const auto& p : _map->props) {
+            addAsset(p.modelPath);
+            addAsset(p.texturePath);
+            addAsset(p.normalMapPath);
+            addAsset(p.script);
+            if (p.hasAudio) addAsset(p.audioSound);
+        }
+        // Doors (scripts)
+        for (const auto& d : _map->doors) {
+            addAsset(d.script);
+        }
+        // Triggers (scripts, audio dialogs)
+        for (const auto& tr : _map->triggers) {
+            addAsset(tr.script);
+            addAsset(tr.audioPath);
+        }
+        // Sprites (textures, scripts)
+        for (const auto& s : _map->sprites) {
+            addAsset(s.texturePath);
+            addAsset(s.script);
+        }
+        // Environment cubemap
+        addAsset(_map->metadata.cubemapPath);
+
+        // 4. Bake to production binary container (.lmap)
+        std::error_code ec;
+        std::filesystem::create_directories(outPath.parent_path(), ec);
+        bool success = _map->bakeToFile(outPath.string(), true, embeddedAssets);
+        if (success) {
+            logMessage("Bake: Successfully baked production map '" + outPath.string() + "' with " +
+                       std::to_string(embeddedAssets.size()) + " embedded assets (Encrypted & CRC32 validated)");
+        } else {
+            logMessage("Bake: ERROR failed to bake production map to '" + outPath.string() + "'");
+        }
+    }
+
     void buildGameAction(bool runAfterBuild) {
         if (runAfterBuild) {
             runMapInGame();
@@ -1869,14 +1981,11 @@ public:
             _ctrlRPressed = false;
         }
 
-        // F1: Toggle / Open Engine Main Menu (Project Hub)
+        // F1: Quick Level Editor Focus (Hammer Level Editor)
         if (Input::isKeyPressed(290)) { // GLFW_KEY_F1
             if (!_f1Pressed) {
-                if (_workspace == EditorWorkspace::Project_Hub) {
-                    setWorkspace(EditorWorkspace::World3D_Level);
-                } else {
-                    setWorkspace(EditorWorkspace::Project_Hub);
-                }
+                setWorkspace(EditorWorkspace::World3D_Level);
+                logMessage("Hammer 3D Level Editor: Ready (F9: Run map in Frozen-Life, Ctrl+S: Save)");
                 _f1Pressed = true;
             }
         } else {
@@ -4168,7 +4277,7 @@ public:
         }
 
         if (_quickFxMenuOpen) {
-            float mX = 784.0f;
+            float mX = 818.0f;
             float mY = 58.0f;
             float mW = 190.0f;
             float mH = 7 * 26.0f + 8.0f;
@@ -4260,17 +4369,22 @@ public:
             }
 
             // 1. [ > TEST (F5) ]
-            if (mx >= 496.0f && mx <= 584.0f) {
+            if (mx >= 496.0f && mx <= 556.0f) {
                 buildGameAction(true);
                 return;
             }
             // 2. [ BUILD... ]
-            if (mx >= 588.0f && mx <= 648.0f) {
+            if (mx >= 562.0f && mx <= 618.0f) {
                 _buildModalOpen = true;
                 return;
             }
-            // 3. [ 2D / 3D ]
-            if (mx >= 652.0f && mx <= 716.0f) {
+            // 3. [ Bake ]
+            if (mx >= 624.0f && mx <= 680.0f) {
+                bakeMapAction();
+                return;
+            }
+            // 4. [ 2D / 3D ]
+            if (mx >= 686.0f && mx <= 750.0f) {
                 _orthoViewMode = !_orthoViewMode;
                 if (_orthoViewMode) {
                     _camera.setOrthographic(25.0f, -500.0f, 500.0f);
@@ -4286,13 +4400,13 @@ public:
                 return;
             }
             // 4. [+ LIGHT]
-            if (mx >= 720.0f && mx <= 780.0f) {
+            if (mx >= 756.0f && mx <= 812.0f) {
                 _activeTool = 7;
                 logMessage("Tool 7: Omni Point Light Tool (Click scene or E to place)");
                 return;
             }
             // 5. [ QUICK FX v ]
-            if (mx >= 784.0f && mx <= 872.0f) {
+            if (mx >= 818.0f && mx <= 874.0f) {
                 _quickFxMenuOpen = !_quickFxMenuOpen;
                 return;
             }
@@ -5556,7 +5670,7 @@ public:
             return;
         }
 
-        // Viewport Tab Bar Click Handling (Seamless one-click switching between Project Hub, 3D Scene, Script Studio, HUD Canvas, and Plugins)
+        // Viewport Tab Bar Click Handling (3D Viewport, Model Viewer, Script Studio, Mods Explorer, Play)
         float vpTabX = leftW;
         float vpTabY = 58.0f;
         float tabH = 26.0f;
@@ -5567,8 +5681,10 @@ public:
             float tab2W = 170.0f;
             float tab3X = tab2X + tab2W + 6.0f;
             float tab3W = 150.0f;
-            float tabRunX = tab3X + tab3W + 6.0f;
-            float tabRunW = 220.0f;
+            float tabModsX = tab3X + tab3W + 6.0f;
+            float tabModsW = 110.0f;
+            float tabRunX = tabModsX + tabModsW + 6.0f;
+            float tabRunW = 110.0f;
 
             if (mx >= tab1X && mx <= tab1X + tab1W) {
                 setWorkspace(EditorWorkspace::World3D_Level);
@@ -5579,9 +5695,55 @@ public:
             } else if (mx >= tab3X && mx <= tab3X + tab3W) {
                 setWorkspace(EditorWorkspace::Scripting_Editor);
                 return;
+            } else if (mx >= tabModsX && mx <= tabModsX + tabModsW) {
+                _editorDiscoveredAddons = VFS::discoverAddons("addons");
+                setWorkspace(EditorWorkspace::Plugins_Manager);
+                return;
             } else if (mx >= tabRunX && mx <= tabRunX + tabRunW) {
                 runMapInGame();
                 return;
+            }
+        }
+
+        if (_workspace == EditorWorkspace::Plugins_Manager) {
+            float vpX = leftW;
+            float barY = 58.0f + 26.0f + 4.0f;
+            // [+ New Mod] button at vpX + 420 .. vpX + 540
+            if (mx >= vpX + 420.0f && mx <= vpX + 540.0f && my >= barY + 4.0f && my <= barY + 30.0f) {
+                std::filesystem::path newModDir = std::filesystem::path("addons") / "custom_mod";
+                std::filesystem::create_directories(newModDir / "maps");
+                std::filesystem::create_directories(newModDir / "models");
+                std::filesystem::create_directories(newModDir / "materials");
+                std::filesystem::create_directories(newModDir / "scripts");
+                std::ofstream fJson(newModDir / "addon.json");
+                if (fJson.is_open()) {
+                    fJson << "{\n  \"title\": \"Custom Hammer Addon\",\n  \"version\": \"1.0\",\n  \"author\": \"Level Designer\",\n  \"description\": \"Created in Hammer Mods Explorer\"\n}\n";
+                }
+                _editorDiscoveredAddons = VFS::discoverAddons("addons");
+                logMessage("Mods Explorer: Created scaffold in /addons/custom_mod");
+                return;
+            }
+            // [Refresh] button at vpX + 550 .. vpX + 650
+            if (mx >= vpX + 550.0f && mx <= vpX + 650.0f && my >= barY + 4.0f && my <= barY + 30.0f) {
+                _editorDiscoveredAddons = VFS::discoverAddons("addons");
+                logMessage("Mods Explorer: Refreshed /addons/ directory (" + std::to_string(_editorDiscoveredAddons.size()) + " addons)");
+                return;
+            }
+            // Mount / Toggle buttons on addon cards
+            for (size_t i = 0; i < _editorDiscoveredAddons.size() && i < 6; ++i) {
+                float cardY = barY + 46.0f + static_cast<float>(i) * 68.0f;
+                if (mx >= vpX + 16.0f && mx <= vpX + 680.0f && my >= cardY && my <= cardY + 60.0f) {
+                    _editorDiscoveredAddons[i].enabled = !_editorDiscoveredAddons[i].enabled;
+                    std::filesystem::path p = std::filesystem::path("addons") / _editorDiscoveredAddons[i].folderName;
+                    if (_editorDiscoveredAddons[i].enabled) {
+                        VFS::get().mountAddonLayer(p);
+                        logMessage("Mounted addon VFS layer: /addons/" + _editorDiscoveredAddons[i].folderName);
+                    } else {
+                        VFS::get().unmountAddonLayer(p);
+                        logMessage("Unmounted addon VFS layer: /addons/" + _editorDiscoveredAddons[i].folderName);
+                    }
+                    return;
+                }
             }
         }
 
@@ -7037,54 +7199,63 @@ public:
 
         // 1. [ > PLAY (F5) ]
         float bRunX = 496.0f;
-        float bRunW = 88.0f;
+        float bRunW = 60.0f;
         bool isBRunHov = (_mouseScreenX >= bRunX && _mouseScreenX <= bRunX + bRunW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 28.0f);
         Vec3 bRunCol = isBRunHov ? Vec3(0.25f, 0.88f, 0.45f) : Vec3(0.18f, 0.72f, 0.38f);
         Renderer::drawRect(bRunX, tbY + 4.0f, bRunW, 24.0f, bRunCol);
         drawDarkBevel(bRunX, tbY + 4.0f, bRunW, 24.0f, false);
-        LabFont::drawText(bRunX + 8.0f, tbY + 8.0f, "> PLAY (F5)", 1.2f, Vec3(1, 1, 1), LabFontType::System);
+        LabFont::drawText(bRunX + 16.0f, tbY + 8.0f, "Play", 1.2f, Vec3(1, 1, 1), LabFontType::System);
 
         // 2. [ BUILD ]
-        float bExpX = 588.0f;
-        float bExpW = 60.0f;
+        float bExpX = 562.0f;
+        float bExpW = 56.0f;
         bool isBExpHov = (_mouseScreenX >= bExpX && _mouseScreenX <= bExpX + bExpW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 28.0f);
         Vec3 bExpCol = isBExpHov ? Vec3(0.25f, 0.58f, 0.92f) : Vec3(0.18f, 0.46f, 0.76f);
         Renderer::drawRect(bExpX, tbY + 4.0f, bExpW, 24.0f, bExpCol);
         drawDarkBevel(bExpX, tbY + 4.0f, bExpW, 24.0f, false);
-        LabFont::drawText(bExpX + 8.0f, tbY + 8.0f, "BUILD", 1.2f, Vec3(1, 1, 1), LabFontType::System);
+        LabFont::drawText(bExpX + 12.0f, tbY + 8.0f, "Build", 1.2f, Vec3(1, 1, 1), LabFontType::System);
+
+        // 3. [ BAKE ]
+        float bBakeX = 624.0f;
+        float bBakeW = 56.0f;
+        bool isBBakeHov = (_mouseScreenX >= bBakeX && _mouseScreenX <= bBakeX + bBakeW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 28.0f);
+        Vec3 bBakeCol = isBBakeHov ? Vec3(0.95f, 0.55f, 0.20f) : Vec3(0.80f, 0.42f, 0.12f);
+        Renderer::drawRect(bBakeX, tbY + 4.0f, bBakeW, 24.0f, bBakeCol);
+        drawDarkBevel(bBakeX, tbY + 4.0f, bBakeW, 24.0f, false);
+        LabFont::drawText(bBakeX + 12.0f, tbY + 8.0f, "Bake", 1.2f, Vec3(1, 1, 1), LabFontType::System);
 
         // 3. [ 2D / 3D ]
-        float viewModeX = 652.0f;
+        float viewModeX = 686.0f;
         float viewModeW = 64.0f;
         bool isOrtho = _orthoViewMode;
         bool isViewHov = (_mouseScreenX >= viewModeX && _mouseScreenX <= viewModeX + viewModeW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 28.0f);
         Vec3 viewCol = isOrtho ? Vec3(0.20f, 0.55f, 0.85f) : (isViewHov ? Vec3(0.28f, 0.32f, 0.38f) : Vec3(0.20f, 0.22f, 0.25f));
         Renderer::drawRect(viewModeX, tbY + 4.0f, viewModeW, 24.0f, viewCol);
         drawDarkBevel(viewModeX, tbY + 4.0f, viewModeW, 24.0f, isOrtho);
-        LabFont::drawText(viewModeX + 8.0f, tbY + 8.0f, isOrtho ? "2D ORTHO" : "3D PERSP", 1.2f, isOrtho ? Vec3(1, 1, 1) : cyanGlow, LabFontType::System);
+        LabFont::drawText(viewModeX + 16.0f, tbY + 8.0f, isOrtho ? "2D" : "3D", 1.2f, isOrtho ? Vec3(1, 1, 1) : cyanGlow, LabFontType::System);
 
         // 4. [+ LIGHT]
-        float lightX = 720.0f;
-        float lightW = 60.0f;
+        float lightX = 756.0f;
+        float lightW = 56.0f;
         bool isLightTool = (_activeTool == 7);
         bool isLightHov = (_mouseScreenX >= lightX && _mouseScreenX <= lightX + lightW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 28.0f);
         Vec3 lightBtnBg = isLightTool ? Vec3(0.95f, 0.75f, 0.15f) : (isLightHov ? Vec3(0.32f, 0.35f, 0.40f) : Vec3(0.22f, 0.23f, 0.26f));
         Renderer::drawRect(lightX, tbY + 4.0f, lightW, 24.0f, lightBtnBg);
         drawDarkBevel(lightX, tbY + 4.0f, lightW, 24.0f, isLightTool);
-        LabFont::drawText(lightX + 6.0f, tbY + 8.0f, "+ LIGHT", 1.2f, isLightTool ? Vec3(0.05f, 0.05f, 0.05f) : Vec3(1.0f, 0.85f, 0.2f), LabFontType::System);
+        LabFont::drawText(lightX + 10.0f, tbY + 8.0f, "Light", 1.2f, isLightTool ? Vec3(0.05f, 0.05f, 0.05f) : Vec3(1.0f, 0.85f, 0.2f), LabFontType::System);
 
         // 5. [ QUICK FX v ]
-        float qfxX = 784.0f;
-        float qfxW = 88.0f;
+        float qfxX = 818.0f;
+        float qfxW = 56.0f;
         bool isQfxHov = (_mouseScreenX >= qfxX && _mouseScreenX <= qfxX + qfxW && _mouseScreenY >= tbY + 4.0f && _mouseScreenY <= tbY + 28.0f);
         Vec3 qfxBg = _quickFxMenuOpen ? Vec3(0.55f, 0.25f, 0.80f) : (isQfxHov ? Vec3(0.35f, 0.30f, 0.45f) : Vec3(0.25f, 0.22f, 0.30f));
         Renderer::drawRect(qfxX, tbY + 4.0f, qfxW, 24.0f, qfxBg);
         drawDarkBevel(qfxX, tbY + 4.0f, qfxW, 24.0f, _quickFxMenuOpen);
-        LabFont::drawText(qfxX + 6.0f, tbY + 8.0f, "QUICK FX v", 1.2f, Vec3(0.9f, 0.85f, 1.0f), LabFontType::System);
+        LabFont::drawText(qfxX + 18.0f, tbY + 8.0f, "FX", 1.2f, Vec3(0.9f, 0.85f, 1.0f), LabFontType::System);
 
         // Floating Quick FX Dropdown Menu
         if (_quickFxMenuOpen) {
-            float mX = 784.0f;
+            float mX = 818.0f;
             float mY = 58.0f;
             float mW = 190.0f;
             float mH = 7 * 26.0f + 8.0f;
@@ -7317,13 +7488,13 @@ public:
             }
 
             // Outliner action buttons
-            drawDarkButton(l.outFocusX, l.outFocusY, l.outFocusW, l.outFocusH, "Focus (F)");
+            drawDarkButton(l.outFocusX, l.outFocusY, l.outFocusW, l.outFocusH, "Focus");
             drawDarkButton(l.outDupX, l.outDupY, l.outDupW, l.outDupH, "Duplicate");
             drawDarkButton(l.outDelX, l.outDelY, l.outDelW, l.outDelH, "Delete", false, true);
 
             // Pagination buttons
-            drawDarkButton(l.outPrevX, l.outPrevY, l.outPrevW, l.outPrevH, "< Prev Page");
-            drawDarkButton(l.outNextX, l.outNextY, l.outNextW, l.outNextH, "Next Page >");
+            drawDarkButton(l.outPrevX, l.outPrevY, l.outPrevW, l.outPrevH, "< Prev");
+            drawDarkButton(l.outNextX, l.outNextY, l.outNextW, l.outNextH, "Next >");
         }
 
         // ==================== TAB CONTENT: PROPERTIES ====================
@@ -7348,8 +7519,8 @@ public:
                 // Category Buttons
                 LabFont::drawText(l.rightX + 12.0f, propY + 96.0f, "Cycle Pickup Sub-Type:", 1.6f, textLight, LabFontType::System);
                 float wepBtnY = propY + 114.0f;
-                drawDarkButton(l.rightX + 10.0f, wepBtnY, 130.0f, 26.0f, "< Prev Type");
-                drawDarkButton(l.rightX + 150.0f, wepBtnY, 130.0f, 26.0f, "Next Type >");
+                drawDarkButton(l.rightX + 10.0f, wepBtnY, 130.0f, 26.0f, "< Prev");
+                drawDarkButton(l.rightX + 150.0f, wepBtnY, 130.0f, 26.0f, "Next >");
 
                 // Respawn Time Buttons [-15s] [30s (Default)] [+15s]
                 LabFont::drawText(l.rightX + 12.0f, wepBtnY + 36.0f, "Set Respawn Delay Cooldown:", 1.6f, textLight, LabFontType::System);
@@ -7357,12 +7528,12 @@ public:
                 drawDarkButton(l.rightX + 10.0f, respBtnY, 70.0f, 24.0f, "-15s");
 
                 bool isDefault30 = (std::abs(ws.respawnTime - 30.0f) < 0.1f);
-                drawDarkButton(l.rightX + 90.0f, respBtnY, 100.0f, 24.0f, "30s (Default)", isDefault30, false, isDefault30);
+                drawDarkButton(l.rightX + 90.0f, respBtnY, 100.0f, 24.0f, "Default", isDefault30, false, isDefault30);
                 drawDarkButton(l.rightX + 200.0f, respBtnY, 70.0f, 24.0f, "+15s");
 
                 // Deselect & Delete buttons
-                drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect All");
-                drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete Item Node", false, true);
+                drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect");
+                drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete", false, true);
             } else if (_selectionType == SelectionType::Spawn && _selectedIndex >= 0 && _selectedIndex < (int)_map->spawnPoints.size()) {
                 auto& sp = _map->spawnPoints[_selectedIndex];
                 std::string selHeader = "Selection: Actor / Player Start #" + std::to_string(_selectedIndex);
@@ -7401,8 +7572,8 @@ public:
                 }
 
                 // Deselect & Delete buttons
-                drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect All");
-                drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete Actor Start", false, true);
+                drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect");
+                drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete", false, true);
             } else if (_selectionType == SelectionType::Light && _selectedIndex >= 0 && _selectedIndex < (int)_map->lights.size()) {
                 auto& lt = _map->lights[_selectedIndex];
                 std::string selHeader = "Selection: Lamp Light #" + std::to_string(_selectedIndex);
@@ -7446,13 +7617,13 @@ public:
                 drawDragRow(l, 0);
 
                 // Elevation buttons
-                drawDarkButton(l.elevUpX, l.elevUpY, l.elevUpW, l.elevUpH, "^ UP (+Y)", false, false, true);
-                drawDarkButton(l.elevDwnX, l.elevDwnY, l.elevDwnW, l.elevDwnH, "v DOWN (-Y)");
-                drawDarkButton(l.elevGndX, l.elevGndY, l.elevGndW, l.elevGndH, "Floor (Y=0)");
+                drawDarkButton(l.elevUpX, l.elevUpY, l.elevUpW, l.elevUpH, "^ Up", false, false, true);
+                drawDarkButton(l.elevDwnX, l.elevDwnY, l.elevDwnW, l.elevDwnH, "v Down");
+                drawDarkButton(l.elevGndX, l.elevGndY, l.elevGndW, l.elevGndH, "Floor");
 
                 // Deselect & Delete buttons
-                drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect All");
-                drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete Lamp Light", false, true);
+                drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect");
+                drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete", false, true);
             } else if (_selectionType == SelectionType::Camera && _selectedIndex >= 0 && _selectedIndex < (int)_map->cameras.size()) {
                 auto& cam = _map->cameras[_selectedIndex];
                 std::string selHeader = "Selection: Camera Component #" + std::to_string(_selectedIndex);
@@ -7556,13 +7727,13 @@ public:
                 drawDragRow(l, 0);
 
                 // Elevation buttons
-                drawDarkButton(l.elevUpX, l.elevUpY, l.elevUpW, l.elevUpH, "^ UP (+Y)", false, false, true);
-                drawDarkButton(l.elevDwnX, l.elevDwnY, l.elevDwnW, l.elevDwnH, "v DOWN (-Y)");
+                drawDarkButton(l.elevUpX, l.elevUpY, l.elevUpW, l.elevUpH, "^ Up", false, false, true);
+                drawDarkButton(l.elevDwnX, l.elevDwnY, l.elevDwnW, l.elevDwnH, "v Down");
                 drawDarkButton(l.elevGndX, l.elevGndY, l.elevGndW, l.elevGndH, "Eye (Y=1.8)");
 
                 // Deselect & Delete buttons
-                drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect All");
-                drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete Camera", false, true);
+                drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect");
+                drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete", false, true);
             } else if (_selectionType == SelectionType::Waypoint && _selectedIndex >= 0 && _selectedIndex < (int)_map->waypoints.size()) {
                 auto& wp = _map->waypoints[_selectedIndex];
                 float wpPropY = l.rightY + 38.0f;
@@ -7670,13 +7841,13 @@ public:
                 drawDragRow(l, 0);
 
                 // Quick Elevation Action Buttons
-                drawDarkButton(l.elevUpX, l.elevUpY, l.elevUpW, l.elevUpH, "^ UP (+Y)", false, false, true);
-                drawDarkButton(l.elevDwnX, l.elevDwnY, l.elevDwnW, l.elevDwnH, "v DOWN (-Y)");
-                drawDarkButton(l.elevGndX, l.elevGndY, l.elevGndW, l.elevGndH, "Floor (Y=0)");
+                drawDarkButton(l.elevUpX, l.elevUpY, l.elevUpW, l.elevUpH, "^ Up", false, false, true);
+                drawDarkButton(l.elevDwnX, l.elevDwnY, l.elevDwnW, l.elevDwnH, "v Down");
+                drawDarkButton(l.elevGndX, l.elevGndY, l.elevGndW, l.elevGndH, "Floor");
 
                 // Deselect & Delete buttons
-                drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect All");
-                drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete Bot Waypoint", false, true);
+                drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect");
+                drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete", false, true);
             } else if (_selectionType == SelectionType::Trigger && _selectedIndex >= 0 && _selectedIndex < (int)_map->triggers.size()) {
                 auto& tr = _map->triggers[_selectedIndex];
                 float trPropY = l.rightY + 38.0f;
@@ -7712,7 +7883,7 @@ public:
                 // Section 2: Target Mechanism / Door
                 std::string entLabel = "Target Entity: " + (tr.targetEntity.empty() ? "(none)" : tr.targetEntity) + " [" + tr.targetAction + "]";
                 LabFont::drawText(l.rightX + 12.0f, trTargetY - 18.0f, entLabel, 1.55f, orangeGlow, LabFontType::System);
-                drawDarkButton(l.rightX + 10.0f, trTargetY, 130.0f, 22.0f, "Cycle Door Entity", !tr.targetEntity.empty(), false, !tr.targetEntity.empty());
+                drawDarkButton(l.rightX + 10.0f, trTargetY, 130.0f, 22.0f, "Cycle Door", !tr.targetEntity.empty(), false, !tr.targetEntity.empty());
                 drawDarkButton(l.rightX + 144.0f, trTargetY, 70.0f, 22.0f, "Clear Target");
                 drawDarkButton(l.rightX + 218.0f, trTargetY, 76.0f, 22.0f, tr.once ? "Once: ON" : "Once: OFF", tr.once, false, tr.once);
 
@@ -7730,7 +7901,7 @@ public:
                 std::string wpLabel = "Target Waypoint: " + (tr.targetWaypoint.empty() ? "(none)" : tr.targetWaypoint);
                 LabFont::drawText(l.rightX + 12.0f, trWpY - 18.0f, wpLabel, 1.55f, cyanGlow, LabFontType::System);
                 drawDarkButton(l.rightX + 10.0f, trWpY, 150.0f, 22.0f, "Cycle Waypoint", !tr.targetWaypoint.empty(), false, !tr.targetWaypoint.empty());
-                drawDarkButton(l.rightX + 165.0f, trWpY, 120.0f, 22.0f, "Clear WP Link");
+                drawDarkButton(l.rightX + 165.0f, trWpY, 120.0f, 22.0f, "Clear WP");
 
                 // Section 4: Target Bot Designation
                 std::string botLabel = "Triggered By: " + (tr.targetBot.empty() ? "(Any Bot)" : tr.targetBot);
@@ -7755,19 +7926,19 @@ public:
                 drawDragRow(l, 0);
 
                 // Quick Elevation Action Buttons
-                drawDarkButton(l.elevUpX, l.elevUpY, l.elevUpW, l.elevUpH, "^ UP (+Y)", false, false, true);
-                drawDarkButton(l.elevDwnX, l.elevDwnY, l.elevDwnW, l.elevDwnH, "v DOWN (-Y)");
-                drawDarkButton(l.elevGndX, l.elevGndY, l.elevGndW, l.elevGndH, "Floor (Y=0)");
+                drawDarkButton(l.elevUpX, l.elevUpY, l.elevUpW, l.elevUpH, "^ Up", false, false, true);
+                drawDarkButton(l.elevDwnX, l.elevDwnY, l.elevDwnW, l.elevDwnH, "v Down");
+                drawDarkButton(l.elevGndX, l.elevGndY, l.elevGndW, l.elevGndH, "Floor");
 
                 // Dimension Adjusters [-] [+]
                 LabFont::drawText(l.rightX + 12.0f, l.dimBtnsY - 18.0f, "Adjust Size (X / Y / Z):", 1.7f, textLight, LabFontType::System);
                 drawDragRow(l, 1);
 
                 // Deselect button
-                drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect All");
+                drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect");
 
                 // Delete Selected button
-                drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete Trigger Volume", false, true);
+                drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete", false, true);
 
             } else if (_selectionType == SelectionType::Prop && _selectedIndex >= 0 && _selectedIndex < (int)_map->props.size()) {
                 auto& p = _map->props[_selectedIndex];
@@ -7790,7 +7961,7 @@ public:
                 Renderer::drawRect(l.rightX + 10.0f, mBoxY, 280.0f, 22.0f, wellBg);
                 drawDarkBevel(l.rightX + 10.0f, mBoxY, 280.0f, 22.0f, true);
                 LabFont::drawText(l.rightX + 16.0f, mBoxY + 4.0f, p.modelPath.empty() ? "(default prop)" : p.modelPath, 1.45f, textLight, LabFontType::System);
-                drawDarkButton(l.rightX + 10.0f, mBoxY + 26.0f, 280.0f, 24.0f, "Browse 3D Models...");
+                drawDarkButton(l.rightX + 10.0f, mBoxY + 26.0f, 280.0f, 24.0f, "Browse");
 
                 // Entity Components (ECS)
                 float compY = mBoxY + 58.0f;
@@ -7928,7 +8099,7 @@ public:
                 // Section 3: Dependency & Mechanism
                 std::string depLabel = "Dependency: " + (d.dependency.empty() ? "(none / standalone)" : d.dependency);
                 LabFont::drawText(l.rightX + 12.0f, dDepY - 18.0f, depLabel, 1.55f, greenAccent, LabFontType::System);
-                drawDarkButton(l.rightX + 10.0f, dDepY, 120.0f, 22.0f, "Cycle Dependency", !d.dependency.empty(), false, !d.dependency.empty());
+                drawDarkButton(l.rightX + 10.0f, dDepY, 120.0f, 22.0f, "Cycle Dep", !d.dependency.empty(), false, !d.dependency.empty());
                 drawDarkButton(l.rightX + 134.0f, dDepY, 70.0f, 22.0f, "Clear Dep");
                 drawDarkButton(l.rightX + 208.0f, dDepY, 82.0f, 22.0f, d.autoClose ? "AutoClose: ON" : "AutoClose: OFF", d.autoClose, false, d.autoClose);
 
@@ -7937,19 +8108,19 @@ public:
                 drawDragRow(l, 0);
 
                 // Quick Elevation Action Buttons
-                drawDarkButton(l.elevUpX, l.elevUpY, l.elevUpW, l.elevUpH, "^ UP (+Y)", false, false, true);
-                drawDarkButton(l.elevDwnX, l.elevDwnY, l.elevDwnW, l.elevDwnH, "v DOWN (-Y)");
-                drawDarkButton(l.elevGndX, l.elevGndY, l.elevGndW, l.elevGndH, "Floor (Y=0)");
+                drawDarkButton(l.elevUpX, l.elevUpY, l.elevUpW, l.elevUpH, "^ Up", false, false, true);
+                drawDarkButton(l.elevDwnX, l.elevDwnY, l.elevDwnW, l.elevDwnH, "v Down");
+                drawDarkButton(l.elevGndX, l.elevGndY, l.elevGndW, l.elevGndH, "Floor");
 
                 // Dimension Adjusters [-] [+]
                 LabFont::drawText(l.rightX + 12.0f, l.dimBtnsY - 18.0f, "Adjust Door Size (X / Y / Z):", 1.7f, textLight, LabFontType::System);
                 drawDragRow(l, 1);
 
                 // Deselect button
-                drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect All");
+                drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect");
 
                 // Delete Selected button
-                drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete Kinematic Door", false, true);
+                drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete", false, true);
             } else {
                 std::string selHeader = "Selection: None";
                 if (_selectionType == SelectionType::Brush) selHeader = "Selection: Brush #" + std::to_string(_selectedIndex);
@@ -8002,8 +8173,8 @@ public:
                     Renderer::drawTextureRect(l.thumbX + 2.0f, l.thumbY + 2.0f, l.thumbS - 4.0f, l.thumbS - 4.0f, *_textures[_selectedTexture]);
                 }
 
-                drawDarkButton(l.texBrowseX, l.texBrowseY, l.texBrowseW, l.texBrowseH, "Browse Textures...");
-                drawDarkButton(l.texApplyX, l.texApplyY, l.texApplyW, l.texApplyH, "Apply to Brush", false, false, true);
+                drawDarkButton(l.texBrowseX, l.texBrowseY, l.texBrowseW, l.texBrowseH, "Browse");
+                drawDarkButton(l.texApplyX, l.texApplyY, l.texApplyW, l.texApplyH, "Apply", false, false, true);
 
                 // 3D Entity Prop Model Selector
                 LabFont::drawText(l.rightX + 12.0f, l.modelBoxY - 18.0f, "3D Entity Model (.stl):", 1.7f, textLight, LabFontType::System);
@@ -8011,7 +8182,7 @@ public:
                 drawDarkBevel(l.modelBoxX, l.modelBoxY, l.modelBoxW, l.modelBoxH, true);
                 LabFont::drawText(l.modelBoxX + 10.0f, l.modelBoxY + 4.0f, _selectedModel, 1.6f, textLight, LabFontType::System);
 
-                drawDarkButton(l.modelBrowseX, l.modelBrowseY, l.modelBrowseW, l.modelBrowseH, "Browse 3D Models...");
+                drawDarkButton(l.modelBrowseX, l.modelBrowseY, l.modelBrowseW, l.modelBrowseH, "Browse");
             }
 
             // Position Translation [-] [+]
@@ -8021,9 +8192,9 @@ public:
             drawDragRow(l, 0);
 
             // Quick Elevation Action Buttons
-            drawDarkButton(l.elevUpX, l.elevUpY, l.elevUpW, l.elevUpH, "^ UP (+Y)", false, false, true);
-            drawDarkButton(l.elevDwnX, l.elevDwnY, l.elevDwnW, l.elevDwnH, "v DOWN (-Y)");
-            drawDarkButton(l.elevGndX, l.elevGndY, l.elevGndW, l.elevGndH, "Floor (Y=0)");
+            drawDarkButton(l.elevUpX, l.elevUpY, l.elevUpW, l.elevUpH, "^ Up", false, false, true);
+            drawDarkButton(l.elevDwnX, l.elevDwnY, l.elevDwnW, l.elevDwnH, "v Down");
+            drawDarkButton(l.elevGndX, l.elevGndY, l.elevGndW, l.elevGndH, "Floor");
 
             // Dimension Adjusters [-] [+]
             LabFont::drawText(l.rightX + 12.0f, l.dimBtnsY - 18.0f, "Adjust Size (X / Y / Z):", 1.7f, textLight, LabFontType::System);
@@ -8036,15 +8207,15 @@ public:
             drawDragRow(l, 2);
 
             // Deselect button
-            drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect All");
+            drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect");
 
             // Delete Selected button
-            drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete Selected", false, true);
+            drawDarkButton(l.delX, l.delY, l.delW, l.delH, "Delete", false, true);
 
             // Dedicated Action Buttons (Set "Klocek1" & Assign Script) cleanly placed below Delete button!
             float actBtnY = l.delY + l.delH + 10.0f;
             drawDarkButton(l.rightX + 10.0f, actBtnY, 135.0f, 24.0f, "Set \"Klocek1\"");
-            drawDarkButton(l.rightX + 155.0f, actBtnY, 135.0f, 24.0f, "Assign Script");
+            drawDarkButton(l.rightX + 155.0f, actBtnY, 135.0f, 24.0f, "Assign");
         }
 
         // ==================== CENTRAL VIEWPORT & WORKSPACES ====================
@@ -8061,6 +8232,7 @@ public:
         bool is3D = (_workspace == EditorWorkspace::World3D_Level || _workspace == EditorWorkspace::World3D_Animation);
         bool isScr = (_workspace == EditorWorkspace::Scripting_Editor || _workspace == EditorWorkspace::Scripting_Console);
         bool isMv = (_workspace == EditorWorkspace::World3D_ModelViewer);
+        bool isMods = (_workspace == EditorWorkspace::Plugins_Manager);
 
         // Tab 1: [ 3D Level Viewport ]
         float tab1X = vpX + 6.0f;
@@ -8086,13 +8258,21 @@ public:
         if (isScr) Renderer::drawRect(tab3X, vpY + tabH - 2.0f, tab3W, 2.0f, cyanGlow);
         LabFont::drawText(tab3X + 14.0f, vpY + 6.0f, "Lua Script Studio", 1.35f, isScr ? Vec3(1, 1, 1) : textDim, LabFontType::System);
 
-        // Tab 4: [ RUN MAP IN FROZEN-LIFE (F9) ]
-        float tabRunX = tab3X + tab3W + 6.0f;
-        float tabRunW = 220.0f;
+        // Tab 4: [ Mods ] (Dedicated Addons & Packages Explorer)
+        float tabModsX = tab3X + tab3W + 6.0f;
+        float tabModsW = 110.0f;
+        Renderer::drawRect(tabModsX, vpY + 2.0f, tabModsW, tabH - 4.0f, isMods ? Vec3(0.20f, 0.24f, 0.30f) : Vec3(0.12f, 0.13f, 0.16f));
+        drawDarkBevel(tabModsX, vpY + 2.0f, tabModsW, tabH - 4.0f, isMods);
+        if (isMods) Renderer::drawRect(tabModsX, vpY + tabH - 2.0f, tabModsW, 2.0f, orangeGlow);
+        LabFont::drawText(tabModsX + 26.0f, vpY + 6.0f, "Mods", 1.35f, isMods ? Vec3(1, 1, 1) : textDim, LabFontType::System);
+
+        // Tab 5: [ Play (F9) ]
+        float tabRunX = tabModsX + tabModsW + 6.0f;
+        float tabRunW = 110.0f;
         Renderer::drawRect(tabRunX, vpY + 2.0f, tabRunW, tabH - 4.0f, Vec3(0.16f, 0.32f, 0.20f));
         drawDarkBevel(tabRunX, vpY + 2.0f, tabRunW, tabH - 4.0f, false);
         Renderer::drawRect(tabRunX, vpY + tabH - 2.0f, tabRunW, 2.0f, Vec3(0.25f, 0.85f, 0.40f));
-        LabFont::drawText(tabRunX + 16.0f, vpY + 6.0f, "RUN MAP IN GAME (F9)", 1.35f, Vec3(0.40f, 1.0f, 0.55f), LabFontType::System);
+        LabFont::drawText(tabRunX + 16.0f, vpY + 6.0f, "Play (F9)", 1.35f, Vec3(0.40f, 1.0f, 0.55f), LabFontType::System);
 
         float contentY = vpY + tabH;
         float contentH = vpH - tabH;
@@ -8157,10 +8337,10 @@ public:
             drawDarkButton(inspX + 128.0f, curIY, 102.0f, 26.0f, _modelViewerWireframe ? "Wireframe" : "Shaded", _modelViewerWireframe);
 
             curIY += 34.0f;
-            drawDarkButton(inspX + 10.0f, curIY, 220.0f, 26.0f, "Reset Turntable Angle");
+            drawDarkButton(inspX + 10.0f, curIY, 220.0f, 26.0f, "Reset");
 
             curIY += 34.0f;
-            drawDarkButton(inspX + 10.0f, curIY, 220.0f, 26.0f, "Apply Surface Material", false, false, true);
+            drawDarkButton(inspX + 10.0f, curIY, 220.0f, 26.0f, "Apply", false, false, true);
 
             // Center: 3D Turntable view instructions banner
             float centerW = inspX - (mvX + leftListW) - 20.0f;
@@ -8278,7 +8458,7 @@ public:
 
             // [+ New Script] Button
             float newBtnY = listY + 38.0f;
-            drawDarkButton(listX + 6.0f, newBtnY, scriptListW - 12.0f, 22.0f, "+ New Script");
+            drawDarkButton(listX + 6.0f, newBtnY, scriptListW - 12.0f, 22.0f, "+ Script");
 
             // Script items
             float itemStartY = newBtnY + 28.0f;
@@ -8306,11 +8486,11 @@ public:
             float codeX = listX + scriptListW + 6.0f;
             float codeW = vpW - scriptListW - 14.0f;
             float actY = contentY + 4.0f;
-            drawDarkButton(codeX, actY, 150.0f, 26.0f, "> RUN (Ctrl+R)", false, false, true);
+            drawDarkButton(codeX, actY, 150.0f, 26.0f, "Run (Ctrl+R)", false, false, true);
             drawDarkButton(codeX + 156.0f, actY, 110.0f, 26.0f, "SAVE (Ctrl+S)", false, false, true);
-            drawDarkButton(codeX + 272.0f, actY, 140.0f, 26.0f, "Preset: Klocek+Timer");
-            drawDarkButton(codeX + 418.0f, actY, 130.0f, 26.0f, "Preset: Player HUD");
-            drawDarkButton(codeX + 554.0f, actY, 120.0f, 26.0f, "Preset: Movement");
+            drawDarkButton(codeX + 272.0f, actY, 140.0f, 26.0f, "Klocek+Timer");
+            drawDarkButton(codeX + 418.0f, actY, 130.0f, 26.0f, "Player HUD");
+            drawDarkButton(codeX + 554.0f, actY, 120.0f, 26.0f, "Movement");
             drawDarkButton(codeX + 680.0f, actY, 130.0f, 26.0f, "Name 'Klocek1'", false, false, true);
 
             // Interactive Code Editor Area
@@ -8372,8 +8552,24 @@ public:
             float barH = 34.0f;
             Renderer::drawRect(vpX + 4.0f, barY, vpW - 8.0f, barH, Vec3(0.10f, 0.12f, 0.16f));
             drawDarkBevel(vpX + 4.0f, barY, vpW - 8.0f, barH, false);
-            LabFont::drawText(vpX + 16.0f, barY + 9.0f, "NATIVE ENGINE CORE (ZERO-OVERHEAD C++20 ARCHITECTURE)", 1.55f, orangeGlow, LabFontType::System);
-            LabFont::drawText(vpX + 24.0f, barY + 56.0f, "External plugin system removed. All subsystems are compiled natively into LabCore.", 1.35f, cyanGlow, LabFontType::System);
+            LabFont::drawText(vpX + 16.0f, barY + 9.0f, "MODS & ADDONS EXPLORER (/addons/ VFS LAYER MANAGER)", 1.50f, orangeGlow, LabFontType::System);
+            drawDarkButton(vpX + 420.0f, barY + 4.0f, 120.0f, 26.0f, "+ New Mod", false, false, true);
+            drawDarkButton(vpX + 550.0f, barY + 4.0f, 100.0f, 26.0f, "Refresh");
+
+            if (_editorDiscoveredAddons.empty()) {
+                _editorDiscoveredAddons = VFS::discoverAddons("addons");
+            }
+            for (size_t i = 0; i < _editorDiscoveredAddons.size() && i < 6; ++i) {
+                const auto& mod = _editorDiscoveredAddons[i];
+                float cardY = barY + 46.0f + static_cast<float>(i) * 68.0f;
+                Renderer::drawRect(vpX + 16.0f, cardY, 664.0f, 60.0f, mod.enabled ? Vec3(0.11f, 0.14f, 0.19f) : Vec3(0.08f, 0.09f, 0.11f));
+                drawDarkBevel(vpX + 16.0f, cardY, 664.0f, 60.0f, mod.enabled);
+                Renderer::drawRect(vpX + 16.0f, cardY, 4.0f, 60.0f, mod.enabled ? orangeGlow : textDim);
+                LabFont::drawText(vpX + 28.0f, cardY + 8.0f, mod.title + " v" + mod.version + " (/addons/" + mod.folderName + ")", 1.45f, mod.enabled ? orangeGlow : textDim, LabFontType::System);
+                LabFont::drawText(vpX + 28.0f, cardY + 26.0f, "Author: " + mod.author + " | Startup Hook: " + (mod.startupScript.empty() ? "None" : mod.startupScript), 1.25f, cyanGlow, LabFontType::System);
+                LabFont::drawText(vpX + 28.0f, cardY + 42.0f, mod.description, 1.25f, textLight, LabFontType::System);
+                drawDarkButton(vpX + 570.0f, cardY + 16.0f, 96.0f, 26.0f, mod.enabled ? "Mounted" : "Disabled", mod.enabled, false, mod.enabled);
+            }
         } else if (_workspace == EditorWorkspace::Project_Hub) {
             // ==================== ENGINE MAIN MENU & PROJECT HUB ====================
             // Standalone Decoupled Projects Browser & Game Showcase Launcher
@@ -8465,7 +8661,7 @@ public:
             drawDarkButton(listX + 252.0f, botBtnY, 125.0f, 22.0f, "2D Canvas", isNew2D);
 
             float row2Y = botBtnY + 26.0f;
-            drawDarkButton(listX + 10.0f, row2Y, 215.0f, 32.0f, (_hubNewProjectDimension == "2D" ? "+ Create 2D Game" : "+ Create 3D Game"), false, false, true);
+            drawDarkButton(listX + 10.0f, row2Y, 215.0f, 32.0f, (_hubNewProjectDimension == "2D" ? "+ Create 2D" : "+ Create 3D"), false, false, true);
             drawDarkButton(listX + 235.0f, row2Y, 145.0f, 32.0f, "Rescan Disk", false, false, true);
 
             // --- RIGHT PANEL: Selected Project Inspector & Action Center ---
@@ -8487,20 +8683,20 @@ public:
 
                 // Action Buttons Bar
                 // [ OPEN IN EDITOR (CONTINUE) ]
-                drawDarkButton(detX + 20.0f, dy, 260.0f, 42.0f, "> OPEN IN EDITOR (CONTINUE)", false, false, true);
+                drawDarkButton(detX + 20.0f, dy, 260.0f, 42.0f, "Open", false, false, true);
                 Renderer::drawRect(detX + 20.0f, dy + 40.0f, 260.0f, 2.0f, greenAccent);
 
                 // [ PLAY STANDALONE DEMO ]
                 if (proj.hasStandaloneDemo) {
-                    drawDarkButton(detX + 295.0f, dy, 250.0f, 42.0f, "PLAY STANDALONE DEMO", false, false, true);
+                    drawDarkButton(detX + 295.0f, dy, 250.0f, 42.0f, "Play Demo", false, false, true);
                     Renderer::drawRect(detX + 295.0f, dy + 40.0f, 250.0f, 2.0f, cyanGlow);
                 }
                 dy += 54.0f;
 
                 // Secondary row of buttons
-                drawDarkButton(detX + 20.0f, dy, 180.0f, 34.0f, "Open Project Folder", false, false, true);
-                drawDarkButton(detX + 210.0f, dy, 180.0f, 34.0f, "Export / Package...", false, false, true);
-                drawDarkButton(detX + 400.0f, dy, 170.0f, 34.0f, "Project Settings", false, false, true);
+                drawDarkButton(detX + 20.0f, dy, 180.0f, 34.0f, "Open Folder", false, false, true);
+                drawDarkButton(detX + 210.0f, dy, 180.0f, 34.0f, "Export", false, false, true);
+                drawDarkButton(detX + 400.0f, dy, 170.0f, 34.0f, "Settings", false, false, true);
                 dy += 44.0f;
 
                 // Status Banner if any
@@ -8573,8 +8769,8 @@ public:
 
             bool isDim3D = (_settingsDimension == "3D");
             bool isDim2D = (_settingsDimension == "2D");
-            drawDarkButton(pX + 16.0f, curY + 48.0f, 220.0f, 26.0f, "3D World (Perspective)", isDim3D);
-            drawDarkButton(pX + 246.0f, curY + 48.0f, 260.0f, 26.0f, "2D Canvas (Orthographic Pixel)", isDim2D);
+            drawDarkButton(pX + 16.0f, curY + 48.0f, 220.0f, 26.0f, "3D World", isDim3D);
+            drawDarkButton(pX + 246.0f, curY + 48.0f, 260.0f, 26.0f, "2D Canvas", isDim2D);
             curY += 92.0f;
 
             // Section 2: Display & Window Resolution
@@ -8589,10 +8785,10 @@ public:
             bool isRetro = (_settingsWidth == 800 && _settingsHeight == 600);
             bool is1440p = (_settingsWidth == 2560 && _settingsHeight == 1440);
 
-            drawDarkButton(pX + 16.0f, curY + 48.0f, 130.0f, 26.0f, "1280 x 720 (HD)", is720p);
-            drawDarkButton(pX + 154.0f, curY + 48.0f, 140.0f, 26.0f, "1920 x 1080 (FHD)", is1080p);
-            drawDarkButton(pX + 302.0f, curY + 48.0f, 130.0f, 26.0f, "800 x 600 (Retro)", isRetro);
-            drawDarkButton(pX + 440.0f, curY + 48.0f, 140.0f, 26.0f, "2560 x 1440 (2K)", is1440p);
+            drawDarkButton(pX + 16.0f, curY + 48.0f, 130.0f, 26.0f, "1280x720 (HD)", is720p);
+            drawDarkButton(pX + 154.0f, curY + 48.0f, 140.0f, 26.0f, "1920x1080 (FHD)", is1080p);
+            drawDarkButton(pX + 302.0f, curY + 48.0f, 130.0f, 26.0f, "800x600 (Retro)", isRetro);
+            drawDarkButton(pX + 440.0f, curY + 48.0f, 140.0f, 26.0f, "2560x1440 (2K)", is1440p);
 
             // Fine tuning: Width & Height
             LabFont::drawText(pX + 16.0f, curY + 84.0f, "Width: " + std::to_string(_settingsWidth) + " px", 1.3f, textLight, LabFontType::System);
@@ -8615,17 +8811,17 @@ public:
             LabFont::drawText(pX + 16.0f, curY + 30.0f, "Initial map loaded on project startup:", 1.2f, textDim, LabFontType::System);
             std::string dispScene = _settingsEntryScene.empty() ? "(default starter scene)" : _settingsEntryScene;
             LabFont::drawText(pX + 16.0f, curY + 50.0f, dispScene, 1.35f, cyanGlow, LabFontType::System);
-            drawDarkButton(pX + pW - 220.0f, curY + 44.0f, 200.0f, 26.0f, "Pick Scene Map...", false, false, true);
+            drawDarkButton(pX + pW - 220.0f, curY + 44.0f, 200.0f, 26.0f, "Browse", false, false, true);
             curY += 88.0f;
 
             // Section 4: Action Buttons (Save & Apply)
-            drawDarkButton(pX, curY, 240.0f, 40.0f, "[ SAVE PROJECT SETTINGS ]", false, false, true);
+            drawDarkButton(pX, curY, 240.0f, 40.0f, "Save", false, false, true);
             Renderer::drawRect(pX, curY + 38.0f, 240.0f, 2.0f, greenAccent);
 
-            drawDarkButton(pX + 255.0f, curY, 260.0f, 40.0f, "[ SAVE & APPLY TO GAME CONFIG ]", false, false, true);
+            drawDarkButton(pX + 255.0f, curY, 260.0f, 40.0f, "Save & Apply", false, false, true);
             Renderer::drawRect(pX + 255.0f, curY + 38.0f, 260.0f, 2.0f, cyanGlow);
 
-            drawDarkButton(pX + 530.0f, curY, 180.0f, 40.0f, "Back to Scene", false, false, true);
+            drawDarkButton(pX + 530.0f, curY, 180.0f, 40.0f, "Back", false, false, true);
         }
 
     // ==================== 5. BOTTOM DOCK (Console / Profiler) ====================
@@ -8786,7 +8982,7 @@ public:
                 { redoLabel, "Ctrl+Y", !_redoStack.empty() },
                 { "Delete Selection", "Del", _selectionType != SelectionType::None },
                 { "Duplicate Selection", "Ctrl+D", _selectionType != SelectionType::None },
-                { "Deselect All", "Esc", _selectionType != SelectionType::None }
+                { "Deselect", "Esc", _selectionType != SelectionType::None }
             };
 
             for (int i = 0; i < 5; ++i) {
@@ -9125,7 +9321,7 @@ public:
         drawDarkButton(bx + bw - 32.0f, by + 4.0f, 24.0f, 22.0f, "X", false, true);
 
         // Browse STL from disk button
-        drawDarkButton(bx + 20.0f, by + 45.0f, 300.0f, 34.0f, "Browse Disk for 3D Model (.stl)...", false, false, true);
+        drawDarkButton(bx + 20.0f, by + 45.0f, 300.0f, 34.0f, "Browse", false, false, true);
 
         // List discovered models
         float startY = by + 95.0f;
@@ -9291,7 +9487,7 @@ public:
         bool b1Hov = (_mouseScreenX >= b1X && _mouseScreenX <= b1X + b1W && _mouseScreenY >= btnY && _mouseScreenY <= btnY + 36.0f);
         Renderer::drawRect(b1X, btnY, b1W, 36.0f, b1Hov ? Vec3(0.24f, 0.52f, 0.88f) : Vec3(0.18f, 0.42f, 0.72f));
         drawDarkBevel(b1X, btnY, b1W, 36.0f, false);
-        LabFont::drawText(b1X + 20.0f, btnY + 10.0f, "BUILD GAME NOW", 1.45f, Vec3(1, 1, 1), LabFontType::System);
+        LabFont::drawText(b1X + 20.0f, btnY + 10.0f, "Build", 1.45f, Vec3(1, 1, 1), LabFontType::System);
 
         // 2. [ BUILD & RUN ]
         float b2X = b1X + b1W + 14.0f;
@@ -9299,7 +9495,7 @@ public:
         bool b2Hov = (_mouseScreenX >= b2X && _mouseScreenX <= b2X + b2W && _mouseScreenY >= btnY && _mouseScreenY <= btnY + 36.0f);
         Renderer::drawRect(b2X, btnY, b2W, 36.0f, b2Hov ? Vec3(0.24f, 0.85f, 0.44f) : Vec3(0.18f, 0.68f, 0.34f));
         drawDarkBevel(b2X, btnY, b2W, 36.0f, false);
-        LabFont::drawText(b2X + 22.0f, btnY + 10.0f, "BUILD & RUN (PLAY)", 1.45f, Vec3(1, 1, 1), LabFontType::System);
+        LabFont::drawText(b2X + 22.0f, btnY + 10.0f, "Build & Run", 1.45f, Vec3(1, 1, 1), LabFontType::System);
 
         // 3. [ CLOSE ]
         float b3X = bx + bw - 130.0f;
@@ -9375,9 +9571,9 @@ public:
 
         // Action Buttons at bottom
         float btnY = by + bh - 46.0f;
-        drawDarkButton(bx + 24.0f, btnY, 160.0f, 32.0f, "Save Bindings (.json)", false, false, true);
-        drawDarkButton(bx + 194.0f, btnY, 160.0f, 32.0f, "Load Bindings (.json)", false, false, true);
-        drawDarkButton(bx + 364.0f, btnY, 150.0f, 32.0f, "Reset Defaults", false, false, true);
+        drawDarkButton(bx + 24.0f, btnY, 160.0f, 32.0f, "Save", false, false, true);
+        drawDarkButton(bx + 194.0f, btnY, 160.0f, 32.0f, "Load", false, false, true);
+        drawDarkButton(bx + 364.0f, btnY, 150.0f, 32.0f, "Reset", false, false, true);
         drawDarkButton(bx + bw - 130.0f, btnY, 110.0f, 32.0f, "Close", false, false, false);
 
         Renderer::endUI();
@@ -9412,9 +9608,9 @@ public:
         LabFont::drawText(bx + 24.0f, by + 42.0f, "Active Texture: " + _selectedTexture + " | Grid Slicing: " + std::to_string(_sliceCols) + " cols x " + std::to_string(_sliceRows) + " rows", 1.4f, Vec3(1.0f, 0.55f, 0.10f), LabFontType::System);
 
         float btnY = by + 76.0f;
-        drawDarkButton(bx + 20.0f, btnY, 160.0f, 32.0f, "Slice Grid (4x4)", false, false, true);
-        drawDarkButton(bx + 194.0f, btnY, 190.0f, 32.0f, "Place 2D Sprite on Map", false, false, true);
-        drawDarkButton(bx + 398.0f, btnY, 170.0f, 32.0f, "Save Spritesheet (.json)", false, false, true);
+        drawDarkButton(bx + 20.0f, btnY, 160.0f, 32.0f, "Slice", false, false, true);
+        drawDarkButton(bx + 194.0f, btnY, 190.0f, 32.0f, "Place", false, false, true);
+        drawDarkButton(bx + 398.0f, btnY, 170.0f, 32.0f, "Save", false, false, true);
         drawDarkButton(bx + bw - 130.0f, btnY, 110.0f, 32.0f, "Close", false, false, false);
 
         // Spritesheet preview & sliced frames gallery
@@ -9564,6 +9760,7 @@ public:
 private:
     Camera _camera;
     std::unique_ptr<LabMap> _map;
+    std::unique_ptr<BakedLightmap> _bakedLightmap;
     std::unordered_map<std::string, std::unique_ptr<Texture>> _textures;
     std::unordered_map<std::string, std::unique_ptr<Mesh>> _meshes;
     std::unordered_set<std::string> _missingTextures;
@@ -9677,12 +9874,12 @@ private:
     bool _pluginSearchFocused = false;
 
     // Retro Shaders & CRT Post-Process Customizer State
-    bool _retroScanlines = true;
+    bool _retroScanlines = false;
     int _retroPixelScale = 2; // 2, 3, 4
     float _retroScanlineOpacity = 0.28f;
-    bool _retroAberration = true;
+    bool _retroAberration = false;
     float _retroAberrationAmount = 0.0035f;
-    bool _retroVignette = true;
+    bool _retroVignette = false;
     float _retroVignetteIntensity = 0.45f;
     int _retroColorTheme = 0; // 0=Classic CRT, 1=Arcade, 2=Amber Terminal, 3=Cyberpunk
     float _retroScanlinePhase = 0.0f;
@@ -9877,9 +10074,60 @@ private:
     // Native Engine Subsystems Integration
     DecalSystem _decalSystem;
     ParticleSystem _particleSystem;
+    std::vector<AddonManifest> _editorDiscoveredAddons;
 };
 
-int main() {
+int main(int argc, char** argv) {
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "-game" || arg == "--game") {
+            if (i + 1 < argc) {
+                VFS::get().mountAddonLayer(argv[++i]);
+            }
+            continue;
+        }
+        if (arg == "--create-mod" || arg == "--create-addon" || arg == "-create-mod") {
+            if (i + 1 < argc) {
+                std::string modName = argv[i + 1];
+                std::filesystem::path addonPath = std::filesystem::path("addons") / modName;
+                std::filesystem::create_directories(addonPath / "maps");
+                std::filesystem::create_directories(addonPath / "models");
+                std::filesystem::create_directories(addonPath / "materials");
+                std::filesystem::create_directories(addonPath / "scripts");
+                std::filesystem::create_directories(addonPath / "sound");
+
+                // Write standard addon.json metadata
+                std::ofstream fJson(addonPath / "addon.json");
+                if (fJson.is_open()) {
+                    fJson << "{\n";
+                    fJson << "  \"title\": \"" << modName << "\",\n";
+                    fJson << "  \"version\": \"1.0.0\",\n";
+                    fJson << "  \"author\": \"Community Modder\",\n";
+                    fJson << "  \"description\": \"Source-style mod addon for Frozen-Life\",\n";
+                    fJson << "  \"tags\": [\"maps\", \"weapons\", \"props\"]\n";
+                    fJson << "}\n";
+                    fJson.close();
+                }
+
+                // Write scripts/startup.lua
+                std::ofstream fLua(addonPath / "scripts" / "startup.lua");
+                if (fLua.is_open()) {
+                    fLua << "-- Addon startup hook for " << modName << "\n";
+                    fLua << "print(\"[Addon] Initialized mod: " << modName << "\")\n";
+                    fLua.close();
+                }
+
+                std::cout << "[LabHammer] Successfully created addon scaffold: " << addonPath.string() << "\n";
+                std::cout << "[LabHammer] Subdirectories: maps/, models/, materials/, scripts/, sound/\n";
+                std::cout << "[LabHammer] Test in Frozen-Life with: game.exe -game " << addonPath.string() << "\n";
+                return 0;
+            } else {
+                std::cerr << "Error: Missing addon name! Usage: editor --create-mod <name>\n";
+                return 1;
+            }
+        }
+    }
+
     LabEditorApp editor;
     editor.run();
     return 0;

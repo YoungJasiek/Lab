@@ -1406,7 +1406,7 @@ namespace Lab {
                 }
             }});
             items.push_back({ "", "", true, false, false, nullptr }); // Separator
-            items.push_back({ "Reset Factory Defaults", "", false, false, false, [this]() {
+            items.push_back({ "Reset Defaults", "", false, false, false, [this]() {
                 pushUndoState();
                 resetDefaults();
                 log("Reset all character and weapon parameters to factory defaults.");
@@ -1876,7 +1876,7 @@ namespace Lab {
             drawHammerSlider(x + 14.0f, curY + 22.0f, w - 28.0f, 16.0f, "Offset X (L/R):", grip.weaponOffset.x, -0.50f, 0.50f);
             drawHammerSlider(x + 14.0f, curY + 40.0f, w - 28.0f, 16.0f, "Offset Y (U/D):", grip.weaponOffset.y, -0.50f, 0.50f);
             drawHammerSlider(x + 14.0f, curY + 58.0f, w - 28.0f, 16.0f, "Offset Z (F/B):", grip.weaponOffset.z, -0.50f, 0.50f);
-            if (drawHammerButton(x + 14.0f, curY + 76.0f, w - 28.0f, 18.0f, "Center Position (0, 0, 0)")) {
+            if (drawHammerButton(x + 14.0f, curY + 76.0f, w - 28.0f, 18.0f, "Center")) {
                 centerActiveWeapon();
             }
             curY += 106.0f;
@@ -1889,7 +1889,7 @@ namespace Lab {
             drawHammerSlider(x + 14.0f, curY + 22.0f, w - 28.0f, 16.0f, "Pitch X (Rot X):", grip.weaponRotation.x, -180.0f, 180.0f, "%.1f deg");
             drawHammerSlider(x + 14.0f, curY + 40.0f, w - 28.0f, 16.0f, "Yaw Y (Rot Y):", grip.weaponRotation.y, -180.0f, 180.0f, "%.1f deg");
             drawHammerSlider(x + 14.0f, curY + 58.0f, w - 28.0f, 16.0f, "Roll Z (Rot Z):", grip.weaponRotation.z, -180.0f, 180.0f, "%.1f deg");
-            if (drawHammerButton(x + 14.0f, curY + 76.0f, w - 28.0f, 18.0f, "Zero Rotation (0, 0, 0)")) {
+            if (drawHammerButton(x + 14.0f, curY + 76.0f, w - 28.0f, 18.0f, "Zero Rot")) {
                 resetActiveWeaponRotation();
             }
             curY += 106.0f;
@@ -1910,17 +1910,17 @@ namespace Lab {
             drawHammerSlider(x + 14.0f, curY + 40.0f, w - 28.0f, 16.0f, "Scale X (Width):", grip.weaponScale.x, 0.10f, 3.00f, "%.2f x");
             drawHammerSlider(x + 14.0f, curY + 58.0f, w - 28.0f, 16.0f, "Scale Y (Height):", grip.weaponScale.y, 0.10f, 3.00f, "%.2f x");
             drawHammerSlider(x + 14.0f, curY + 76.0f, w - 28.0f, 16.0f, "Scale Z (Length):", grip.weaponScale.z, 0.10f, 3.00f, "%.2f x");
-            if (drawHammerButton(x + 14.0f, curY + 94.0f, w - 28.0f, 18.0f, "Reset Scale (1.00 x)")) {
+            if (drawHammerButton(x + 14.0f, curY + 94.0f, w - 28.0f, 18.0f, "Reset Scale")) {
                 resetActiveWeaponScale();
             }
             curY += 124.0f;
 
             // Bottom Action Buttons
             float actW = (w - 32.0f) * 0.5f;
-            if (drawHammerButton(x + 12.0f, curY, actW, 26.0f, "Reset Transforms")) {
+            if (drawHammerButton(x + 12.0f, curY, actW, 26.0f, "Reset")) {
                 resetActiveWeaponAllTransforms();
             }
-            if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply In-Game", false, true)) {
+            if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply", false, true)) {
                 saveConfig("assets/configs/character_studio.cfg");
                 if (_onApplyInGame) _onApplyInGame();
                 log("Saved and applied weapon transforms to active game!");
@@ -1952,12 +1952,12 @@ namespace Lab {
 
             // Action Buttons
             float actW = (w - 32.0f) * 0.5f;
-            if (drawHammerButton(x + 12.0f, curY, actW, 26.0f, "Reset Hand Sockets")) {
+            if (drawHammerButton(x + 12.0f, curY, actW, 26.0f, "Reset")) {
                 pushUndoState();
                 resetDefaults();
                 log("Reset weapon hand sockets to defaults.");
             }
-            if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply In-Game", false, true)) {
+            if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply", false, true)) {
                 saveConfig("assets/configs/character_studio.cfg");
                 if (_onApplyInGame) _onApplyInGame();
                 log("Saved and applied custom weapon sockets to active game!");
@@ -1975,12 +1975,12 @@ namespace Lab {
 
             // Action Buttons
             float actW = (w - 32.0f) * 0.5f;
-            if (drawHammerButton(x + 12.0f, curY, actW, 26.0f, "Reset ADS")) {
+            if (drawHammerButton(x + 12.0f, curY, actW, 26.0f, "Reset")) {
                 pushUndoState();
                 grip.adsOffset = Vec3(0.0f, -0.05f, 0.12f);
                 log("Reset ADS alignment to default center.");
             }
-            if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply In-Game", false, true)) {
+            if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply", false, true)) {
                 saveConfig("assets/configs/character_studio.cfg");
                 if (_onApplyInGame) _onApplyInGame();
                 log("Saved and applied custom weapon sockets to active game!");
@@ -2039,7 +2039,7 @@ namespace Lab {
                 pushUndoState();
                 resetBotWeaponSocket();
             }
-            if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply In-Game", false, true)) {
+            if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply", false, true)) {
                 saveConfig("assets/configs/character_studio.cfg");
                 if (_onApplyInGame) _onApplyInGame();
                 log("Saved and applied custom bot weapon sockets to active game!");
@@ -2113,7 +2113,7 @@ namespace Lab {
 
         // Keyframe Management Buttons
         float kfBtnW = (w - 24.0f - pbPad) / 2.0f;
-        if (drawHammerButton(x + 12.0f, curY, kfBtnW, 24.0f, "+ ADD KEYFRAME")) {
+        if (drawHammerButton(x + 12.0f, curY, kfBtnW, 24.0f, "+ Key")) {
             pushUndoState();
             AnimKeyframe newKf;
             newKf.time = _scrubberPos;
@@ -2125,7 +2125,7 @@ namespace Lab {
                       [](const AnimKeyframe& a, const AnimKeyframe& b) { return a.time < b.time; });
             log("Added keyframe at t=" + std::to_string(_scrubberPos));
         }
-        if (drawHammerButton(x + 12.0f + kfBtnW + pbPad, curY, kfBtnW, 24.0f, "- DEL KEYFRAME")) {
+        if (drawHammerButton(x + 12.0f + kfBtnW + pbPad, curY, kfBtnW, 24.0f, "- Key")) {
             if (_animTrack.keyframes.size() > 1) {
                 pushUndoState();
                 auto closestIt = _animTrack.keyframes.begin();
@@ -2217,7 +2217,7 @@ namespace Lab {
         }
         curY += 26.0f;
 
-        if (drawHammerButton(x + 12.0f, curY, w - 24.0f, 22.0f, "Browse Custom STL File...")) {
+        if (drawHammerButton(x + 12.0f, curY, w - 24.0f, 22.0f, "Browse")) {
             std::string picked = LabDialogs::openFileDialog(_window, "3D STL Model (*.stl)\0*.stl\0All Files (*.*)\0*.*\0", "assets\\models");
             if (!picked.empty()) {
                 pushUndoState();
@@ -2261,7 +2261,7 @@ namespace Lab {
         }
         curY += 24.0f;
 
-        if (drawHammerButton(x + 12.0f, curY, w - 24.0f, 22.0f, "Browse Custom Texture (PNG/BMP/TGA)...")) {
+        if (drawHammerButton(x + 12.0f, curY, w - 24.0f, 22.0f, "Browse")) {
             std::string picked = LabDialogs::openFileDialog(_window, "Texture Images (*.png;*.bmp;*.tga;*.jpg)\0*.png;*.bmp;*.tga;*.jpg\0All Files (*.*)\0*.*\0", "assets\\models\\textures");
             if (!picked.empty()) {
                 pushUndoState();
@@ -2311,7 +2311,7 @@ namespace Lab {
 
         // Bottom Action Buttons
         float actW = (w - 32.0f) * 0.5f;
-        if (drawHammerButton(x + 12.0f, curY, actW, 26.0f, "Save Preset")) {
+        if (drawHammerButton(x + 12.0f, curY, actW, 26.0f, "Save")) {
             saveConfig("assets/configs/character_studio.cfg");
             log("Saved weapon skin config to assets/configs/character_studio.cfg");
         }
@@ -2389,7 +2389,7 @@ namespace Lab {
         drawHammerSlider(x + 14.0f, curY + 66.0f, w - 28.0f, 18.0f, "Uniform Blue:", _appearance.fatiguesColor.z, 0.05f, 1.0f);
         curY += 100.0f;
 
-        if (drawHammerButton(x + 12.0f, curY, w - 24.0f, 26.0f, "Save Operative Appearance", false, true)) {
+        if (drawHammerButton(x + 12.0f, curY, w - 24.0f, 26.0f, "Save", false, true)) {
             saveConfig("assets/configs/character_studio.cfg");
             log("Saved character appearance outfit.");
         }
@@ -2434,12 +2434,12 @@ namespace Lab {
         curY += 120.0f;
 
         float actW = (w - 36.0f) * 0.5f;
-        if (drawHammerButton(x + 14.0f, curY, actW, 26.0f, _dialoguePlaying ? "SPEAKING..." : "TEST DIALOGUE", _dialoguePlaying, true)) {
+        if (drawHammerButton(x + 14.0f, curY, actW, 26.0f, _dialoguePlaying ? "Speaking" : "Test", _dialoguePlaying, true)) {
             _dialoguePlaying = true;
             _dialogueTimer = 0.0f;
             log("Started speech playback and phoneme lip-sync track.");
         }
-        if (drawHammerButton(x + 14.0f + actW + 8.0f, curY, actW, 26.0f, "Reset Mimics")) {
+        if (drawHammerButton(x + 14.0f + actW + 8.0f, curY, actW, 26.0f, "Reset")) {
             pushUndoState();
             _faceMorphs = { 0, 0, 0, 0, 0, 0 };
             _dialoguePlaying = false;

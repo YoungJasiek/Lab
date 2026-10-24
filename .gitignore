@@ -27,6 +27,8 @@ Backups/
 bin/
 inwork/
 assets/configs/test_generated_server.cfg
+lab/*.md
+
 
 # Standalone subprojects, independent modules, and backups
 apps/
@@ -39,6 +41,9 @@ games/
 insp/
 lab_console/
 docs/FL/
-CounteCode.ps1
 shader_cache/
 
+
+output/
+scratch/
+build-linux/

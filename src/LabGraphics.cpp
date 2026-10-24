@@ -66,7 +66,7 @@ namespace Lab {
             return createProceduralSky();
         }
 
-        size_t totalFloats = (size_t)_width * (size_t)_height * 3;
+        size_t totalFloats = static_cast<size_t>(_width) * static_cast<size_t>(_height) * 3;
         _hdrData.assign(data, data + totalFloats);
         stbi_image_free(data);
 
@@ -93,17 +93,17 @@ namespace Lab {
         _height = height;
         _path = "procedural://sky.hdr";
 
-        size_t totalPixels = (size_t)_width * (size_t)_height;
+        size_t totalPixels = static_cast<size_t>(_width) * static_cast<size_t>(_height);
         _hdrData.resize(totalPixels * 3);
 
         Vec3 normSun = sunDir.normalized();
 
         for (int y = 0; y < _height; ++y) {
-            float v = (float)y / (float)_height;
+            float v = static_cast<float>(y) / static_cast<float>(_height);
             float phi = (v - 0.5f) * 3.14159265f; // -pi/2 to pi/2
 
             for (int x = 0; x < _width; ++x) {
-                float u = (float)x / (float)_width;
+                float u = static_cast<float>(x) / static_cast<float>(_width);
                 float theta = (u - 0.5f) * 2.0f * 3.14159265f; // -pi to pi
 
                 Vec3 dir = {
@@ -129,7 +129,7 @@ namespace Lab {
                     pixelColor = pixelColor + Vec3(1.0f, 0.95f, 0.85f) * sunIntensity;
                 }
 
-                size_t idx = ((size_t)y * (size_t)_width + (size_t)x) * 3;
+                size_t idx = (static_cast<size_t>(y) * static_cast<size_t>(_width) + static_cast<size_t>(x)) * 3;
                 _hdrData[idx + 0] = pixelColor.x;
                 _hdrData[idx + 1] = pixelColor.y;
                 _hdrData[idx + 2] = pixelColor.z;

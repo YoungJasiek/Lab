@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <filesystem>
 
 namespace Lab {
 
@@ -252,6 +253,28 @@ namespace Lab {
         bool isValid() const { return type != Type::None && getPosition() != nullptr; }
     };
 
+    #pragma pack(push, 1)
+    struct BakedMapHeader {
+        uint32_t magic = 0x50414D4C; // "LMAP" (little-endian: 'L', 'M', 'A', 'P')
+        uint32_t version = 1;
+        uint32_t flags = 0;          // bit 0: encrypted, bit 1: hasEmbeddedAssets, bit 2: authenticated
+        uint32_t checksum = 0;       // CRC32 of payload
+        uint64_t sceneOffset = 0;
+        uint64_t sceneLength = 0;
+        uint64_t lightmapOffset = 0;
+        uint64_t lightmapLength = 0;
+        uint64_t embeddedPakOffset = 0;
+        uint64_t embeddedPakLength = 0;
+    };
+    #pragma pack(pop)
+
+    enum BakedMapFlags : uint32_t {
+        BAKED_MAP_NONE            = 0,
+        BAKED_MAP_ENCRYPTED       = (1 << 0),
+        BAKED_MAP_EMBEDDED_ASSETS = (1 << 1),
+        BAKED_MAP_AUTHENTICATED   = (1 << 2)
+    };
+
     class LabMap {
     public:
         virtual ~LabMap() = default;
@@ -276,6 +299,15 @@ namespace Lab {
 
         static std::unique_ptr<LabMap> loadFromFile(const std::string& filePath);
         bool saveToFile(const std::string& filePath) const;
+
+        // Bake and encrypt self-contained binary map (.lmap) with checksum & optional embedded assets
+        bool bakeToFile(const std::string& filePath, bool encrypt = true,
+                        const std::vector<std::pair<std::string, std::filesystem::path>>& embeddedAssets = {}) const;
+
+        // Security validation & quarantine against tampered/spoofed maps
+        static bool verifyMapIntegrity(const std::string& filePath, uint32_t expectedChecksum = 0);
+        static bool isOfficialMap(const std::string& filePath);
+        static std::string getQuarantinedDownloadPath(const std::string& serverHost, const std::string& mapName, uint32_t mapCrc);
     };
 
 } // namespace Lab

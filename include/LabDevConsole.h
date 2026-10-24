@@ -5,6 +5,7 @@
 #include <deque>
 #include <functional>
 #include <unordered_map>
+#include <cstdint>
 #include "LabMath.h"
 
 namespace Lab {
@@ -65,17 +66,23 @@ namespace Lab {
         // Rendering
         void render(int screenW, int screenH);
         void renderOverlay(int screenW, int screenH, const DevTelemetryData& telemetry);
+        std::string getCvarValue(const std::string& cmd) const;
 
         // =====================================================================
-        // Floating Window Dimensions & Dragging
+        // Floating Window Dimensions, Dragging & Resizing (Source Engine VGUI2)
         // =====================================================================
-        float windowX = 180.0f;
-        float windowY = 60.0f;
-        float windowW = 920.0f;
-        float windowH = 580.0f;
+        float windowX = 320.0f;
+        float windowY = 120.0f;
+        float windowW = 640.0f;
+        float windowH = 440.0f;
         bool isDragging = false;
         float dragOffsetX = 0.0f;
         float dragOffsetY = 0.0f;
+        bool isResizing = false;
+        float resizeStartW = 0.0f;
+        float resizeStartH = 0.0f;
+        float resizeStartMX = 0.0f;
+        float resizeStartMY = 0.0f;
         int lastScreenW = 1280;
         int lastScreenH = 720;
 
@@ -83,8 +90,10 @@ namespace Lab {
         // Console Variables (CVars) & Toggles from dev_console.md
         // =====================================================================
 
-        // sp_ (SUPER / Cheats & Player)
+        // sp_ / sv_ (SUPER / Cheats & Player)
         bool sp_cheats = false;
+        bool sv_cheats = false;
+        bool isPublicMultiplayerServer = false;
         bool sp_god = false;
         bool sp_noclip = false;
         bool sp_bhop = true;
@@ -232,6 +241,7 @@ namespace Lab {
         std::vector<std::string> _activeSuggestions;
         int _selectedSuggestion = -1;
         int _lastCharHandledKey = -1;
+        bool _charHandledThisFrame = false;
         std::unordered_map<std::string, std::string> _keyBinds;
     };
 

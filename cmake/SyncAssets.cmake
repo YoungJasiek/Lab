@@ -15,7 +15,7 @@ function(sync_clean_directory SRC_ROOT DST_ROOT)
            LOWER_REL MATCHES "not_used" OR
            LOWER_REL MATCHES "\\.backup" OR
            LOWER_REL MATCHES "~$" OR
-           LOWER_REL MATCHES "\\.(af|kra|mkv|psd|xcf|bak)$")
+           LOWER_REL MATCHES "\\.(af|kra|mkv|psd|xcf|bak|blend|blend1|spp|max|ma|mb|dae)$")
             if(EXISTS "${DST_ROOT}/${REL_FILE}")
                 file(REMOVE "${DST_ROOT}/${REL_FILE}")
             endif()
