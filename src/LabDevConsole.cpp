@@ -1,4 +1,5 @@
 #include "LabDevConsole.h"
+#include "LabConVar.h"
 #include "LabRenderer.h"
 #include "LabFont.h"
 #include <GLFW/glfw3.h>
@@ -148,26 +149,7 @@ namespace Lab {
     }
 
     void LabDevConsole::registerKnownCommands() {
-        _knownCommands = {
-            "sp_cheats", "sp_god", "sp_noclip", "sp_bhop", "sp_speed", "sp_jump",
-            "sp_heal", "sp_armor", "sp_ammo", "sp_get", "sp_give_all", "sp_respawn", "sp_suicide",
-            "log_momentum", "log_fps", "log_ping", "log_pos", "log_colliders", "log_triggers",
-            "log_ai", "log_drawcalls", "log_memory", "log_all",
-            "wrd_map", "wrd_restart", "wrd_skybox", "wrd_model", "wrd_timescale", "wrd_wireframe", "wrd_fog", "wrd_fog_density", "wrd_light_ambient", "wrd_postprocess",
-            "cam_fov", "cam_viewmodel_fov", "cam_viewmodel_offset", "cam_thirdperson", "cam_bob", "cam_shake", "cam_freecam",
-            "r_bloom", "r_fxaa", "r_vsync", "r_shadows", "r_shadow_res", "r_lightmaps", "r_normalmaps", "r_cubemaps", "r_postprocess", "r_reload_shaders",
-            "phys_gravity", "phys_friction", "phys_air_accel", "phys_bhop_window", "phys_max_bhop_speed", "phys_step_height", "phys_ragdoll_force", "phys_debug",
-            "ai_disable", "ai_freeze", "ai_sight", "ai_paths", "ai_aggro", "ai_ignore_player", "ai_spawn",
-            "snd_volume", "snd_music", "snd_sfx", "snd_voice", "snd_play", "snd_stop_all", "snd_lipsync_test", "snd_restart",
-            "ui_hide", "ui_crosshair", "ui_crosshair_color", "ui_scale", "ui_menu", "ui_reload",
-            "dcl_clear", "dcl_limit", "dcl_spawn", "dcl_distance",
-            "mp_a_bots", "mp_b_bots", "mp_bot_kick_all", "mp_bot_freeze", "mp_restart", "mp_friendly_fire",
-            "net_status", "net_fake_lag", "net_fake_loss", "net_connect", "net_disconnect",
-            "sys_copylog", "sys_clear", "sys_help", "sys_bind", "sys_quit",
-            "save", "save_async", "save_asyncdelay", "save_console", "save_disable", "save_finish_async", "save_history_count", "save_huddelayframes", "save_in_memory", "save_noxsave",
-            "map", "restart", "disconnect", "connect", "status", "version", "ping", "sv_cheats",
-            "god", "noclip", "bhop", "clear", "copylog", "condump", "help", "quit", "exit"
-        };
+        _knownCommands = ConVarRegistry::get().getAllNames();
     }
 
     std::string LabDevConsole::getCvarValue(const std::string& cmd) const {
@@ -215,19 +197,9 @@ namespace Lab {
         _activeSuggestions.clear();
         _selectedSuggestion = -1;
         if (_currentInput.empty()) return;
-
-        // If there's a space, hide suggestions (user is typing arguments)
         if (_currentInput.find(' ') != std::string::npos) return;
 
-        std::string query = _currentInput;
-        std::transform(query.begin(), query.end(), query.begin(), [](unsigned char c) { return (char)std::tolower(c); });
-
-        for (const auto& cmd : _knownCommands) {
-            if (cmd.find(query) == 0) { // prefix match
-                _activeSuggestions.push_back(cmd);
-                if (_activeSuggestions.size() >= 10) break;
-            }
-        }
+        _activeSuggestions = ConVarRegistry::get().getAutocompleteSuggestions(_currentInput, 10);
         if (!_activeSuggestions.empty()) {
             _selectedSuggestion = 0;
         }
@@ -1118,6 +1090,18 @@ namespace Lab {
                 }
                 return;
             }
+        }
+
+                std::string fullCmd = prefix.empty() ? name : (prefix + "_" + name);
+        if (prefix == "sys" && !name.empty() && ConVarRegistry::get().hasCommandOrVar(name)) {
+            fullCmd = name;
+        }
+        if (!args.empty()) fullCmd += " " + args;
+
+        if (ConVarRegistry::get().execute(fullCmd, [this](const std::string& out, const Vec3& col){
+            print(out, col);
+        })) {
+            return;
         }
 
         print("Unknown command \"" + prefix + "_" + name + "\". Type 'help' for available commands.", Vec3(1.0f, 0.35f, 0.35f));

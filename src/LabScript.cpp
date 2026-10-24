@@ -1,4 +1,5 @@
 #include "LabScript.h"
+#include "LabConVar.h"
 #include "LabCore.h"
 #include "LabAudio.h"
 #include "LabInput.h"
@@ -823,6 +824,101 @@ namespace Lab {
         return 0;
     }
 
+    
+    struct LuaConCommandEntry {
+        lua_State* L = nullptr;
+        int funcRef = LUA_NOREF;
+    };
+    static std::unordered_map<std::string, LuaConCommandEntry> s_luaConsoleCommands;
+
+    static int lua_ConsoleRegisterCommand(lua_State* L) {
+        const char* name = luaL_checkstring(L, 1);
+        if (!name || !lua_isfunction(L, 2)) return 0;
+        const char* helpText = luaL_optstring(L, 3, "Custom Lua mod command");
+        uint32_t flags = static_cast<uint32_t>(luaL_optinteger(L, 4, FCVAR_MOD));
+
+        lua_pushvalue(L, 2);
+        int ref = luaL_ref(L, LUA_REGISTRYINDEX);
+
+        std::string cmdName = name;
+        std::transform(cmdName.begin(), cmdName.end(), cmdName.begin(), [](unsigned char c){ return (char)std::tolower(c); });
+
+        s_luaConsoleCommands[cmdName] = LuaConCommandEntry{ L, ref };
+
+        ConVarRegistry::get().registerConCommand(cmdName, [cmdName](const std::vector<std::string>& args) {
+            auto it = s_luaConsoleCommands.find(cmdName);
+            if (it == s_luaConsoleCommands.end() || !it->second.L || it->second.funcRef == LUA_NOREF) return;
+            lua_State* state = it->second.L;
+            lua_rawgeti(state, LUA_REGISTRYINDEX, it->second.funcRef);
+            // Push arguments table
+            lua_newtable(state);
+            for (size_t i = 0; i < args.size(); ++i) {
+                lua_pushstring(state, args[i].c_str());
+                lua_rawseti(state, -2, static_cast<int>(i + 1));
+            }
+            if (lua_pcall(state, 1, 0, 0) != 0) {
+                const char* err = lua_tostring(state, -1);
+                LabLog::error(std::string("[Lua Console Error] ") + (err ? err : "unknown"));
+                lua_pop(state, 1);
+            }
+        }, flags | FCVAR_MOD, helpText);
+
+        return 0;
+    }
+
+    static int lua_ConsoleRegisterCvar(lua_State* L) {
+        const char* name = luaL_checkstring(L, 1);
+        const char* defVal = luaL_optstring(L, 2, "0");
+        const char* helpText = luaL_optstring(L, 3, "Custom Lua mod ConVar");
+        uint32_t flags = static_cast<uint32_t>(luaL_optinteger(L, 4, FCVAR_MOD | FCVAR_ARCHIVE));
+
+        ConVarRegistry::get().registerConVar(name, defVal, flags | FCVAR_MOD, helpText);
+        return 0;
+    }
+
+    static int lua_ConsoleGetCvar(lua_State* L) {
+        const char* name = luaL_checkstring(L, 1);
+        const auto* cv = ConVarRegistry::get().findConVar(name);
+        if (cv) {
+            lua_pushstring(L, cv->getString().c_str());
+        } else {
+            lua_pushnil(L);
+        }
+        return 1;
+    }
+
+    static int lua_ConsoleSetCvar(lua_State* L) {
+        const char* name = luaL_checkstring(L, 1);
+        const char* val = luaL_checkstring(L, 2);
+        auto* cv = ConVarRegistry::get().findConVar(name);
+        if (cv && val) {
+            cv->setValue(val);
+            lua_pushboolean(L, 1);
+        } else {
+            lua_pushboolean(L, 0);
+        }
+        return 1;
+    }
+
+    static int lua_ConsoleExecute(lua_State* L) {
+        const char* cmd = luaL_checkstring(L, 1);
+        if (cmd) {
+            bool ok = ConVarRegistry::get().execute(cmd);
+            lua_pushboolean(L, ok ? 1 : 0);
+            return 1;
+        }
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    static int lua_ConsolePrint(lua_State* L) {
+        const char* text = luaL_checkstring(L, 1);
+        if (text) {
+            LabLog::info(std::string("[Console] ") + text);
+        }
+        return 0;
+    }
+
     static int lua_AddChatMessage(lua_State* L) {
         const char* sender = luaL_checkstring(L, 1);
         const char* text = luaL_checkstring(L, 2);
@@ -1002,6 +1098,33 @@ namespace Lab {
         lua_pushcfunction(_L, lua_CameraGet);
         lua_setfield(_L, -2, "get");
         lua_setglobal(_L, "Camera");
+
+        // Register table 'console' and 'Console' for Modders
+        lua_newtable(_L);
+        lua_pushcfunction(_L, lua_ConsoleRegisterCommand);
+        lua_setfield(_L, -2, "register_command");
+        lua_pushcfunction(_L, lua_ConsoleRegisterCommand);
+        lua_setfield(_L, -2, "registerCommand");
+        lua_pushcfunction(_L, lua_ConsoleRegisterCvar);
+        lua_setfield(_L, -2, "register_cvar");
+        lua_pushcfunction(_L, lua_ConsoleRegisterCvar);
+        lua_setfield(_L, -2, "registerCvar");
+        lua_pushcfunction(_L, lua_ConsoleGetCvar);
+        lua_setfield(_L, -2, "get_cvar");
+        lua_pushcfunction(_L, lua_ConsoleGetCvar);
+        lua_setfield(_L, -2, "getCvar");
+        lua_pushcfunction(_L, lua_ConsoleSetCvar);
+        lua_setfield(_L, -2, "set_cvar");
+        lua_pushcfunction(_L, lua_ConsoleSetCvar);
+        lua_setfield(_L, -2, "setCvar");
+        lua_pushcfunction(_L, lua_ConsoleExecute);
+        lua_setfield(_L, -2, "execute");
+        lua_pushcfunction(_L, lua_ConsolePrint);
+        lua_setfield(_L, -2, "print");
+        lua_pushvalue(_L, -1);
+        lua_setglobal(_L, "Console");
+        lua_setglobal(_L, "console");
+
 
         // Global camera helpers
         lua_pushcfunction(_L, lua_CameraSetActive);

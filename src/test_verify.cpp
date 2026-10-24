@@ -39,6 +39,7 @@ namespace FrozenLife = FrozenLifeGame;
 #include "LabComponent.h"
 #include "LabHUDEditor.h"
 #include "LabDevConsole.h"
+#include "LabConVar.h"
 #include "LabFilm.h"
 #include <iostream>
 #include <vector>
@@ -13265,6 +13266,265 @@ int main() {
 
         std::cout << "  [PASS] Test 101 User Profile System, Real Ping, Bot Factions & Cross-Platform Asset Resolver passed 100%!\n";
     }
+
+    // 102. Verify Developer Console 10x Expansion, ConVar/ConCommand Architecture & Modder API (C++ & Lua)
+    {
+        std::cout << "\n[Test 102] Verifying Developer Console 10x Expansion, ConVar/ConCommand Architecture & Modder API (C++ & Lua)...\n";
+
+        // Sub-test A: 10x Command & ConVar Count Expansion (>1000 Valve VDC standard)
+        {
+            size_t total = Lab::ConVarRegistry::get().getTotalCommandCount();
+            if (total < 1000) {
+                std::cerr << "Assertion failed: Expected at least 1000 console commands/convars for 10x expansion, got: " << total << "\n";
+                return 1;
+            }
+
+            // Verify essential Source Engine families
+            const char* sampleCommands[] = {
+                // Host / Engine
+                "host_timescale", "host_framerate", "fps_max", "clear", "echo", "exec", "status", "version",
+                "quit", "exit", "alias", "unalias", "bind", "unbind", "unbindall", "toggle", "incrementvar",
+                "multvar", "wait", "condump", "copylog", "reset", "host_writeconfig",
+                // Graphics / Render
+                "r_bloom", "r_fxaa", "r_vsync", "r_shadows", "r_shadow_res", "r_drawothermodels",
+                "r_wireframe", "r_drawparticles", "r_fog", "r_skybox", "mat_wireframe", "mat_fullbright",
+                "mat_picmip", "mat_specular", "mat_bumpmap", "fov", "viewmodel_fov",
+                // Physics
+                "phys_gravity", "phys_friction", "phys_air_accel", "phys_timescale", "sv_gravity",
+                "phys_pushscale", "vcollide_wireframe",
+                // Audio
+                "volume", "snd_musicvolume", "stopsound", "play", "soundinfo", "snd_restart",
+                // Multiplayer & Network
+                "net_graph", "rate", "cl_interp", "cl_updaterate", "cl_cmdrate", "sv_cheats", "sv_lan",
+                "sv_maxrate", "maxplayers", "changelevel", "map", "kick", "banid", "ping",
+                // Bot & AI
+                "bot_add", "bot_add_t", "bot_add_ct", "bot_kick", "bot_kill", "bot_stop",
+                "bot_dont_shoot", "bot_difficulty", "bot_quota", "npc_create", "ai_disable", "ai_freeze",
+                // Action bindings
+                "+forward", "-forward", "+back", "-back", "+jump", "-jump", "+attack", "-attack",
+                "+use", "-use", "+speed", "-speed", "+duck", "-duck"
+            };
+
+            for (const char* cmd : sampleCommands) {
+                if (!Lab::ConVarRegistry::get().hasCommandOrVar(cmd)) {
+                    std::cerr << "Assertion failed: Missing mandatory Valve VDC command or ConVar: " << cmd << "\n";
+                    return 1;
+                }
+            }
+
+            std::cout << "  [PASS] Sub-test A: 10x Console Expansion verified (" << total << " commands and ConVars registered, >1000 threshold passed)!\n";
+        }
+
+        // Sub-test B: ConVar Query, Parsing, Min/Max Clamping & Reset
+        {
+            Lab::ConVar* bloom = Lab::FindConVar("r_bloom");
+            if (!bloom) {
+                std::cerr << "Assertion failed: ConVar r_bloom not found!\n";
+                return 1;
+            }
+
+            // Set via execute
+            Lab::ConVarRegistry::get().execute("r_bloom 0");
+            if (bloom->getInt() != 0 || bloom->getBool() != false) {
+                std::cerr << "Assertion failed: r_bloom failed to update to 0!\n";
+                return 1;
+            }
+
+            Lab::ConVarRegistry::get().execute("r_bloom 1");
+            if (bloom->getInt() != 1 || bloom->getBool() != true) {
+                std::cerr << "Assertion failed: r_bloom failed to update to 1!\n";
+                return 1;
+            }
+
+            // Test Min/Max clamping
+            Lab::ConVarRegistry::get().execute("sv_cheats 1");
+            Lab::ConVar* timescale = Lab::FindConVar("host_timescale");
+            if (!timescale || !timescale->hasMin() || !timescale->hasMax()) {
+                std::cerr << "Assertion failed: host_timescale missing min/max bounds!\n";
+                return 1;
+            }
+            Lab::ConVarRegistry::get().execute("host_timescale 999.0");
+            if (timescale->getFloat() > 10.0f) {
+                std::cerr << "Assertion failed: host_timescale did not clamp to max (10.0), got: " << timescale->getFloat() << "\n";
+                return 1;
+            }
+            Lab::ConVarRegistry::get().execute("host_timescale 1.0");
+            Lab::ConVarRegistry::get().execute("sv_cheats 0");
+
+            std::cout << "  [PASS] Sub-test B: ConVar query, assignment, typed conversions and bounds clamping verified!\n";
+        }
+
+        // Sub-test C: Cheat Protection (FCVAR_CHEAT)
+        {
+            Lab::ConVarRegistry::get().execute("sv_cheats 0");
+            if (Lab::ConVarRegistry::get().areCheatsEnabled()) {
+                std::cerr << "Assertion failed: sv_cheats 0 should disable cheats!\n";
+                return 1;
+            }
+
+            std::string capturedError;
+            Lab::ConVarRegistry::get().execute("noclip", [&capturedError](const std::string& out, const Lab::Vec3&){
+                capturedError = out;
+            });
+
+            if (capturedError.find("Can't use cheat command 'noclip'") == std::string::npos) {
+                std::cerr << "Assertion failed: Cheat command 'noclip' was not blocked when sv_cheats was 0!\n";
+                return 1;
+            }
+
+            // Enable cheats and re-attempt
+            Lab::ConVarRegistry::get().execute("sv_cheats 1");
+            if (!Lab::ConVarRegistry::get().areCheatsEnabled()) {
+                std::cerr << "Assertion failed: sv_cheats 1 failed to enable cheats!\n";
+                return 1;
+            }
+
+            std::string capturedSuccess;
+            Lab::ConVarRegistry::get().execute("noclip", [&capturedSuccess](const std::string& out, const Lab::Vec3&){
+                capturedSuccess = out;
+            });
+            if (capturedSuccess.find("Can't use cheat") != std::string::npos) {
+                std::cerr << "Assertion failed: Cheat command 'noclip' blocked despite sv_cheats 1!\n";
+                return 1;
+            }
+
+            Lab::ConVarRegistry::get().execute("sv_cheats 0");
+            std::cout << "  [PASS] Sub-test C: FCVAR_CHEAT permission validation & sv_cheats protection verified!\n";
+        }
+
+        // Sub-test D: C++ Modder API (RegisterConVar & RegisterConCommand)
+        {
+            bool modCommandExecuted = false;
+            std::string modCommandArg;
+            Lab::RegisterConCommand("mod_custom_sentry", [&modCommandExecuted, &modCommandArg](const std::vector<std::string>& args) {
+                modCommandExecuted = true;
+                if (args.size() > 1) modCommandArg = args[1];
+            }, Lab::FCVAR_MOD, "Modder registered custom sentry command");
+
+            Lab::ConVar* modCvar = Lab::RegisterConVar("mod_laser_power", "150", Lab::FCVAR_MOD | Lab::FCVAR_ARCHIVE,
+                                                      "Modder custom laser weapon power", nullptr);
+
+            if (!modCvar || modCvar->getInt() != 150 || !modCvar->hasFlag(Lab::FCVAR_MOD)) {
+                std::cerr << "Assertion failed: Failed to register custom mod ConVar in C++!\n";
+                return 1;
+            }
+
+            Lab::ConVarRegistry::get().execute("mod_custom_sentry plasma_upgrade");
+            if (!modCommandExecuted || modCommandArg != "plasma_upgrade") {
+                std::cerr << "Assertion failed: C++ mod command failed to execute with arguments!\n";
+                return 1;
+            }
+
+            Lab::ConVarRegistry::get().execute("mod_laser_power 320");
+            if (modCvar->getInt() != 320) {
+                std::cerr << "Assertion failed: C++ mod ConVar failed to update via console execute!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test D: C++ Modder API (RegisterConVar & RegisterConCommand) verified!\n";
+        }
+
+        // Sub-test E: Lua Modder API (console.* and Console.*)
+        {
+            Lab::ScriptEngine luaEngine;
+            if (!luaEngine.init("assets/scripts/game_mechanics.lua")) {
+                std::cerr << "Assertion failed: Failed to initialize ScriptEngine for Console Lua test!\n";
+                return 1;
+            }
+
+            const char* luaModCode = R"(
+                console.register_cvar("lua_ion_blast_radius", "45", "Custom ion blast radius in meters")
+                console.set_cvar("lua_ion_blast_radius", "60")
+                local radiusVal = console.get_cvar("lua_ion_blast_radius")
+                assert(radiusVal == "60", "Expected 60 from console.get_cvar")
+
+                _G.lua_orbital_fired = false
+                _G.lua_orbital_power = ""
+                console.register_command("lua_orbital_strike", function(args)
+                    _G.lua_orbital_fired = true
+                    if #args > 1 then
+                        _G.lua_orbital_power = args[2]
+                    end
+                    console.print("[Lua] Orbital strike dispatched!", 0.2, 1.0, 0.4)
+                end, "Trigger orbital strike via Lua mod")
+            )";
+
+            if (!luaEngine.executeString(luaModCode)) {
+                std::cerr << "Assertion failed: Failed to execute Lua console registration script!\n";
+                return 1;
+            }
+
+            Lab::ConVar* ionCvar = Lab::FindConVar("lua_ion_blast_radius");
+            if (!ionCvar || ionCvar->getInt() != 60) {
+                std::cerr << "Assertion failed: Lua-registered ConVar not found in ConVarRegistry or value mismatch!\n";
+                return 1;
+            }
+
+            // Execute Lua command from C++ engine console
+            Lab::ConVarRegistry::get().execute("lua_orbital_strike max_intensity");
+
+            // Verify in Lua that the callback actually executed
+            const char* verifyCode = R"(
+                assert(_G.lua_orbital_fired == true, "Orbital command callback was not invoked!")
+                assert(_G.lua_orbital_power == "max_intensity", "Orbital command argument mismatch!")
+            )";
+            if (!luaEngine.executeString(verifyCode)) {
+                std::cerr << "Assertion failed: Lua callback was not properly executed from engine console dispatch!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test E: Lua Modder API (console.register_command, register_cvar, get_cvar, set_cvar) verified!\n";
+        }
+
+        // Sub-test F: Meta Commands (cvarlist, find, toggle, incrementvar, alias, host_writeconfig)
+        {
+            // Toggle
+            Lab::ConVar* fxaa = Lab::FindConVar("r_fxaa");
+            Lab::ConVarRegistry::get().execute("r_fxaa 0");
+            Lab::ConVarRegistry::get().execute("toggle r_fxaa");
+            if (fxaa->getInt() != 1) {
+                std::cerr << "Assertion failed: toggle r_fxaa did not toggle value to 1!\n";
+                return 1;
+            }
+
+            // Incrementvar
+            Lab::ConVar* fps = Lab::FindConVar("fps_max");
+            Lab::ConVarRegistry::get().execute("fps_max 100");
+            Lab::ConVarRegistry::get().execute("incrementvar fps_max 60 300 30");
+            if (fps->getInt() != 130) {
+                std::cerr << "Assertion failed: incrementvar did not step fps_max by 30, got: " << fps->getInt() << "\n";
+                return 1;
+            }
+
+            // Alias
+            Lab::ConVarRegistry::get().execute("alias mod_quick_boost \"fps_max 240\"");
+            Lab::ConVarRegistry::get().execute("mod_quick_boost");
+            if (fps->getInt() != 240) {
+                std::cerr << "Assertion failed: alias mod_quick_boost failed to execute aliased command!\n";
+                return 1;
+            }
+            Lab::ConVarRegistry::get().execute("fps_max 300");
+
+            // host_writeconfig format
+            std::string cfg = Lab::ConVarRegistry::get().writeConfigFile();
+            if (cfg.find("unbindall") == std::string::npos || cfg.find("host_writeconfig") == std::string::npos) {
+                std::cerr << "Assertion failed: writeConfigFile header missing!\n";
+                return 1;
+            }
+
+            // Autocomplete suggestions
+            auto suggestions = Lab::ConVarRegistry::get().getAutocompleteSuggestions("phys_grav", 5);
+            if (suggestions.empty() || suggestions[0] != "phys_gravity") {
+                std::cerr << "Assertion failed: Autocomplete suggestions failed for prefix 'phys_grav'!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test F: Meta commands (toggle, incrementvar, alias, host_writeconfig & autocompletion) verified!\n";
+        }
+
+        std::cout << "  [PASS] Test 102 Developer Console 10x Expansion, ConVar Architecture & Modder API passed 100%!\n";
+    }
+
 
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);

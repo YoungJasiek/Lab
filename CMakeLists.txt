@@ -122,8 +122,10 @@ add_library(LabCore SHARED
     src/LabProject.cpp
 
     src/LabProfile.cpp
+    src/LabConVar.cpp
 
     include/LabProfile.h
+    include/LabConVar.h
 
     include/LabCore.h
     include/LabInput.h
