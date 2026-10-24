@@ -1,0 +1,79 @@
+project_name "OptionsMenu_Screen"
+screen_type "OptionsMenu"
+virtual_res 1920 1080
+grid_size 10
+
+element "Options_Frame" Panel
+    anchor Center
+    offset -420 -320
+    size 840 640
+    color 0.20 0.75 0.95 1.0
+    bg_color 0.09 0.11 0.16 0.95
+    text "ENGINE OPTIONS & SETTINGS"
+    scale 1.0
+    visible 1
+end_element
+
+element "Options_Title" Label
+    parent "Options_Frame"
+    anchor TopLeft
+    offset 36 28
+    size 600 48
+    color 0.25 0.85 1.0 1.0
+    bg_color 0.0 0.0 0.0 0.0
+    text "GRAPHICS, AUDIO & CONTROLS"
+    scale 2.0
+    visible 1
+end_element
+
+element "Options_Banner" Image
+    parent "Options_Frame"
+    anchor TopLeft
+    offset 36 92
+    size 768 120
+    color 0.85 0.90 0.95 1.0
+    bg_color 0.12 0.16 0.22 1.0
+    text "BLINN-PHONG / DSA / FXAA PIPELINE"
+    texture "metal_plate.bmp"
+    scale 1.0
+    visible 1
+end_element
+
+element "Btn_ToggleFXAA" Button
+    parent "Options_Frame"
+    anchor TopLeft
+    offset 36 240
+    size 360 54
+    color 1.0 1.0 1.0 1.0
+    bg_color 0.18 0.38 0.56 0.95
+    text "ANTI-ALIASING: FXAA [ON]"
+    action "toggle:fxaa"
+    scale 1.5
+    visible 1
+end_element
+
+element "Btn_ToggleBloom" Button
+    parent "Options_Frame"
+    anchor TopLeft
+    offset 444 240
+    size 360 54
+    color 1.0 1.0 1.0 1.0
+    bg_color 0.18 0.38 0.56 0.95
+    text "HDR BLOOM: SUBTLE [ON]"
+    action "toggle:bloom"
+    scale 1.5
+    visible 1
+end_element
+
+element "Btn_BackToMain" Button
+    parent "Options_Frame"
+    anchor BottomLeft
+    offset 36 -84
+    size 260 54
+    color 1.0 1.0 1.0 1.0
+    bg_color 0.24 0.28 0.36 0.95
+    text "< BACK TO MENU"
+    action "screen:MainMenu"
+    scale 1.5
+    visible 1
+end_element

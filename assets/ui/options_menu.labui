@@ -1,0 +1,59 @@
+LABUI_VERSION 1
+
+METADATA
+    name "Options Screen"
+    author "LabUI Studio"
+    screen_type "OptionsMenu"
+    resolution 1920 1080
+END_METADATA
+
+ASSETS
+END_ASSETS
+
+ELEMENTS
+    element options_panel Panel 460 160 1000 740 0.11 0.12 0.15 0.95 TopLeft 0
+        text ""
+        font 1.5 0
+        border 0.28 0.32 0.38 2 0.95
+        texture ""
+        binding ""
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        children 0
+
+    element options_header Label 500 190 600 44 0.98 0.78 0.08 1.0 TopLeft 1
+        text "SYSTEM & RENDERER OPTIONS (BLINN-PHONG / FXAA)"
+        font 2.2 0
+        border 0 0 0 0 0
+        texture ""
+        binding ""
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        children 0
+
+    element btn_apply Button 500 780 260 50 0.22 0.38 0.24 0.95 TopLeft 2
+        text "APPLY SETTINGS"
+        font 1.6 0
+        border 0.35 0.55 0.38 2 1.0
+        texture ""
+        binding ""
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        action "apply_options"
+        children 0
+
+    element btn_back Button 790 780 260 50 0.24 0.24 0.26 0.95 TopLeft 2
+        text "BACK"
+        font 1.6 0
+        border 0.38 0.38 0.42 2 1.0
+        texture ""
+        binding ""
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        action "close_options"
+        children 0
+END_ELEMENTS

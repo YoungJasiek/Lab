@@ -1,0 +1,71 @@
+LABUI_VERSION 1
+
+METADATA
+    name "Pause Menu"
+    author "LabUI Studio"
+    screen_type "PauseMenu"
+    resolution 1920 1080
+END_METADATA
+
+ASSETS
+END_ASSETS
+
+ELEMENTS
+    element pause_panel Panel 660 260 600 520 0.11 0.12 0.14 0.94 Center 0
+        text ""
+        font 1.5 0
+        border 0.28 0.32 0.38 2 0.95
+        texture ""
+        binding ""
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        children 0
+
+    element pause_title Label 700 290 520 44 0.98 0.78 0.08 1.0 TopLeft 1
+        text "SIMULATION PAUSED"
+        font 2.4 0
+        border 0 0 0 0 0
+        texture ""
+        binding ""
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        children 0
+
+    element btn_resume Button 740 370 440 52 0.22 0.38 0.24 0.95 TopLeft 2
+        text "RESUME MISSION"
+        font 1.6 0
+        border 0.35 0.55 0.38 2 1.0
+        texture ""
+        binding ""
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        action "resume_game"
+        children 0
+
+    element btn_pause_options Button 740 445 440 52 0.20 0.22 0.26 0.95 TopLeft 2
+        text "OPTIONS"
+        font 1.6 0
+        border 0.35 0.38 0.44 2 1.0
+        texture ""
+        binding ""
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        action "open_options"
+        children 0
+
+    element btn_main_menu Button 740 520 440 52 0.36 0.18 0.18 0.95 TopLeft 2
+        text "RETURN TO MAIN MENU"
+        font 1.6 0
+        border 0.55 0.28 0.28 2 1.0
+        texture ""
+        binding ""
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        action "main_menu"
+        children 0
+END_ELEMENTS

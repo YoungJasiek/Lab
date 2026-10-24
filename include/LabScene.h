@@ -177,11 +177,17 @@ namespace Lab {
         /// - creates .backup copy of original
         static SceneConversionResult convertLegacyMapToScene(const std::string& labmapPath);
 
-        /// @brief Saves scene to .labscene file format
+        /// @brief Serializes scene content to an output stream
+        void saveSceneToStream(std::ostream& file) const;
+
+        /// @brief Saves scene to .labscene or baked .lmap file format
         bool saveSceneToFile(const std::string& filePath) const;
 
-        /// @brief Loads scene from .labscene file format
+        /// @brief Loads scene from .lmap or .labscene file format
         static std::unique_ptr<LabScene> loadSceneFromFile(const std::string& filePath);
+
+        /// @brief Parses scene from an uncompressed text buffer
+        static std::unique_ptr<LabScene> loadSceneFromString(const std::string& sceneText, const std::string& debugName = "");
 
         /// @brief Registers custom mapping between numeric item/weapon ID and prefab reference
         static void registerItemPrefab(int itemId, const std::string& prefabRef);

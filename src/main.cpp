@@ -142,7 +142,7 @@ public:
                 path = "assets/maps/" + path;
             }
             if (path.find('.') == std::string::npos) {
-                path += ".labscene";
+                path += ".lmap";
             }
             GameSessionConfig cfg = _sessionConfig;
             cfg.mapPath = path;
@@ -424,9 +424,9 @@ public:
             std::string mapPath = _initialDirectMap;
             if (mapPath.find(".labscene") == std::string::npos && mapPath.find(".labmap") == std::string::npos && mapPath.find(".lmap") == std::string::npos) {
                 if (mapPath.find('/') == std::string::npos && mapPath.find('\\') == std::string::npos) {
-                    mapPath = "assets/maps/" + mapPath + ".labscene";
+                    mapPath = "assets/maps/" + mapPath + ".lmap";
                 } else {
-                    mapPath += ".labscene";
+                    mapPath += ".lmap";
                 }
             }
             GameSessionConfig cfg;
@@ -444,7 +444,7 @@ public:
             _inMenu = true;
             _menuScreen = MenuScreen::Main;
             setCursorCaptured(false);
-            loadSelectedMap("assets/maps/menu_background.labscene");
+            loadSelectedMap("assets/maps/menu_background.lmap");
             _hasActiveGame = false;
             _inMenu = true;
             setCursorCaptured(false);
@@ -611,8 +611,8 @@ public:
         std::filesystem::path p(rawPath);
         std::string ext = p.extension().string();
         for (char& c : ext) c = static_cast<char>(::tolower(static_cast<unsigned char>(c)));
-        if (ext == ".labmap") {
-            p.replace_extension(".labscene");
+        if (ext == ".labmap" || ext == ".labscene") {
+            p.replace_extension(".lmap");
         }
         std::string s = p.generic_string();
         return s;
@@ -631,9 +631,9 @@ public:
                     std::string stem = entry.path().stem().string();
                     if (stem == "menu_background") continue; // Exclude internal menu scene
 
-                    if (ext == ".labscene") {
+                    if (ext == ".lmap") {
                         mapByStem[stem] = entry.path().generic_string();
-                    } else if (ext == ".lmap" || ext == ".labmap") {
+                    } else if (ext == ".labscene" || ext == ".labmap") {
                         if (!mapByStem.contains(stem)) {
                             mapByStem[stem] = entry.path().generic_string();
                         }
@@ -649,9 +649,9 @@ public:
         std::sort(_availableMaps.begin(), _availableMaps.end());
 
         if (_availableMaps.empty()) {
-            _availableMaps.push_back("assets/maps/site14_chapter1.labscene");
-            _availableMaps.push_back("assets/maps/facility_alpha.labscene");
-            _availableMaps.push_back("assets/maps/cryo_outpost.labscene");
+            _availableMaps.push_back("assets/maps/site14_chapter1.lmap");
+            _availableMaps.push_back("assets/maps/facility_alpha.lmap");
+            _availableMaps.push_back("assets/maps/cryo_outpost.lmap");
         }
         _sessionConfig.mapPath = toSceneDisplayPath(_sessionConfig.mapPath);
     }
@@ -839,6 +839,14 @@ public:
         _velocity = { 0, 0, 0 };
         _playerRespawnTimer = 0.0f;
 
+        if (_netClient.isConnected()) {
+            Vec3 authSpawn = _netClient.getAssignedSpawnPos();
+            if (authSpawn.lengthSq() > 0.001f) {
+                _camera.setPosition(authSpawn);
+            }
+            _netClient.getPrediction().reset();
+        }
+
         if (_currentMap && !_currentMap->doors.empty()) {
             if (isCampaignMode) {
                 InteractiveEntity term;
@@ -918,7 +926,7 @@ public:
         _particleSystem.clear();
         _decalSystem.clear();
         _isPlayerDead = false;
-        loadSelectedMap("assets/maps/menu_background.labscene");
+        loadSelectedMap("assets/maps/menu_background.lmap");
         _hasActiveGame = false;
         _inMenu = true;
         _menuScreen = MenuScreen::Main;
@@ -934,11 +942,19 @@ public:
         // Freeze movement if player is dead or typing in chat / console
         if (_isPlayerDead) {
             _velocity = { 0, 0, 0 };
+            if (_netClient.isConnected()) {
+                uint32_t netButtons = 0;
+                if (Input::isKeyPressed(32) || Input::isKeyPressed(257)) netButtons |= NetButton_Jump;
+                _netClient.update(fixedDelta, _camera.getPosition(), _velocity, _camera.getYaw(), _camera.getPitch(), netButtons, 0.0f, 0.0f, static_cast<uint8_t>(_weaponSystem.getActiveId()));
+            }
             return;
         }
         if (_chat.isOpen || _devConsole.isOpen) {
             _velocity.x *= 0.8f;
             _velocity.z *= 0.8f;
+            if (_netClient.isConnected()) {
+                _netClient.update(fixedDelta, _camera.getPosition(), _velocity, _camera.getYaw(), _camera.getPitch(), 0, 0.0f, 0.0f, static_cast<uint8_t>(_weaponSystem.getActiveId()));
+            }
             return;
         }
 
@@ -1190,6 +1206,42 @@ public:
             return;
         }
 
+        // Always tick local Listen Server so Host responds to clients even while in menu, loading, console, or dead
+        if (_localServer.isRunning()) {
+            _localServer.tick(time.delta);
+        }
+
+        // Always progress pending client connection (works from JoinGame menu AND from developer console `connect`)
+        if (_isConnecting) {
+            _connectAnimTimer += time.delta;
+            _netClient.update(time.delta, _camera.getPosition(), _velocity, _camera.getYaw(), _camera.getPitch(), 0, 0.0f, 0.0f, 0);
+            if (_netClient.isConnected()) {
+                _isConnecting = false;
+                _connectStatusMsg = "CONNECTED TO SERVER! JOINING ARENA...";
+                std::string srvMap = _netClient.getConnectedMapName();
+                if (srvMap.empty()) srvMap = "assets/maps/facility_alpha.lmap";
+                if (srvMap.find('/') == std::string::npos && srvMap.find('\\') == std::string::npos) {
+                    srvMap = "assets/maps/" + srvMap;
+                }
+                _sessionConfig.mapPath = srvMap;
+                _sessionConfig.mode = GameMode::FFA;
+                _sessionConfig.enableBots = false; // Never spawn local bots on guest
+                _sessionConfig.botCount = 0;
+                _isLocalHost = _localServer.isRunning();
+                _serverBrowser.addHistory("127.0.0.1", _sessionConfig.port, "Connected Arena Server", srvMap);
+                if (_devConsole.isOpen) {
+                    _devConsole.isOpen = false;
+                    _devConsoleWasOpen = false;
+                }
+                beginLoadingSequence(_sessionConfig, true);
+                return;
+            } else if (_netClient.getState() == ClientConnectionState::TimedOut) {
+                _isConnecting = false;
+                _connectStatusMsg = "FAILED TO CONNECT: TIMEOUT! Check Port 27015 / UDP Punch or connect via Radmin VPN";
+                _netClient.disconnect();
+            }
+        }
+
         // =====================================================================
         // Developer Console Toggle & Interactive Window Input Handling
         // =====================================================================
@@ -1317,6 +1369,9 @@ public:
         }
 
         if (_inMenu) {
+            if (_netClient.isConnected()) {
+                _netClient.update(time.delta, _camera.getPosition(), _velocity, _camera.getYaw(), _camera.getPitch(), 0, 0.0f, 0.0f, static_cast<uint8_t>(_weaponSystem.getActiveId()));
+            }
             int winW = 1280, winH = 720;
             getWindowSize(winW, winH);
             int fbW = 1280, fbH = 720;
@@ -1392,112 +1447,13 @@ public:
                 if (Input::isKeyPressed(294)) {
                     _serverBrowser.refresh();
                 }
-
-                if (_isConnecting) {
-                    _connectAnimTimer += time.delta;
-                    _netClient.update(time.delta, Vec3(0, 0, 0), Vec3(0, 0, 0), 0.0f, 0.0f, 0, 0.0f, 0.0f, 0);
-
-                    if (_netClient.isConnected()) {
-                        _isConnecting = false;
-                        _connectStatusMsg = "CONNECTED TO SERVER! JOINING ARENA...";
-                        std::string srvMap = _netClient.getConnectedMapName();
-                        if (srvMap.empty()) srvMap = "facility_alpha.labmap";
-                        if (srvMap.find('/') == std::string::npos && srvMap.find('\\') == std::string::npos) {
-                            srvMap = "assets/maps/" + srvMap;
-                        }
-                        _sessionConfig.mapPath = srvMap;
-                        _sessionConfig.mode = GameMode::FFA;
-                        _sessionConfig.enableBots = false; // Never spawn local bots on guest
-                        _sessionConfig.botCount = 0;
-                        _isLocalHost = false;
-                        _serverBrowser.addHistory("127.0.0.1", _sessionConfig.port, "Connected Arena Server", srvMap);
-                        beginLoadingSequence(_sessionConfig, true);
-                        return;
-                    } else if (_netClient.getState() == ClientConnectionState::TimedOut) {
-                        _isConnecting = false;
-                        _connectStatusMsg = "FAILED TO CONNECT: TIMEOUT! Check Port 27015 / UDP Punch or connect via Radmin VPN";
-                        _netClient.disconnect();
-                    }
-                }
             }
 
             handleMenuInput(mx, my, lmbClick);
             return;
         }
 
-        // Handle Death State & Respawn countdown
-        if (_isPlayerDead) {
-            _playerRespawnTimer -= time.delta;
-            Vec3 deathPos = _camera.getPosition();
-            if (deathPos.y > 0.45f) {
-                deathPos.y = std::max(0.45f, deathPos.y - time.delta * 2.5f);
-                _camera.setPosition(deathPos);
-            }
-
-            bool spacePressed = Input::isKeyPressed(32);
-            bool enterPressed = Input::isKeyPressed(257);
-            if (_playerRespawnTimer <= 0.0f || spacePressed || enterPressed) {
-                _isPlayerDead = false;
-                _hud.health = _scriptEngine.getPlayerMaxHealth();
-                _hud.suitArmor = _scriptEngine.getPlayerStartArmor();
-                _weaponSystem.reset();
-                for (const auto& wdef : _scriptEngine.getWeaponDefinitions()) {
-                    _weaponSystem.applyScriptOverrides(wdef.id, wdef.damage, wdef.fireRate, wdef.clipSize, wdef.maxReserve, wdef.splashDamage, wdef.splashRadius);
-                }
-                syncHudWeapon();
-                if (_currentMap) {
-                    std::vector<Vec3> enemies;
-                    for (const auto& b : _aiManager.bots) {
-                        if (b.isAlive()) enemies.push_back(b.position);
-                    }
-                    int pTeam = (_sessionConfig.mode == GameMode::TDM) ? 1 : -1;
-                    MapSpawnPoint sp = _currentMap->selectBestSpawn(_sessionConfig.mode, pTeam, enemies);
-                    _camera.setPosition(sp.position);
-                    _velocity = { 0, 0, 0 };
-                }
-                _chat.addMessage("[SERVER]", "Player respawned at designated base!", Vec3(0.3f, 0.85f, 1.0f));
-                _hud.showCombatMessage("RESPAWNED - READY FOR COMBAT!", 2.5f);
-            }
-            return;
-        }
-
-
-
-        // Chat toggle & input handling
-        bool enterPressed = Input::isKeyPressed(257);
-        bool escPressed = Input::isKeyPressed(256);
-        bool yPressed = Input::isKeyPressed('Y') || Input::isKeyPressed('y');
-        bool tPressed = Input::isKeyPressed('T') || Input::isKeyPressed('t');
-        bool backspacePressed = Input::isKeyPressed(259);
-
-        if (_chat.isOpen) {
-            if (enterPressed && !_enterPressedLast) {
-                std::string sentMsg;
-                _chat.onKey(257, 1, sentMsg);
-                if (!sentMsg.empty() && _netClient.isConnected()) {
-                    _netClient.sendChatMessage(sentMsg);
-                }
-            } else if (escPressed && !_escPressedLast) {
-                _chat.close();
-            } else if (backspacePressed && !_backspacePressedLast) {
-                std::string dummy;
-                _chat.onKey(259, 1, dummy);
-            }
-        } else {
-            if ((yPressed && !_yPressedLast) || (tPressed && !_tPressedLast) || (enterPressed && !_enterPressedLast)) {
-                if (true) {
-                    _chat.open();
-                }
-            }
-        }
-        _enterPressedLast = enterPressed;
-        _escPressedLast = escPressed;
-        _yPressedLast = yPressed;
-        _tPressedLast = tPressed;
-        _backspacePressedLast = backspacePressed;
-        _chat.update(time.delta);
-
-        // Poll incoming network events (chat, authoritative damage, kills, projectiles)
+        // Poll incoming network events (chat, authoritative damage, kills, projectiles, snapshots)
         if (_netClient.isConnected()) {
             for (const auto& chatMsg : _netClient.pollIncomingChat()) {
                 _chat.addMessage(chatMsg.sender, chatMsg.text, Vec3(0.35f, 0.85f, 1.0f));
@@ -1541,22 +1497,32 @@ public:
                 p.active = true;
                 _weaponSystem.getProjectiles().push_back(p);
             }
-        }
 
-        // Network simulation tick and client-side prediction update
-        if (_localServer.isRunning()) {
-            _localServer.tick(time.delta);
-        }
-        if (_netClient.isConnected()) {
             if (_netClient.hasNewSnapshot()) {
                 const auto& snap = _netClient.getLatestSnapshot();
                 for (uint16_t i = 0; i < snap.playerCount; ++i) {
                     if (snap.players[i].clientId == _netClient.getClientId()) {
-                        float errorThreshold = _isLocalHost ? 2.5f : 0.45f;
-                        Vec3 correctedPos, correctedVel;
-                        if (_netClient.getPrediction().reconcile(snap.lastProcessedCmd, snap.players[i].position, snap.players[i].velocity, correctedPos, correctedVel, errorThreshold)) {
-                            _camera.setPosition(correctedPos);
-                            _velocity = correctedVel;
+                        if (_isPlayerDead && snap.players[i].isAlive != 0 && _playerRespawnTimer <= 2.5f) {
+                            _isPlayerDead = false;
+                            _hud.health = snap.players[i].health > 0.0f ? snap.players[i].health : _scriptEngine.getPlayerMaxHealth();
+                            _hud.suitArmor = snap.players[i].armor;
+                            _camera.setPosition(snap.players[i].position);
+                            _velocity = { 0, 0, 0 };
+                            _netClient.getPrediction().reset();
+                            _weaponSystem.reset();
+                            for (const auto& wdef : _scriptEngine.getWeaponDefinitions()) {
+                                _weaponSystem.applyScriptOverrides(wdef.id, wdef.damage, wdef.fireRate, wdef.clipSize, wdef.maxReserve, wdef.splashDamage, wdef.splashRadius);
+                            }
+                            syncHudWeapon();
+                            _chat.addMessage("[SERVER]", "Player respawned at designated base!", Vec3(0.3f, 0.85f, 1.0f));
+                            _hud.showCombatMessage("RESPAWNED - READY FOR COMBAT!", 2.5f);
+                        } else if (!_isPlayerDead && snap.players[i].isAlive != 0) {
+                            float errorThreshold = _isLocalHost ? 2.5f : 0.45f;
+                            Vec3 correctedPos, correctedVel;
+                            if (_netClient.getPrediction().reconcile(snap.lastProcessedCmd, snap.players[i].position, snap.players[i].velocity, correctedPos, correctedVel, errorThreshold)) {
+                                _camera.setPosition(correctedPos);
+                                _velocity = correctedVel;
+                            }
                         }
                         break;
                     }
@@ -1564,6 +1530,77 @@ public:
                 _netClient.consumeSnapshot();
             }
         }
+
+        // Handle Death State & Respawn countdown
+        if (_isPlayerDead) {
+            _playerRespawnTimer -= time.delta;
+            Vec3 deathPos = _camera.getPosition();
+            if (deathPos.y > 0.45f) {
+                deathPos.y = std::max(0.45f, deathPos.y - time.delta * 2.5f);
+                _camera.setPosition(deathPos);
+            }
+
+            bool spacePressed = Input::isKeyPressed(32);
+            bool enterPressed = Input::isKeyPressed(257);
+            if (_playerRespawnTimer <= 0.0f || spacePressed || enterPressed) {
+                _isPlayerDead = false;
+                _hud.health = _scriptEngine.getPlayerMaxHealth();
+                _hud.suitArmor = _scriptEngine.getPlayerStartArmor();
+                _weaponSystem.reset();
+                for (const auto& wdef : _scriptEngine.getWeaponDefinitions()) {
+                    _weaponSystem.applyScriptOverrides(wdef.id, wdef.damage, wdef.fireRate, wdef.clipSize, wdef.maxReserve, wdef.splashDamage, wdef.splashRadius);
+                }
+                syncHudWeapon();
+                if (_currentMap) {
+                    std::vector<Vec3> enemies;
+                    for (const auto& b : _aiManager.bots) {
+                        if (b.isAlive()) enemies.push_back(b.position);
+                    }
+                    int pTeam = (_sessionConfig.mode == GameMode::TDM) ? 1 : -1;
+                    MapSpawnPoint sp = _currentMap->selectBestSpawn(_sessionConfig.mode, pTeam, enemies);
+                    _camera.setPosition(sp.position);
+                    _velocity = { 0, 0, 0 };
+                }
+                _netClient.getPrediction().reset();
+                _chat.addMessage("[SERVER]", "Player respawned at designated base!", Vec3(0.3f, 0.85f, 1.0f));
+                _hud.showCombatMessage("RESPAWNED - READY FOR COMBAT!", 2.5f);
+            }
+            return;
+        }
+
+        // Chat toggle & input handling
+        bool enterPressed = Input::isKeyPressed(257);
+        bool escPressed = Input::isKeyPressed(256);
+        bool yPressed = Input::isKeyPressed('Y') || Input::isKeyPressed('y');
+        bool tPressed = Input::isKeyPressed('T') || Input::isKeyPressed('t');
+        bool backspacePressed = Input::isKeyPressed(259);
+
+        if (_chat.isOpen) {
+            if (enterPressed && !_enterPressedLast) {
+                std::string sentMsg;
+                _chat.onKey(257, 1, sentMsg);
+                if (!sentMsg.empty() && _netClient.isConnected()) {
+                    _netClient.sendChatMessage(sentMsg);
+                }
+            } else if (escPressed && !_escPressedLast) {
+                _chat.close();
+            } else if (backspacePressed && !_backspacePressedLast) {
+                std::string dummy;
+                _chat.onKey(259, 1, dummy);
+            }
+        } else {
+            if ((yPressed && !_yPressedLast) || (tPressed && !_tPressedLast) || (enterPressed && !_enterPressedLast)) {
+                if (true) {
+                    _chat.open();
+                }
+            }
+        }
+        _enterPressedLast = enterPressed;
+        _escPressedLast = escPressed;
+        _yPressedLast = yPressed;
+        _tPressedLast = tPressed;
+        _backspacePressedLast = backspacePressed;
+        _chat.update(time.delta);
 
         // Gameplay camera orientation update (only when not typing in chat)
         if (!_chat.isOpen) {
@@ -2880,24 +2917,21 @@ public:
 
                     srvCfg.saveToFile("assets/configs/server.cfg");
 
-                    std::string pubIP = NATDiscovery::discoverPublicIP(srvCfg.port);
-                    std::string lanIP = NATDiscovery::getLocalIP();
-                    PnPBroker::publishRoom(_pnpRoomCode, pubIP, srvCfg.port, lanIP, srvCfg.port, srvCfg.mapName, srvCfg.gameMode);
+                    if (_sessionConfig.networkMode == NetworkMode::P2P) {
+                        std::string pubIP = NATDiscovery::discoverPublicIP(srvCfg.port);
+                        std::string lanIP = NATDiscovery::getLocalIP();
+                        PnPBroker::publishRoom(_pnpRoomCode, pubIP, srvCfg.port, lanIP, srvCfg.port, srvCfg.mapName, srvCfg.gameMode);
+                    }
 
                     _localServer.stop();
                     _isLocalHost = true;
-
-                    std::string spawnErr;
-                    bool ok = launchDedicatedServer(srvCfg, spawnErr);
-                    if (ok) {
-                        std::this_thread::sleep_for(std::chrono::milliseconds(250));
-                        _netClient.connect("127.0.0.1", srvCfg.port, "HostPlayer");
-                        beginLoadingSequence(_sessionConfig, true);
-                    } else {
-                        _localServer.start(srvCfg);
-                        _netClient.connect("127.0.0.1", srvCfg.port, "HostPlayer");
-                        beginLoadingSequence(_sessionConfig, true);
+                    _localServer.start(srvCfg);
+                    _netClient.connect("127.0.0.1", srvCfg.port, "HostPlayer");
+                    for (int i = 0; i < 4 && !_netClient.isConnected(); ++i) {
+                        _localServer.tick(0.016f);
+                        _netClient.update(0.016f, _camera.getPosition(), _velocity, _camera.getYaw(), _camera.getPitch(), 0, 0.0f, 0.0f, 0);
                     }
+                    beginLoadingSequence(_sessionConfig, true);
                     return;
                 }
             }
@@ -4906,8 +4940,26 @@ public:
             return false;
         }
 #else
+        const std::vector<std::string> searchPaths = {
+            "./LabServer",
+            "build-linux/LabServer",
+            "build/LabServer",
+            "bin/LabServer",
+            "../build-linux/LabServer"
+        };
+        std::string foundExe;
+        for (const auto& p : searchPaths) {
+            if (std::filesystem::exists(p)) {
+                foundExe = p;
+                break;
+            }
+        }
+        if (foundExe.empty()) {
+            outError = "LabServer binary not found";
+            return false;
+        }
         std::string modeFlag = (cfg.networkMode == NetMatchMode::P2P) ? " -p2p" : " -lan";
-        std::string cmd = "./LabServer -config assets/configs/server.cfg -port " + std::to_string(cfg.port) + modeFlag + " &";
+        std::string cmd = foundExe + " -config assets/configs/server.cfg -port " + std::to_string(cfg.port) + modeFlag + " &";
         int res = system(cmd.c_str());
         if (res == 0) {
             _hasSpawnedServer = true;

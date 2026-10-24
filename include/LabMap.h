@@ -272,7 +272,8 @@ namespace Lab {
         BAKED_MAP_NONE            = 0,
         BAKED_MAP_ENCRYPTED       = (1 << 0),
         BAKED_MAP_EMBEDDED_ASSETS = (1 << 1),
-        BAKED_MAP_AUTHENTICATED   = (1 << 2)
+        BAKED_MAP_AUTHENTICATED   = (1 << 2),
+        BAKED_MAP_COMPRESSED      = (1 << 3)
     };
 
     class LabMap {

@@ -1,0 +1,83 @@
+LABUI_VERSION 1
+
+METADATA
+    name "Frozen-Life Main Menu"
+    author "LabUI Studio"
+    screen_type "MainMenu"
+    resolution 1920 1080
+END_METADATA
+
+ASSETS
+    asset "assets/textures/corridor_dirty_wall.bmp"
+END_ASSETS
+
+ELEMENTS
+    element bg_panel Panel 120 140 520 760 0.10 0.12 0.14 0.92 TopLeft 0
+        text ""
+        font 1.5 0
+        border 0.25 0.28 0.32 2 0.9
+        texture ""
+        binding ""
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        children 0
+
+    element logo_image Image 160 180 440 110 1.0 1.0 1.0 1.0 TopLeft 1
+        text ""
+        font 1.5 0
+        border 0.3 0.35 0.4 1 0.8
+        texture "assets/textures/corridor_dirty_wall.bmp"
+        binding ""
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        children 0
+
+    element title_label Label 160 310 440 50 0.98 0.78 0.08 1.0 TopLeft 2
+        text "FROZEN-LIFE: SITE 14"
+        font 2.6 0
+        border 0 0 0 0 0
+        texture ""
+        binding ""
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        children 0
+
+    element btn_new_game Button 160 410 440 56 0.22 0.36 0.24 0.95 TopLeft 3
+        text "NEW CAMPAIGN (SITE 14)"
+        font 1.6 0
+        border 0.35 0.55 0.38 2 1.0
+        texture ""
+        binding ""
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        action "start_game"
+        children 0
+
+    element btn_options Button 160 490 440 56 0.20 0.22 0.26 0.95 TopLeft 3
+        text "OPTIONS & GRAPHICS"
+        font 1.6 0
+        border 0.35 0.38 0.44 2 1.0
+        texture ""
+        binding ""
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        action "open_options"
+        children 0
+
+    element btn_quit Button 160 570 440 56 0.36 0.18 0.18 0.95 TopLeft 3
+        text "EXIT TO DESKTOP"
+        font 1.6 0
+        border 0.55 0.28 0.28 2 1.0
+        texture ""
+        binding ""
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        action "quit_game"
+        children 0
+END_ELEMENTS

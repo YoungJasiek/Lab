@@ -55,6 +55,171 @@ namespace Lab {
         }
     }
 
+    std::vector<uint8_t> LabPak::compressBuffer(std::span<const uint8_t> data) {
+        std::vector<uint8_t> out;
+        out.reserve(data.size() / 2 + 16);
+        out.push_back('L');
+        out.push_back('Z');
+        out.push_back('L');
+        out.push_back('B');
+        uint32_t origSize = static_cast<uint32_t>(data.size());
+        out.push_back(static_cast<uint8_t>(origSize & 0xFFu));
+        out.push_back(static_cast<uint8_t>((origSize >> 8) & 0xFFu));
+        out.push_back(static_cast<uint8_t>((origSize >> 16) & 0xFFu));
+        out.push_back(static_cast<uint8_t>((origSize >> 24) & 0xFFu));
+
+        if (data.empty()) {
+            return out;
+        }
+
+        std::array<uint32_t, 4096> hashTable{};
+        size_t anchor = 0;
+        size_t ip = 0;
+        const size_t matchLimit = data.size() >= 12 ? data.size() - 12 : 0;
+
+        while (ip < matchLimit) {
+            uint32_t seq = 0;
+            std::memcpy(&seq, &data[ip], sizeof(uint32_t));
+            uint32_t h = (seq * 2654435761u) >> 20;
+            size_t ref = hashTable[h];
+            hashTable[h] = static_cast<uint32_t>(ip);
+
+            size_t offset = ip - ref;
+            if (offset > 0 && offset <= 65535 && std::memcmp(&data[ref], &data[ip], 4) == 0) {
+                size_t matchLen = 4;
+                while (ip + matchLen < data.size() && data[ref + matchLen] == data[ip + matchLen]) {
+                    ++matchLen;
+                }
+
+                size_t litLen = ip - anchor;
+                uint8_t litCode = (litLen >= 15) ? 15 : static_cast<uint8_t>(litLen);
+                size_t mlCodeVal = matchLen - 4;
+                uint8_t mlCode = (mlCodeVal >= 15) ? 15 : static_cast<uint8_t>(mlCodeVal);
+                out.push_back(static_cast<uint8_t>((litCode << 4) | mlCode));
+
+                if (litLen >= 15) {
+                    size_t rem = litLen - 15;
+                    while (rem >= 255) {
+                        out.push_back(255);
+                        rem -= 255;
+                    }
+                    out.push_back(static_cast<uint8_t>(rem));
+                }
+
+                out.insert(out.end(), data.begin() + static_cast<std::ptrdiff_t>(anchor),
+                           data.begin() + static_cast<std::ptrdiff_t>(anchor + litLen));
+
+                uint16_t off16 = static_cast<uint16_t>(offset);
+                out.push_back(static_cast<uint8_t>(off16 & 0xFFu));
+                out.push_back(static_cast<uint8_t>((off16 >> 8) & 0xFFu));
+
+                if (mlCodeVal >= 15) {
+                    size_t mrem = mlCodeVal - 15;
+                    while (mrem >= 255) {
+                        out.push_back(255);
+                        mrem -= 255;
+                    }
+                    out.push_back(static_cast<uint8_t>(mrem));
+                }
+
+                ip += matchLen;
+                anchor = ip;
+            } else {
+                ++ip;
+            }
+        }
+
+        size_t litLen = data.size() - anchor;
+        uint8_t litCode = (litLen >= 15) ? 15 : static_cast<uint8_t>(litLen);
+        out.push_back(static_cast<uint8_t>(litCode << 4));
+        if (litLen >= 15) {
+            size_t rem = litLen - 15;
+            while (rem >= 255) {
+                out.push_back(255);
+                rem -= 255;
+            }
+            out.push_back(static_cast<uint8_t>(rem));
+        }
+        out.insert(out.end(), data.begin() + static_cast<std::ptrdiff_t>(anchor), data.end());
+        return out;
+    }
+
+    bool LabPak::decompressBuffer(std::span<const uint8_t> compressed, std::vector<uint8_t>& outDecompressed) {
+        if (compressed.size() < 8 ||
+            compressed[0] != 'L' || compressed[1] != 'Z' || compressed[2] != 'L' || compressed[3] != 'B') {
+            return false;
+        }
+
+        uint32_t origSize = static_cast<uint32_t>(compressed[4]) |
+                            (static_cast<uint32_t>(compressed[5]) << 8) |
+                            (static_cast<uint32_t>(compressed[6]) << 16) |
+                            (static_cast<uint32_t>(compressed[7]) << 24);
+
+        outDecompressed.clear();
+        if (origSize == 0) {
+            return true;
+        }
+        outDecompressed.reserve(origSize);
+
+        size_t ip = 8;
+        while (ip < compressed.size()) {
+            uint8_t token = compressed[ip++];
+            size_t litLen = (token >> 4) & 0x0Fu;
+            if (litLen == 15) {
+                while (ip < compressed.size()) {
+                    uint8_t b = compressed[ip++];
+                    litLen += b;
+                    if (b < 255) break;
+                }
+            }
+
+            if (ip + litLen > compressed.size() || outDecompressed.size() + litLen > origSize) {
+                return false;
+            }
+
+            outDecompressed.insert(outDecompressed.end(),
+                                   compressed.begin() + static_cast<std::ptrdiff_t>(ip),
+                                   compressed.begin() + static_cast<std::ptrdiff_t>(ip + litLen));
+            ip += litLen;
+
+            if (ip >= compressed.size() || outDecompressed.size() == origSize) {
+                break;
+            }
+
+            if (ip + 2 > compressed.size()) {
+                return false;
+            }
+
+            uint16_t offset = static_cast<uint16_t>(compressed[ip]) |
+                              static_cast<uint16_t>(static_cast<uint16_t>(compressed[ip + 1]) << 8);
+            ip += 2;
+
+            if (offset == 0 || offset > outDecompressed.size()) {
+                return false;
+            }
+
+            size_t matchLen = (token & 0x0Fu) + 4;
+            if ((token & 0x0Fu) == 15) {
+                while (ip < compressed.size()) {
+                    uint8_t b = compressed[ip++];
+                    matchLen += b;
+                    if (b < 255) break;
+                }
+            }
+
+            if (outDecompressed.size() + matchLen > origSize) {
+                return false;
+            }
+
+            size_t matchPos = outDecompressed.size() - offset;
+            for (size_t i = 0; i < matchLen; ++i) {
+                outDecompressed.push_back(outDecompressed[matchPos + i]);
+            }
+        }
+
+        return outDecompressed.size() == origSize;
+    }
+
     std::string LabPak::normalizeVirtualPath(const std::string& path) {
         std::string norm = path;
         std::replace(norm.begin(), norm.end(), '\\', '/');

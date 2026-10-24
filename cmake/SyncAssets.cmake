@@ -1,6 +1,7 @@
 # SyncAssets.cmake
 # Copies runtime assets, fonts, and logos to the build output directory while
-# excluding work-in-progress source files (*.af, *.kra, *~, *.mkv, *not_used*, inwork, .backup).
+# excluding work-in-progress source files (*.af, *.kra, *~, *.mkv, *not_used*, inwork, .backup)
+# and legacy unencrypted map files (*.labscene, *.labmap) in favor of encrypted/compressed *.lmap packages.
 
 function(sync_clean_directory SRC_ROOT DST_ROOT)
     if(NOT EXISTS "${SRC_ROOT}")
@@ -10,11 +11,12 @@ function(sync_clean_directory SRC_ROOT DST_ROOT)
     file(GLOB_RECURSE ALL_FILES RELATIVE "${SRC_ROOT}" "${SRC_ROOT}/*")
     foreach(REL_FILE ${ALL_FILES})
         string(TOLOWER "${REL_FILE}" LOWER_REL)
-        # Skip work-in-progress / backup / authoring files
+        # Skip work-in-progress / backup / authoring / unencrypted legacy map files
         if(LOWER_REL MATCHES "(^|/)inwork(/|$)" OR
            LOWER_REL MATCHES "not_used" OR
            LOWER_REL MATCHES "\\.backup" OR
            LOWER_REL MATCHES "~$" OR
+           LOWER_REL MATCHES "^maps/.*\\.(labscene|labmap)$" OR
            LOWER_REL MATCHES "\\.(af|kra|mkv|psd|xcf|bak|blend|blend1|spp|max|ma|mb|dae)$")
             if(EXISTS "${DST_ROOT}/${REL_FILE}")
                 file(REMOVE "${DST_ROOT}/${REL_FILE}")
@@ -28,6 +30,14 @@ function(sync_clean_directory SRC_ROOT DST_ROOT)
         endif()
         file(COPY_FILE "${SRC_ROOT}/${REL_FILE}" "${DST_ROOT}/${REL_FILE}" ONLY_IF_DIFFERENT)
     endforeach()
+
+    # Clean up any leftover unencrypted .labscene / .labmap files in destination maps folder
+    if(EXISTS "${DST_ROOT}/maps")
+        file(GLOB OLD_UNENCRYPTED_MAPS "${DST_ROOT}/maps/*.labscene" "${DST_ROOT}/maps/*.labmap" "${DST_ROOT}/maps/*.backup")
+        if(OLD_UNENCRYPTED_MAPS)
+            file(REMOVE ${OLD_UNENCRYPTED_MAPS})
+        endif()
+    endif()
 endfunction()
 
 sync_clean_directory("${SOURCE_DIR}/assets" "${BINARY_OUT_DIR}/assets")

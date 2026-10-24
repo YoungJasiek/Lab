@@ -16,7 +16,11 @@ __pycache__/
 !.github/scripts/**
 !assets/textures/*.png
 !assets/textures/logos/
-!assets/textures/logos/**
+!assets/textures/logos/*.png
+*~
+*.af
+*.kra
+*.mkv
 auraTools/
 .agents/
 .vscode/
@@ -36,7 +40,11 @@ modules/
 backups/
 test_build/
 games/
-/assets/
+assets/maps/*.labscene
+assets/maps/*.labmap
+assets/maps/*.backup
+!assets/maps/
+!assets/maps/*.lmap
 !web/assets/
 insp/
 lab_console/

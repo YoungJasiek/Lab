@@ -1,0 +1,66 @@
+project_name "PauseMenu_Screen"
+screen_type "PauseMenu"
+virtual_res 1920 1080
+grid_size 10
+
+element "Pause_Overlay" Panel
+    anchor Center
+    offset -300 -260
+    size 600 520
+    color 0.20 0.75 0.95 1.0
+    bg_color 0.08 0.10 0.14 0.94
+    text "MISSION PAUSED"
+    scale 1.0
+    visible 1
+end_element
+
+element "Pause_Header" Label
+    parent "Pause_Overlay"
+    anchor TopLeft
+    offset 40 30
+    size 520 48
+    color 0.98 0.82 0.20 1.0
+    bg_color 0.0 0.0 0.0 0.0
+    text "PAUSED - SITE 14 SECTOR"
+    scale 2.0
+    visible 1
+end_element
+
+element "Btn_Resume" Button
+    parent "Pause_Overlay"
+    anchor TopLeft
+    offset 40 110
+    size 520 56
+    color 1.0 1.0 1.0 1.0
+    bg_color 0.18 0.55 0.36 0.95
+    text "RESUME MISSION [ESC]"
+    action "resume"
+    scale 1.6
+    visible 1
+end_element
+
+element "Btn_PauseOptions" Button
+    parent "Pause_Overlay"
+    anchor TopLeft
+    offset 40 186
+    size 520 56
+    color 1.0 1.0 1.0 1.0
+    bg_color 0.18 0.32 0.48 0.95
+    text "OPTIONS & SETTINGS"
+    action "screen:OptionsMenu"
+    scale 1.6
+    visible 1
+end_element
+
+element "Btn_MainMenu" Button
+    parent "Pause_Overlay"
+    anchor TopLeft
+    offset 40 262
+    size 520 56
+    color 1.0 0.9 0.8 1.0
+    bg_color 0.48 0.22 0.18 0.95
+    text "RETURN TO MAIN MENU"
+    action "screen:MainMenu"
+    scale 1.6
+    visible 1
+end_element

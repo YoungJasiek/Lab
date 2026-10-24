@@ -50,32 +50,13 @@ namespace Lab {
             LabLog::error("Rejected non-map file extension: " + filePath);
             return nullptr;
         }
-        if (ext == ".labscene") {
-            return LabScene::loadSceneFromFile(resolved);
-        }
-        {
-            std::ifstream peek(resolved);
-            if (peek.is_open()) {
-                std::string peekLine;
-                while (std::getline(peek, peekLine)) {
-                    size_t pFirst = peekLine.find_first_not_of(" \t\r\n");
-                    if (pFirst == std::string::npos || peekLine[pFirst] == '#') continue;
-                    if (peekLine.find("LABSCENE_VERSION") != std::string::npos) {
-                        peek.close();
-                        return LabScene::loadSceneFromFile(resolved);
-                    }
-                    break;
-                }
-            }
-        }
-
         std::ifstream file(resolved, std::ios::binary);
         if (!file.is_open()) {
             LabLog::error("Failed to open map file: " + filePath + " (resolved: " + resolved + ")");
             return nullptr;
         }
 
-        BakedMapHeader bakedHeader;
+        BakedMapHeader bakedHeader{};
         bool isBaked = false;
         std::string sceneData;
 
@@ -88,12 +69,20 @@ namespace Lab {
                     if (bakedHeader.flags & BAKED_MAP_ENCRYPTED) {
                         LabPak::cryptBuffer(sceneBytes, bakedHeader.sceneOffset);
                     }
+                    if (bakedHeader.flags & BAKED_MAP_COMPRESSED) {
+                        std::vector<uint8_t> decompressed;
+                        if (!LabPak::decompressBuffer(sceneBytes, decompressed)) {
+                            LabLog::error("[LabMap] Failed to decompress baked .lmap: " + resolved);
+                            return nullptr;
+                        }
+                        sceneBytes = std::move(decompressed);
+                    }
                     uint32_t computed = LabPak::calculateCRC32(sceneBytes);
                     if (bakedHeader.checksum != 0 && computed != bakedHeader.checksum) {
                         LabLog::error("[LabMap] Checksum mismatch in baked .lmap: " + resolved);
                         return nullptr;
                     }
-                    sceneData.assign(reinterpret_cast<char*>(sceneBytes.data()), sceneBytes.size());
+                    sceneData.assign(reinterpret_cast<const char*>(sceneBytes.data()), sceneBytes.size());
                 }
 
                 // Handle embedded asset package if present
@@ -114,9 +103,25 @@ namespace Lab {
         }
 
         if (!isBaked) {
+            if (ext == ".labscene") {
+                return LabScene::loadSceneFromFile(resolved);
+            }
             file.clear();
             file.seekg(0, std::ios::beg);
             sceneData.assign((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+        }
+
+        {
+            std::istringstream peek(sceneData);
+            std::string peekLine;
+            while (std::getline(peek, peekLine)) {
+                size_t pFirst = peekLine.find_first_not_of(" \t\r\n");
+                if (pFirst == std::string::npos || peekLine[pFirst] == '#') continue;
+                if (peekLine.find("LABSCENE_VERSION") != std::string::npos) {
+                    return LabScene::loadSceneFromString(sceneData, resolved);
+                }
+                break;
+            }
         }
 
         std::istringstream stream(sceneData);
@@ -822,7 +827,10 @@ namespace Lab {
 
     bool LabMap::saveToFile(const std::string& filePath) const {
         std::string ext = std::filesystem::path(filePath).extension().string();
-        for (auto& c : ext) c = (char)tolower(c);
+        for (auto& c : ext) c = static_cast<char>(::tolower(static_cast<unsigned char>(c)));
+        if (ext == ".lmap") {
+            return bakeToFile(filePath, true);
+        }
         if (ext == ".labscene") {
             auto sc = LabScene::fromLabMap(*this);
             return sc->saveSceneToFile(filePath);
@@ -834,11 +842,7 @@ namespace Lab {
             return false;
         }
 
-        if (ext == ".lmap") {
-            file << "LMAP_VERSION 1\n\n";
-        } else {
-            file << "LABMAP_VERSION 1\n\n";
-        }
+        file << "LABMAP_VERSION 1\n\n";
         writeMapEntities(*this, file);
         file << "END_ENTITIES\n";
         LabLog::info("Successfully saved map to: " + filePath);
@@ -848,13 +852,17 @@ namespace Lab {
     bool LabMap::bakeToFile(const std::string& filePath, bool encrypt,
                             const std::vector<std::pair<std::string, std::filesystem::path>>& embeddedAssets) const {
         std::ostringstream sceneStream;
-        sceneStream << "LMAP_VERSION 1\n\n";
-        writeMapEntities(*this, sceneStream);
-        sceneStream << "END_ENTITIES\n";
+        if (const auto* asScene = dynamic_cast<const LabScene*>(this)) {
+            asScene->saveSceneToStream(sceneStream);
+        } else {
+            auto sc = LabScene::fromLabMap(*this);
+            sc->saveSceneToStream(sceneStream);
+        }
         std::string sceneStr = sceneStream.str();
 
-        std::vector<uint8_t> sceneBytes(sceneStr.begin(), sceneStr.end());
-        uint32_t checksum = LabPak::calculateCRC32(sceneBytes);
+        std::vector<uint8_t> rawBytes(sceneStr.begin(), sceneStr.end());
+        uint32_t checksum = LabPak::calculateCRC32(rawBytes);
+        std::vector<uint8_t> sceneBytes = LabPak::compressBuffer(rawBytes);
 
         std::vector<uint8_t> pakBytes;
         if (!embeddedAssets.empty()) {
@@ -878,9 +886,10 @@ namespace Lab {
         BakedMapHeader header;
         header.magic = 0x50414D4C; // "LMAP"
         header.version = 1;
-        header.flags = (encrypt ? BAKED_MAP_ENCRYPTED : 0) |
-                       (!pakBytes.empty() ? BAKED_MAP_EMBEDDED_ASSETS : 0) |
-                       BAKED_MAP_AUTHENTICATED;
+        header.flags = (encrypt ? static_cast<uint32_t>(BAKED_MAP_ENCRYPTED) : 0u) |
+                       (!pakBytes.empty() ? static_cast<uint32_t>(BAKED_MAP_EMBEDDED_ASSETS) : 0u) |
+                       static_cast<uint32_t>(BAKED_MAP_AUTHENTICATED) |
+                       static_cast<uint32_t>(BAKED_MAP_COMPRESSED);
         header.checksum = checksum;
         header.sceneOffset = sizeof(BakedMapHeader);
         header.sceneLength = sceneBytes.size();
@@ -906,7 +915,8 @@ namespace Lab {
         out.close();
 
         LabLog::info("[LabMap] Successfully baked map: " + filePath +
-                     " (Scene: " + std::to_string(header.sceneLength) + " B, Embedded Assets: " +
+                     " (Compressed: " + std::to_string(header.sceneLength) + " B / Raw: " +
+                     std::to_string(rawBytes.size()) + " B, Embedded Assets: " +
                      std::to_string(header.embeddedPakLength) + " B, Encrypted: " + (encrypt ? "YES" : "NO") + ")");
         return true;
     }
@@ -927,6 +937,13 @@ namespace Lab {
                 if (file.read(reinterpret_cast<char*>(sceneBytes.data()), static_cast<std::streamsize>(header.sceneLength))) {
                     if (header.flags & BAKED_MAP_ENCRYPTED) {
                         LabPak::cryptBuffer(sceneBytes, header.sceneOffset);
+                    }
+                    if (header.flags & BAKED_MAP_COMPRESSED) {
+                        std::vector<uint8_t> decompressed;
+                        if (!LabPak::decompressBuffer(sceneBytes, decompressed)) {
+                            return false;
+                        }
+                        sceneBytes = std::move(decompressed);
                     }
                     uint32_t computed = LabPak::calculateCRC32(sceneBytes);
                     return computed == header.checksum;

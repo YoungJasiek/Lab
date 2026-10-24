@@ -79,6 +79,8 @@ namespace Lab {
 
         // Encryption / decryption helper (symmetric stream cipher with engine master key)
         static void cryptBuffer(std::span<uint8_t> buffer, uint64_t seedOffset = 0);
+        static std::vector<uint8_t> compressBuffer(std::span<const uint8_t> data);
+        static bool decompressBuffer(std::span<const uint8_t> compressed, std::vector<uint8_t>& outDecompressed);
 
         const std::filesystem::path& getPakPath() const { return _pakPath; }
         const PakHeader& getHeader() const { return _header; }

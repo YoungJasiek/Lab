@@ -1205,6 +1205,7 @@ namespace Lab {
         }
 
         // Load authoritative map geometry and spawn points
+        _spawnList.clear();
         std::string resolvedMap = _mapName;
         auto map = LabMap::loadFromFile(resolvedMap);
         if (!map && resolvedMap.find('/') == std::string::npos && resolvedMap.find('\\') == std::string::npos) {
@@ -1216,10 +1217,19 @@ namespace Lab {
             _spawnPosition = map->spawn.position;
             _spawnYaw = map->spawn.yaw;
             if (_spawnPosition.y < 1.5f) _spawnPosition.y = 1.80f;
+            for (const auto& sp : map->spawnPoints) {
+                Vec3 pos = sp.position;
+                if (pos.y < 1.5f) pos.y = 1.80f;
+                _spawnList.emplace_back(pos, sp.yaw);
+            }
+            if (_spawnList.empty()) {
+                _spawnList.emplace_back(_spawnPosition, _spawnYaw);
+            }
         } else {
             _solidBoxes.clear();
             _spawnPosition = Vec3(0.0f, 1.80f, 0.0f);
             _spawnYaw = 0.0f;
+            _spawnList.emplace_back(_spawnPosition, _spawnYaw);
         }
 
         if (!_socket.open(port)) {
@@ -1231,15 +1241,20 @@ namespace Lab {
         uint16_t hz = _config.tickrate > 0 ? _config.tickrate : 64;
         std::cout << "[Server] Dedicated Authoritative Server started on port " << _port
                   << " (Map: " << _mapName << ", Solid Boxes: " << _solidBoxes.size()
+                  << ", Spawns: " << _spawnList.size()
                   << ", Tickrate: " << hz << "Hz, Mode: " << _gameMode << ").\n";
 
-        // Publish to Cloud Rendezvous Broker for zero-config Plug & Play
-        std::string pubIP = NATDiscovery::discoverPublicIP(_port);
-        std::string lanIP = NATDiscovery::getLocalIP();
-        PnPBroker::publishRoom(_roomCode, pubIP, _port, lanIP, _port, _mapName, _gameMode);
-        std::cout << "[Server] [PLUG & PLAY] Room Code: [" << _roomCode << "] published to Cloud Broker!\n";
-
         return true;
+    }
+
+    Vec3 DedicatedServer::selectSpawnForClient(uint32_t seedIndex, float& outYaw) const {
+        if (_spawnList.empty()) {
+            outYaw = _spawnYaw;
+            return _spawnPosition;
+        }
+        size_t idx = (seedIndex > 0 ? static_cast<size_t>(seedIndex - 1) : 0) % _spawnList.size();
+        outYaw = _spawnList[idx].second;
+        return _spawnList[idx].first;
     }
 
     void DedicatedServer::stop() {
@@ -1247,6 +1262,7 @@ namespace Lab {
         _socket.close();
         _clients.clear();
         _solidBoxes.clear();
+        _spawnList.clear();
         _running = false;
         std::cout << "[Server] Dedicated Server stopped.\n";
     }
@@ -1256,24 +1272,6 @@ namespace Lab {
 
         _serverTime += dt;
         processIncomingPackets();
-
-        // Periodic Cloud Broker Punch Polling (every 1.5 seconds)
-        _pnpPunchPollTimer += dt;
-        if (_pnpPunchPollTimer >= 1.5f) {
-            _pnpPunchPollTimer = 0.0f;
-            if (!_roomCode.empty()) {
-                std::string guestIP;
-                uint16_t guestPort = 0;
-                if (PnPBroker::fetchGuestPunch(_roomCode, guestIP, guestPort) && !guestIP.empty() && guestPort > 0) {
-                    std::string guestKey = guestIP + ":" + std::to_string(guestPort);
-                    if (guestKey != _lastPunchedGuest) {
-                        _lastPunchedGuest = guestKey;
-                        punchClient(guestIP, guestPort);
-                        std::cout << "[Server] [PLUG & PLAY] Automatically punched NAT hole for guest " << guestKey << "!\n";
-                    }
-                }
-            }
-        }
 
         uint16_t hz = _config.tickrate > 0 ? _config.tickrate : 64;
         const float tickInterval = 1.0f / static_cast<float>(hz);
@@ -1315,8 +1313,9 @@ namespace Lab {
                         if (newClient.name.empty()) newClient.name = "Player_" + std::to_string(newClient.clientId);
                         newClient.lastPacketTime = _serverTime;
                         newClient.state.clientId = newClient.clientId;
-                        newClient.state.position = _spawnPosition;
-                        newClient.state.yaw = _spawnYaw;
+                        float assignedYaw = _spawnYaw;
+                        newClient.state.position = selectSpawnForClient(newClient.clientId, assignedYaw);
+                        newClient.state.yaw = assignedYaw;
                         newClient.isGrounded = true;
                         newClient.state.health = 150.0f;
                         newClient.state.armor = 50.0f;
@@ -1332,12 +1331,18 @@ namespace Lab {
                     }
 
                     if (client) {
+                        client->lastPacketTime = _serverTime;
                         NetMsgConnectResponse resp;
                         resp.header.type = static_cast<uint8_t>(NetMsgType::ConnectResponse);
                         resp.assignedClientId = client->clientId;
                         resp.tickrate = _config.tickrate > 0 ? _config.tickrate : 64;
                         safeStrCopy(resp.mapName, sizeof(resp.mapName), _mapName.c_str());
+                        resp.spawnX = client->state.position.x;
+                        resp.spawnY = client->state.position.y;
+                        resp.spawnZ = client->state.position.z;
+                        resp.spawnYaw = client->state.yaw;
                         _socket.sendTo(&resp, sizeof(resp), sender);
+                        broadcastSnapshot();
                     }
                 }
             } else if (msgType == NetMsgType::UserCmd) {
@@ -1348,6 +1353,22 @@ namespace Lab {
                         client->lastPacketTime = _serverTime;
                         client->lastProcessedCmd = cmd->cmdNumber;
                         client->state.activeWeapon = cmd->activeWeapon;
+
+                        if (!client->state.isAlive) {
+                            if ((_serverTime - client->deathTime >= 3.0f) ||
+                                ((cmd->buttons & NetButton_Jump) && (_serverTime - client->deathTime >= 0.5f))) {
+                                float spYaw = _spawnYaw;
+                                Vec3 spPos = selectSpawnForClient(client->clientId + client->state.deaths, spYaw);
+                                client->state.isAlive = 1;
+                                client->state.health = 150.0f;
+                                client->state.armor = 50.0f;
+                                client->state.position = spPos;
+                                client->state.velocity = Vec3(0, 0, 0);
+                                client->state.yaw = spYaw;
+                                client->isGrounded = true;
+                                broadcastSnapshot();
+                            }
+                        }
 
                         if (client->state.isAlive) {
                             float speed = (cmd->buttons & NetButton_Sprint) ? 8.5f : 4.5f;
@@ -1466,9 +1487,9 @@ namespace Lab {
     }
 
     void DedicatedServer::simulateWorld(float /*dt*/) {
-        // Drop clients that haven't sent packets for > 6.0 seconds
+        // Drop clients that haven't sent packets for > 30.0 seconds
         for (auto it = _clients.begin(); it != _clients.end();) {
-            if (_serverTime - it->lastPacketTime > 6.0f) {
+            if (_serverTime - it->lastPacketTime > 30.0f) {
                 std::cout << "[Server] Client timed out: " << it->name << "\n";
                 it = _clients.erase(it);
             } else {
@@ -1479,13 +1500,17 @@ namespace Lab {
         // Authoritative 3-second respawn for eliminated players
         for (auto& c : _clients) {
             if (!c.state.isAlive && (_serverTime - c.deathTime >= 3.0f)) {
+                float spYaw = _spawnYaw;
+                Vec3 spPos = selectSpawnForClient(c.clientId + c.state.deaths, spYaw);
                 c.state.isAlive = 1;
                 c.state.health = 150.0f;
                 c.state.armor = 50.0f;
-                c.state.position = _spawnPosition;
+                c.state.position = spPos;
                 c.state.velocity = Vec3(0, 0, 0);
+                c.state.yaw = spYaw;
+                c.isGrounded = true;
                 std::cout << "[Server] Respawned player: " << c.name << " at ("
-                          << _spawnPosition.x << ", " << _spawnPosition.y << ", " << _spawnPosition.z << ")\n";
+                          << spPos.x << ", " << spPos.y << ", " << spPos.z << ")\n";
             }
         }
     }
@@ -1795,7 +1820,9 @@ namespace Lab {
                     const auto* resp = reinterpret_cast<const NetMsgConnectResponse*>(packetBuffer);
                     _assignedClientId = resp->assignedClientId;
                     _connectedMapName = resp->mapName;
-                    if (_connectedMapName.empty()) _connectedMapName = "facility_alpha.labmap";
+                    if (_connectedMapName.empty()) _connectedMapName = "assets/maps/facility_alpha.lmap";
+                    _assignedSpawnPos = Vec3(resp->spawnX, resp->spawnY, resp->spawnZ);
+                    _assignedSpawnYaw = resp->spawnYaw;
                     _state = ClientConnectionState::Connected;
                     std::cout << "[Client] Connected to server! Assigned Client ID: " << _assignedClientId
                               << ", Map: " << _connectedMapName << "\n";

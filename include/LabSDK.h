@@ -20,7 +20,7 @@ namespace Lab {
         std::string gameDir = "frozen_life";
         std::string developer = "Lab Team";
         std::string version = "1.0.0";
-        std::string defaultMap = "assets/maps/site14_chapter1.labscene";
+        std::string defaultMap = "assets/maps/site14_chapter1.lmap";
         bool isMultiplayerCapable = true;
     };
 

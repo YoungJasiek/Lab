@@ -30,7 +30,7 @@ namespace Lab {
     };
 
     struct GameSessionConfig {
-        std::string mapPath = "assets/maps/facility_alpha.labscene";
+        std::string mapPath = "assets/maps/facility_alpha.lmap";
         GameMode mode = GameMode::FFA;
         bool enableBots = false;
         int botCount = 0;
@@ -72,7 +72,7 @@ namespace Lab {
             isMultiplayer = multiplayer;
             pendingConfig = cfg;
             statusText = multiplayer ? "Connecting to server..." : "Preparing local game server...";
-            fastDlCurrentFile = cfg.mapPath + ".lmap";
+            fastDlCurrentFile = (cfg.mapPath.find(".lmap") != std::string::npos) ? cfg.mapPath : (cfg.mapPath + ".lmap");
             fastDlTotalBytes = 4259840;
             fastDlBytesDownloaded = 0;
         }

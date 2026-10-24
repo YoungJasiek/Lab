@@ -1,0 +1,52 @@
+project_name "FrozenLife_HUD"
+screen_type "HUD"
+virtual_res 1920 1080
+grid_size 10
+
+element "HUD_VitalPanel" Panel
+    anchor BottomLeft
+    offset 40 -130
+    size 420 96
+    color 0.98 0.78 0.08 1.0
+    bg_color 0.05 0.07 0.10 0.82
+    text "VITALS"
+    scale 1.0
+    visible 1
+end_element
+
+element "HUD_HealthBar" ProgressBar
+    parent "HUD_VitalPanel"
+    anchor TopLeft
+    offset 18 22
+    size 260 28
+    color 0.98 0.78 0.08 1.0
+    bg_color 0.12 0.14 0.18 0.90
+    text "HEALTH"
+    scale 1.2
+    visible 1
+    value 100
+    max_value 100
+end_element
+
+element "HUD_SuitLabel" Label
+    parent "HUD_VitalPanel"
+    anchor TopLeft
+    offset 18 58
+    size 260 26
+    color 0.30 0.85 1.0 1.0
+    bg_color 0.0 0.0 0.0 0.0
+    text "HEV SUIT ARMOR: 100%"
+    scale 1.4
+    visible 1
+end_element
+
+element "HUD_CenterCrosshair" Crosshair
+    anchor Center
+    offset -16 -16
+    size 32 32
+    color 0.20 0.95 0.40 0.95
+    bg_color 0.0 0.0 0.0 0.0
+    text "+"
+    scale 1.0
+    visible 1
+end_element

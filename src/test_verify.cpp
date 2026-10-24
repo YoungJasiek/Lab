@@ -6590,16 +6590,16 @@ int main() {
             vfs.mount("assets", "assets");
             vfs.mount("engine", "engine");
 
-            std::filesystem::path resolved = vfs.resolve("assets://maps/cryo_complex.labmap");
+            std::filesystem::path resolved = vfs.resolve("assets://maps/cryo_complex.lmap");
             std::string pathStr = resolved.string();
             // Path separator check (Windows \\ or Unix /)
-            if (pathStr.find("assets") == std::string::npos || pathStr.find("cryo_complex.labmap") == std::string::npos) {
+            if (pathStr.find("assets") == std::string::npos || pathStr.find("cryo_complex.lmap") == std::string::npos) {
                 std::cerr << "Assertion failed: VFS resolve mismatch! Got: " << pathStr << "\n";
                 return 1;
             }
 
             // Verify file existence check through VFS
-            if (!vfs.exists("assets://maps/cryo_complex.labmap")) {
+            if (!vfs.exists("assets://maps/cryo_complex.lmap")) {
                 std::cerr << "Assertion failed: Existing map asset was not detected by VFS!\n";
                 return 1;
             }
@@ -12984,6 +12984,175 @@ int main() {
         }
 
         std::cout << "  [PASS] Test 99 Guard 24-Bone Rig, VGUI2 Server Browser, Addons VFS & Media Sanitizer passed 100%!\n";
+    }
+
+    // =========================================================================
+    // Test 100: Compressed + Encrypted .lmap Map Baking & Multiplayer Host Authoritative Spawn/Respawn
+    // =========================================================================
+    {
+        std::cout << "\n[Test 100] Verifying Compressed + Encrypted .lmap Map Baking & Multiplayer Host Authoritative Spawn/Respawn...\n";
+
+        // Sub-test A: Bake all official maps (including menu_background.lmap) into compressed + encrypted binary .lmap
+        const std::vector<std::string> mapStems = {
+            "cryo_complex",
+            "cryo_outpost",
+            "darkness",
+            "facility_alpha",
+            "menu_background",
+            "qa_labrunner_escape",
+            "qa_magic_rpg",
+            "site14_chapter1",
+            "site14_dirty_corridor"
+        };
+
+        std::filesystem::path mapsDir = "assets/maps";
+        if (std::filesystem::exists("../../assets/maps")) {
+            mapsDir = "../../assets/maps";
+        } else if (std::filesystem::exists("../assets/maps")) {
+            mapsDir = "../assets/maps";
+        }
+
+        for (const auto& stem : mapStems) {
+            std::filesystem::path lmapPath = mapsDir / (stem + ".lmap");
+            std::filesystem::path scenePath = mapsDir / (stem + ".labscene");
+            std::filesystem::path labmapPath = mapsDir / (stem + ".labmap");
+
+            // Check if lmapPath is already a binary compressed + encrypted LMAP
+            bool needsBake = true;
+            if (std::filesystem::exists(lmapPath)) {
+                std::ifstream checkIn(lmapPath, std::ios::binary);
+                Lab::BakedMapHeader hdr{};
+                if (checkIn.read(reinterpret_cast<char*>(&hdr), sizeof(hdr))) {
+                    if (hdr.magic == 0x50414D4C &&
+                        (hdr.flags & Lab::BAKED_MAP_ENCRYPTED) &&
+                        (hdr.flags & Lab::BAKED_MAP_COMPRESSED)) {
+                        needsBake = false;
+                    }
+                }
+            }
+
+            if (needsBake) {
+                std::string srcToLoad;
+                if (std::filesystem::exists(scenePath)) srcToLoad = scenePath.string();
+                else if (std::filesystem::exists(lmapPath)) srcToLoad = lmapPath.string();
+                else if (std::filesystem::exists(labmapPath)) srcToLoad = labmapPath.string();
+
+                auto loaded = Lab::LabMap::loadFromFile(srcToLoad);
+                if (!loaded) {
+                    std::cerr << "Assertion failed: Could not load source map for baking: " << stem << "\n";
+                    return 1;
+                }
+                if (!loaded->bakeToFile(lmapPath.string(), true)) {
+                    std::cerr << "Assertion failed: Failed to bake compressed+encrypted .lmap: " << lmapPath << "\n";
+                    return 1;
+                }
+                if (mapsDir != "assets/maps" && std::filesystem::exists("assets/maps")) {
+                    loaded->bakeToFile(("assets/maps/" + stem + ".lmap"), true);
+                }
+            }
+
+            // Verify binary header, compression, encryption, and round-trip loading
+            std::ifstream verifyIn(lmapPath, std::ios::binary);
+            Lab::BakedMapHeader bHdr{};
+            if (!verifyIn.read(reinterpret_cast<char*>(&bHdr), sizeof(bHdr)) ||
+                bHdr.magic != 0x50414D4C ||
+                !(bHdr.flags & Lab::BAKED_MAP_ENCRYPTED) ||
+                !(bHdr.flags & Lab::BAKED_MAP_COMPRESSED)) {
+                std::cerr << "Assertion failed: .lmap header missing LMAP magic, encryption, or compression on: " << lmapPath << "\n";
+                return 1;
+            }
+            verifyIn.close();
+
+            if (!Lab::LabMap::verifyMapIntegrity(lmapPath.string())) {
+                std::cerr << "Assertion failed: .lmap integrity check failed on: " << lmapPath << "\n";
+                return 1;
+            }
+
+            auto roundTripScene = Lab::LabScene::loadSceneFromFile(lmapPath.string());
+            if (!roundTripScene || roundTripScene->brushes.empty()) {
+                std::cerr << "Assertion failed: LabScene::loadSceneFromFile failed on baked .lmap: " << lmapPath << "\n";
+                return 1;
+            }
+        }
+        std::cout << "  [PASS] Sub-test A: All 9 maps (including menu_background.lmap) baked & verified as compressed + encrypted binary .lmap!\n";
+
+        // Sub-test B: Multiplayer Host -> Client Handshake, Long Map Path, Authoritative Spawn & Respawn
+        {
+            Lab::NetworkSystem::init();
+            Lab::ServerConfig srvCfg;
+            srvCfg.port = 27088;
+            srvCfg.mapName = "assets/maps/site14_dirty_corridor.lmap"; // > 32 chars to test non-truncation!
+            srvCfg.gameMode = "FFA";
+            srvCfg.tickrate = 64;
+            srvCfg.networkMode = Lab::NetMatchMode::LAN;
+
+            Lab::DedicatedServer hostServer;
+            if (!hostServer.start(srvCfg)) {
+                std::cerr << "Assertion failed: DedicatedServer failed to start on port 27088!\n";
+                return 1;
+            }
+
+            Lab::NetworkClient guestClient;
+            if (!guestClient.connect("127.0.0.1", 27088, "TestGuest")) {
+                std::cerr << "Assertion failed: NetworkClient::connect failed!\n";
+                return 1;
+            }
+
+            for (int tick = 0; tick < 10 && !guestClient.isConnected(); ++tick) {
+                hostServer.tick(0.016f);
+                guestClient.update(0.016f, Lab::Vec3(0, 1.8f, 0), Lab::Vec3(0, 0, 0), 0.0f, 0.0f, 0);
+            }
+
+            if (!guestClient.isConnected() || guestClient.getClientId() == 0) {
+                std::cerr << "Assertion failed: Guest client did not receive ConnectResponse from Host!\n";
+                return 1;
+            }
+            if (guestClient.getConnectedMapName() != "assets/maps/site14_dirty_corridor.lmap") {
+                std::cerr << "Assertion failed: Connected map name truncated or mismatched: '"
+                          << guestClient.getConnectedMapName() << "'\n";
+                return 1;
+            }
+
+            // Pump one more tick to ensure initial snapshot is received
+            hostServer.tick(0.016f);
+            guestClient.update(0.016f, guestClient.getAssignedSpawnPos(), Lab::Vec3(0, 0, 0), guestClient.getAssignedSpawnYaw(), 0.0f, 0);
+            if (!guestClient.hasNewSnapshot() || guestClient.getLatestSnapshot().playerCount < 1 ||
+                guestClient.getLatestSnapshot().players[0].isAlive != 1) {
+                std::cerr << "Assertion failed: Host did not spawn player in initial ServerSnapshot!\n";
+                return 1;
+            }
+            guestClient.consumeSnapshot();
+
+            // Test elimination and immediate respawn via Jump button after 0.6s
+            hostServer.applyDamageToClient(1, guestClient.getClientId(), 500.0f, 1, true, Lab::Vec3(0, 1.8f, 0));
+            hostServer.tick(0.016f);
+            guestClient.update(0.016f, guestClient.getAssignedSpawnPos(), Lab::Vec3(0, 0, 0), 0.0f, 0.0f, 0);
+            auto kills = guestClient.pollIncomingKillEvents();
+            if (kills.empty() || guestClient.getLatestSnapshot().players[0].isAlive != 0) {
+                std::cerr << "Assertion failed: Player was not marked dead after lethal damage!\n";
+                return 1;
+            }
+
+            // Advance server time by 0.6s and send NetButton_Jump to trigger immediate respawn
+            for (int i = 0; i < 40; ++i) {
+                hostServer.tick(0.016f);
+            }
+            guestClient.update(0.016f, guestClient.getAssignedSpawnPos(), Lab::Vec3(0, 0, 0), 0.0f, 0.0f, Lab::NetButton_Jump);
+            hostServer.tick(0.016f);
+            guestClient.update(0.016f, guestClient.getAssignedSpawnPos(), Lab::Vec3(0, 0, 0), 0.0f, 0.0f, 0);
+
+            if (guestClient.getLatestSnapshot().players[0].isAlive != 1 ||
+                guestClient.getLatestSnapshot().players[0].health < 100.0f) {
+                std::cerr << "Assertion failed: Host did not respawn dead player upon Jump command!\n";
+                return 1;
+            }
+
+            guestClient.disconnect();
+            hostServer.stop();
+            std::cout << "  [PASS] Sub-test B: Multiplayer Host ConnectResponse, 64-byte map path, authoritative spawn & jump-respawn verified!\n";
+        }
+
+        std::cout << "  [PASS] Test 100 Compressed + Encrypted .lmap Map Baking & Multiplayer Host Authoritative Spawn/Respawn passed 100%!\n";
     }
 
     Lab::Renderer::shutdown();

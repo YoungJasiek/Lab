@@ -1,0 +1,46 @@
+LABUI_VERSION 1
+
+METADATA
+    name "HEV Tactical HUD"
+    author "LabUI Studio"
+    screen_type "HUD"
+    resolution 1920 1080
+END_METADATA
+
+ASSETS
+END_ASSETS
+
+ELEMENTS
+    element hud_health_panel Panel 40 -110 260 74 0.08 0.09 0.10 0.80 BottomLeft 0
+        text ""
+        font 1.5 0
+        border 0.98 0.78 0.08 2 0.85
+        texture ""
+        binding ""
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        children 0
+
+    element hud_health_label Label 58 -94 220 44 0.98 0.78 0.08 1.0 BottomLeft 1
+        text "HP 100"
+        font 2.2 0
+        border 0 0 0 0 0
+        texture ""
+        binding "Player:getHealth()"
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        children 0
+
+    element hud_crosshair Crosshair -16 -16 32 32 0.20 1.0 0.35 0.95 Center 2
+        text ""
+        font 1.0 0
+        border 0 0 0 0 0
+        texture ""
+        binding ""
+        lua_update ""
+        lua_click ""
+        lua_custom ""
+        children 0
+END_ELEMENTS

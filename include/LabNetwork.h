@@ -54,7 +54,11 @@ namespace Lab {
         NetHeader header;
         uint32_t assignedClientId = 0;
         uint16_t tickrate = 64;
-        char mapName[32] = { 0 };
+        char mapName[64] = { 0 };
+        float spawnX = 0.0f;
+        float spawnY = 1.80f;
+        float spawnZ = 0.0f;
+        float spawnYaw = 0.0f;
     };
 
     struct NetMsgPingPong {
@@ -119,7 +123,7 @@ namespace Lab {
     struct NetMsgServerInfo {
         NetHeader header;
         char serverName[64] = { 0 };
-        char mapName[32] = { 0 };
+        char mapName[64] = { 0 };
         char gameMode[16] = { 0 };
         uint16_t playerCount = 0;
         uint16_t maxPlayers = 16;
@@ -256,7 +260,7 @@ namespace Lab {
     struct ServerConfig {
         uint16_t port = DEFAULT_SERVER_PORT;
         std::string serverName = "Lab Dedicated Arena [LAN]";
-        std::string mapName = "assets/maps/facility_alpha.labmap";
+        std::string mapName = "assets/maps/facility_alpha.lmap";
         std::string gameMode = "FFA";
         uint16_t maxPlayers = 16;
         uint16_t tickrate = 64;
@@ -300,7 +304,7 @@ namespace Lab {
         uint16_t publicPort = DEFAULT_SERVER_PORT;
         std::string lanIP;
         uint16_t lanPort = DEFAULT_SERVER_PORT;
-        std::string mapName = "facility_alpha.labmap";
+        std::string mapName = "facility_alpha.lmap";
         std::string gameMode = "FFA";
         bool valid = false;
     };
@@ -308,7 +312,7 @@ namespace Lab {
     class PnPBroker {
     public:
         static bool publishRoom(const std::string& roomCode, const std::string& publicIP, uint16_t publicPort,
-                                const std::string& lanIP, uint16_t lanPort, const std::string& mapName = "facility_alpha.labmap",
+                                const std::string& lanIP, uint16_t lanPort, const std::string& mapName = "facility_alpha.lmap",
                                 const std::string& gameMode = "FFA");
         static bool fetchRoom(const std::string& roomCode, PnPRoomInfo& outInfo);
         static bool registerGuestPunch(const std::string& roomCode, const std::string& guestIP, uint16_t guestPort);
@@ -335,7 +339,7 @@ namespace Lab {
         ~DedicatedServer();
 
         bool start(const ServerConfig& config);
-        bool start(uint16_t port = DEFAULT_SERVER_PORT, const std::string& mapName = "facility_alpha.labmap");
+        bool start(uint16_t port = DEFAULT_SERVER_PORT, const std::string& mapName = "facility_alpha.lmap");
         void stop();
         void tick(float dt);
 
@@ -380,9 +384,11 @@ namespace Lab {
 
         std::vector<ConnectedClient> _clients;
         std::vector<CollisionBox> _solidBoxes;
+        std::vector<std::pair<Vec3, float>> _spawnList;
         Vec3 _spawnPosition{ 0.0f, 1.80f, 0.0f };
         float _spawnYaw = 0.0f;
 
+        Vec3 selectSpawnForClient(uint32_t seedIndex, float& outYaw) const;
         void processIncomingPackets();
         void simulateWorld(float dt);
         void broadcastSnapshot();
@@ -417,6 +423,8 @@ namespace Lab {
         void consumeSnapshot() { _hasNewSnapshot = false; }
         const std::string& getServerAddressString() const { return _serverAddrStr; }
         const std::string& getConnectedMapName() const { return _connectedMapName; }
+        const Vec3& getAssignedSpawnPos() const { return _assignedSpawnPos; }
+        float getAssignedSpawnYaw() const { return _assignedSpawnYaw; }
 
         void sendDamage(uint32_t targetId, float damage, uint8_t weaponId, bool isHeadshot, const Vec3& hitPoint);
         void sendChatMessage(const std::string& text);
@@ -433,7 +441,9 @@ namespace Lab {
         UDPSocket _socket;
         SocketAddress _serverAddr;
         std::string _serverAddrStr = "127.0.0.1:27015";
-        std::string _connectedMapName = "facility_alpha.labmap";
+        std::string _connectedMapName = "facility_alpha.lmap";
+        Vec3 _assignedSpawnPos{ 0.0f, 1.80f, 0.0f };
+        float _assignedSpawnYaw = 0.0f;
         std::string _playerName;
         ClientConnectionState _state = ClientConnectionState::Disconnected;
         int _connectAttempts = 0;
@@ -461,7 +471,7 @@ namespace Lab {
         uint16_t port = DEFAULT_SERVER_PORT;
         std::string name = "Lab Server";
         std::string game = "Frozen-Life";
-        std::string map = "facility_alpha.labmap";
+        std::string map = "facility_alpha.lmap";
         std::string mode = "FFA";
         int playerCount = 0;
         int maxPlayers = 16;

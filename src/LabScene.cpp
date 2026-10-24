@@ -2,6 +2,8 @@
 #include "LabCore.h"
 #include "LabRenderer.h"
 #include "LabComponents.h"
+#include "LabPak.h"
+#include "LabVFS.h"
 #include <fstream>
 #include <sstream>
 #include <filesystem>
@@ -20,6 +22,22 @@ namespace Lab {
         if (std::filesystem::exists("assets/maps/" + path)) return "assets/maps/" + path;
         if (std::filesystem::exists("../assets/maps/" + path)) return "../assets/maps/" + path;
         if (std::filesystem::exists("../../assets/maps/" + path)) return "../../assets/maps/" + path;
+
+        std::filesystem::path p(path);
+        std::string ext = p.extension().string();
+        for (auto& c : ext) c = static_cast<char>(::tolower(static_cast<unsigned char>(c)));
+        if (ext == ".lmap" || ext == ".labscene" || ext == ".labmap") {
+            const char* altExts[] = { ".lmap", ".labscene", ".labmap" };
+            for (const char* ae : altExts) {
+                std::filesystem::path altPath = p;
+                altPath.replace_extension(ae);
+                std::string altFname = altPath.filename().string();
+                if (std::filesystem::exists(altPath)) return altPath.string();
+                if (std::filesystem::exists("assets/maps/" + altFname)) return "assets/maps/" + altFname;
+                if (std::filesystem::exists("../assets/maps/" + altFname)) return "../assets/maps/" + altFname;
+                if (std::filesystem::exists("../../assets/maps/" + altFname)) return "../../assets/maps/" + altFname;
+            }
+        }
         return path;
     }
 
@@ -69,20 +87,31 @@ namespace Lab {
     bool LabScene::isLegacyMapFile(const std::string& filePath) {
         if (filePath.empty()) return false;
 
-        std::string resolved = resolveScenePath(filePath);
+        std::filesystem::path p(filePath);
+        std::string ext = p.extension().string();
+        for (auto& c : ext) c = static_cast<char>(::tolower(static_cast<unsigned char>(c)));
+        if (ext == ".labscene" || ext == ".lmap") {
+            return false; // Modern scene / baked .lmap is never legacy
+        }
+
+        std::string resolved = filePath;
         if (!std::filesystem::exists(resolved)) {
+            std::string fname = p.filename().string();
+            if (std::filesystem::exists("assets/maps/" + fname)) resolved = "assets/maps/" + fname;
+            else if (std::filesystem::exists("../assets/maps/" + fname)) resolved = "../assets/maps/" + fname;
+            else if (std::filesystem::exists("../../assets/maps/" + fname)) resolved = "../../assets/maps/" + fname;
+            else return false;
+        }
+
+        std::ifstream file(resolved, std::ios::binary);
+        if (!file.is_open()) return false;
+
+        uint32_t magic = 0;
+        if (file.read(reinterpret_cast<char*>(&magic), sizeof(magic)) && magic == 0x50414D4C) {
             return false;
         }
-
-        std::filesystem::path p(resolved);
-        std::string ext = p.extension().string();
-        for (auto& c : ext) c = (char)tolower(c);
-        if (ext == ".labscene") {
-            return false; // Modern scene is never legacy
-        }
-
-        std::ifstream file(resolved);
-        if (!file.is_open()) return false;
+        file.clear();
+        file.seekg(0, std::ios::beg);
 
         std::string line;
         bool foundLegacyToken = false;
@@ -200,13 +229,7 @@ namespace Lab {
         return result;
     }
 
-    bool LabScene::saveSceneToFile(const std::string& filePath) const {
-        std::ofstream file(filePath);
-        if (!file.is_open()) {
-            LabLog::error("Failed to save scene to: " + filePath);
-            return false;
-        }
-
+    void LabScene::saveSceneToStream(std::ostream& file) const {
         file << "LABSCENE_VERSION 1\n\n";
 
         file << "ENVIRONMENT\n";
@@ -454,6 +477,21 @@ namespace Lab {
         }
 
         file << "END_ENTITIES\n";
+    }
+
+    bool LabScene::saveSceneToFile(const std::string& filePath) const {
+        std::string ext = std::filesystem::path(filePath).extension().string();
+        for (auto& c : ext) c = static_cast<char>(::tolower(static_cast<unsigned char>(c)));
+        if (ext == ".lmap") {
+            return bakeToFile(filePath, true);
+        }
+
+        std::ofstream file(filePath);
+        if (!file.is_open()) {
+            LabLog::error("Failed to save scene to: " + filePath);
+            return false;
+        }
+        saveSceneToStream(file);
         LabLog::info("Successfully saved .labscene to: " + filePath);
         return true;
     }
@@ -463,16 +501,73 @@ namespace Lab {
         std::string resolved = resolveScenePath(filePath);
         std::string ext = std::filesystem::path(resolved).extension().string();
         for (auto& c : ext) c = static_cast<char>(::tolower(static_cast<unsigned char>(c)));
-        if (ext != ".labscene" && ext != ".labmap" && ext != ".backup") {
+        if (ext != ".lmap" && ext != ".labscene" && ext != ".labmap" && ext != ".backup") {
             LabLog::error("Rejected non-scene file extension: " + filePath);
             return nullptr;
         }
 
-        std::ifstream file(resolved);
-        if (!file.is_open()) {
+        std::ifstream binFile(resolved, std::ios::binary);
+        if (!binFile.is_open()) {
             LabLog::error("Failed to open scene file: " + filePath + " (resolved: " + resolved + ")");
             return nullptr;
         }
+
+        BakedMapHeader bakedHeader{};
+        bool isBaked = false;
+        std::string sceneText;
+
+        if (binFile.read(reinterpret_cast<char*>(&bakedHeader), sizeof(BakedMapHeader))) {
+            if (bakedHeader.magic == 0x50414D4C && bakedHeader.version == 1) {
+                isBaked = true;
+                binFile.seekg(static_cast<std::streamoff>(bakedHeader.sceneOffset), std::ios::beg);
+                std::vector<uint8_t> sceneBytes(bakedHeader.sceneLength);
+                if (binFile.read(reinterpret_cast<char*>(sceneBytes.data()), static_cast<std::streamsize>(bakedHeader.sceneLength))) {
+                    if (bakedHeader.flags & BAKED_MAP_ENCRYPTED) {
+                        LabPak::cryptBuffer(sceneBytes, bakedHeader.sceneOffset);
+                    }
+                    if (bakedHeader.flags & BAKED_MAP_COMPRESSED) {
+                        std::vector<uint8_t> decompressed;
+                        if (!LabPak::decompressBuffer(sceneBytes, decompressed)) {
+                            LabLog::error("[LabScene] Failed to decompress baked .lmap: " + resolved);
+                            return nullptr;
+                        }
+                        sceneBytes = std::move(decompressed);
+                    }
+                    uint32_t computed = LabPak::calculateCRC32(sceneBytes);
+                    if (bakedHeader.checksum != 0 && computed != bakedHeader.checksum) {
+                        LabLog::error("[LabScene] Checksum mismatch in baked .lmap: " + resolved);
+                        return nullptr;
+                    }
+                    sceneText.assign(reinterpret_cast<const char*>(sceneBytes.data()), sceneBytes.size());
+                }
+
+                if (bakedHeader.embeddedPakLength > 0 && (bakedHeader.flags & BAKED_MAP_EMBEDDED_ASSETS)) {
+                    binFile.seekg(static_cast<std::streamoff>(bakedHeader.embeddedPakOffset), std::ios::beg);
+                    std::vector<uint8_t> pakBytes(bakedHeader.embeddedPakLength);
+                    if (binFile.read(reinterpret_cast<char*>(pakBytes.data()), static_cast<std::streamsize>(bakedHeader.embeddedPakLength))) {
+                        std::filesystem::path tempPak = std::filesystem::temp_directory_path() / ("map_embedded_" + std::filesystem::path(resolved).stem().string() + ".lpak");
+                        std::ofstream pakOut(tempPak, std::ios::binary);
+                        if (pakOut.is_open()) {
+                            pakOut.write(reinterpret_cast<const char*>(pakBytes.data()), static_cast<std::streamsize>(pakBytes.size()));
+                            pakOut.close();
+                            VFS::get().mountPak(tempPak);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!isBaked) {
+            binFile.clear();
+            binFile.seekg(0, std::ios::beg);
+            sceneText.assign((std::istreambuf_iterator<char>(binFile)), std::istreambuf_iterator<char>());
+        }
+
+        return loadSceneFromString(sceneText, resolved);
+    }
+
+    std::unique_ptr<LabScene> LabScene::loadSceneFromString(const std::string& sceneText, const std::string& filePath) {
+        std::istringstream file(sceneText);
 
         auto scene = std::make_unique<LabScene>();
         std::string line;

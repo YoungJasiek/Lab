@@ -1,0 +1,78 @@
+project_name "MainMenu_Screen"
+screen_type "MainMenu"
+virtual_res 1920 1080
+grid_size 10
+
+element "MainMenu_Background" Image
+    anchor Center
+    offset 0 0
+    size 1920 1080
+    color 0.06 0.08 0.11 1.0
+    bg_color 0.04 0.05 0.08 1.0
+    text "FROZEN-LIFE : SITE 14"
+    texture "corridor_dirty_wall.bmp"
+    scale 1.0
+    visible 1
+end_element
+
+element "MainMenu_Panel" Panel
+    anchor TopLeft
+    offset 120 140
+    size 520 760
+    color 0.20 0.75 0.95 1.0
+    bg_color 0.10 0.13 0.18 0.92
+    text "MAIN MENU"
+    scale 1.0
+    visible 1
+end_element
+
+element "MainMenu_Title" Label
+    parent "MainMenu_Panel"
+    anchor TopLeft
+    offset 32 28
+    size 450 56
+    color 0.95 0.98 1.0 1.0
+    bg_color 0.0 0.0 0.0 0.0
+    text "FROZEN-LIFE : SITE 14"
+    scale 2.2
+    visible 1
+end_element
+
+element "Btn_Campaign" Button
+    parent "MainMenu_Panel"
+    anchor TopLeft
+    offset 32 120
+    size 456 58
+    color 1.0 1.0 1.0 1.0
+    bg_color 0.18 0.36 0.56 0.95
+    text "START CAMPAIGN"
+    action "screen:HUD"
+    scale 1.6
+    visible 1
+end_element
+
+element "Btn_Options" Button
+    parent "MainMenu_Panel"
+    anchor TopLeft
+    offset 32 200
+    size 456 58
+    color 1.0 1.0 1.0 1.0
+    bg_color 0.16 0.28 0.42 0.95
+    text "OPTIONS & SETTINGS"
+    action "screen:OptionsMenu"
+    scale 1.6
+    visible 1
+end_element
+
+element "Btn_Quit" Button
+    parent "MainMenu_Panel"
+    anchor TopLeft
+    offset 32 280
+    size 456 58
+    color 1.0 0.85 0.85 1.0
+    bg_color 0.45 0.16 0.18 0.95
+    text "QUIT TO DESKTOP"
+    action "quit"
+    scale 1.6
+    visible 1
+end_element

@@ -40,7 +40,7 @@ namespace Lab {
         }
 
         // Native File Open Dialog (Windows GetOpenFileNameA, Linux zenity/kdialog)
-        static std::string openFileDialog(GLFWwindow* window, const char* filter = "Lab Scene Files (*.labscene;*.labmap)\0*.labscene;*.labmap\0", const char* defaultDir = "assets/maps") {
+        static std::string openFileDialog(GLFWwindow* window, const char* filter = "Lab Map Files (*.lmap;*.labscene;*.labmap)\0*.lmap;*.labscene;*.labmap\0", const char* defaultDir = "assets/maps") {
 #if defined(_WIN32)
             char filename[MAX_PATH] = "";
 
@@ -80,10 +80,10 @@ namespace Lab {
             return "";
 #else
             (void)window; (void)filter; (void)defaultDir;
-            std::string cmd = "zenity --file-selection --file-filter='Lab Scene (*.labscene *.labmap) | *.labscene *.labmap' 2>/dev/null";
+            std::string cmd = "zenity --file-selection --file-filter='Lab Map (*.lmap *.labscene *.labmap) | *.lmap *.labscene *.labmap' 2>/dev/null";
             FILE* pipe = popen(cmd.c_str(), "r");
             if (!pipe) {
-                cmd = "kdialog --getopenfilename . '*.labscene *.labmap' 2>/dev/null";
+                cmd = "kdialog --getopenfilename . '*.lmap *.labscene *.labmap' 2>/dev/null";
                 pipe = popen(cmd.c_str(), "r");
             }
             if (pipe) {
@@ -108,7 +108,7 @@ namespace Lab {
         }
 
         // Native File Save Dialog (Windows GetSaveFileNameA, Linux zenity/kdialog)
-        static std::string saveFileDialog(GLFWwindow* window, const char* filter = "Lab Scene Files (*.labscene)\0*.labscene\0Lab Map Files (*.labmap)\0*.labmap\0", const char* defaultName = "my_level.labscene", const char* defaultDir = "assets/maps") {
+        static std::string saveFileDialog(GLFWwindow* window, const char* filter = "Lab Map Package (*.lmap)\0*.lmap\0Lab Scene Files (*.labscene)\0*.labscene\0", const char* defaultName = "my_level.lmap", const char* defaultDir = "assets/maps") {
 #if defined(_WIN32)
             char filename[MAX_PATH] = "";
             strncpy_s(filename, defaultName, MAX_PATH - 1);
@@ -135,7 +135,7 @@ namespace Lab {
                 ofn.lpstrInitialDir = initialDirStr.c_str();
             }
 
-            ofn.lpstrDefExt = "labscene";
+            ofn.lpstrDefExt = "lmap";
             ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR | OFN_NODEREFERENCELINKS;
 
             if (GetSaveFileNameA(&ofn)) {
