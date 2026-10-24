@@ -307,6 +307,8 @@ namespace Lab {
 
         // Security validation & quarantine against tampered/spoofed maps
         static bool verifyMapIntegrity(const std::string& filePath, uint32_t expectedChecksum = 0);
+        static bool isBakedBinaryMap(const std::filesystem::path& filePath);
+        static size_t bakeUnbakedMapsInDirectory(const std::filesystem::path& mapsDir = "assets/maps");
         static bool isOfficialMap(const std::string& filePath);
         static std::string getQuarantinedDownloadPath(const std::string& serverHost, const std::string& mapName, uint32_t mapCrc);
     };

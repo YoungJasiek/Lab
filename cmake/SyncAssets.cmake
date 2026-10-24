@@ -28,6 +28,15 @@ function(sync_clean_directory SRC_ROOT DST_ROOT)
         if(REL_DIR)
             file(MAKE_DIRECTORY "${DST_ROOT}/${REL_DIR}")
         endif()
+
+        # Verify .lmap files have the baked binary header ("LMAP" = 4c4d4150 in little-endian hex)
+        if(LOWER_REL MATCHES "^maps/.*\\.lmap$")
+            file(READ "${SRC_ROOT}/${REL_FILE}" LMAP_HEADER_HEX LIMIT 12 HEX)
+            if(NOT LMAP_HEADER_HEX MATCHES "^4c4d4150")
+                message(STATUS "[SyncAssets] Map '${REL_FILE}' is not yet baked (will be baked by LabServer POST_BUILD)")
+            endif()
+        endif()
+
         file(COPY_FILE "${SRC_ROOT}/${REL_FILE}" "${DST_ROOT}/${REL_FILE}" ONLY_IF_DIFFERENT)
     endforeach()
 

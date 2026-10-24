@@ -75,7 +75,8 @@ public:
     }
 
     void onInit() override {
-        LabLog::info("Frozen-Life Init: Modular .LABMAP and GUI System...");
+        LabLog::info("Frozen-Life Init: Modular .LMAP and GUI System...");
+        LabMap::bakeUnbakedMapsInDirectory("assets/maps");
         Renderer::init();
 
         s_instance = this;

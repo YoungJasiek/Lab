@@ -1,4 +1,5 @@
 #include "LabNetwork.h"
+#include "LabMap.h"
 #include <iostream>
 #include <chrono>
 #include <thread>
@@ -13,9 +14,23 @@ static void signalHandler(int /*signum*/) {
 }
 
 int main(int argc, char* argv[]) {
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--bake-maps" || arg == "-bake-maps") {
+            std::string dir = (i + 1 < argc) ? argv[++i] : "assets/maps";
+            size_t baked = Lab::LabMap::bakeUnbakedMapsInDirectory(dir);
+            if (baked > 0) {
+                std::cout << "[LabMap] Baked " << baked << " unbaked map(s) in '" << dir << "' into compressed+encrypted .lmap format.\n";
+            }
+            return 0;
+        }
+    }
+
     std::cout << "=======================================================\n";
     std::cout << "   FROZEN-LIFE : LAB HEADLESS DEDICATED SERVER v1.0   \n";
     std::cout << "=======================================================\n";
+
+    Lab::LabMap::bakeUnbakedMapsInDirectory("assets/maps");
 
     Lab::ServerConfig config;
 

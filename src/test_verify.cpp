@@ -13012,24 +13012,16 @@ int main() {
             mapsDir = "../assets/maps";
         }
 
+        // Automatically check and bake any unbaked maps in directory (skipping already-baked ones)
+        Lab::LabMap::bakeUnbakedMapsInDirectory(mapsDir);
+
         for (const auto& stem : mapStems) {
             std::filesystem::path lmapPath = mapsDir / (stem + ".lmap");
             std::filesystem::path scenePath = mapsDir / (stem + ".labscene");
             std::filesystem::path labmapPath = mapsDir / (stem + ".labmap");
 
             // Check if lmapPath is already a binary compressed + encrypted LMAP
-            bool needsBake = true;
-            if (std::filesystem::exists(lmapPath)) {
-                std::ifstream checkIn(lmapPath, std::ios::binary);
-                Lab::BakedMapHeader hdr{};
-                if (checkIn.read(reinterpret_cast<char*>(&hdr), sizeof(hdr))) {
-                    if (hdr.magic == 0x50414D4C &&
-                        (hdr.flags & Lab::BAKED_MAP_ENCRYPTED) &&
-                        (hdr.flags & Lab::BAKED_MAP_COMPRESSED)) {
-                        needsBake = false;
-                    }
-                }
-            }
+            bool needsBake = !Lab::LabMap::isBakedBinaryMap(lmapPath);
 
             if (needsBake) {
                 std::string srcToLoad;
@@ -13049,6 +13041,11 @@ int main() {
                 if (mapsDir != "assets/maps" && std::filesystem::exists("assets/maps")) {
                     loaded->bakeToFile(("assets/maps/" + stem + ".lmap"), true);
                 }
+            }
+
+            if (!Lab::LabMap::isBakedBinaryMap(lmapPath)) {
+                std::cerr << "Assertion failed: isBakedBinaryMap returned false for: " << lmapPath << "\n";
+                return 1;
             }
 
             // Verify binary header, compression, encryption, and round-trip loading
@@ -13074,7 +13071,11 @@ int main() {
                 return 1;
             }
         }
-        std::cout << "  [PASS] Sub-test A: All 9 maps (including menu_background.lmap) baked & verified as compressed + encrypted binary .lmap!\n";
+        if (Lab::LabMap::bakeUnbakedMapsInDirectory(mapsDir) != 0) {
+            std::cerr << "Assertion failed: bakeUnbakedMapsInDirectory should return 0 when all maps are already baked!\n";
+            return 1;
+        }
+        std::cout << "  [PASS] Sub-test A: All 9 maps (including menu_background.lmap) baked & verified as compressed + encrypted binary .lmap (already-baked check skipped 9/9)!\n";
 
         // Sub-test B: Multiplayer Host -> Client Handshake, Long Map Path, Authoritative Spawn & Respawn
         {

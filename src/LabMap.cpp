@@ -963,6 +963,68 @@ namespace Lab {
         return true;
     }
 
+    bool LabMap::isBakedBinaryMap(const std::filesystem::path& filePath) {
+        std::error_code ec;
+        if (!std::filesystem::exists(filePath, ec) || !std::filesystem::is_regular_file(filePath, ec)) {
+            return false;
+        }
+        std::ifstream file(filePath, std::ios::binary);
+        if (!file.is_open()) return false;
+        BakedMapHeader header{};
+        if (!file.read(reinterpret_cast<char*>(&header), sizeof(header))) {
+            return false;
+        }
+        return header.magic == 0x50414D4C &&
+               header.version == 1 &&
+               (header.flags & BAKED_MAP_ENCRYPTED) != 0 &&
+               (header.flags & BAKED_MAP_COMPRESSED) != 0;
+    }
+
+    size_t LabMap::bakeUnbakedMapsInDirectory(const std::filesystem::path& mapsDir) {
+        std::error_code ec;
+        if (!std::filesystem::exists(mapsDir, ec) || !std::filesystem::is_directory(mapsDir, ec)) {
+            return 0;
+        }
+
+        std::vector<std::filesystem::path> candidates;
+        for (const auto& entry : std::filesystem::directory_iterator(mapsDir, ec)) {
+            if (!entry.is_regular_file(ec)) continue;
+            std::string ext = entry.path().extension().string();
+            for (char& c : ext) c = static_cast<char>(::tolower(static_cast<unsigned char>(c)));
+            if (ext == ".lmap" || ext == ".labscene" || ext == ".labmap") {
+                candidates.push_back(entry.path());
+            }
+        }
+
+        size_t bakedCount = 0;
+        for (const auto& srcPath : candidates) {
+            if (!std::filesystem::exists(srcPath, ec)) continue;
+            std::string ext = srcPath.extension().string();
+            for (char& c : ext) c = static_cast<char>(::tolower(static_cast<unsigned char>(c)));
+
+            std::filesystem::path targetLmap = srcPath;
+            targetLmap.replace_extension(".lmap");
+
+            // Check if target .lmap is already a baked (compressed + encrypted) binary container
+            if (ext == ".lmap" && isBakedBinaryMap(targetLmap)) {
+                continue;
+            }
+            if ((ext == ".labscene" || ext == ".labmap") && isBakedBinaryMap(targetLmap)) {
+                auto srcTime = std::filesystem::last_write_time(srcPath, ec);
+                auto lmapTime = std::filesystem::last_write_time(targetLmap, ec);
+                if (!ec && lmapTime >= srcTime) {
+                    continue;
+                }
+            }
+
+            auto loaded = loadFromFile(srcPath.string());
+            if (loaded && loaded->bakeToFile(targetLmap.string(), true)) {
+                bakedCount++;
+            }
+        }
+        return bakedCount;
+    }
+
     bool LabMap::isOfficialMap(const std::string& filePath) {
         std::filesystem::path p(filePath);
         std::string generic = p.generic_string();
