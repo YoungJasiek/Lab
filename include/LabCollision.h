@@ -37,6 +37,13 @@ namespace Lab {
         static void resolvePenetration(Vec3& position, const std::vector<CollisionBox>& obstacles,
                                        float eyeHeight = 1.70f, float playerRadius = 0.35f,
                                        float playerHeight = 1.85f);
+
+        // Check if the player's AABB overlaps any active trigger volumes in the map.
+        // Marks triggered one-shot volumes and returns the indices of newly activated triggers.
+        static std::vector<int> checkTriggerVolumes(const Vec3& position, LabMap& map,
+                                                    float eyeHeight = 1.70f, float playerRadius = 0.35f,
+                                                    float playerHeight = 1.85f);
     };
 
 } // namespace Lab
+

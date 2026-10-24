@@ -1,0 +1,20 @@
+{
+  "name": "lab-wiki",
+  "version": "1.0.0",
+  "description": "Lab Engine & Frozen-Life Developer Community Documentation Hub",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "serve": "node server.js"
+  },
+  "keywords": [
+    "lab-engine",
+    "frozen-life",
+    "documentation",
+    "wiki"
+  ],
+  "author": "YoungJasiek",
+  "license": "MIT"
+}

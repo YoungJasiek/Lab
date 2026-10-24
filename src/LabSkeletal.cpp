@@ -141,6 +141,8 @@ namespace Lab {
             if (p != std::string::npos) s.erase(p, 10);
             p = s.find("mixamorig_");
             if (p != std::string::npos) s.erase(p, 10);
+            p = s.find("ValveBiped.Bip01_");
+            if (p != std::string::npos) s.erase(p, 17);
 
             // Strip Cinema 4D joint index suffix ONLY: e.g. "_01", "_02", "_012", "_024"
             // That is, an underscore followed by digits at the very end of the string.
@@ -161,6 +163,37 @@ namespace Lab {
         std::string target = cleanName(name);
         for (const auto& pair : _nameToIndex) {
             if (cleanName(pair.first) == target) {
+                return pair.second;
+            }
+        }
+
+        // Cross-standard humanoid 3D rig alias mapping (Mixamo / glTF / ValveBiped / Unreal / Lab)
+        auto canonicalAlias = [](const std::string& s) -> std::string {
+            if (s == "Root" || s == "Hips" || s == "Pelvis") return "Hips";
+            if (s == "Spine") return "Spine";
+            if (s == "Chest" || s == "Spine1" || s == "Spine2") return "Chest";
+            if (s == "Neck" || s == "Neck1") return "Neck";
+            if (s == "Head" || s == "Head1") return "Head";
+            if (s == "Shoulder_L" || s == "LeftShoulder" || s == "Clavicle_L" || s == "L_Clavicle") return "LeftShoulder";
+            if (s == "Arm_L" || s == "LeftArm" || s == "UpperArm_L" || s == "L_UpperArm") return "LeftArm";
+            if (s == "Forearm_L" || s == "LeftForeArm" || s == "LowerArm_L" || s == "L_Forearm") return "LeftForeArm";
+            if (s == "Hand_L" || s == "LeftHand" || s == "L_Hand") return "LeftHand";
+            if (s == "Shoulder_R" || s == "RightShoulder" || s == "Clavicle_R" || s == "R_Clavicle") return "RightShoulder";
+            if (s == "Arm_R" || s == "RightArm" || s == "UpperArm_R" || s == "R_UpperArm") return "RightArm";
+            if (s == "Forearm_R" || s == "RightForeArm" || s == "LowerArm_R" || s == "R_Forearm") return "RightForeArm";
+            if (s == "Hand_R" || s == "RightHand" || s == "R_Hand") return "RightHand";
+            if (s == "Thigh_L" || s == "LeftUpLeg" || s == "UpperLeg_L" || s == "L_Thigh") return "LeftUpLeg";
+            if (s == "Shin_L" || s == "LeftLeg" || s == "Calf_L" || s == "L_Calf") return "LeftLeg";
+            if (s == "Foot_L" || s == "LeftFoot" || s == "L_Foot") return "LeftFoot";
+            if (s == "Thigh_R" || s == "RightUpLeg" || s == "UpperLeg_R" || s == "R_Thigh") return "RightUpLeg";
+            if (s == "Shin_R" || s == "RightLeg" || s == "Calf_R" || s == "R_Calf") return "RightLeg";
+            if (s == "Foot_R" || s == "RightFoot" || s == "R_Foot") return "RightFoot";
+            return s;
+        };
+
+        std::string canonicalTarget = canonicalAlias(target);
+        for (const auto& pair : _nameToIndex) {
+            if (canonicalAlias(cleanName(pair.first)) == canonicalTarget) {
                 return pair.second;
             }
         }
@@ -331,6 +364,27 @@ namespace Lab {
             evalTime = std::clamp(time, 0.0f, duration);
         }
 
+        // Detect if this animation clip was authored for a foreign rig (e.g. Mixamo A/T-pose)
+        // requiring retargeting normalization onto this target skeleton.
+        bool isForeignRig = false;
+        for (const auto& track : tracks) {
+            int idx = track.boneIndex;
+            if (idx < 0) {
+                idx = skeleton.findBoneIndex(track.boneName);
+            }
+            if (idx >= 0 && idx < static_cast<int>(boneCount) && !track.rotationKeys.empty()) {
+                const Bone* b = skeleton.getBone(idx);
+                if (b) {
+                    Quat baseRot = track.rotationKeys.front().value.normalized();
+                    float dot = std::abs(Quat::dot(baseRot, b->bindRot));
+                    if (dot < 0.95f) {
+                        isForeignRig = true;
+                        break;
+                    }
+                }
+            }
+        }
+
         for (const auto& track : tracks) {
             int idx = track.boneIndex;
             if (idx < 0) {
@@ -338,9 +392,54 @@ namespace Lab {
             }
             if (idx >= 0 && idx < static_cast<int>(boneCount)) {
                 const Bone* b = skeleton.getBone(idx);
-                Vec3 pos = track.translationKeys.empty() ? (b ? b->bindPos : Vec3(0, 0, 0)) : track.sampleTranslation(evalTime);
-                Quat rot = track.rotationKeys.empty() ? (b ? b->bindRot : Quat::identity()) : track.sampleRotation(evalTime);
-                Vec3 scl = track.scaleKeys.empty() ? (b ? b->bindScale : Vec3(1, 1, 1)) : track.sampleScale(evalTime);
+
+                // Normalization: Retarget rotations relative to target bone bind pose
+                Quat rot;
+                if (track.rotationKeys.empty()) {
+                    rot = b ? b->bindRot : Quat::identity();
+                } else {
+                    Quat animRot = track.sampleRotation(evalTime).normalized();
+                    if (isForeignRig && b) {
+                        Quat baseAnimRot = track.rotationKeys.front().value.normalized();
+                        Quat deltaRot = animRot * baseAnimRot.inverse();
+                        rot = (b->bindRot * deltaRot).normalized();
+                    } else {
+                        rot = animRot;
+                    }
+                }
+
+                // Normalization: Retarget root translation relative to target bone bind position
+                Vec3 pos;
+                if (track.translationKeys.empty()) {
+                    pos = b ? b->bindPos : Vec3(0, 0, 0);
+                } else {
+                    Vec3 animPos = track.sampleTranslation(evalTime);
+                    bool isRootOrHips = b && (b->parentIndex < 0 || b->name.find("Hips") != std::string::npos || b->name.find("Root") != std::string::npos);
+                    if (isRootOrHips) {
+                        Vec3 baseAnimPos = track.translationKeys.front().value;
+                        Vec3 deltaPos = animPos - baseAnimPos;
+                        float scaleFactor = 1.0f;
+                        if (std::abs(baseAnimPos.y) > 10.0f && std::abs(b->bindPos.y) < 5.0f && std::abs(baseAnimPos.y) > 0.001f) {
+                            scaleFactor = b->bindPos.y / baseAnimPos.y;
+                        }
+                        pos = b->bindPos + deltaPos * scaleFactor;
+                    } else if (isForeignRig || (b && b->parentIndex >= 0)) {
+                        pos = b ? b->bindPos : animPos;
+                    } else {
+                        pos = animPos;
+                    }
+                }
+
+                // Normalization: Preserve base scale
+                Vec3 scl = b ? b->bindScale : Vec3(1, 1, 1);
+                if (!track.scaleKeys.empty()) {
+                    Vec3 animScl = track.sampleScale(evalTime);
+                    if (isForeignRig) {
+                        scl = b ? b->bindScale : Vec3(1, 1, 1);
+                    } else {
+                        scl = animScl;
+                    }
+                }
 
                 outLocalTransforms[idx] = makeTransform(pos, rot, scl);
             }
@@ -382,31 +481,30 @@ namespace Lab {
 
     void Animator::playAnimation(const std::string& name, bool loop, float blendDuration) {
         std::string target = name;
-        // Prioritize full Mixamo FBX animations over placeholder clips
-        if ((target == "Idle" || target == "Pistol Idle" || target == "Stand") && hasClip("Pistol Idle")) {
-            target = "Pistol Idle";
-        } else if (target == "Walk" && hasClip("Walking")) {
-            target = "Walking";
-        } else if ((target == "Shoot" || target == "Fire") && hasClip("Firing Rifle")) {
-            target = "Firing Rifle";
-        } else if (!hasClip(target)) {
+        // If exact requested clip name exists in animator, play it directly!
+        if (!hasClip(target)) {
             // Remap generic or missing clip requests to available equivalents
-            if (target == "Shoot" || target == "Fire" || target == "Firing Rifle" || target == "Heavy Weapon Swing") {
-                if (hasClip("Firing Rifle")) target = "Firing Rifle";
-                else if (hasClip("Heavy Weapon Swing")) target = "Heavy Weapon Swing";
-                else if (hasClip("Shoot")) target = "Shoot";
-            } else if (target == "Walk" || target == "Run" || target == "Walking" || target == "Run Forward" || target == "Sprint Backward" || target == "Strafing" || target == "Pistol Strafe") {
-                if (hasClip("Run Forward")) target = "Run Forward";
-                else if (hasClip("Walking")) target = "Walking";
-                else if (hasClip("Walk")) target = "Walk";
-            } else if (target == "Idle" || target == "Pistol Idle" || target == "Stand") {
-                if (hasClip("Pistol Idle")) target = "Pistol Idle";
+            if (target == "Talk") {
+                if (hasClip("Talk")) target = "Talk";
                 else if (hasClip("Idle")) target = "Idle";
+                else if (hasClip("Pistol Idle")) target = "Pistol Idle";
+            } else if (target == "Attack" || target == "Shoot" || target == "Fire" || target == "Firing Rifle" || target == "Heavy Weapon Swing") {
+                if (hasClip("Attack")) target = "Attack";
+                else if (hasClip("Shoot")) target = "Shoot";
+                else if (hasClip("Firing Rifle")) target = "Firing Rifle";
+                else if (hasClip("Heavy Weapon Swing")) target = "Heavy Weapon Swing";
+            } else if (target == "Walk" || target == "Run" || target == "Walking" || target == "Run Forward" || target == "Sprint Backward" || target == "Strafing" || target == "Pistol Strafe") {
+                if (hasClip("Walk")) target = "Walk";
+                else if (hasClip("Run Forward")) target = "Run Forward";
+                else if (hasClip("Walking")) target = "Walking";
+            } else if (target == "Idle" || target == "Pistol Idle" || target == "Stand") {
+                if (hasClip("Idle")) target = "Idle";
+                else if (hasClip("Pistol Idle")) target = "Pistol Idle";
             } else if (target == "Death" || target == "Dead" || target == "Death From Front Headshot" || target == "Death From The Back" || target == "Rifle Death") {
-                if (hasClip("Death From Front Headshot")) target = "Death From Front Headshot";
+                if (hasClip("Death")) target = "Death";
+                else if (hasClip("Death From Front Headshot")) target = "Death From Front Headshot";
                 else if (hasClip("Rifle Death")) target = "Rifle Death";
                 else if (hasClip("Death From The Back")) target = "Death From The Back";
-                else if (hasClip("Death")) target = "Death";
                 else if (hasClip("Dying")) target = "Dying";
             } else if (target == "Hit" || target == "Hurt" || target == "Hit Reaction") {
                 if (hasClip("Hit Reaction")) target = "Hit Reaction";
@@ -456,11 +554,37 @@ namespace Lab {
                 std::vector<Mat4> prevTransforms;
                 prevClip->sample(_previousTime, true, *_skeleton, prevTransforms);
 
-                // Blend matrices per bone (linear interpolation of transformation components)
+                // Blend matrices per bone (linear interpolation with Gram-Schmidt orthonormalization)
                 for (size_t i = 0; i < curTransforms.size() && i < prevTransforms.size(); ++i) {
                     for (int elem = 0; elem < 16; ++elem) {
                         curTransforms[i].m[elem] = prevTransforms[i].m[elem] * (1.0f - alpha) + curTransforms[i].m[elem] * alpha;
                     }
+                    // Orthonormalize the 3x3 rotation basis to prevent scale collapse / shear during blend transitions
+                    Vec3 c0(curTransforms[i].m[0], curTransforms[i].m[1], curTransforms[i].m[2]);
+                    Vec3 c1(curTransforms[i].m[4], curTransforms[i].m[5], curTransforms[i].m[6]);
+                    Vec3 c2(curTransforms[i].m[8], curTransforms[i].m[9], curTransforms[i].m[10]);
+
+                    float s0 = c0.length();
+                    float s1 = c1.length();
+                    float s2 = c2.length();
+
+                    if (s0 > 1e-4f) c0 = c0 / s0; else c0 = Vec3(1, 0, 0);
+                    c1 = c1 - c0 * Vec3::dot(c1, c0);
+                    if (c1.length() > 1e-4f) c1 = c1.normalized(); else c1 = Vec3(0, 1, 0);
+                    c2 = Vec3::cross(c0, c1);
+                    if (c2.length() > 1e-4f) c2 = c2.normalized(); else c2 = Vec3(0, 0, 1);
+
+                    curTransforms[i].m[0] = c0.x * (s0 > 1e-4f ? s0 : 1.0f);
+                    curTransforms[i].m[1] = c0.y * (s0 > 1e-4f ? s0 : 1.0f);
+                    curTransforms[i].m[2] = c0.z * (s0 > 1e-4f ? s0 : 1.0f);
+
+                    curTransforms[i].m[4] = c1.x * (s1 > 1e-4f ? s1 : 1.0f);
+                    curTransforms[i].m[5] = c1.y * (s1 > 1e-4f ? s1 : 1.0f);
+                    curTransforms[i].m[6] = c1.z * (s1 > 1e-4f ? s1 : 1.0f);
+
+                    curTransforms[i].m[8] = c2.x * (s2 > 1e-4f ? s2 : 1.0f);
+                    curTransforms[i].m[9] = c2.y * (s2 > 1e-4f ? s2 : 1.0f);
+                    curTransforms[i].m[10] = c2.z * (s2 > 1e-4f ? s2 : 1.0f);
                 }
             }
 
@@ -470,7 +594,23 @@ namespace Lab {
             }
         }
 
+        // Procedural Lip-Sync Jaw Opening
+        if (std::abs(_jawAngle) > 1e-4f) {
+            int jawIdx = _skeleton->findBoneIndex("Jaw");
+            if (jawIdx >= 0 && jawIdx < static_cast<int>(curTransforms.size())) {
+                Mat4 rotMat = Mat4::rotate(_jawAngle, Vec3(1.0f, 0.0f, 0.0f));
+                curTransforms[jawIdx] = curTransforms[jawIdx] * rotMat;
+            }
+        }
+
         _skeleton->evaluate(curTransforms, _globalTransforms, _skinMatrices);
+    }
+
+    void Animator::setCurrentTime(float t) {
+        _currentTime = t;
+        _previousClipName.clear();
+        _blendDuration = 0.0f;
+        update(0.0f);
     }
 
     float Animator::getProgress() const {
@@ -499,46 +639,50 @@ namespace Lab {
             unsigned int bIDs[4] = { bone0, bone1, 0, 0 };
             float bWeights[4] = { weight0, weight1, 0.0f, 0.0f };
 
-            // 6 faces * 4 vertices = 24 vertices
-            static const Vec3 normals[6] = {
-                {  0,  0,  1 }, {  0,  0, -1 },
-                { -1,  0,  0 }, {  1,  0,  0 },
-                {  0,  1,  0 }, {  0, -1,  0 }
-            };
+            // Generate smooth 12-segment anatomical ellipsoid/capsule limb instead of rectangular box
+            const int rings = 6;
+            const int sectors = 12;
+            unsigned int baseVert = static_cast<unsigned int>(verts.size());
 
-            static const float faceVerts[6][4][3] = {
-                // Front (+Z)
-                { { -1, -1,  1 }, {  1, -1,  1 }, {  1,  1,  1 }, { -1,  1,  1 } },
-                // Back (-Z)
-                { {  1, -1, -1 }, { -1, -1, -1 }, { -1,  1, -1 }, {  1,  1, -1 } },
-                // Left (-X)
-                { { -1, -1, -1 }, { -1, -1,  1 }, { -1,  1,  1 }, { -1,  1, -1 } },
-                // Right (+X)
-                { {  1, -1,  1 }, {  1, -1, -1 }, {  1,  1, -1 }, {  1,  1,  1 } },
-                // Top (+Y)
-                { { -1,  1,  1 }, {  1,  1,  1 }, {  1,  1, -1 }, { -1,  1, -1 } },
-                // Bottom (-Y)
-                { { -1, -1, -1 }, {  1, -1, -1 }, {  1, -1,  1 }, { -1, -1,  1 } }
-            };
+            for (int r = 0; r <= rings; ++r) {
+                float v = static_cast<float>(r) / static_cast<float>(rings);
+                float phi = (v - 0.5f) * 3.14159265f;
+                float cosPhi = std::cos(phi);
+                float sinPhi = std::sin(phi);
 
-            static const Vec2 uvs[4] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } };
+                for (int s = 0; s <= sectors; ++s) {
+                    float u = static_cast<float>(s) / static_cast<float>(sectors);
+                    float theta = u * 2.0f * 3.14159265f;
+                    float cosTheta = std::cos(theta);
+                    float sinTheta = std::sin(theta);
 
-            for (int f = 0; f < 6; ++f) {
-                unsigned int fStart = static_cast<unsigned int>(verts.size());
-                for (int v = 0; v < 4; ++v) {
+                    Vec3 unitDir = { cosPhi * cosTheta, sinPhi, cosPhi * sinTheta };
                     Vec3 pos = {
-                        center.x + faceVerts[f][v][0] * halfSize.x,
-                        center.y + faceVerts[f][v][1] * halfSize.y,
-                        center.z + faceVerts[f][v][2] * halfSize.z
+                        center.x + unitDir.x * halfSize.x,
+                        center.y + unitDir.y * halfSize.y,
+                        center.z + unitDir.z * halfSize.z
                     };
-                    verts.emplace_back(pos, normals[f], uvs[v], color, bIDs, bWeights);
+                    Vec3 norm = {
+                        unitDir.x / (std::max)(0.001f, halfSize.x),
+                        unitDir.y / (std::max)(0.001f, halfSize.y),
+                        unitDir.z / (std::max)(0.001f, halfSize.z)
+                    };
+                    verts.emplace_back(pos, norm.normalized(), Vec2{ u, v }, color, bIDs, bWeights);
                 }
-                idxs.push_back(fStart + 0);
-                idxs.push_back(fStart + 1);
-                idxs.push_back(fStart + 2);
-                idxs.push_back(fStart + 0);
-                idxs.push_back(fStart + 2);
-                idxs.push_back(fStart + 3);
+            }
+
+            for (int r = 0; r < rings; ++r) {
+                for (int s = 0; s < sectors; ++s) {
+                    unsigned int cur = baseVert + r * (sectors + 1) + s;
+                    unsigned int next = cur + (sectors + 1);
+                    idxs.push_back(cur);
+                    idxs.push_back(next);
+                    idxs.push_back(cur + 1);
+
+                    idxs.push_back(cur + 1);
+                    idxs.push_back(next);
+                    idxs.push_back(next + 1);
+                }
             }
         }
     }
@@ -1266,7 +1410,10 @@ namespace Lab {
                 // Primitive Material Color
                 int matIdx = prim["material"].asInt(-1);
                 Vec3 primColor = Vec3(0.24f, 0.26f, 0.30f); // Charcoal Terminator metal
-                if (matIdx >= 0 && matIdx < static_cast<int>(materials.arr.size())) {
+                bool isGuardModel = (path.find("guard") != std::string::npos);
+                if (isGuardModel) {
+                    primColor = Vec3(1.0f, 1.0f, 1.0f);
+                } else if (matIdx >= 0 && matIdx < static_cast<int>(materials.arr.size())) {
                     const auto& mat = materials[matIdx];
                     std::string mName = mat["name"].asStr();
                     if (mName.find("red") != std::string::npos || mName.find("eye") != std::string::npos || mName.find("bright") != std::string::npos) {
@@ -1288,6 +1435,13 @@ namespace Lab {
                     Vec3 pos(posAcc.getFloat(v, 0), posAcc.getFloat(v, 1), posAcc.getFloat(v, 2));
                     Vec3 norm(normAcc.getFloat(v, 0), normAcc.getFloat(v, 1), normAcc.getFloat(v, 2));
                     Vec2 uv(uvAcc.getFloat(v, 0), uvAcc.getFloat(v, 1));
+                    if (isGuardModel) {
+                        if (matIdx == 2) {
+                            uv.y = 0.5f + uv.y * 0.5f; // Head diffuse in bottom half of 1024x2048 atlas
+                        } else {
+                            uv.y = uv.y * 0.5f;        // Body diffuse in top half of 1024x2048 atlas
+                        }
+                    }
 
                     unsigned int jIDs[4] = { 0, 0, 0, 0 };
                     float weights[4] = { 1.0f, 0.0f, 0.0f, 0.0f };

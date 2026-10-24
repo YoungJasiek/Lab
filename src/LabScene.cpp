@@ -119,11 +119,16 @@ namespace Lab {
         scene->environment.ambientColor = map.metadata.ambientColor;
         scene->environment.sunDir = map.metadata.sunDir;
         scene->environment.sunColor = map.metadata.sunColor;
+        if (scene->environment.skyboxHdr.empty()) {
+            scene->environment.skyboxHdr = map.metadata.cubemapPath;
+        }
 
         scene->spawn = map.spawn;
         scene->brushes = map.brushes;
         scene->props = map.props;
         scene->doors = map.doors;
+        scene->triggers = map.triggers;
+        scene->waypoints = map.waypoints;
         scene->spawnPoints = map.spawnPoints;
         scene->lights = map.lights;
         scene->sprites = map.sprites;
@@ -211,6 +216,9 @@ namespace Lab {
         file << "    sun_dir " << environment.sunDir.x << " " << environment.sunDir.y << " " << environment.sunDir.z << "\n";
         file << "    sun_color " << environment.sunColor.x << " " << environment.sunColor.y << " " << environment.sunColor.z << "\n";
         file << "    skybox_hdr \"" << environment.skyboxHdr << "\"\n";
+        if (!metadata.cubemapPath.empty()) {
+            file << "    cubemap " << metadata.cubemapPath << "\n";
+        }
         file << "    exposure " << environment.exposure << "\n";
         file << "    fog_distance " << environment.fogDistance << "\n";
         file << "    fog_height " << environment.fogHeight << "\n";
@@ -254,6 +262,9 @@ namespace Lab {
             }
             if (!b.name.empty()) {
                 file << "        name \"" << b.name << "\"\n";
+            }
+            if (!b.normalMapPath.empty()) {
+                file << "        normal_map " << b.normalMapPath << "\n";
             }
             if (!b.script.empty()) {
                 file << "        script " << b.script << "\n";
@@ -301,6 +312,9 @@ namespace Lab {
             if (!p.name.empty()) {
                 file << "        name \"" << p.name << "\"\n";
             }
+            if (!p.normalMapPath.empty()) {
+                file << "        normal_map " << p.normalMapPath << "\n";
+            }
             if (!p.script.empty()) {
                 file << "        script " << p.script << "\n";
             }
@@ -315,6 +329,64 @@ namespace Lab {
                  << d.openSpeed << " " << d.triggerRadius << "\n";
             if (!d.script.empty()) {
                 file << "        script " << d.script << "\n";
+            }
+            if (!d.activator.empty() && d.activator != "proximity") {
+                file << "        activator " << d.activator << "\n";
+            }
+            if (d.requiresKeycard) {
+                file << "        keycard " << (d.keycardRequired.empty() ? "keycard_l1" : d.keycardRequired) << "\n";
+            }
+            if (!d.dependency.empty()) {
+                file << "        dependency " << d.dependency << "\n";
+            }
+            if (d.isLocked) {
+                file << "        locked 1\n";
+            }
+            if (!d.autoClose) {
+                file << "        auto_close 0\n";
+            }
+        }
+
+        for (const auto& tr : triggers) {
+            file << "    entity trigger_volume " << (tr.name.empty() ? "trigger_story" : tr.name) << " "
+                 << tr.position.x << " " << tr.position.y << " " << tr.position.z << " "
+                 << tr.size.x << " " << tr.size.y << " " << tr.size.z << " "
+                 << (tr.eventType.empty() ? "story_dialog" : tr.eventType) << " "
+                 << (tr.targetBot.empty() ? "\"\"" : tr.targetBot) << " "
+                 << (tr.once ? 1 : 0) << " "
+                 << (tr.audioPath.empty() ? "\"\"" : tr.audioPath) << " "
+                 << "\"" << tr.dialogText << "\"\n";
+            if (!tr.script.empty()) {
+                file << "        script " << tr.script << "\n";
+            }
+            if (!tr.targetEntity.empty()) {
+                file << "        target_entity " << tr.targetEntity << "\n";
+            }
+            if (!tr.targetWaypoint.empty()) {
+                file << "        target_waypoint " << tr.targetWaypoint << "\n";
+            }
+            if (!tr.targetAction.empty() && tr.targetAction != "open") {
+                file << "        target_action " << tr.targetAction << "\n";
+            }
+        }
+
+        for (const auto& wp : waypoints) {
+            std::string bName = wp.botName.empty() ? "\"\"" : wp.botName;
+            if (bName.find(' ') != std::string::npos && bName.front() != '"') {
+                bName = "\"" + bName + "\"";
+            }
+            file << "    entity waypoint " << (wp.name.empty() ? "wp" : wp.name) << " "
+                 << wp.position.x << " " << wp.position.y << " " << wp.position.z << " "
+                 << bName << " "
+                 << wp.orderIndex << " "
+                 << (wp.animation.empty() ? "Idle" : wp.animation) << " "
+                 << wp.facingYaw << " "
+                 << wp.waitDuration << "\n";
+            if (!wp.targetTrigger.empty()) {
+                file << "        target_trigger " << wp.targetTrigger << "\n";
+            }
+            if (!wp.triggerAction.empty() && wp.triggerAction != "fire") {
+                file << "        trigger_action " << wp.triggerAction << "\n";
             }
         }
 
@@ -406,7 +478,7 @@ namespace Lab {
         std::string line;
         std::string currentSection = "";
         bool hasValidSceneStructure = false;
-        enum class LastParsedEntity { None, Brush, Prop, Door, Camera, Sprite, Light };
+        enum class LastParsedEntity { None, Brush, Prop, Door, Camera, Sprite, Light, Trigger, Waypoint };
         LastParsedEntity lastParsed = LastParsedEntity::None;
 
         while (std::getline(file, line)) {
@@ -476,6 +548,13 @@ namespace Lab {
                     } else {
                         std::stringstream srest(rest);
                         srest >> scene->environment.skyboxHdr;
+                    }
+                } else if (token == "cubemap") {
+                    ss >> scene->metadata.cubemapPath;
+                    if (scene->metadata.cubemapPath.size() >= 2 &&
+                        scene->metadata.cubemapPath.front() == '"' &&
+                        scene->metadata.cubemapPath.back() == '"') {
+                        scene->metadata.cubemapPath = scene->metadata.cubemapPath.substr(1, scene->metadata.cubemapPath.size() - 2);
                     }
                 } else if (token == "exposure") {
                     ss >> scene->environment.exposure;
@@ -552,6 +631,12 @@ namespace Lab {
                             scene->brushes.back().rotation = r;
                         }
                     }
+                } else if (token == "normal_map") {
+                    std::string nPath;
+                    if (ss >> nPath && !scene->brushes.empty()) {
+                        if (nPath == "\"\"") nPath = "";
+                        scene->brushes.back().normalMapPath = nPath;
+                    }
                 } else if (token == "name") {
                     std::string rest;
                     std::getline(ss, rest);
@@ -614,6 +699,62 @@ namespace Lab {
                        >> d.openSpeed >> d.triggerRadius;
                     scene->doors.push_back(d);
                     lastParsed = LastParsedEntity::Door;
+                } else if (token == "trigger_volume" || token == "trigger") {
+                    MapTrigger tr;
+                    int onceInt = 1;
+                    ss >> tr.name >> tr.position.x >> tr.position.y >> tr.position.z
+                       >> tr.size.x >> tr.size.y >> tr.size.z
+                       >> tr.eventType >> tr.targetBot >> onceInt;
+                    tr.once = (onceInt != 0);
+                    if (tr.targetBot == "\"\"") tr.targetBot = "";
+                    if (ss >> tr.audioPath) {
+                        if (tr.audioPath == "\"\"") tr.audioPath = "";
+                    }
+                    std::string rest;
+                    std::getline(ss, rest);
+                    size_t q1 = rest.find('"'), q2 = rest.rfind('"');
+                    if (q1 != std::string::npos && q2 != std::string::npos && q2 > q1) {
+                        tr.dialogText = rest.substr(q1 + 1, q2 - q1 - 1);
+                    }
+                    scene->triggers.push_back(tr);
+                    lastParsed = LastParsedEntity::Trigger;
+                } else if (token == "waypoint" || token == "path_node") {
+                    MapWaypoint wp;
+                    ss >> wp.name >> wp.position.x >> wp.position.y >> wp.position.z;
+                    std::string botToken;
+                    ss >> botToken;
+                    if (!botToken.empty() && botToken.front() == '"') {
+                        if (botToken.back() == '"' && botToken.length() > 1) {
+                            wp.botName = (botToken == "\"\"") ? "" : botToken.substr(1, botToken.length() - 2);
+                        } else {
+                            std::string remaining;
+                            while (ss >> remaining) {
+                                botToken += " " + remaining;
+                                if (!remaining.empty() && remaining.back() == '"') break;
+                            }
+                            if (botToken.length() >= 2 && botToken.back() == '"') {
+                                wp.botName = botToken.substr(1, botToken.length() - 2);
+                            } else {
+                                wp.botName = botToken;
+                            }
+                        }
+                    } else {
+                        wp.botName = (botToken == "\"\"") ? "" : botToken;
+                    }
+                    ss >> wp.orderIndex;
+                    std::string anim;
+                    float yaw = 0.0f, waitDur = 2.0f;
+                    if (ss >> anim) {
+                        if (anim != "\"\"") wp.animation = anim;
+                    }
+                    if (ss >> yaw) {
+                        wp.facingYaw = yaw;
+                    }
+                    if (ss >> waitDur) {
+                        wp.waitDuration = waitDur;
+                    }
+                    scene->waypoints.push_back(wp);
+                    lastParsed = LastParsedEntity::Waypoint;
                 } else if (token == "camera") {
                     MapCamera c;
                     int act = 1;
@@ -698,6 +839,23 @@ namespace Lab {
                     }
                     ent->syncToSceneNode();
                     lastParsed = LastParsedEntity::None;
+                } else if (token == "normal_map") {
+                    std::string nPath;
+                    if (ss >> nPath) {
+                        if (nPath == "\"\"") nPath = "";
+                        if (lastParsed == LastParsedEntity::Prop && !scene->props.empty()) {
+                            scene->props.back().normalMapPath = nPath;
+                        } else if (lastParsed == LastParsedEntity::Brush && !scene->brushes.empty()) {
+                            scene->brushes.back().normalMapPath = nPath;
+                        }
+                    }
+                } else if (token == "dialog_text") {
+                    std::string rest;
+                    std::getline(ss, rest);
+                    size_t q1 = rest.find('"'), q2 = rest.rfind('"');
+                    if (q1 != std::string::npos && q2 != std::string::npos && q2 > q1 && lastParsed == LastParsedEntity::Trigger && !scene->triggers.empty()) {
+                        scene->triggers.back().dialogText = rest.substr(q1 + 1, q2 - q1 - 1);
+                    }
                 } else if (token == "tag") {
                     std::string rest;
                     std::getline(ss, rest);
@@ -714,6 +872,7 @@ namespace Lab {
                         if (sPath == "\"\"") sPath = "";
                         if (lastParsed == LastParsedEntity::Prop && !scene->props.empty()) scene->props.back().script = sPath;
                         else if (lastParsed == LastParsedEntity::Door && !scene->doors.empty()) scene->doors.back().script = sPath;
+                        else if (lastParsed == LastParsedEntity::Trigger && !scene->triggers.empty()) scene->triggers.back().script = sPath;
                         else if (lastParsed == LastParsedEntity::Camera && !scene->cameras.empty()) scene->cameras.back().script = sPath;
                         else if (lastParsed == LastParsedEntity::Sprite && !scene->sprites.empty()) scene->sprites.back().script = sPath;
                     }
@@ -727,9 +886,62 @@ namespace Lab {
                     if (!n.empty()) {
                         if (lastParsed == LastParsedEntity::Prop && !scene->props.empty()) scene->props.back().name = n;
                         else if (lastParsed == LastParsedEntity::Door && !scene->doors.empty()) scene->doors.back().name = n;
+                        else if (lastParsed == LastParsedEntity::Trigger && !scene->triggers.empty()) scene->triggers.back().name = n;
+                        else if (lastParsed == LastParsedEntity::Waypoint && !scene->waypoints.empty()) scene->waypoints.back().name = n;
                         else if (lastParsed == LastParsedEntity::Camera && !scene->cameras.empty()) scene->cameras.back().name = n;
                         else if (lastParsed == LastParsedEntity::Sprite && !scene->sprites.empty()) scene->sprites.back().name = n;
                         else if (!scene->entities.empty()) scene->entities.back()->name = n;
+                    }
+                } else if (token == "activator") {
+                    std::string act;
+                    if (ss >> act && lastParsed == LastParsedEntity::Door && !scene->doors.empty()) {
+                        scene->doors.back().activator = act;
+                    }
+                } else if (token == "keycard") {
+                    std::string kc;
+                    if (ss >> kc && lastParsed == LastParsedEntity::Door && !scene->doors.empty()) {
+                        scene->doors.back().keycardRequired = kc;
+                        scene->doors.back().requiresKeycard = true;
+                    }
+                } else if (token == "dependency") {
+                    std::string dep;
+                    if (ss >> dep && lastParsed == LastParsedEntity::Door && !scene->doors.empty()) {
+                        scene->doors.back().dependency = dep;
+                    }
+                } else if (token == "locked") {
+                    int lk = 0;
+                    if (ss >> lk && lastParsed == LastParsedEntity::Door && !scene->doors.empty()) {
+                        scene->doors.back().isLocked = (lk != 0);
+                    }
+                } else if (token == "auto_close") {
+                    int ac = 1;
+                    if (ss >> ac && lastParsed == LastParsedEntity::Door && !scene->doors.empty()) {
+                        scene->doors.back().autoClose = (ac != 0);
+                    }
+                } else if (token == "target_entity") {
+                    std::string te;
+                    if (ss >> te && lastParsed == LastParsedEntity::Trigger && !scene->triggers.empty()) {
+                        scene->triggers.back().targetEntity = te;
+                    }
+                } else if (token == "target_waypoint") {
+                    std::string tw;
+                    if (ss >> tw && lastParsed == LastParsedEntity::Trigger && !scene->triggers.empty()) {
+                        scene->triggers.back().targetWaypoint = tw;
+                    }
+                } else if (token == "target_action") {
+                    std::string ta;
+                    if (ss >> ta && lastParsed == LastParsedEntity::Trigger && !scene->triggers.empty()) {
+                        scene->triggers.back().targetAction = ta;
+                    }
+                } else if (token == "target_trigger") {
+                    std::string tt;
+                    if (ss >> tt && lastParsed == LastParsedEntity::Waypoint && !scene->waypoints.empty()) {
+                        scene->waypoints.back().targetTrigger = tt;
+                    }
+                } else if (token == "trigger_action") {
+                    std::string tra;
+                    if (ss >> tra && lastParsed == LastParsedEntity::Waypoint && !scene->waypoints.empty()) {
+                        scene->waypoints.back().triggerAction = tra;
                     }
                 } else if (token == "rot" || token == "rotation") {
                     Vec3 r(0, 0, 0);
@@ -766,7 +978,9 @@ namespace Lab {
                      std::to_string(scene->lights.size()) + " lights, " +
                      std::to_string(scene->brushes.size()) + " static meshes, " +
                      std::to_string(scene->props.size()) + " props, " +
-                     std::to_string(scene->doors.size()) + " doors)");
+                     std::to_string(scene->doors.size()) + " doors, " +
+                     std::to_string(scene->triggers.size()) + " triggers, " +
+                     std::to_string(scene->waypoints.size()) + " waypoints)");
         return scene;
     }
 

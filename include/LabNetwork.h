@@ -455,17 +455,23 @@ namespace Lab {
         void processIncomingPackets();
     };
 
-    // --- Dynamic LAN Server Discovery Browser ---
+    // --- Dynamic LAN & Master Server Discovery Browser ---
     struct DiscoveredServer {
         std::string ip = "127.0.0.1";
         uint16_t port = DEFAULT_SERVER_PORT;
         std::string name = "Lab Server";
+        std::string game = "Frozen-Life";
         std::string map = "facility_alpha.labmap";
         std::string mode = "FFA";
         int playerCount = 0;
         int maxPlayers = 16;
         int pingMs = 5;
         float lastSeen = 0.0f;
+        bool isOfficial = false;
+        bool isFavorite = false;
+        bool isHistory = false;
+        bool isLAN = true;
+        bool isFriends = false;
     };
 
     class ServerBrowser {
@@ -479,12 +485,17 @@ namespace Lab {
         void update(float dt);
 
         const std::vector<DiscoveredServer>& getServers() const { return _servers; }
+        std::vector<DiscoveredServer> getFilteredServers(int tabIndex, const std::string& mapFilter = "", int maxPing = 0, bool notFull = false, bool hasPlayers = false) const;
+        void addFavorite(const std::string& ip, uint16_t port);
+        void addHistory(const std::string& ip, uint16_t port, const std::string& name = "Recent Server", const std::string& map = "facility_alpha");
         bool isScanning() const { return _scanTimer < 2.5f; }
         void sendQueryTo(const std::string& ip, uint16_t port);
 
     private:
         UDPSocket _socket;
         std::vector<DiscoveredServer> _servers;
+        std::vector<DiscoveredServer> _favorites;
+        std::vector<DiscoveredServer> _history;
         float _scanTimer = 0.0f;
         float _queryTimer = 0.0f;
         float _currentTime = 0.0f;

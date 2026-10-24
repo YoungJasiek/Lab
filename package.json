@@ -1,0 +1,11 @@
+{
+  "name": "lab-engine-repo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lab Engine, Frozen-Life SDK and Developer Documentation",
+  "scripts": {
+    "dev": "npm run dev --prefix web",
+    "start": "npm run start --prefix web",
+    "serve": "npm run serve --prefix web"
+  }
+}

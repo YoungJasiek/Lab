@@ -72,6 +72,7 @@ namespace Lab {
 
         bool executeString(const std::string& luaCode);
         bool executeBytecode(const std::vector<uint8_t>& bytecode, const std::string& chunkName = "bytecode");
+        bool executeStartupHook(const std::string& scriptPath);
 
         // --- Game Mechanics Queried from Lua ---
         float getPlayerMaxHealth() const { return _maxHealth; }

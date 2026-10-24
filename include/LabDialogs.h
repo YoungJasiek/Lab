@@ -30,7 +30,7 @@ namespace Lab {
             std::filesystem::path p(path);
             std::string ext = p.extension().string();
             for (char& c : ext) c = static_cast<char>(::tolower(static_cast<unsigned char>(c)));
-            if (ext != ".labscene" && ext != ".labmap") {
+            if (ext != ".labscene" && ext != ".labmap" && ext != ".lmap") {
                 return false;
             }
             if (std::filesystem::exists(p) && !std::filesystem::is_regular_file(p)) {

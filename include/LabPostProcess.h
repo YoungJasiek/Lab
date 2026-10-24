@@ -35,9 +35,9 @@ namespace Lab {
         // Performs bloom downsample/blur passes and composites to screen with tonemapping & screen overlay (frost/vignette)
         void render(float exposure = 1.0f, float frostIntensity = 0.0f, float timeSeconds = 0.0f, TonemapperType tonemapper = TonemapperType::ACESFilmic);
 
-        // Generic screen overlay / visor vignette intensity (alias for frostIntensity)
-        void setOverlayIntensity(float intensity) { _overlayIntensity = intensity; }
-        float getOverlayIntensity() const { return _overlayIntensity; }
+        // Clear color for HDR framebuffer (background / skybox clear color)
+        void setClearColor(const Vec3& color) { _clearColor = color; }
+        const Vec3& getClearColor() const { return _clearColor; }
 
         // Accessors for diagnostics & tests
         unsigned int getHDRTexture() const { return _hdrColorTexture; }
@@ -66,6 +66,10 @@ namespace Lab {
 
         void setFXAAEnabled(bool enabled) { _fxaaEnabled = enabled; }
         bool isFXAAEnabled() const { return _fxaaEnabled; }
+        void setBloomEnabled(bool enabled) { _bloomEnabled = enabled; }
+        bool isBloomEnabled() const { return _bloomEnabled; }
+        void setPostProcessEnabled(bool enabled) { _postProcessEnabled = enabled; }
+        bool isPostProcessEnabled() const { return _postProcessEnabled; }
         static Vec3 evaluateFXAA3x3(const Vec3& center, const Vec3& nw, const Vec3& ne, const Vec3& sw, const Vec3& se);
 
     private:
@@ -73,9 +77,12 @@ namespace Lab {
         int _height = 720;
         bool _initialized = false;
         bool _fxaaEnabled = true;
+        bool _bloomEnabled = true;
+        bool _postProcessEnabled = true;
         float _contrast = 1.04f;
         float _saturation = 1.08f;
         float _overlayIntensity = 0.0f;
+        Vec3 _clearColor{ 0.05f, 0.07f, 0.10f };
 
         // Primary HDR Framebuffer (GL_RGBA16F, MRT)
         unsigned int _hdrFbo = 0;

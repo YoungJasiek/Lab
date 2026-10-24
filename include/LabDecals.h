@@ -51,12 +51,18 @@ namespace Lab {
         // Clears all decals
         void clear();
 
+        void setMaxDecals(size_t limit) { _maxDecals = limit; }
+        size_t getMaxDecals() const { return _maxDecals; }
+        void setMaxDistance(float dist) { _maxDistance = dist; }
+        float getMaxDistance() const { return _maxDistance; }
+
         size_t getDecalCount() const { return _decals.size(); }
         const std::vector<DecalInstance>& getDecals() const { return _decals; }
 
     private:
         std::vector<DecalInstance> _decals;
         size_t _maxDecals = 256;
+        float _maxDistance = 50.0f;
 
         std::unique_ptr<Texture> _texConcreteHole;
         std::unique_ptr<Texture> _texMetalHole;

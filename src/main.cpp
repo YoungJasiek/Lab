@@ -3,6 +3,8 @@
 #include "LabDialogs.h"
 #include "LabScene.h"
 #include "LabGpuPreference.h"
+#include "LabDevConsole.h"
+#include "LabVFS.h"
 #include "../games/frozen_life/include/FrozenLifeAnim.h"
 #include <iostream>
 #include <algorithm>
@@ -20,6 +22,9 @@ using namespace Lab;
 
 
 #ifdef _WIN32
+#include <windows.h>
+#include <psapi.h>
+#pragma comment(lib, "psapi.lib")
 static std::string getClipboardText() {
     if (!OpenClipboard(nullptr)) return "";
     HANDLE hData = GetClipboardData(CF_TEXT);
@@ -50,12 +55,13 @@ static void setClipboardText(const std::string&) {}
 class FrozenLife : public Engine {
 
 public:
-    FrozenLife(bool showSplash = true)
-        : Engine("Frozen-Life: Lab FPS", 1280, 720),
-          _showSplash(showSplash),
-          _splashActive(showSplash),
+    FrozenLife(bool showSplash = true, const std::string& directMap = "")
+        : Engine("Frozen-Life", 1280, 720),
+          _showSplash(directMap.empty() ? showSplash : false),
+          _splashActive(directMap.empty() ? showSplash : false),
           _splashTimer(0.0f),
           _splashDuration(2.5f),
+          _initialDirectMap(directMap),
           _camera(75.0f, 16.0f / 9.0f, 0.01f, 1000.0f),
           _velocity{ 0, 0, 0 },
           _isGrounded(false),
@@ -74,12 +80,262 @@ public:
 
         s_instance = this;
         glfwSetCharCallback(getWindow(), [](GLFWwindow* /*w*/, unsigned int codepoint) {
-            if (s_instance && s_instance->_chat.isOpen) {
-                s_instance->_chat.onChar(codepoint);
+            if (s_instance) {
+                if (s_instance->_devConsole.isOpen) {
+                    s_instance->_devConsole.onChar(codepoint);
+                } else if (s_instance->_chat.isOpen) {
+                    s_instance->_chat.onChar(codepoint);
+                }
             }
         });
 
+        // Setup Developer Console Callbacks
+        _devConsole.onHeal = [this](int amt) {
+            _hud.health = std::min(_hud.maxHealth, _hud.health + static_cast<float>(amt));
+        };
+        _devConsole.onArmor = [this](int amt) {
+            _hud.suitArmor = std::min(100.0f, _hud.suitArmor + static_cast<float>(amt));
+        };
+        _devConsole.onAmmo = [this](int amt) {
+            for (int i = 0; i < 9; ++i) {
+                auto& w = _weaponSystem.getWeapon(static_cast<WeaponID>(i));
+                w.currentReserve = std::min(w.def.maxReserve, w.currentReserve + amt);
+            }
+            syncHudWeapon();
+        };
+        _devConsole.onGetWeapon = [this](int id) {
+            int idx = id;
+            if (idx >= 100 && idx <= 108) idx -= 100;
+            else if (idx >= 1 && idx <= 9) idx -= 1;
+            if (idx >= 0 && idx < 9) {
+                _weaponSystem.unlockWeapon(static_cast<WeaponID>(idx), true);
+                auto& w = _weaponSystem.getWeapon(static_cast<WeaponID>(idx));
+                w.currentClip = w.def.clipSize;
+                w.currentReserve = w.def.maxReserve;
+                syncHudWeapon();
+            }
+        };
+        _devConsole.onGiveAll = [this]() {
+            _weaponSystem.unlockAll();
+            for (int i = 0; i < 9; ++i) {
+                auto& w = _weaponSystem.getWeapon(static_cast<WeaponID>(i));
+                w.currentClip = w.def.clipSize;
+                w.currentReserve = w.def.maxReserve;
+            }
+            syncHudWeapon();
+        };
+        _devConsole.onRespawn = [this]() {
+            _hud.health = _scriptEngine.getPlayerMaxHealth();
+            _hud.suitArmor = 100.0f;
+            _isPlayerDead = false;
+            _velocity = { 0, 0, 0 };
+            if (_currentMap && !_currentMap->spawnPoints.empty()) {
+                _camera.setPosition(_currentMap->spawnPoints[0].position + Vec3(0, 1.8f, 0));
+            }
+        };
+        _devConsole.onSuicide = [this]() {
+            applyDamageToPlayer(999.0f, "Console Suicide");
+        };
+        _devConsole.onLoadMap = [this](const std::string& mapName) {
+            std::string path = mapName;
+            if (path.find('/') == std::string::npos && path.find('\\') == std::string::npos) {
+                path = "assets/maps/" + path;
+            }
+            if (path.find('.') == std::string::npos) {
+                path += ".labscene";
+            }
+            GameSessionConfig cfg = _sessionConfig;
+            cfg.mapPath = path;
+            startSession(cfg);
+        };
+        _devConsole.onRestartMap = [this]() {
+            if (!_sessionConfig.mapPath.empty()) startSession(_sessionConfig);
+        };
+        _devConsole.onSetSkybox = [this](const std::string& /*skybox*/) {
+            if (_devConsole.wrd_skybox_is_color) {
+                _postProcess.setClearColor(_devConsole.wrd_skybox_color);
+            }
+        };
+        _devConsole.onSpawnModel = [this](const std::string& modelPath) {
+            if (!_currentMap) return;
+            Vec3 spawnPos = _camera.getPosition() + _camera.getFront() * 3.0f;
+            MapProp prop;
+            prop.name = "ConsoleProp_" + std::to_string(_currentMap->props.size() + 1);
+            prop.modelPath = modelPath;
+            prop.position = spawnPos;
+            prop.rotation = Vec3(0, _camera.getYaw(), 0);
+            prop.scale = Vec3(1, 1, 1);
+            prop.color = Vec3(1, 1, 1);
+            getMesh(modelPath);
+            _currentMap->props.push_back(std::move(prop));
+        };
+        _devConsole.onCamShake = [this](float force) {
+            _camShakeTrauma = std::min(1.0f, _camShakeTrauma + force);
+        };
+        _devConsole.onClearDecals = [this]() {
+            _decalSystem.clear();
+        };
+        _devConsole.onSpawnDecal = [this](const std::string& type) {
+            Vec3 origin = _camera.getPosition();
+            Vec3 dir = _camera.getFront();
+            DecalType dt = DecalType::BloodSplatter;
+            if (type == "bullet" || type == "concrete") dt = DecalType::BulletHoleConcrete;
+            else if (type == "metal") dt = DecalType::BulletHoleMetal;
+            else if (type == "dirt" || type == "scorch" || type == "burn") dt = DecalType::ExplosiveScorch;
+
+            float bestDist = 100.0f;
+            Vec3 hitPos = origin + dir * 2.5f;
+            Vec3 hitNormal = Vec3(0, 1, 0);
+            if (_currentMap) {
+                for (const auto& b : _currentMap->brushes) {
+                    Vec3 bMin = b.position - b.size * 0.5f;
+                    Vec3 bMax = b.position + b.size * 0.5f;
+                    Vec3 invDir(1.0f / (std::abs(dir.x) > 1e-5f ? dir.x : 1e-5f),
+                                1.0f / (std::abs(dir.y) > 1e-5f ? dir.y : 1e-5f),
+                                1.0f / (std::abs(dir.z) > 1e-5f ? dir.z : 1e-5f));
+                    Vec3 t0 = (bMin - origin) * invDir;
+                    Vec3 t1 = (bMax - origin) * invDir;
+                    Vec3 tMin(std::min(t0.x, t1.x), std::min(t0.y, t1.y), std::min(t0.z, t1.z));
+                    Vec3 tMax(std::max(t0.x, t1.x), std::max(t0.y, t1.y), std::max(t0.z, t1.z));
+                    float tEnter = std::max({tMin.x, tMin.y, tMin.z});
+                    float tExit = std::min({tMax.x, tMax.y, tMax.z});
+                    if (tEnter <= tExit && tEnter > 0.05f && tEnter < bestDist) {
+                        bestDist = tEnter;
+                        hitPos = origin + dir * tEnter;
+                        Vec3 pLocal = hitPos - b.position;
+                        Vec3 half = b.size * 0.5f;
+                        float dx = half.x - std::abs(pLocal.x);
+                        float dy = half.y - std::abs(pLocal.y);
+                        float dz = half.z - std::abs(pLocal.z);
+                        if (dx <= dy && dx <= dz) hitNormal = Vec3((pLocal.x > 0 ? 1.0f : -1.0f), 0, 0);
+                        else if (dy <= dx && dy <= dz) hitNormal = Vec3(0, (pLocal.y > 0 ? 1.0f : -1.0f), 0);
+                        else hitNormal = Vec3(0, 0, (pLocal.z > 0 ? 1.0f : -1.0f));
+                    }
+                }
+            }
+            _decalSystem.spawnDecal(dt, hitPos, hitNormal, 0.35f, 60.0f);
+        };
+        _devConsole.onSetVsync = [](bool vsync) {
+            glfwSwapInterval(vsync ? 1 : 0);
+        };
+        _devConsole.onReloadShaders = []() {
+            Renderer::prewarmShaders();
+        };
+        _devConsole.onSetBotsA = [this](int count) {
+            _sessionConfig.botCount = count;
+            if (_currentMap) _aiManager.spawnBotsForMap(_currentMap.get(), count, _sessionConfig.mode);
+        };
+        _devConsole.onSetBotsB = [this](int count) {
+            _sessionConfig.botCount = count;
+            if (_currentMap) _aiManager.spawnBotsForMap(_currentMap.get(), count, _sessionConfig.mode);
+        };
+        _devConsole.onKickBots = [this]() {
+            _aiManager.bots.clear();
+        };
+        _devConsole.onFreezeBots = [this](bool freeze) {
+            for (auto& bot : _aiManager.bots) {
+                if (freeze) bot.state = AIState::Patrol;
+            }
+        };
+        _devConsole.onSpawnAi = [this](const std::string& type) {
+            Vec3 spawnPos = _camera.getPosition() + _camera.getFront() * 3.5f;
+            int botId = static_cast<int>(_aiManager.bots.size()) + 1;
+            std::string botName = type.empty() ? ("Combat Bot " + std::to_string(botId)) : (type + " #" + std::to_string(botId));
+            Vec3 patrolEnd = spawnPos + Vec3(5.0f, 0.0f, 5.0f);
+            WeaponID wep = WeaponID::M4A4S;
+            if (type == "heavy" || type == "shotgun") wep = WeaponID::Shotgun;
+            else if (type == "plasma") wep = WeaponID::PlasmaGun;
+            else if (type == "sniper" || type == "railgun") wep = WeaponID::Railgun;
+            else if (type == "rpg") wep = WeaponID::RPG;
+            CombatBot newBot(botId, botName, spawnPos, patrolEnd, -1, wep);
+            if (_aiManager.skeleton && !_aiManager.animations.empty()) {
+                newBot.initAnimation(_aiManager.skeleton, _aiManager.animations);
+            }
+            _aiManager.bots.push_back(std::move(newBot));
+        };
+        _devConsole.onSetMasterVolume = [](float vol) {
+            AudioEngine::setMasterVolume(vol);
+        };
+        _devConsole.onPlaySound = [](const std::string& path) {
+            AudioEngine::playCustomSound(path);
+        };
+        _devConsole.onStopAllSounds = []() {
+            AudioEngine::shutdown();
+            AudioEngine::init(true);
+        };
+        _devConsole.onLipsyncTest = [this](const std::string& file) {
+            std::string text = file.empty() ? "Facility breach detected. Hold your positions!" : file;
+            if (_currentMap) {
+                _aiManager.triggerStoryEventOnBot("", text, "", *_currentMap);
+            }
+            _hud.showCombatMessage(text, 4.5f);
+            _chat.addMessage("[Guard]", text, Vec3(0.3f, 0.9f, 1.0f));
+            if (!file.empty() && std::filesystem::exists(file)) {
+                AudioEngine::playCustomSound(file);
+            }
+        };
+        _devConsole.onRestartAudio = []() {
+            AudioEngine::shutdown();
+            AudioEngine::init(true);
+        };
+        _devConsole.onOpenMenu = [this](const std::string& menuName) {
+            std::string m = menuName;
+            std::transform(m.begin(), m.end(), m.begin(), [](unsigned char c){ return (char)std::tolower(c); });
+            if (m == "main" || m == "glowna") {
+                _inMenu = true;
+                _menuScreen = MenuScreen::Main;
+                setCursorCaptured(false);
+            } else if (m == "pause" || m == "pauza" || m == "singleplayer" || m == "sp") {
+                _inMenu = true;
+                _menuScreen = MenuScreen::Singleplayer;
+                setCursorCaptured(false);
+            } else if (m == "options" || m == "opcje" || m == "character" || m == "studio") {
+                _inMenu = true;
+                _menuScreen = MenuScreen::Options;
+                setCursorCaptured(false);
+            } else if (m == "join" || m == "server" || m == "serwer") {
+                _inMenu = true;
+                _menuScreen = MenuScreen::JoinGame;
+                setCursorCaptured(false);
+            } else if (m == "game" || m == "resume" || m == "wznow") {
+                _inMenu = false;
+                setCursorCaptured(true);
+            }
+        };
+        _devConsole.onReloadUi = [this]() {
+            syncHudWeapon();
+        };
+        _devConsole.onRestartRound = [this]() {
+            _playerKills = 0;
+            _playerDeaths = 0;
+            _hud.frags = 0;
+            _devConsole.onRespawn();
+            if (_currentMap) {
+                _aiManager.spawnBotsForMap(_currentMap.get(), _sessionConfig.botCount, _sessionConfig.mode);
+            }
+        };
+        _devConsole.onNetConnect = [this](const std::string& addr) {
+            std::string ip = addr;
+            uint16_t port = 27015;
+            size_t colon = addr.find(':');
+            if (colon != std::string::npos) {
+                ip = addr.substr(0, colon);
+                try { port = static_cast<uint16_t>(std::stoi(addr.substr(colon + 1))); } catch (...) {}
+            }
+            _netClient.connect(ip, port, "Player");
+            _isConnecting = true;
+        };
+        _devConsole.onNetDisconnect = [this]() {
+            disconnectActiveSession();
+        };
+        _devConsole.onQuit = [this]() {
+            glfwSetWindowShouldClose(getWindow(), 1);
+        };
+
         // Discover available maps in assets/maps/
+        // Initialize Career Achievements and Statistics
+        initAchievements();
+
         scanMapFiles();
 
         // Preload Core Textures (Classic engine materials + 25 new high-definition environmental textures)
@@ -87,6 +343,8 @@ public:
             "concrete_wall.bmp", "floor_tiles.bmp", "cryo_ice.bmp",
             "hazard_stripes.bmp", "metal_hull.bmp", "snow_frost.bmp",
             "floor_lab.bmp", "wall_concrete.bmp", "brick_wall.bmp", "blast_door.bmp",
+            "concrete_wall_normal.bmp", "floor_lab_normal.bmp", "metal_hull_normal.bmp",
+            "corridor_dirty_wall.bmp", "decal_rust_stain.bmp", "cubemap_site14.bmp",
             "weapon_pipe.bmp", "weapon_pistol.bmp", "weapon_shotgun.bmp",
             "weapon_m4a4s.bmp", "weapon_sg553.bmp", "weapon_minigun.bmp",
             "weapon_plasma.bmp", "weapon_railgun.bmp", "weapon_rpg.bmp"
@@ -148,13 +406,49 @@ public:
             reloadStudioWeapons();
         });
 
+        // Initialize Skeletal Animation Assets & Dedicated Player Animator
+        _aiManager.initAssets();
+        if (_aiManager.skeleton && !_aiManager.animations.empty()) {
+            _playerAnimator.setSkeleton(_aiManager.skeleton);
+            for (const auto& clip : _aiManager.animations) {
+                _playerAnimator.addClip(clip);
+            }
+            _playerAnimator.playAnimation("Idle", true);
+        }
+
         reloadStudioWeapons();
         syncHudWeapon();
 
-        // Start in Main Menu
-        _inMenu = true;
-        _menuScreen = MenuScreen::Main;
-        setCursorCaptured(false);
+        // Start in Main Menu (or immediately load map if specified via +map command line)
+        if (!_initialDirectMap.empty()) {
+            std::string mapPath = _initialDirectMap;
+            if (mapPath.find(".labscene") == std::string::npos && mapPath.find(".labmap") == std::string::npos && mapPath.find(".lmap") == std::string::npos) {
+                if (mapPath.find('/') == std::string::npos && mapPath.find('\\') == std::string::npos) {
+                    mapPath = "assets/maps/" + mapPath + ".labscene";
+                } else {
+                    mapPath += ".labscene";
+                }
+            }
+            GameSessionConfig cfg;
+            cfg.mapPath = mapPath;
+            cfg.mode = GameMode::Campaign;
+            cfg.enableBots = true;
+            cfg.botCount = 1;
+            startSession(cfg);
+            _hasActiveGame = true;
+            _inMenu = false;
+            setCursorCaptured(true);
+            LabLog::info("[FrozenLife] Direct map launch active: " + mapPath);
+        } else {
+            _hasActiveGame = false;
+            _inMenu = true;
+            _menuScreen = MenuScreen::Main;
+            setCursorCaptured(false);
+            loadSelectedMap("assets/maps/menu_background.labscene");
+            _hasActiveGame = false;
+            _inMenu = true;
+            setCursorCaptured(false);
+        }
     }
 
     void reloadStudioWeapons() {
@@ -257,6 +551,13 @@ public:
         if (it != _meshes.end()) return it->second.get();
         if (_missingMeshes.contains(path)) return nullptr;
 
+        bool isGlb = false;
+        {
+            std::filesystem::path fp(path);
+            std::string ext = fp.extension().string();
+            for (char& c : ext) c = static_cast<char>(::tolower(static_cast<unsigned char>(c)));
+            isGlb = (ext == ".glb" || ext == ".gltf");
+        }
         std::vector<std::string> searchPaths = {
             path,
             "assets/models/" + path,
@@ -267,7 +568,7 @@ public:
         };
         for (const auto& p : searchPaths) {
             if (std::filesystem::exists(p)) {
-                Mesh* m = Mesh::loadSTL(p);
+                Mesh* m = isGlb ? Mesh::loadGLB(p) : Mesh::loadSTL(p);
                 if (m) {
                     Mesh* ptr = m;
                     _meshes[path] = std::unique_ptr<Mesh>(m);
@@ -275,7 +576,7 @@ public:
                 }
             }
         }
-        Mesh* m = Mesh::loadSTL(path);
+        Mesh* m = isGlb ? Mesh::loadGLB(path) : Mesh::loadSTL(path);
         if (m) {
             Mesh* ptr = m;
             _meshes[path] = std::unique_ptr<Mesh>(m);
@@ -283,6 +584,26 @@ public:
         }
         _missingMeshes.insert(path);
         return nullptr;
+    }
+
+    static std::string getMapTitle(const std::string& rawPath) {
+        if (rawPath.empty()) return "Untitled Sector";
+        std::filesystem::path p(rawPath);
+        std::string stem = p.stem().string();
+        if (stem == "site14_chapter1") return "Site 14 :: Chapter 1";
+        if (stem == "site14_dirty_corridor") return "Site 14 :: Dirty Corridor";
+        if (stem == "cryo_complex") return "Cryo Complex";
+        if (stem == "cryo_outpost") return "Cryo Outpost";
+        if (stem == "facility_alpha") return "Facility Alpha";
+        if (stem == "darkness") return "Sector 07 :: Darkness";
+        if (stem == "qa_labrunner_escape") return "LabRunner Escape";
+        if (stem == "qa_magic_rpg") return "Magic RPG Arena";
+        std::string title = stem;
+        for (size_t i = 0; i < title.size(); ++i) {
+            if (title[i] == '_') title[i] = ' ';
+            else if (i == 0 || title[i - 1] == ' ') title[i] = static_cast<char>(::toupper(static_cast<unsigned char>(title[i])));
+        }
+        return title;
     }
 
     static std::string toSceneDisplayPath(const std::string& rawPath) {
@@ -300,30 +621,33 @@ public:
     void scanMapFiles() {
         _availableMaps.clear();
         std::vector<std::string> searchDirs = { "assets/maps", "../assets/maps", "../../assets/maps" };
+        std::unordered_map<std::string, std::string> mapByStem;
+
         for (const auto& dir : searchDirs) {
             if (std::filesystem::exists(dir)) {
-                // First auto-convert any legacy .labmap that does not yet have a .labscene companion
                 for (const auto& entry : std::filesystem::directory_iterator(dir)) {
-                    if (entry.path().extension() == ".labmap") {
-                        std::filesystem::path sceneCounterpart = entry.path();
-                        sceneCounterpart.replace_extension(".labscene");
-                        if (!std::filesystem::exists(sceneCounterpart)) {
-                            LabScene::convertLegacyMapToScene(entry.path().string());
+                    std::string ext = entry.path().extension().string();
+                    for (char& ch : ext) ch = static_cast<char>(::tolower(static_cast<unsigned char>(ch)));
+                    std::string stem = entry.path().stem().string();
+                    if (stem == "menu_background") continue; // Exclude internal menu scene
+
+                    if (ext == ".labscene") {
+                        mapByStem[stem] = entry.path().generic_string();
+                    } else if (ext == ".lmap" || ext == ".labmap") {
+                        if (!mapByStem.contains(stem)) {
+                            mapByStem[stem] = entry.path().generic_string();
                         }
                     }
                 }
-                // Collect .labscene files (and fallback to converted display path if needed)
-                for (const auto& entry : std::filesystem::directory_iterator(dir)) {
-                    if (entry.path().extension() == ".labscene") {
-                        _availableMaps.push_back(entry.path().generic_string());
-                    }
-                }
-                if (!_availableMaps.empty()) {
-                    std::sort(_availableMaps.begin(), _availableMaps.end());
-                    break;
-                }
+                if (!mapByStem.empty()) break;
             }
         }
+
+        for (const auto& [stem, p] : mapByStem) {
+            _availableMaps.push_back(p);
+        }
+        std::sort(_availableMaps.begin(), _availableMaps.end());
+
         if (_availableMaps.empty()) {
             _availableMaps.push_back("assets/maps/site14_chapter1.labscene");
             _availableMaps.push_back("assets/maps/facility_alpha.labscene");
@@ -359,20 +683,24 @@ public:
 
             // Preload props and meshes
             for (const auto& prop : _currentMap->props) {
-                if (!_meshes.contains(prop.modelPath)) {
-                    Mesh* m = Mesh::loadSTL(prop.modelPath);
-                    if (m) _meshes[prop.modelPath] = std::unique_ptr<Mesh>(m);
-                }
+                getMesh(prop.modelPath);
                 if (!prop.texturePath.empty()) {
                     getTexture(prop.texturePath);
                 }
             }
 
-            // Preload brush textures
+            // Preload brush textures & normal maps
             for (const auto& brush : _currentMap->brushes) {
                 if (!brush.texturePath.empty()) {
                     getTexture(brush.texturePath);
                 }
+                if (!brush.normalMapPath.empty()) {
+                    getTexture(brush.normalMapPath);
+                }
+            }
+
+            if (!_currentMap->metadata.cubemapPath.empty()) {
+                getTexture(_currentMap->metadata.cubemapPath);
             }
 
             // Initialize World Weapon Spawners (Persistent 60s cooldown pads)
@@ -425,10 +753,12 @@ public:
                 _selectedMapIndex = (int)_availableMaps.size() - 1;
             }
 
-            // Switch to gameplay mode and lock cursor
-            _inMenu = false;
-            setCursorCaptured(true);
-            LabLog::info("Scene successfully loaded and entered: " + displayPath);
+            // Switch to gameplay mode and lock cursor if active game
+            if (_hasActiveGame) {
+                _inMenu = false;
+                setCursorCaptured(true);
+            }
+            LabLog::info("Scene successfully loaded: " + displayPath);
             return true;
         } else {
             LabLog::error("Failed to load scene: " + mapPath);
@@ -437,7 +767,7 @@ public:
     }
 
     void applyDamageToPlayer(float rawDamage, const std::string& sourceName) {
-        if (_isPlayerDead || rawDamage <= 0.0f) return;
+        if (_devConsole.sp_god || _isPlayerDead || rawDamage <= 0.0f) return;
 
         AudioEngine::playSound(SoundID::PlayerHurt);
         _hud.triggerDamageFlash();
@@ -459,12 +789,31 @@ public:
         }
     }
 
+    void beginLoadingSequence(const GameSessionConfig& config, bool isMultiplayer = false) {
+        _loadingState.begin(config, isMultiplayer);
+        _inMenu = true;
+        _menuScreen = MenuScreen::LoadingMap;
+        setCursorCaptured(false);
+    }
+
     void startSession(const GameSessionConfig& config) {
         _sessionConfig = config;
         _sessionConfig.mapPath = toSceneDisplayPath(_sessionConfig.mapPath);
+        _hasActiveGame = true;
         if (!loadSelectedMap(_sessionConfig.mapPath)) {
             LabLog::error("[FrozenLife] Aborting session start: failed to load scene " + _sessionConfig.mapPath);
+            _hasActiveGame = false;
             return;
+        }
+
+        bool isCampaignMode = (_sessionConfig.mode == GameMode::Campaign) && !_netClient.isConnected() && !_localServer.isRunning();
+        _devConsole.isPublicMultiplayerServer = (_netClient.isConnected() && !_isLocalHost);
+        if (_devConsole.isPublicMultiplayerServer) {
+            _devConsole.sv_cheats = false;
+            _devConsole.sp_cheats = false;
+            _devConsole.sp_god = false;
+            _devConsole.sp_noclip = false;
+            _devConsole.sp_speed = 1.0f;
         }
 
         _hud.mapName = _currentMap ? _currentMap->metadata.name : "Sector";
@@ -491,27 +840,34 @@ public:
         _playerRespawnTimer = 0.0f;
 
         if (_currentMap && !_currentMap->doors.empty()) {
-            InteractiveEntity term;
-            term.id = 1;
-            term.type = InteractiveType::RetinalScanner;
-            term.title = "RETINAL SCANNER";
-            term.subtitle = "BIOMETRIC AIRLOCK GATE";
-            term.statusText = "STAND STILL FOR RETINAL SCAN";
-            term.authorizedUser = _scriptEngine.getRetinalAuthorizedUser();
-            term.clearanceLevel = _scriptEngine.getRetinalClearanceLevel();
-            term.scanDuration = _scriptEngine.getRetinalScanDuration();
-            term.isLocked = true;
-            term.isActivated = false;
-            term.targetDoorIndex = 0;
-            const auto& d0 = _currentMap->doors[0];
-            term.position = d0.position + Vec3(-d0.size.x * 0.7f - 0.4f, 0.0f, 0.35f);
-            term.normal = Vec3(0, 0, 1);
-            term.themeColor = Vec3(0.2f, 0.85f, 1.0f);
-            _interactiveSystem.addEntity(term);
+            if (isCampaignMode) {
+                InteractiveEntity term;
+                term.id = 1;
+                term.type = InteractiveType::RetinalScanner;
+                term.title = "RETINAL SCANNER";
+                term.subtitle = "BIOMETRIC AIRLOCK GATE";
+                term.statusText = "STAND STILL FOR RETINAL SCAN";
+                term.authorizedUser = _scriptEngine.getRetinalAuthorizedUser();
+                term.clearanceLevel = _scriptEngine.getRetinalClearanceLevel();
+                term.scanDuration = _scriptEngine.getRetinalScanDuration();
+                term.isLocked = true;
+                term.isActivated = false;
+                term.targetDoorIndex = 0;
+                const auto& d0 = _currentMap->doors[0];
+                term.position = d0.position + Vec3(-d0.size.x * 0.7f - 0.4f, 0.0f, 0.35f);
+                term.normal = Vec3(0, 0, 1);
+                term.themeColor = Vec3(0.2f, 0.85f, 1.0f);
+                _interactiveSystem.addEntity(term);
 
-            // Door is physically locked shut by default until biometric retinal authorization!
-            _currentMap->doors[0].isLocked = true;
-            _currentMap->doors[0].isOpen = false;
+                // Door is physically locked shut in Campaign mode until biometric retinal authorization
+                _currentMap->doors[0].isLocked = true;
+                _currentMap->doors[0].isOpen = false;
+            } else {
+                // Arcade / Multiplayer mode: bypass story locks so arena flow is unrestricted
+                for (auto& d : _currentMap->doors) {
+                    d.isLocked = false;
+                }
+            }
         }
 
         _chat.addMessage("[SERVER]", "Welcome to Frozen-Life :: " + (_currentMap ? _currentMap->metadata.name : "Sector"), Vec3(0.3f, 0.8f, 1.0f));
@@ -521,6 +877,17 @@ public:
         if (_sessionConfig.enableBots && _sessionConfig.botCount > 0) {
             _aiManager.spawnBotsForMap(_currentMap.get(), _sessionConfig.botCount, _sessionConfig.mode);
             _hud.showCombatMessage("MATCH HOSTED: " + _sessionConfig.getModeString() + " WITH " + std::to_string(_sessionConfig.botCount) + " BOTS", 3.0f);
+        } else if (isCampaignMode && _currentMap && (!_currentMap->triggers.empty() || !_currentMap->waypoints.empty())) {
+            // Campaign / Story Mode only: spawn scripted corridor bot for Trigger & Waypoint sequences
+            _aiManager.spawnBotsForMap(_currentMap.get(), 1, _sessionConfig.mode);
+            if (!_aiManager.bots.empty()) {
+                std::vector<Vec3> wpNodes;
+                for (const auto& wp : _currentMap->waypoints) {
+                    wpNodes.push_back(wp.position);
+                }
+                _aiManager.bots[0].assignWaypoints(wpNodes, false);
+            }
+            _hud.showCombatMessage("CAMPAIGN SECTOR ENTERED :: STORY BOT ACTIVE", 3.0f);
         } else {
             _aiManager.clear();
             _hud.showCombatMessage("MATCH STARTED: BOTS DISABLED (SOLO)", 3.0f);
@@ -528,18 +895,48 @@ public:
 
         _inMenu = false;
         _fireLmbLast = true;
+        if (ScriptEngine::getHUDText("cod_intro_status") == "ACTIVE") {
+            float dur = ScriptEngine::getHUDValue("cod_intro_duration");
+            _codIntroDuration = (dur > 0.5f) ? dur : 4.5f;
+            _codIntroTimer = 0.01f;
+        } else {
+            _codIntroTimer = 0.0f;
+        }
         setCursorCaptured(true);
+    }
+
+    void disconnectActiveSession() {
+        _hasActiveGame = false;
+        _isConnecting = false;
+        _loadingState.active = false;
+        _devConsole.isPublicMultiplayerServer = false;
+        _netClient.disconnect();
+        _localServer.stop();
+        _aiManager.clear();
+        _pickups.clear();
+        _interactiveSystem.clear();
+        _particleSystem.clear();
+        _decalSystem.clear();
+        _isPlayerDead = false;
+        loadSelectedMap("assets/maps/menu_background.labscene");
+        _hasActiveGame = false;
+        _inMenu = true;
+        _menuScreen = MenuScreen::Main;
+        setCursorCaptured(false);
     }
 
     void onFixedUpdate(float fixedDelta) override {
         if (_inMenu) return;
 
-        // Freeze movement if player is dead or typing in chat
+        // Apply World Timescale from console
+        fixedDelta *= _devConsole.wrd_timescale;
+
+        // Freeze movement if player is dead or typing in chat / console
         if (_isPlayerDead) {
             _velocity = { 0, 0, 0 };
             return;
         }
-        if (_chat.isOpen) {
+        if (_chat.isOpen || _devConsole.isOpen) {
             _velocity.x *= 0.8f;
             _velocity.z *= 0.8f;
             return;
@@ -547,24 +944,24 @@ public:
 
         // Physics tick rate (64 ticks per second)
         bool isSprinting = Input::isKeyPressed(340); // Left Shift
-        float speed = isSprinting ? 8.5f : 4.5f;
+        float speed = (isSprinting ? 8.5f : 4.5f) * _devConsole.sp_speed;
         Vec3 inputDir = { 0, 0, 0 };
 
         Vec3 front = _camera.getFront();
         front.y = 0;
-        front = front.normalized();
+        if (front.lengthSq() > 1e-4f) front = front.normalized();
 
         Vec3 right = _camera.getRight();
         right.y = 0;
-        right = right.normalized();
+        if (right.lengthSq() > 1e-4f) right = right.normalized();
 
         if (Input::isKeyPressed('W') || Input::isKeyPressed('w')) inputDir += front;
         if (Input::isKeyPressed('S') || Input::isKeyPressed('s')) inputDir -= front;
         if (Input::isKeyPressed('A') || Input::isKeyPressed('a')) inputDir -= right;
         if (Input::isKeyPressed('D') || Input::isKeyPressed('d')) inputDir += right;
 
-        // Free-cam Noclip flying in Hammer Editor mode
-        if (_hammerEditor.active) {
+        // Developer Ghost Noclip Mode (sp_noclip) & Freecam (cam_freecam)
+        if (_devConsole.sp_noclip || _devConsole.cam_freecam) {
             Vec3 camPos = _camera.getPosition();
             float flySpeed = isSprinting ? 24.0f : 12.0f;
             if (Input::isKeyPressed('W') || Input::isKeyPressed('w')) camPos += _camera.getFront() * flySpeed * fixedDelta;
@@ -574,8 +971,11 @@ public:
             if (Input::isKeyPressed(32)) camPos.y += flySpeed * fixedDelta; // Space = Up
             if (Input::isKeyPressed(341)) camPos.y -= flySpeed * fixedDelta; // Left Ctrl = Down
             _camera.setPosition(camPos);
+            _velocity = { 0, 0, 0 };
             return;
         }
+
+
 
         bool isIceSurface = false;
         if (_currentMap && _isGrounded) {
@@ -593,44 +993,100 @@ public:
             }
         }
 
-        if (inputDir.lengthSq() > 0) {
-            inputDir = inputDir.normalized();
-            if (isIceSurface) {
-                // Tactical Ice Inertia: smooth acceleration drift
-                _velocity.x += inputDir.x * speed * fixedDelta * 3.5f;
-                _velocity.z += inputDir.z * speed * fixedDelta * 3.5f;
-                float curHorizSpeed = std::sqrt(_velocity.x * _velocity.x + _velocity.z * _velocity.z);
-                if (curHorizSpeed > speed * 1.15f) {
-                    _velocity.x = (_velocity.x / curHorizSpeed) * (speed * 1.15f);
-                    _velocity.z = (_velocity.z / curHorizSpeed) * (speed * 1.15f);
-                }
-            } else {
-                _velocity.x = inputDir.x * speed;
-                _velocity.z = inputDir.z * speed;
-            }
-            _bobTime += fixedDelta * (speed * 2.0f);
-        } else {
-            float friction = isIceSurface ? 0.985f : 0.80f;
-            _velocity.x *= friction;
-            _velocity.z *= friction;
-            if (std::abs(_velocity.x) < 0.05f) _velocity.x = 0.0f;
-            if (std::abs(_velocity.z) < 0.05f) _velocity.z = 0.0f;
+        // ==================== SOURCE MOMENTUM & BUNNY HOP PHYSICS ====================
+        Vec3 wishDir = inputDir;
+        float wishSpeed = 0.0f;
+        if (wishDir.lengthSq() > 1e-4f) {
+            wishDir = wishDir.normalized();
+            wishSpeed = speed;
         }
 
-        // Jump physics (Spacebar = 32)
-        if (Input::isKeyPressed(32) && _isGrounded) {
-            _velocity.y = 5.0f;
-            _isGrounded = false;
+        // Bhop Grace Timer (buffer window for landing jump)
+        if (_bhopGraceTimer > 0.0f) {
+            _bhopGraceTimer -= fixedDelta;
+            if (_bhopGraceTimer < 0.0f) _bhopGraceTimer = 0.0f;
+        }
+
+        bool jumpPressed = Input::isKeyPressed(32); // Spacebar
+
+        if (_isGrounded) {
+            // Check if jumping (immediate jump or continuous bhop jump buffer)
+            if (jumpPressed) {
+                if (_bhopGraceTimer > 0.0f) {
+                    _careerStats.bhopJumps++;
+                    updateAchievements();
+                }
+                _velocity.y = _devConsole.sp_jump;
+                _isGrounded = false;
+                _bhopGraceTimer = 0.0f;
+                // Ground friction is bypassed! Full horizontal momentum preserved!
+            } else {
+                // Apply Ground Friction
+                float curHorizSpeed = std::sqrt(_velocity.x * _velocity.x + _velocity.z * _velocity.z);
+                if (curHorizSpeed > 0.001f) {
+                    if (isIceSurface) {
+                        _velocity.x *= 0.985f;
+                        _velocity.z *= 0.985f;
+                    } else {
+                        float friction = _devConsole.phys_friction;
+                        float drop = curHorizSpeed * friction * fixedDelta;
+                        float newSpeed = std::max(0.0f, curHorizSpeed - drop);
+                        _velocity.x = (_velocity.x / curHorizSpeed) * newSpeed;
+                        _velocity.z = (_velocity.z / curHorizSpeed) * newSpeed;
+                    }
+                    if (std::abs(_velocity.x) < 0.02f) _velocity.x = 0.0f;
+                    if (std::abs(_velocity.z) < 0.02f) _velocity.z = 0.0f;
+                }
+
+                // Ground Acceleration
+                if (wishSpeed > 0.0f) {
+                    float curSpeedInWish = _velocity.x * wishDir.x + _velocity.z * wishDir.z;
+                    float addSpeed = wishSpeed - curSpeedInWish;
+                    if (addSpeed > 0.0f) {
+                        float groundAccel = isIceSurface ? 3.5f : 12.0f;
+                        float accelSpeed = groundAccel * wishSpeed * fixedDelta;
+                        if (accelSpeed > addSpeed) accelSpeed = addSpeed;
+                        _velocity.x += wishDir.x * accelSpeed;
+                        _velocity.z += wishDir.z * accelSpeed;
+                    }
+                    _bobTime += fixedDelta * (speed * 2.0f);
+                }
+            }
+        } else {
+            // IN AIR: Air strafing & air acceleration (Source Engine PM_AirAccelerate)
+            if (_devConsole.sp_bhop && wishSpeed > 0.0f) {
+                float maxAirWishSpeed = 30.0f; // Source Engine air wishspeed clamp
+                float curSpeedInWish = _velocity.x * wishDir.x + _velocity.z * wishDir.z;
+                float addSpeed = std::min(wishSpeed, maxAirWishSpeed) - curSpeedInWish;
+                if (addSpeed > 0.0f) {
+                    float airAccel = _devConsole.phys_air_accel;
+                    float accelSpeed = airAccel * wishSpeed * fixedDelta;
+                    if (accelSpeed > addSpeed) accelSpeed = addSpeed;
+                    _velocity.x += wishDir.x * accelSpeed;
+                    _velocity.z += wishDir.z * accelSpeed;
+                }
+            }
+        }
+
+        // Clamp horizontal bunnyhop / strafe momentum to prevent infinite / overpowered acceleration
+        if (_devConsole.phys_max_bhop_speed > 0.0f) {
+            float horizSpeed = std::sqrt(_velocity.x * _velocity.x + _velocity.z * _velocity.z);
+            if (horizSpeed > _devConsole.phys_max_bhop_speed) {
+                float scale = _devConsole.phys_max_bhop_speed / horizSpeed;
+                _velocity.x *= scale;
+                _velocity.z *= scale;
+            }
         }
 
         // Gravity
-        _velocity.y -= 12.0f * fixedDelta;
+        _velocity.y -= _devConsole.phys_gravity * fixedDelta;
 
         // ==================== AABB MOVE & SLIDE WALL COLLISION ====================
+        bool wasGrounded = _isGrounded;
         Vec3 pos = _camera.getPosition();
         if (_currentMap) {
             auto obstacles = LabCollision::getMapSolidBoxes(*_currentMap);
-            LabCollision::moveAndSlide(pos, _velocity, _isGrounded, fixedDelta, obstacles);
+            LabCollision::moveAndSlide(pos, _velocity, _isGrounded, fixedDelta, obstacles, 1.70f, 0.35f, 1.85f, _devConsole.phys_step_height);
         } else {
             pos += _velocity * fixedDelta;
             if (pos.y < 1.70f) {
@@ -640,6 +1096,11 @@ public:
             }
         }
         _camera.setPosition(pos);
+
+        // Landing transition detection: start bhop grace window
+        if (!wasGrounded && _isGrounded) {
+            _bhopGraceTimer = _devConsole.phys_bhop_window;
+        }
 
         // Network command generation synchronized with fixed physics rate (64 Hz)
         if (_netClient.isConnected()) {
@@ -664,13 +1125,47 @@ public:
             _netClient.update(fixedDelta, pos, _velocity, _camera.getYaw(), _camera.getPitch(), 0, 0.0f, 0.0f, static_cast<uint8_t>(_weaponSystem.getActiveId()));
         }
 
-        // Procedural Door animations and distance triggers
+        // Procedural Door animations, activator mechanisms and dependencies
         if (_currentMap) {
             for (auto& door : _currentMap->doors) {
-                if (!door.isLocked) {
+                // Dependency check: if door depends on another trigger/power switch
+                bool dependencySatisfied = true;
+                if (!door.dependency.empty()) {
+                    dependencySatisfied = false;
+                    for (const auto& tr : _currentMap->triggers) {
+                        if (tr.name == door.dependency && tr.triggered) {
+                            dependencySatisfied = true;
+                            break;
+                        }
+                    }
+                    if (!dependencySatisfied) {
+                        for (const auto& otherDoor : _currentMap->doors) {
+                            if (otherDoor.name == door.dependency && otherDoor.isOpen) {
+                                dependencySatisfied = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (!door.isLocked && dependencySatisfied && !door.requiresKeycard) {
                     float distSq = (pos - door.position).lengthSq();
                     float triggerRadiusSq = door.triggerRadius * door.triggerRadius;
-                    door.isOpen = (distSq < triggerRadiusSq);
+                    if (door.activator == "proximity" || door.activator.empty()) {
+                        door.isOpen = (distSq < triggerRadiusSq);
+                    } else if (door.activator == "trigger_only") {
+                        // Keeps its triggered open state; closes only if autoClose is true and player left radius
+                        if (door.isOpen && door.autoClose && distSq >= triggerRadiusSq * 1.5f) {
+                            door.isOpen = false;
+                        }
+                    } else if (door.activator == "manual") {
+                        // Interactive key 'E' / use in proximity
+                        if (distSq < triggerRadiusSq && Input::isKeyJustPressed(GLFW_KEY_E)) {
+                            door.isOpen = !door.isOpen;
+                        }
+                    }
+                } else if (!dependencySatisfied || door.isLocked) {
+                    door.isOpen = false;
                 }
 
                 if (door.isOpen && door.currentProgress < 1.0f) {
@@ -695,39 +1190,157 @@ public:
             return;
         }
 
+        // =====================================================================
+        // Developer Console Toggle & Interactive Window Input Handling
+        // =====================================================================
+        bool justToggled = false;
+        bool gravePressed = Input::isKeyPressed(96);
+        bool f10Pressed = Input::isKeyPressed(299);
+        if ((gravePressed && !_gravePressedLast) || (f10Pressed && !_f10PressedLast)) {
+            _devConsole.toggle();
+            justToggled = true;
+        }
+        _gravePressedLast = gravePressed;
+        _f10PressedLast = f10Pressed;
+
+        // Synchronize mouse cursor capture when console opens or closes
+        if (_devConsoleWasOpen && !_devConsole.isOpen) {
+            if (!_inMenu && !_isPlayerDead) {
+                setCursorCaptured(true);
+            }
+        } else if (!_devConsoleWasOpen && _devConsole.isOpen) {
+            setCursorCaptured(false);
+        }
+        _devConsoleWasOpen = _devConsole.isOpen;
+
+        // If console is active, capture all keyboard and mouse interactions
+        if (_devConsole.isOpen) {
+            int winW = 1280, winH = 720;
+            getWindowSize(winW, winH);
+            double curX = 0.0, curY = 0.0;
+            getCursorPos(curX, curY);
+            if (curX == 0.0 && curY == 0.0) {
+                curX = static_cast<double>(Input::getMouseX());
+                curY = static_cast<double>(Input::getMouseY());
+            }
+            float mx = (winW > 0) ? (static_cast<float>(curX) * 1280.0f / static_cast<float>(winW)) : static_cast<float>(curX);
+            float my = (winH > 0) ? (static_cast<float>(curY) * 720.0f / static_cast<float>(winH)) : static_cast<float>(curY);
+
+            _devConsole.onMouseMove(mx, my);
+
+            if (_devConsole.isDragging && !Input::isMouseButtonPressed(0)) {
+                _devConsole.isDragging = false;
+            }
+            if (_devConsole.isResizing && !Input::isMouseButtonPressed(0)) {
+                _devConsole.isResizing = false;
+            }
+
+            if (Input::isMouseButtonJustPressed(0)) {
+                _devConsole.onMouseButton(0, 1, mx, my);
+            } else if (Input::isMouseButtonJustReleased(0)) {
+                _devConsole.onMouseButton(0, 0, mx, my);
+            }
+
+            if (Input::isMouseButtonJustPressed(1)) {
+                _devConsole.onMouseButton(1, 1, mx, my);
+            } else if (Input::isMouseButtonJustReleased(1)) {
+                _devConsole.onMouseButton(1, 0, mx, my);
+            }
+
+            if (Input::scrollDelta != 0.0f) {
+                _devConsole.onMouseScroll(Input::scrollDelta);
+                Input::scrollDelta = 0.0f;
+            }
+
+            bool shift = Input::isKeyPressed(GLFW_KEY_LEFT_SHIFT) || Input::isKeyPressed(GLFW_KEY_RIGHT_SHIFT);
+            bool ctrl = Input::isKeyPressed(GLFW_KEY_LEFT_CONTROL) || Input::isKeyPressed(GLFW_KEY_RIGHT_CONTROL);
+
+            // Forward control keys directly to developer console
+            for (int k = 0; k < 512; ++k) {
+                if (Input::keysJustPressed[k]) {
+                    if (justToggled && (k == 96 || k == 299)) {
+                        continue;
+                    }
+                    _devConsole.onKey(k, 1, shift, ctrl);
+                }
+            }
+
+            _devConsole.update(time.delta);
+            return; // Lock player and menu inputs while in developer console
+        }
+
+        // Camera FOV from console
+        _camera.fieldOfView = _devConsole.cam_fov;
+
+        // Process sys_bind key mappings
+        if (!_chat.isOpen && !_devConsole.getKeyBinds().empty()) {
+            for (int k = 0; k < 512; ++k) {
+                if (Input::keysJustPressed[k]) {
+                    std::string keyName;
+                    if (k >= GLFW_KEY_F1 && k <= GLFW_KEY_F12) {
+                        keyName = "f" + std::to_string(k - GLFW_KEY_F1 + 1);
+                    } else if (k >= 'A' && k <= 'Z') {
+                        keyName = std::string(1, (char)std::tolower(k));
+                    } else if (k >= '0' && k <= '9') {
+                        keyName = std::string(1, (char)k);
+                    } else if (k == GLFW_KEY_SPACE) {
+                        keyName = "space";
+                    } else if (k == GLFW_KEY_ENTER) {
+                        keyName = "enter";
+                    } else if (k == GLFW_KEY_TAB) {
+                        keyName = "tab";
+                    }
+                    if (!keyName.empty()) {
+                        _devConsole.executeBind(keyName);
+                    }
+                }
+            }
+        }
+
+        // Decay camera shake trauma
+        if (_camShakeTrauma > 0.0f) {
+            _camShakeTrauma = std::max(0.0f, _camShakeTrauma - time.delta * 1.8f);
+        }
+
+        // Synchronize decal limits
+        _decalSystem.setMaxDecals(static_cast<size_t>(_devConsole.dcl_limit));
+        _decalSystem.setMaxDistance(_devConsole.dcl_distance);
+
+        // Enforce AI aggro state
+        if (_devConsole.ai_aggro) {
+            for (auto& bot : _aiManager.bots) {
+                if (bot.isAlive()) {
+                    bot.state = AIState::Attack;
+                    bot.reactionTimer = 0.0f;
+                }
+            }
+        }
+
         if (_inMenu) {
             int winW = 1280, winH = 720;
             getWindowSize(winW, winH);
             int fbW = 1280, fbH = 720;
             getFramebufferSize(fbW, fbH);
 
-            if (_menuScreen == MenuScreen::CharacterStudio) {
-                float scaleX = (winW > 0 && fbW > 0) ? (static_cast<float>(fbW) / static_cast<float>(winW)) : 1.0f;
-                float scaleY = (winH > 0 && fbH > 0) ? (static_cast<float>(fbH) / static_cast<float>(winH)) : 1.0f;
-                float studioMx = Input::getMouseX() * scaleX;
-                float studioMy = Input::getMouseY() * scaleY;
-                bool rmb = Input::isMouseButtonPressed(1);
+            // Real-time 3D cinematic background camera dolly & orbit around the assembly line
+            _menuCamTime += time.delta * 0.12f;
+            float r = 9.0f;
+            float cx = std::sin(_menuCamTime) * r;
+            float cz = std::cos(_menuCamTime * 0.65f) * r;
+            float cy = 2.4f + std::sin(_menuCamTime * 0.45f) * 0.5f;
+            _camera.setPosition(Vec3(cx, cy, cz));
+            _camera.lookAt(Vec3(0.0f, 1.2f, 0.0f));
 
-                // Keyboard shortcuts for studio
-                bool ctrl = Input::isKeyPressed(GLFW_KEY_LEFT_CONTROL) || Input::isKeyPressed(GLFW_KEY_RIGHT_CONTROL);
-                bool shift = Input::isKeyPressed(GLFW_KEY_LEFT_SHIFT) || Input::isKeyPressed(GLFW_KEY_RIGHT_SHIFT);
-                for (int k = 0; k < 512; ++k) {
-                    if (Input::keys[k] && !_lastMenuKeys[k]) {
-                        _characterStudio.handleKeyDown(k, ctrl, shift);
+            // Mouse wheel scrolling for map lists in Singleplayer and HostGame
+            if (Input::scrollDelta != 0.0f) {
+                if (_menuScreen == MenuScreen::Singleplayer || _menuScreen == MenuScreen::HostGame) {
+                    if (Input::scrollDelta < 0.0f) {
+                        _mapScrollOffset = std::min(std::max(0, (int)_availableMaps.size() - 7), _mapScrollOffset + 1);
+                    } else if (Input::scrollDelta > 0.0f) {
+                        _mapScrollOffset = std::max(0, _mapScrollOffset - 1);
                     }
-                    _lastMenuKeys[k] = Input::keys[k];
                 }
-
-                _characterStudio.update(time.delta, studioMx, studioMy, Input::isMouseButtonPressed(0), rmb, Input::scrollDelta);
                 Input::scrollDelta = 0.0f;
-
-                if (_characterStudio.requestExit()) {
-                    _characterStudio.saveConfig();
-                    reloadStudioWeapons();
-                    _menuScreen = MenuScreen::Main;
-                    _characterStudio.clearRequestExit();
-                }
-                return;
             }
 
             double curX = 0.0, curY = 0.0;
@@ -746,8 +1359,31 @@ public:
             bool lmbClick = lmbJustPressed || (lmbPressed && !_menuLmbLast);
             _menuLmbLast = lmbPressed;
 
-            if (lmbClick) {
-                LabLog::info("[FrozenLife] Menu LMB Click at (" + std::to_string((int)mx) + ", " + std::to_string((int)my) + ")");
+            if (_menuScreen == MenuScreen::LoadingMap) {
+                if (_loadingState.step(time.delta)) {
+                    _loadingState.active = false;
+                    startSession(_loadingState.pendingConfig);
+                    if (_loadingState.isMultiplayer && _netClient.isConnected()) {
+                        _chat.addMessage("[CLIENT]", "Connected to server " + _netClient.getServerAddressString() + "!", Vec3(0.2f, 0.9f, 0.35f));
+                        _hud.showCombatMessage("CONNECTED TO MULTIPLAYER ARENA!", 3.0f);
+                    }
+                    return;
+                }
+                if (lmbClick) {
+                    const float loadW = 720.0f;
+                    const float loadH = 420.0f;
+                    const float loadX = (1280.0f - loadW) * 0.5f;
+                    const float loadY = (720.0f - loadH) * 0.5f;
+                    // Cancel button
+                    if (mx >= loadX + loadW - 150.0f && mx <= loadX + loadW - 20.0f && my >= loadY + loadH - 50.0f && my <= loadY + loadH - 16.0f) {
+                        _loadingState.active = false;
+                        _isConnecting = false;
+                        _netClient.disconnect();
+                        _menuScreen = MenuScreen::Main;
+                        return;
+                    }
+                }
+                return;
             }
 
             if (_menuScreen == MenuScreen::JoinGame) {
@@ -774,9 +1410,8 @@ public:
                         _sessionConfig.enableBots = false; // Never spawn local bots on guest
                         _sessionConfig.botCount = 0;
                         _isLocalHost = false;
-                        startSession(_sessionConfig);
-                        _chat.addMessage("[CLIENT]", "Connected to server " + _netClient.getServerAddressString() + "!", Vec3(0.2f, 0.9f, 0.35f));
-                        _hud.showCombatMessage("CONNECTED TO MULTIPLAYER ARENA!", 3.0f);
+                        _serverBrowser.addHistory("127.0.0.1", _sessionConfig.port, "Connected Arena Server", srvMap);
+                        beginLoadingSequence(_sessionConfig, true);
                         return;
                     } else if (_netClient.getState() == ClientConnectionState::TimedOut) {
                         _isConnecting = false;
@@ -826,6 +1461,8 @@ public:
             return;
         }
 
+
+
         // Chat toggle & input handling
         bool enterPressed = Input::isKeyPressed(257);
         bool escPressed = Input::isKeyPressed(256);
@@ -848,7 +1485,7 @@ public:
             }
         } else {
             if ((yPressed && !_yPressedLast) || (tPressed && !_tPressedLast) || (enterPressed && !_enterPressedLast)) {
-                if (!_hammerEditor.active) {
+                if (true) {
                     _chat.open();
                 }
             }
@@ -956,7 +1593,7 @@ public:
             // Quick Switch (Q Key)
             bool qPressed = Input::isKeyPressed(81); // GLFW_KEY_Q = 81
             if (qPressed) {
-                if (!_qPressedLast && !_hammerEditor.active) {
+                if (!_qPressedLast) {
                     _weaponSystem.quickSwitch();
                     syncHudWeapon();
                     _qPressedLast = true;
@@ -969,7 +1606,7 @@ public:
             for (int k = 0; k < 9; ++k) {
                 int key = 49 + k;
                 if (Input::isKeyPressed(key)) {
-                    if (!_numPressedLast[k] && !_hammerEditor.active) {
+                    if (!_numPressedLast[k]) {
                         if (_weaponSystem.equipSlot(k + 1)) {
                             syncHudWeapon();
                         }
@@ -1014,8 +1651,19 @@ public:
         // Update Decal System lifetimes & alpha fadeouts
         _decalSystem.update(time.delta);
 
+        if (!_inMenu && _codIntroTimer > 0.0f) {
+            _codIntroTimer += time.delta;
+            if (_codIntroTimer > _codIntroDuration) {
+                _codIntroTimer = 0.0f;
+            }
+        }
+
+        if (!_inMenu && _currentMap != nullptr) {
+            _careerStats.totalPlaytimeSeconds += time.delta;
+        }
+
         // Ambient drifting weather (Snow/Frost for Cryo maps, subtle industrial dust for others)
-        if (!_inMenu && !_hammerEditor.active && !_isPlayerDead) {
+        if (!_inMenu && !_isPlayerDead) {
             bool isCryo = (_currentMap && _currentMap->metadata.name.find("Cryo") != std::string::npos);
             _particleSystem.spawnAmbientWeather(_camera.getPosition(), 2, isCryo);
         }
@@ -1025,7 +1673,7 @@ public:
         auto& activeWep = _weaponSystem.getActiveWeapon();
         const auto& def = activeWep.def;
 
-        if (def.id == WeaponID::Minigun && isFireHeld && !_hammerEditor.active && !_chat.isOpen && !_isPlayerDead) {
+        if (def.id == WeaponID::Minigun && isFireHeld && !_chat.isOpen && !_isPlayerDead) {
             _weaponSystem.addMinigunSpin(time.delta * 720.0f);
         }
 
@@ -1037,7 +1685,8 @@ public:
         }
         _fireLmbLast = isFireHeld;
 
-        if (triggerFire && !_hammerEditor.active && !_chat.isOpen && !_isPlayerDead) {
+        if (triggerFire && !_chat.isOpen && !_isPlayerDead) {
+            _careerStats.shotsFired++;
             if (def.isMelee || activeWep.currentClip > 0) {
                 if (!def.isMelee) {
                     activeWep.currentClip--;
@@ -1046,6 +1695,7 @@ public:
                 _muzzleFlashTime = def.isMelee ? 0.0f : 0.08f;
                 _weaponAnimator.onFire(def.isMelee);
                 _weaponAnimator.recoilSpring.addImpulse(Vec3(0.0f, def.recoilPitch, def.recoilKick));
+                _playerShootTimer = def.isMelee ? 0.35f : 0.22f;
 
                 switch (def.id) {
                     case WeaponID::Pipe:      AudioEngine::playSound(SoundID::PipeSwing); break;
@@ -1149,8 +1799,7 @@ public:
                                     _decalSystem.spawnDecal(DecalType::BloodSplatter, Vec3(hit.point.x, 0.02f, hit.point.z), Vec3(0, 1, 0), 0.35f);
 
                                     if (killed) {
-                                        _playerKills++;
-                                        _hud.frags = _playerKills;
+                                        recordPlayerKill(hit.isHeadshot, false);
                                         std::string killMsg = (hit.isHeadshot ? "HEADSHOT SMASH! ELIMINATED " : "ELIMINATED ") +
                                                               bot.name + " WITH " + def.name + " [" + std::to_string(_playerKills) + " FRAGS]";
                                         _hud.showCombatMessage(killMsg, 2.5f);
@@ -1310,8 +1959,7 @@ public:
                                         _hud.triggerHitmarker(hit.isHeadshot);
 
                                         if (killed) {
-                                            _playerKills++;
-                                            _hud.frags = _playerKills;
+                                            recordPlayerKill(hit.isHeadshot, false);
                                             std::string killMsg = (hit.isHeadshot ? "HEADSHOT! ELIMINATED " : "ELIMINATED ") +
                                                                   bot.name + " WITH " + def.name + " [" + std::to_string(_playerKills) + " FRAGS]";
                                             _hud.showCombatMessage(killMsg, 2.5f);
@@ -1447,8 +2095,7 @@ public:
                         _hud.triggerHitmarker(false);
 
                         if (killed) {
-                            _playerKills++;
-                            _hud.frags = _playerKills;
+                            recordPlayerKill(false, false);
                             std::string wName = (proj.weaponId == WeaponID::RPG) ? "RPG" : "PLASMA GUN";
                             std::string killMsg = "SPLASH KILL! " + bot.name + " WITH " + wName + " [" + std::to_string(_playerKills) + " FRAGS]";
                             _hud.showCombatMessage(killMsg, 2.5f);
@@ -1514,8 +2161,7 @@ public:
                         Vec3 knockback = bDir * (exp.maxImpulse * 0.035f * factor) + Vec3(0.0f, 6.0f * factor, 0.0f);
                         bool killed = bot.takeDamage(exp.maxDamage * factor, false, knockback);
                         if (killed) {
-                            _playerKills++;
-                            _hud.frags = _playerKills;
+                            recordPlayerKill(false, true);
                             std::string killMsg = "BARREL EXPLOSION! " + bot.name + " [" + std::to_string(_playerKills) + " FRAGS]";
                             _hud.showCombatMessage(killMsg, 2.5f);
                             _chat.addMessage("[SERVER]", killMsg, Vec3(1.0f, 0.45f, 0.15f));
@@ -1528,13 +2174,63 @@ public:
 
         // ==================== COMBAT AI BOTS UPDATE & RETALIATION ====================
         float botDamageToPlayer = 0.0f;
-        if (_currentMap) {
+        if (_currentMap && !_devConsole.ai_disable) {
+            // Check Story / Gameplay Trigger Volumes against player position (Campaign / Story Mode only!)
+            bool isCampaignMode = (_sessionConfig.mode == GameMode::Campaign) && !_netClient.isConnected() && !_localServer.isRunning();
+            if (isCampaignMode) {
+                auto firedTriggers = LabCollision::checkTriggerVolumes(_camera.getPosition(), *_currentMap);
+                for (int trigIdx : firedTriggers) {
+                    if (trigIdx >= 0 && trigIdx < (int)_currentMap->triggers.size()) {
+                        auto& trig = _currentMap->triggers[trigIdx];
+                        AIManager::executeTrigger(trig, *_currentMap, &_chat);
+                        _aiManager.triggerStoryEventOnBot(trig.targetBot, trig.dialogText, trig.audioPath, *_currentMap);
+                        if (!trig.dialogText.empty()) {
+                            _hud.showCombatMessage(trig.dialogText, 4.5f);
+                        }
+                    }
+                }
+            }
+
             int pTeam = (_sessionConfig.mode == GameMode::TDM) ? 1 : -1;
-            _aiManager.update(time.delta, _camera.getPosition(), !_isPlayerDead, pTeam, *_currentMap, _tracers, botDamageToPlayer, &_pickups, &_chat);
+            bool targetable = !_isPlayerDead && !_devConsole.ai_ignore_player;
+            _aiManager.update(time.delta, _camera.getPosition(), targetable, pTeam, *_currentMap, _tracers, botDamageToPlayer, &_pickups, &_chat);
         }
 
         if (botDamageToPlayer > 0.0f) {
             applyDamageToPlayer(botDamageToPlayer, "Combat Synth");
+        }
+
+        // ==================== LOCAL PLAYER SKELETAL ANIMATOR UPDATE ====================
+        if (!_playerAnimator.getSkeleton() && _aiManager.skeleton && !_aiManager.animations.empty()) {
+            _playerAnimator.setSkeleton(_aiManager.skeleton);
+            for (const auto& clip : _aiManager.animations) {
+                _playerAnimator.addClip(clip);
+            }
+            _playerAnimator.playAnimation("Idle", true);
+        }
+
+        if (_playerAnimator.getSkeleton()) {
+            float hSpeed = std::sqrt(_velocity.x * _velocity.x + _velocity.z * _velocity.z);
+            if (_isPlayerDead) {
+                _playerAnimator.playAnimation("Death", false, 0.1f);
+            } else if (_playerShootTimer > 0.0f) {
+                _playerShootTimer -= time.delta;
+                const auto& curWep = _weaponSystem.getActiveWeapon();
+                if (curWep.def.isMelee) {
+                    _playerAnimator.playAnimation("Heavy Weapon Swing", false, 0.05f);
+                } else {
+                    _playerAnimator.playAnimation("Firing Rifle", false, 0.05f);
+                }
+            } else if (!_isGrounded) {
+                _playerAnimator.playAnimation("Walk", true, 0.2f);
+            } else if (hSpeed > 5.5f) {
+                _playerAnimator.playAnimation("Run Forward", true, 0.15f);
+            } else if (hSpeed > 0.3f) {
+                _playerAnimator.playAnimation("Walking", true, 0.15f);
+            } else {
+                _playerAnimator.playAnimation("Idle", true, 0.2f);
+            }
+            _playerAnimator.update(time.delta);
         }
 
         // Update Pickups and Proximity Collection
@@ -1580,9 +2276,9 @@ public:
             else ++it;
         }
 
-        // Weapon Reload (R key when not in Hammer Editor)
-        if (Input::isKeyPressed('R') || Input::isKeyPressed('r')) {
-            if (!_hammerEditor.active && !_chat.isOpen && !_isPlayerDead) {
+        // Weapon Reload (R key)
+        if (!_inMenu && (Input::isKeyPressed('R') || Input::isKeyPressed('r'))) {
+            if (!_chat.isOpen && !_isPlayerDead) {
                 auto& curWep = _weaponSystem.getActiveWeapon();
                 if (curWep.canRefill() && !_weaponAnimator.isReloading()) {
                     curWep.refillClip();
@@ -1594,26 +2290,26 @@ public:
         }
 
         // Tactical Flashlight (F key - Half-Life 2 style toggleable spotlight)
-        if (Input::isKeyPressed('F') || Input::isKeyPressed('f')) {
-            if (!_hammerEditor.active && !_chat.isOpen && !_isPlayerDead && !_fPressedLast) {
+        if (!_inMenu && (Input::isKeyPressed('F') || Input::isKeyPressed('f'))) {
+            if (!_chat.isOpen && !_isPlayerDead && !_fPressedLast) {
                 _flashlight.toggle();
                 AudioEngine::playSound(SoundID::FlashlightToggle);
                 _hud.showCombatMessage(_flashlight.enabled ? "FLASHLIGHT: ACTIVATED" : "FLASHLIGHT: DEACTIVATED", 1.5f);
                 _fPressedLast = true;
             }
-        } else {
+        } else if (!_inMenu) {
             _fPressedLast = false;
         }
 
-        // Weapon Inspect (V key when not in Hammer Editor)
-        if (Input::isKeyPressed('V') || Input::isKeyPressed('v')) {
-            if (!_hammerEditor.active && !_chat.isOpen && !_isPlayerDead && !_vPressedLast) {
+        // Weapon Inspect (V key)
+        if (!_inMenu && (Input::isKeyPressed('V') || Input::isKeyPressed('v'))) {
+            if (!_chat.isOpen && !_isPlayerDead && !_vPressedLast) {
                 if (!_weaponAnimator.isReloading() && !_weaponAnimator.isInspecting()) {
                     _weaponAnimator.onInspect(2.4f);
                 }
                 _vPressedLast = true;
             }
-        } else {
+        } else if (!_inMenu) {
             _vPressedLast = false;
         }
 
@@ -1621,93 +2317,16 @@ public:
         _flashlight.update(_camera.getPosition(), _camera.getFront(), _camera.getRight(), _camera.getUp());
 
         // Procedural Weapon Sway and Bob update
-        float horizontalSpeed = std::sqrt(_velocity.x * _velocity.x + _velocity.z * _velocity.z);
-        _weaponAnimator.update(time.delta, Input::mouseDelta, horizontalSpeed);
+        if (!_inMenu) {
+            float horizontalSpeed = std::sqrt(_velocity.x * _velocity.x + _velocity.z * _velocity.z);
+            _weaponAnimator.update(time.delta, Input::mouseDelta, _devConsole.cam_bob ? horizontalSpeed : 0.0f);
+        }
 
         // Feed real dynamic player values to HUD
         if (_currentMap) _hud.mapName = _currentMap->metadata.name;
         _hud.update(time.delta);
 
-        // F2 Hammer Editor Toggle
-        if (Input::isKeyPressed(291)) { // GLFW_KEY_F2
-            if (!_f2PressedLast) {
-                _hammerEditor.toggle(_camera);
-                LabLog::info("Lab Hammer Editor: " + std::string(_hammerEditor.active ? "OPENED" : "CLOSED"));
-                _f2PressedLast = true;
-            }
-        } else {
-            _f2PressedLast = false;
-        }
 
-        // Hammer Editor Controls when active
-        if (_hammerEditor.active && _currentMap) {
-            _hammerEditor.update(time.delta, _camera, *_currentMap);
-
-            // E key: Place object (Brush, Light, or Door)
-            if (Input::isKeyPressed('E') || Input::isKeyPressed('e')) {
-                if (!_ePressedLast) {
-                    if (_hammerEditor.currentTool == EditorTool::CreateBrush) {
-                        _hammerEditor.placeBrush(*_currentMap);
-                    } else if (_hammerEditor.currentTool == EditorTool::CreateLight) {
-                        _hammerEditor.placeLight(*_currentMap);
-                    } else if (_hammerEditor.currentTool == EditorTool::CreateDoor) {
-                        _hammerEditor.placeDoor(*_currentMap);
-                    }
-                    _ePressedLast = true;
-                }
-            } else {
-                _ePressedLast = false;
-            }
-
-            // R key: Toggle Tool (Brush -> Light -> Door -> Brush)
-            if (Input::isKeyPressed('R') || Input::isKeyPressed('r')) {
-                if (!_rPressedLast) {
-                    if (_hammerEditor.currentTool == EditorTool::CreateBrush) {
-                        _hammerEditor.currentTool = EditorTool::CreateLight;
-                        _hammerEditor.statusMessage = "Hammer Tool: Point Light [E: Place, R: Cycle]";
-                    } else if (_hammerEditor.currentTool == EditorTool::CreateLight) {
-                        _hammerEditor.currentTool = EditorTool::CreateDoor;
-                        _hammerEditor.statusMessage = "Hammer Tool: Dynamic Door [E: Place, R: Cycle]";
-                    } else {
-                        _hammerEditor.currentTool = EditorTool::CreateBrush;
-                        _hammerEditor.statusMessage = "Hammer Tool: Geometry Brush [E: Place, R: Cycle]";
-                    }
-                    _rPressedLast = true;
-                }
-            } else {
-                _rPressedLast = false;
-            }
-
-            // L key: Toggle Darkness Mode (Pitch black ambient/sun)
-            if (Input::isKeyPressed('L') || Input::isKeyPressed('l')) {
-                if (!_lPressedLast) {
-                    _hammerEditor.toggleDarkness();
-                    _lPressedLast = true;
-                }
-            } else {
-                _lPressedLast = false;
-            }
-
-            // K key: Quick Save Map to assets/maps/hammer_export.labmap
-            if (Input::isKeyPressed('K') || Input::isKeyPressed('k')) {
-                if (!_kPressedLast) {
-                    _hammerEditor.saveMap(*_currentMap, "assets/maps/hammer_export.labmap");
-                    _kPressedLast = true;
-                }
-            } else {
-                _kPressedLast = false;
-            }
-
-            // Backspace / Delete: Delete last placed brush or point light
-            if (Input::isKeyPressed(259)) { // GLFW_KEY_BACKSPACE
-                if (!_backspacePressedLast) {
-                    _hammerEditor.deleteLast(*_currentMap);
-                    _backspacePressedLast = true;
-                }
-            } else {
-                _backspacePressedLast = false;
-            }
-        }
 
         // F3 Debug Mode Toggle
         if (Input::isKeyPressed(292)) { // GLFW_KEY_F3
@@ -1724,7 +2343,7 @@ public:
         }
 
         // Interactive In-World Systems & Usable Entities ([E] Key)
-        if (!_hammerEditor.active && !_inMenu && !_isPlayerDead) {
+        if (!_inMenu && !_isPlayerDead) {
             bool useKey = (Input::isKeyPressed('E') || Input::isKeyPressed('e'));
             bool useJustPressed = false;
             if (useKey) {
@@ -1736,6 +2355,24 @@ public:
                 _ePressedLast = false;
             }
             _interactiveSystem.update(time.delta, _camera.getPosition(), _camera.getFront(), useJustPressed, _currentMap.get());
+
+            if (useJustPressed && _currentMap) {
+                RaycastHit botHit;
+                if (_aiManager.testRaycast(_camera.getPosition(), _camera.getFront(), botHit) && botHit.distance < 4.5f) {
+                    static const char* guardQuotes[] = {
+                        "Stay sharp, soldier. Sector 14 is on red alert.",
+                        "Command wants full perimeter lockdown. Keep your eyes open.",
+                        "All clear here. Move to your assigned checkpoint.",
+                        "Watch the ventilation shafts. Sensors picked up movement."
+                    };
+                    static size_t qIdx = 0;
+                    std::string speech = guardQuotes[qIdx % 4];
+                    qIdx++;
+                    _aiManager.triggerStoryEventOnBot("Guard", speech, "", *_currentMap);
+                    _hud.showCombatMessage(speech, 4.0f);
+                    _chat.addMessage("[Guard]", speech, Vec3(0.3f, 0.9f, 1.0f));
+                }
+            }
         }
 
         // F1 Wireframe Toggle
@@ -1751,15 +2388,162 @@ public:
         }
     }
 
+    void refreshDiscoveredAddons() {
+        _discoveredAddons.clear();
+
+        // Built-in core game assets item
+        AddonItem base;
+        base.folderName = "assets (Core)";
+        base.title = "Frozen-Life Core Content";
+        base.version = "0.4.0";
+        base.author = "Lab Engine Foundation";
+        base.description = "Official base game assets, core maps, and character viewmodels.";
+        base.enabled = true;
+        base.mapCount = static_cast<int>(_availableMaps.size());
+        _discoveredAddons.push_back(base);
+
+        std::filesystem::path addonsDir("addons");
+        if (!std::filesystem::exists(addonsDir)) {
+            try { std::filesystem::create_directories(addonsDir); } catch (...) {}
+        }
+
+        auto manifests = VFS::discoverAddons(addonsDir);
+        for (const auto& m : manifests) {
+            AddonItem mod;
+            mod.folderName = m.folderName;
+            mod.title = m.title;
+            mod.version = m.version;
+            mod.author = m.author;
+            mod.description = m.description;
+            mod.enabled = m.enabled;
+            mod.mapCount = m.mapCount;
+            _discoveredAddons.push_back(mod);
+
+            if (mod.enabled) {
+                std::filesystem::path addonPath = addonsDir / mod.folderName;
+                VFS::get().mountAddonLayer(addonPath);
+                if (!m.startupScript.empty()) {
+                    _scriptEngine.executeStartupHook((addonPath / m.startupScript).string());
+                }
+            }
+        }
+    }
+
+    void initAchievements() {
+        _achievements.clear();
+        _achievements.push_back({
+            "first_blood",
+            "FIRST BLOOD",
+            "Eliminate your first enemy combatant or bot in combat.",
+            "[★]",
+            1, 1, true, "2026-10-24",
+            "assets/textures/achievements/ach_first_blood.png"
+        });
+        _achievements.push_back({
+            "sharpshooter",
+            "DEADEYE MARKSMAN",
+            "Eliminate 10 enemies with precise headshots.",
+            "[🎯]",
+            10, 10, true, "2026-10-24",
+            "assets/textures/achievements/ach_sharpshooter.png"
+        });
+        _achievements.push_back({
+            "bhop_master",
+            "BUNNYHOP MASTER",
+            "Perform 15 consecutive fluid bunny hops using Source physics.",
+            "[⚡]",
+            15, 15, true, "2026-10-24",
+            "assets/textures/achievements/ach_bhop_master.png"
+        });
+        _achievements.push_back({
+            "demolition",
+            "DEMOLITION EXPERT",
+            "Detonate 5 explosive barrels with weapon fire or physics impacts.",
+            "[☣]",
+            5, 5, true, "2026-10-24",
+            "assets/textures/achievements/ach_demolition.png"
+        });
+        _achievements.push_back({
+            "cryo_survivor",
+            "CRYO SURVIVOR",
+            "Survive cryogenic lockdown and clear the primary facility sector.",
+            "[🏆]",
+            1, 1, true, "2026-10-24",
+            "assets/textures/achievements/ach_cryo_survivor.png"
+        });
+        _achievements.push_back({
+            "heavy_arsenal",
+            "HEAVY ARSENAL",
+            "Test fire all 9 experimental Lab weapons in combat.",
+            "[⚔]",
+            6, 9, false, "",
+            "assets/textures/achievements/ach_heavy_arsenal.png"
+        });
+        _achievements.push_back({
+            "mod_creator",
+            "COMMUNITY PIONEER",
+            "Load a custom map or addon package from the /addons directory.",
+            "[⚙]",
+            1, 1, (!_discoveredAddons.empty()), (!_discoveredAddons.empty() ? "2026-10-24" : ""),
+            "assets/textures/achievements/ach_mod_creator.png"
+        });
+        _achievements.push_back({
+            "untouchable",
+            "UNTOUCHABLE",
+            "Eliminate 5 consecutive enemies without taking health damage.",
+            "[💀]",
+            3, 5, false, "",
+            "assets/textures/achievements/ach_untouchable.png"
+        });
+        updateAchievements();
+    }
+
+    void updateAchievements() {
+        for (auto& a : _achievements) {
+            if (a.id == "first_blood") {
+                a.currentProgress = std::min(a.maxProgress, _careerStats.totalKills);
+                if (a.currentProgress >= a.maxProgress) { a.unlocked = true; if (a.unlockDate.empty()) a.unlockDate = "2026-10-24"; }
+            } else if (a.id == "sharpshooter") {
+                a.currentProgress = std::min(a.maxProgress, _careerStats.headshots);
+                if (a.currentProgress >= a.maxProgress) { a.unlocked = true; if (a.unlockDate.empty()) a.unlockDate = "2026-10-24"; }
+            } else if (a.id == "bhop_master") {
+                a.currentProgress = std::min(a.maxProgress, _careerStats.bhopJumps);
+                if (a.currentProgress >= a.maxProgress) { a.unlocked = true; if (a.unlockDate.empty()) a.unlockDate = "2026-10-24"; }
+            } else if (a.id == "demolition") {
+                a.currentProgress = std::min(a.maxProgress, _careerStats.barrelsExploded);
+                if (a.currentProgress >= a.maxProgress) { a.unlocked = true; if (a.unlockDate.empty()) a.unlockDate = "2026-10-24"; }
+            } else if (a.id == "mod_creator") {
+                if (!_discoveredAddons.empty()) {
+                    a.currentProgress = 1;
+                    a.unlocked = true;
+                    if (a.unlockDate.empty()) a.unlockDate = "2026-10-24";
+                }
+            }
+        }
+    }
+
+    void recordPlayerKill(bool isHeadshot = false, bool isBarrel = false) {
+        _playerKills++;
+        _hud.frags = _playerKills;
+        _careerStats.totalKills++;
+        if (isHeadshot) _careerStats.headshots++;
+        if (isBarrel) _careerStats.barrelsExploded++;
+        updateAchievements();
+    }
+
+    void recordPlayerDeath() {
+        _playerDeaths++;
+        _careerStats.totalDeaths++;
+        updateAchievements();
+    }
+
     void handleMenuInput(float mx, float my, bool lmbClick) {
         // Keyboard shortcuts in menu
         if (Input::isKeyPressed(GLFW_KEY_ESCAPE)) {
             if (!_escPressedLast) {
-                if (_menuScreen == MenuScreen::HostGame || _menuScreen == MenuScreen::JoinGame) {
-                    _menuScreen = MenuScreen::MultiSelect;
-                } else if (_menuScreen == MenuScreen::MultiSelect || _menuScreen == MenuScreen::Singleplayer || _menuScreen == MenuScreen::CharacterStudio) {
+                if (_menuScreen != MenuScreen::Main) {
                     _menuScreen = MenuScreen::Main;
-                } else if (_menuScreen == MenuScreen::Main && _currentMap) {
+                } else if (_menuScreen == MenuScreen::Main && _hasActiveGame && _currentMap) {
                     _inMenu = false;
                     _fireLmbLast = true;
                     setCursorCaptured(true);
@@ -1770,69 +2554,200 @@ public:
             _escPressedLast = false;
         }
 
-        if (_menuScreen == MenuScreen::CharacterStudio) {
+        if (false) {
             return;
         }
 
+        const float winX = 150.0f;
+        const float winY = 70.0f;
+        const float winW = 980.0f;
+        const float winH = 580.0f;
+
         if (_menuScreen == MenuScreen::Main) {
             if (lmbClick) {
-                // Button 0: Campaign / Singleplayer (x: 120..500, y: 185..233)
-                if (mx >= 120.0f && mx <= 500.0f && my >= 185.0f && my <= 233.0f) {
-                    LabLog::info("[FrozenLife] Menu: Campaign selected");
+                float curY = 160.0f;
+                // Active gameplay session options: Resume & Disconnect
+                if (_hasActiveGame && _currentMap) {
+                    // Item 0: Resume
+                    if (mx >= 60.0f && mx <= 420.0f && my >= curY && my <= curY + 36.0f) {
+                        _inMenu = false;
+                        _fireLmbLast = true;
+                        setCursorCaptured(true);
+                        return;
+                    }
+                    curY += 44.0f;
+
+                    // Item 0b: Disconnect
+                    if (mx >= 60.0f && mx <= 420.0f && my >= curY && my <= curY + 36.0f) {
+                        disconnectActiveSession();
+                        return;
+                    }
+                    curY += 44.0f;
+                }
+                // Item 1: New Game
+                if (mx >= 60.0f && mx <= 420.0f && my >= curY && my <= curY + 36.0f) {
                     _menuScreen = MenuScreen::Singleplayer;
                     return;
                 }
-                // Button 1: Multiplayer (x: 120..500, y: 245..293)
-                if (mx >= 120.0f && mx <= 500.0f && my >= 245.0f && my <= 293.0f) {
-                    LabLog::info("[FrozenLife] Menu: Multiplayer selected");
-                    _menuScreen = MenuScreen::MultiSelect;
+                curY += 44.0f;
+                // Item 2: Find Servers
+                if (mx >= 60.0f && mx <= 420.0f && my >= curY && my <= curY + 36.0f) {
+                    _menuScreen = MenuScreen::JoinGame;
                     return;
                 }
-                // Button 2: Character & Weapon Studio (x: 120..500, y: 305..353)
-                if (mx >= 120.0f && mx <= 500.0f && my >= 305.0f && my <= 353.0f) {
-                    LabLog::info("[FrozenLife] Menu: Character Studio selected");
-                    _menuScreen = MenuScreen::CharacterStudio;
+                curY += 44.0f;
+                // Item 3: Create Server
+                if (mx >= 60.0f && mx <= 420.0f && my >= curY && my <= curY + 36.0f) {
+                    _menuScreen = MenuScreen::HostGame;
                     return;
                 }
-                // Button 3: Resume Mission (x: 120..500, y: 365..413)
-                if (_currentMap && mx >= 120.0f && mx <= 500.0f && my >= 365.0f && my <= 413.0f) {
-                    LabLog::info("[FrozenLife] Menu: Resume Mission selected");
-                    _inMenu = false;
-                    _fireLmbLast = true;
-                    setCursorCaptured(true);
+                curY += 44.0f;
+                // Item 4: Addons
+                if (mx >= 60.0f && mx <= 420.0f && my >= curY && my <= curY + 36.0f) {
+                    refreshDiscoveredAddons();
+                    _menuScreen = MenuScreen::Addons;
                     return;
                 }
-                // Button 4: Quit Game (x: 120..500, y: 425..473)
-                if (mx >= 120.0f && mx <= 500.0f && my >= 425.0f && my <= 473.0f) {
-                    LabLog::info("[FrozenLife] Menu: Quit Game selected");
+                curY += 44.0f;
+                // Item 5: Achievements
+                if (mx >= 60.0f && mx <= 420.0f && my >= curY && my <= curY + 36.0f) {
+                    updateAchievements();
+                    _menuScreen = MenuScreen::Achievements;
+                    return;
+                }
+                curY += 44.0f;
+                // Item 6: Options
+                if (mx >= 60.0f && mx <= 420.0f && my >= curY && my <= curY + 36.0f) {
+                    _menuScreen = MenuScreen::Options;
+                    return;
+                }
+                curY += 44.0f;
+                // Item 8: Quit
+                if (mx >= 60.0f && mx <= 420.0f && my >= curY && my <= curY + 36.0f) {
                     stop();
                     return;
                 }
             }
         }
-        else if (_menuScreen == MenuScreen::MultiSelect) {
+        else if (_menuScreen == MenuScreen::Achievements) {
             if (lmbClick) {
-                // Card 1: Host Game / Create Server (x: 140..600, y: 180..420)
-                if (mx >= 140.0f && mx <= 600.0f && my >= 180.0f && my <= 420.0f) {
-                    LabLog::info("[FrozenLife] Menu: Host Game selected");
-                    _menuScreen = MenuScreen::HostGame;
-                    return;
-                }
-                // Card 2: Find Servers / Join Game (x: 680..1140, y: 180..420)
-                if (mx >= 680.0f && mx <= 1140.0f && my >= 180.0f && my <= 420.0f) {
-                    LabLog::info("[FrozenLife] Menu: Join Game selected");
-                    _menuScreen = MenuScreen::JoinGame;
-                    return;
-                }
-                // Back Button (x: 140..380, y: 580..628)
-                if (mx >= 140.0f && mx <= 380.0f && my >= 580.0f && my <= 628.0f) {
-                    LabLog::info("[FrozenLife] Menu: Back to Main Menu selected");
+                // Top-right [X] close button
+                if (mx >= winX + winW - 28.0f && mx <= winX + winW - 6.0f && my >= winY + 6.0f && my <= winY + 28.0f) {
                     _menuScreen = MenuScreen::Main;
+                    return;
+                }
+                // Tabs: [ ACHIEVEMENTS ], [ STATISTICS ]
+                if (my >= winY + 42.0f && my <= winY + 68.0f) {
+                    if (mx >= winX + 20.0f && mx <= winX + 160.0f) {
+                        _achievementsActiveTab = 0;
+                        return;
+                    }
+                    if (mx >= winX + 165.0f && mx <= winX + 305.0f) {
+                        _achievementsActiveTab = 1;
+                        return;
+                    }
+                }
+                if (_achievementsActiveTab == 0) {
+                    // Checkbox: [ ] Hide completed
+                    if (mx >= winX + winW - 210.0f && mx <= winX + winW - 20.0f && my >= winY + 82.0f && my <= winY + 110.0f) {
+                        _achievementsHideCompleted = !_achievementsHideCompleted;
+                        return;
+                    }
+                }
+                // Bottom Close button
+                if (mx >= winX + 20.0f && mx <= winX + 160.0f && my >= winY + 524.0f && my <= winY + 558.0f) {
+                    _menuScreen = MenuScreen::Main;
+                    return;
+                }
+                // Bottom Reset button
+                if (mx >= winX + 180.0f && mx <= winX + 320.0f && my >= winY + 524.0f && my <= winY + 558.0f) {
+                    _careerStats = GameCareerStats{};
+                    _careerStats.totalKills = 0;
+                    _careerStats.totalDeaths = 0;
+                    _careerStats.headshots = 0;
+                    _careerStats.shotsFired = 0;
+                    _careerStats.shotsHit = 0;
+                    _careerStats.bhopJumps = 0;
+                    _careerStats.barrelsExploded = 0;
+                    _careerStats.mapsCompleted = 0;
+                    _careerStats.totalPlaytimeSeconds = 0.0f;
+                    for (auto& a : _achievements) {
+                        a.currentProgress = 0;
+                        a.unlocked = false;
+                        a.unlockDate = "";
+                    }
+                    return;
+                }
+            }
+        }
+        else if (_menuScreen == MenuScreen::Singleplayer) {
+            if (lmbClick) {
+                // Top-right [X] close button
+                if (mx >= winX + winW - 28.0f && mx <= winX + winW - 6.0f && my >= winY + 6.0f && my <= winY + 28.0f) {
+                    _menuScreen = MenuScreen::Main;
+                    return;
+                }
+                // Map rows selection with pagination
+                int maxVis = 7;
+                int totalMaps = (int)_availableMaps.size();
+                int visCount = std::min(maxVis, totalMaps - _mapScrollOffset);
+                for (int i = 0; i < visCount; ++i) {
+                    int mapIdx = _mapScrollOffset + i;
+                    float iy = winY + 80.0f + static_cast<float>(i) * 44.0f;
+                    if (mx >= winX + 26.0f && mx <= winX + 454.0f && my >= iy && my <= iy + 38.0f) {
+                        _selectedMapIndex = mapIdx;
+                        _sessionConfig.mapPath = _availableMaps[mapIdx];
+                        _sessionConfig.enableBots = false;
+                        return;
+                    }
+                }
+                // Scroll UP button
+                if (mx >= winX + 26.0f && mx <= winX + 76.0f && my >= winY + 395.0f && my <= winY + 425.0f) {
+                    _mapScrollOffset = std::max(0, _mapScrollOffset - 1);
+                    return;
+                }
+                // Scroll DOWN button
+                if (mx >= winX + 404.0f && mx <= winX + 454.0f && my >= winY + 395.0f && my <= winY + 425.0f) {
+                    _mapScrollOffset = std::min(std::max(0, totalMaps - maxVis), _mapScrollOffset + 1);
+                    return;
+                }
+                // Bottom Back button
+                if (mx >= winX + 20.0f && mx <= winX + 160.0f && my >= winY + 524.0f && my <= winY + 558.0f) {
+                    _menuScreen = MenuScreen::Main;
+                    return;
+                }
+                // Bottom Browse button
+                if (mx >= winX + 180.0f && mx <= winX + 330.0f && my >= winY + 524.0f && my <= winY + 558.0f) {
+                    std::string picked = LabDialogs::openFileDialog(getWindow(), "Lab Scene Files (*.labscene)\0*.labscene\0Lab Map Files (*.labmap)\0*.labmap\0", "assets\\maps");
+                    if (!picked.empty() && LabDialogs::isAllowedSceneFile(picked)) {
+                        _sessionConfig.mapPath = toSceneDisplayPath(picked);
+                        _sessionConfig.mode = GameMode::Campaign;
+                        _sessionConfig.enableBots = false;
+                        beginLoadingSequence(_sessionConfig, false);
+                    }
+                    return;
+                }
+                // Bottom Start button
+                if (mx >= winX + winW - 160.0f && mx <= winX + winW - 20.0f && my >= winY + 524.0f && my <= winY + 558.0f) {
+                    if (!_availableMaps.empty() && _selectedMapIndex < (int)_availableMaps.size()) {
+                        _sessionConfig.mapPath = _availableMaps[_selectedMapIndex];
+                        _sessionConfig.mode = GameMode::Campaign;
+                        _sessionConfig.enableBots = false;
+                        beginLoadingSequence(_sessionConfig, false);
+                    }
                     return;
                 }
             }
         }
         else if (_menuScreen == MenuScreen::HostGame) {
+            if (lmbClick) {
+                // Top-right [X] close button
+                if (mx >= winX + winW - 28.0f && mx <= winX + winW - 6.0f && my >= winY + 6.0f && my <= winY + 28.0f) {
+                    _menuScreen = MenuScreen::Main;
+                    return;
+                }
+            }
+
             // Text typing for friend punch target IP
             if (_punchTargetActive) {
                 for (int k = 0; k < 512; ++k) {
@@ -1852,114 +2767,107 @@ public:
                 }
             }
 
-            // O key: Open native Windows File Dialog for scene
-            if (Input::isKeyPressed('O') || Input::isKeyPressed('o')) {
-                if (!_oPressedLast) {
-                    std::string picked = LabDialogs::openFileDialog(getWindow(), "Lab Scene Files (*.labscene)\0*.labscene\0Lab Map Files (*.labmap)\0*.labmap\0", "assets\\maps");
-                    if (!picked.empty() && LabDialogs::isAllowedSceneFile(picked)) {
-                        _sessionConfig.mapPath = toSceneDisplayPath(picked);
-                    }
-                    _oPressedLast = true;
-                }
-            } else {
-                _oPressedLast = false;
-            }
-
             if (lmbClick) {
-                // Left Panel: Map items (x: 115..525, y: 170 + i * 50)
-                for (int i = 0; i < (int)_availableMaps.size(); ++i) {
-                    float iy = 170.0f + i * 50.0f;
-                    if (mx >= 115.0f && mx <= 525.0f && my >= iy && my <= iy + 42.0f) {
-                        _selectedMapIndex = i;
-                        _sessionConfig.mapPath = _availableMaps[i];
-                        LabLog::info("[FrozenLife] HostGame: Selected map " + _availableMaps[i]);
+                // Left Panel: Map selection rows with pagination
+                int maxVisHost = 7;
+                int totalMapsHost = (int)_availableMaps.size();
+                int visCountHost = std::min(maxVisHost, totalMapsHost - _mapScrollOffset);
+                for (int i = 0; i < visCountHost; ++i) {
+                    int mapIdx = _mapScrollOffset + i;
+                    float iy = winY + 80.0f + static_cast<float>(i) * 44.0f;
+                    if (mx >= winX + 26.0f && mx <= winX + 454.0f && my >= iy && my <= iy + 38.0f) {
+                        _selectedMapIndex = mapIdx;
+                        _sessionConfig.mapPath = _availableMaps[mapIdx];
                         return;
                     }
                 }
+                // Scroll UP button
+                if (mx >= winX + 26.0f && mx <= winX + 76.0f && my >= winY + 395.0f && my <= winY + 425.0f) {
+                    _mapScrollOffset = std::max(0, _mapScrollOffset - 1);
+                    return;
+                }
+                // Scroll DOWN button
+                if (mx >= winX + 404.0f && mx <= winX + 454.0f && my >= winY + 395.0f && my <= winY + 425.0f) {
+                    _mapScrollOffset = std::min(std::max(0, totalMapsHost - maxVisHost), _mapScrollOffset + 1);
+                    return;
+                }
 
-                // Open from disk button (x: 115..525, y: 485..527)
-                if (mx >= 115.0f && mx <= 525.0f && my >= 485.0f && my <= 527.0f) {
+                // Left Panel: Browse button
+                if (mx >= winX + 26.0f && mx <= winX + 454.0f && my >= winY + 450.0f && my <= winY + 484.0f) {
                     std::string picked = LabDialogs::openFileDialog(getWindow(), "Lab Scene Files (*.labscene)\0*.labscene\0Lab Map Files (*.labmap)\0*.labmap\0", "assets\\maps");
                     if (!picked.empty() && LabDialogs::isAllowedSceneFile(picked)) {
                         _sessionConfig.mapPath = toSceneDisplayPath(picked);
-                        LabLog::info("[FrozenLife] HostGame: Picked disk scene " + _sessionConfig.mapPath);
                     }
                     return;
                 }
 
-                // 1. Network Mode toggle: LAN (580..855) vs P2P (870..1160) at y: 182..220
-                if (my >= 182.0f && my <= 220.0f) {
-                    if (mx >= 580.0f && mx <= 855.0f) { _sessionConfig.networkMode = NetworkMode::LAN; LabLog::info("[FrozenLife] HostGame: Network LAN"); return; }
-                    if (mx >= 870.0f && mx <= 1160.0f) { _sessionConfig.networkMode = NetworkMode::P2P; LabLog::info("[FrozenLife] HostGame: Network P2P"); return; }
+                // Network Mode: LAN vs P2P
+                if (my >= winY + 80.0f && my <= winY + 110.0f) {
+                    if (mx >= winX + 490.0f && mx <= winX + 715.0f) { _sessionConfig.networkMode = NetworkMode::LAN; return; }
+                    if (mx >= winX + 725.0f && mx <= winX + 950.0f) { _sessionConfig.networkMode = NetworkMode::P2P; return; }
                 }
 
-                // 2. Game Mode buttons: FFA (580..760), DM (770..950), TDM (960..1160) at y: 248..284
-                if (my >= 248.0f && my <= 284.0f) {
-                    if (mx >= 580.0f && mx <= 760.0f) { _sessionConfig.mode = GameMode::FFA; LabLog::info("[FrozenLife] HostGame: Mode FFA"); return; }
-                    if (mx >= 770.0f && mx <= 950.0f) { _sessionConfig.mode = GameMode::DM; LabLog::info("[FrozenLife] HostGame: Mode DM"); return; }
-                    if (mx >= 960.0f && mx <= 1160.0f) { _sessionConfig.mode = GameMode::TDM; LabLog::info("[FrozenLife] HostGame: Mode TDM"); return; }
+                // Game Mode: FFA, DM, TDM
+                if (my >= winY + 130.0f && my <= winY + 160.0f) {
+                    if (mx >= winX + 490.0f && mx <= winX + 635.0f) { _sessionConfig.mode = GameMode::FFA; return; }
+                    if (mx >= winX + 645.0f && mx <= winX + 790.0f) { _sessionConfig.mode = GameMode::DM; return; }
+                    if (mx >= winX + 800.0f && mx <= winX + 950.0f) { _sessionConfig.mode = GameMode::TDM; return; }
                 }
 
-                // 3. Combat AI Bots toggle (x: 580..855, y: 314..350)
-                if (mx >= 580.0f && mx <= 855.0f && my >= 314.0f && my <= 350.0f) {
+                // Combat Bots: Toggle
+                if (mx >= winX + 490.0f && mx <= winX + 710.0f && my >= winY + 180.0f && my <= winY + 210.0f) {
                     _sessionConfig.enableBots = !_sessionConfig.enableBots;
-                    LabLog::info(std::string("[FrozenLife] HostGame: Bots ") + (_sessionConfig.enableBots ? "Enabled" : "Disabled"));
                     return;
                 }
 
-                // Bot count [-] (875..920) and [+] (1066..1111) at y: 314..350
-                if (my >= 314.0f && my <= 350.0f) {
-                    if (mx >= 875.0f && mx <= 920.0f) { _sessionConfig.botCount = std::max(0, _sessionConfig.botCount - 1); LabLog::info("[FrozenLife] HostGame: Bot count " + std::to_string(_sessionConfig.botCount)); return; }
-                    if (mx >= 1066.0f && mx <= 1111.0f) { _sessionConfig.botCount = std::min(8, _sessionConfig.botCount + 1); LabLog::info("[FrozenLife] HostGame: Bot count " + std::to_string(_sessionConfig.botCount)); return; }
+                // Bot count [-] and [+]
+                if (my >= winY + 180.0f && my <= winY + 210.0f) {
+                    if (mx >= winX + 725.0f && mx <= winX + 765.0f) { _sessionConfig.botCount = std::max(0, _sessionConfig.botCount - 1); return; }
+                    if (mx >= winX + 910.0f && mx <= winX + 950.0f) { _sessionConfig.botCount = std::min(8, _sessionConfig.botCount + 1); return; }
                 }
 
-                // 4. Frag Limit [-] (580..625) and [+] (771..816) at y: 380..416
-                if (my >= 380.0f && my <= 416.0f) {
-                    if (mx >= 580.0f && mx <= 625.0f) { _sessionConfig.fragLimit = std::max(5, _sessionConfig.fragLimit - 5); LabLog::info("[FrozenLife] HostGame: Frag limit " + std::to_string(_sessionConfig.fragLimit)); return; }
-                    if (mx >= 771.0f && mx <= 816.0f) { _sessionConfig.fragLimit = std::min(100, _sessionConfig.fragLimit + 5); LabLog::info("[FrozenLife] HostGame: Frag limit " + std::to_string(_sessionConfig.fragLimit)); return; }
+                // Frag Limit [-] and [+]
+                if (my >= winY + 230.0f && my <= winY + 260.0f) {
+                    if (mx >= winX + 725.0f && mx <= winX + 765.0f) { _sessionConfig.fragLimit = std::max(5, _sessionConfig.fragLimit - 5); return; }
+                    if (mx >= winX + 910.0f && mx <= winX + 950.0f) { _sessionConfig.fragLimit = std::min(100, _sessionConfig.fragLimit + 5); return; }
                 }
 
-                // Copy Invite / IP button (x: 580..1160, y: 476..514)
-                if (mx >= 580.0f && mx <= 1160.0f && my >= 476.0f && my <= 514.0f) {
+                // Telemetry: Copy IP
+                if (mx >= winX + 490.0f && mx <= winX + 710.0f && my >= winY + 280.0f && my <= winY + 310.0f) {
                     std::string inviteIP = _hostNATStatus.publicIP.empty() ? _hostNATStatus.localIP : _hostNATStatus.publicIP;
                     std::string inviteStr = inviteIP + ":" + std::to_string(_sessionConfig.port);
                     setClipboardText(inviteStr);
-                    _chat.addMessage("[INVITE]", "Copied host address to clipboard: " + inviteStr, Vec3(0.3f, 0.9f, 0.4f));
-                    _punchStatusMsg = "Copied host address (" + inviteStr + ") to clipboard!";
+                    _punchStatusMsg = "Copied address: " + inviteStr;
                     return;
                 }
 
-                // Plug & Play: Copy Room Code button (x: 820..980, y: 518..556)
-                if (mx >= 820.0f && mx <= 980.0f && my >= 518.0f && my <= 556.0f) {
+                // Telemetry: Copy Room Code
+                if (mx >= winX + 725.0f && mx <= winX + 835.0f && my >= winY + 280.0f && my <= winY + 310.0f) {
                     setClipboardText(_pnpRoomCode);
-                    _punchStatusMsg = "Copied Room Code [" + _pnpRoomCode + "] to clipboard! Share with friend.";
+                    _punchStatusMsg = "Copied Room Code [" + _pnpRoomCode + "]!";
                     return;
                 }
 
-                // Plug & Play: Generate New Room Code button (x: 990..1160, y: 518..556)
-                if (mx >= 990.0f && mx <= 1160.0f && my >= 518.0f && my <= 556.0f) {
+                // Telemetry: Generate New Code
+                if (mx >= winX + 845.0f && mx <= winX + 950.0f && my >= winY + 280.0f && my <= winY + 310.0f) {
                     _pnpRoomCode = PnPBroker::generateRoomCode();
                     _sessionConfig.roomCode = _pnpRoomCode;
-                    _punchStatusMsg = "Generated new Room Code: [" + _pnpRoomCode + "]!";
+                    _punchStatusMsg = "New Room Code: [" + _pnpRoomCode + "]!";
                     return;
                 }
 
-                // 5. Bottom Back button (x: 100..300, y: 570..618)
-                if (mx >= 100.0f && mx <= 300.0f && my >= 570.0f && my <= 618.0f) {
-                    LabLog::info("[FrozenLife] HostGame: Back selected");
-                    _menuScreen = MenuScreen::MultiSelect;
+                // Bottom Close button
+                if (mx >= winX + 20.0f && mx <= winX + 160.0f && my >= winY + 524.0f && my <= winY + 558.0f) {
+                    _menuScreen = MenuScreen::Main;
                     return;
                 }
 
-                // 6. Bottom Start Server button (x: 740..1180, y: 570..618)
-                if (mx >= 740.0f && mx <= 1180.0f && my >= 570.0f && my <= 618.0f) {
-                    LabLog::info("[FrozenLife] HostGame: Starting Server and Session");
+                // Bottom Start Server button
+                if (mx >= winX + winW - 160.0f && mx <= winX + winW - 20.0f && my >= winY + 524.0f && my <= winY + 558.0f) {
                     ServerConfig srvCfg;
                     srvCfg.port = _sessionConfig.port;
                     srvCfg.roomCode = _pnpRoomCode;
-                    srvCfg.serverName = (_sessionConfig.networkMode == NetworkMode::LAN)
-                        ? "Lab LAN Dedicated Arena"
-                        : "Lab P2P Dedicated Arena";
+                    srvCfg.serverName = (_sessionConfig.networkMode == NetworkMode::LAN) ? "Lab LAN Server" : "Lab P2P Server";
                     srvCfg.mapName = _sessionConfig.mapPath;
                     srvCfg.gameMode = (_sessionConfig.mode == GameMode::FFA ? "FFA" : (_sessionConfig.mode == GameMode::DM ? "DM" : "TDM"));
                     srvCfg.enableBots = _sessionConfig.enableBots;
@@ -1970,10 +2878,8 @@ public:
                     srvCfg.networkMode = (_sessionConfig.networkMode == NetworkMode::LAN) ? NetMatchMode::LAN : NetMatchMode::P2P;
                     srvCfg.lanMode = (_sessionConfig.networkMode == NetworkMode::LAN);
 
-                    // Strictly save to assets/configs/server.cfg
                     srvCfg.saveToFile("assets/configs/server.cfg");
 
-                    // Publish to Cloud Broker for zero-config Plug & Play
                     std::string pubIP = NATDiscovery::discoverPublicIP(srvCfg.port);
                     std::string lanIP = NATDiscovery::getLocalIP();
                     PnPBroker::publishRoom(_pnpRoomCode, pubIP, srvCfg.port, lanIP, srvCfg.port, srvCfg.mapName, srvCfg.gameMode);
@@ -1986,44 +2892,45 @@ public:
                     if (ok) {
                         std::this_thread::sleep_for(std::chrono::milliseconds(250));
                         _netClient.connect("127.0.0.1", srvCfg.port, "HostPlayer");
-                        startSession(_sessionConfig);
-                        _chat.addMessage("[SERVER]", "Started LabServer.exe using assets/configs/server.cfg (Port " + std::to_string(srvCfg.port) + ")", Vec3(0.2f, 0.9f, 0.35f));
-                        _chat.addMessage("[CONFIG]", std::string("Network Mode: ") + (_sessionConfig.networkMode == NetworkMode::LAN ? "LAN (Broadcast)" : "P2P (Direct/Relay)"), Vec3(0.3f, 0.85f, 1.0f));
+                        beginLoadingSequence(_sessionConfig, true);
                     } else {
-                        _chat.addMessage("[SERVER]", "LabServer spawn failed (" + spawnErr + "). Running internal server.", Vec3(0.95f, 0.75f, 0.2f));
                         _localServer.start(srvCfg);
                         _netClient.connect("127.0.0.1", srvCfg.port, "HostPlayer");
-                        startSession(_sessionConfig);
+                        beginLoadingSequence(_sessionConfig, true);
                     }
                     return;
                 }
             }
         }
         else if (_menuScreen == MenuScreen::JoinGame) {
-            // Text typing for direct connect target address or plug & play room code
+            if (lmbClick) {
+                // Top-right [X] close button
+                if (mx >= winX + winW - 28.0f && mx <= winX + winW - 6.0f && my >= winY + 6.0f && my <= winY + 28.0f) {
+                    _menuScreen = MenuScreen::Main;
+                    return;
+                }
+            }
+
+            // Keyboard input for direct connect IP or room code
             for (int k = 0; k < 512; ++k) {
                 if (Input::keys[k] && !_lastMenuKeys[k]) {
                     if (_pnpJoinCodeActive) {
-                        if (k == 259) { // Backspace
+                        if (k == 259) {
                             if (!_pnpJoinCode.empty()) _pnpJoinCode.pop_back();
                         } else if (k == 'V' && (Input::isKeyPressed(GLFW_KEY_LEFT_CONTROL) || Input::isKeyPressed(GLFW_KEY_RIGHT_CONTROL))) {
                             std::string clip = getClipboardText();
                             if (!clip.empty()) _pnpJoinCode = clip;
                         } else if (k >= 32 && k <= 126) {
-                            if (_pnpJoinCode.size() < 12) {
-                                _pnpJoinCode.push_back(static_cast<char>(k));
-                            }
+                            if (_pnpJoinCode.size() < 12) _pnpJoinCode.push_back(static_cast<char>(k));
                         }
                     } else if (_directConnectActive) {
-                        if (k == 259) { // Backspace
+                        if (k == 259) {
                             if (!_directConnectIP.empty()) _directConnectIP.pop_back();
                         } else if (k == 'V' && (Input::isKeyPressed(GLFW_KEY_LEFT_CONTROL) || Input::isKeyPressed(GLFW_KEY_RIGHT_CONTROL))) {
                             std::string clip = getClipboardText();
                             if (!clip.empty()) _directConnectIP = clip;
                         } else if (k >= 32 && k <= 126) {
-                            if (_directConnectIP.size() < 45) {
-                                _directConnectIP.push_back(static_cast<char>(k));
-                            }
+                            if (_directConnectIP.size() < 45) _directConnectIP.push_back(static_cast<char>(k));
                         }
                     }
                 }
@@ -2031,29 +2938,39 @@ public:
             }
 
             if (lmbClick) {
-                // 0A. Click Room Code input field (x: 110..370, y: 116..154)
-                if (mx >= 110.0f && mx <= 370.0f && my >= 116.0f && my <= 154.0f) {
+                // Server Browser Tabs: INTERNET, FAVORITES, HISTORY, LAN, FRIENDS
+                if (my >= winY + 38.0f && my <= winY + 62.0f) {
+                    for (int t = 0; t < 5; ++t) {
+                        float tx = winX + 20.0f + static_cast<float>(t) * 118.0f;
+                        if (mx >= tx && mx <= tx + 112.0f) {
+                            _serverBrowserActiveTab = t;
+                            _selectedServerIndex = 0;
+                            return;
+                        }
+                    }
+                }
+
+                // Room Code field
+                if (mx >= winX + 30.0f && mx <= winX + 230.0f && my >= winY + 68.0f && my <= winY + 96.0f) {
                     _pnpJoinCodeActive = true;
                     _directConnectActive = false;
                     return;
                 }
-
-                // 0B. Click PASTE Room Code button (x: 380..470, y: 116..154)
-                if (mx >= 380.0f && mx <= 470.0f && my >= 116.0f && my <= 154.0f) {
+                // Paste Code
+                if (mx >= winX + 240.0f && mx <= winX + 320.0f && my >= winY + 68.0f && my <= winY + 96.0f) {
                     std::string clip = getClipboardText();
                     if (!clip.empty()) _pnpJoinCode = clip;
                     return;
                 }
-
-                // 0C. Click JOIN VIA ROOM CODE (PLUG & PLAY) button (x: 485..865, y: 116..154)
-                if (mx >= 485.0f && mx <= 865.0f && my >= 116.0f && my <= 154.0f) {
+                // Join Code
+                if (mx >= winX + 330.0f && mx <= winX + 440.0f && my >= winY + 68.0f && my <= winY + 96.0f) {
                     if (_pnpJoinCode.empty()) {
-                        _connectStatusMsg = "Please enter 4-digit Room Code first!";
+                        _connectStatusMsg = "Enter 4-digit Room Code first!";
                         return;
                     }
                     _isConnecting = true;
                     _connectAnimTimer = 0.0f;
-                    _connectStatusMsg = "LOOKING UP ROOM [" + _pnpJoinCode + "] ON CLOUD BROKER...";
+                    _connectStatusMsg = "CONNECTING VIA ROOM [" + _pnpJoinCode + "]...";
 
                     PnPRoomInfo room;
                     if (PnPBroker::fetchRoom(_pnpJoinCode, room) && room.valid) {
@@ -2061,79 +2978,119 @@ public:
                         std::string targetIP = room.publicIP;
                         uint16_t targetPort = room.publicPort;
 
-                        // Automatic LAN detection: if my public IP equals host's public IP, we are in the same home!
                         if (!room.lanIP.empty() && (myPub == room.publicIP || room.publicIP == "127.0.0.1" || room.publicIP.empty())) {
                             targetIP = room.lanIP;
                             targetPort = room.lanPort;
-                            _connectStatusMsg = "SAME NETWORK DETECTED! JOINING VIA LAN: " + targetIP;
                         } else {
                             PnPBroker::registerGuestPunch(_pnpJoinCode, myPub, 27016);
                             NATDiscovery::punchHole(room.publicIP, room.publicPort, 27016);
-                            _connectStatusMsg = "FOUND HOST AT " + targetIP + ":" + std::to_string(targetPort) + " (PLUG & PLAY)!";
                         }
                         _directConnectIP = targetIP + ":" + std::to_string(targetPort);
                         _netClient.connect(targetIP, targetPort, "GuestPlayer");
                     } else {
                         _isConnecting = false;
-                        _connectStatusMsg = "ROOM [" + _pnpJoinCode + "] NOT FOUND! Ensure host clicked START GAME.";
+                        _connectStatusMsg = "ROOM [" + _pnpJoinCode + "] NOT FOUND!";
                     }
                     return;
                 }
 
-                // COPY MY IP button (x: 1050..1160, y: 72..100)
-                if (mx >= 1050.0f && mx <= 1160.0f && my >= 72.0f && my <= 100.0f) {
+                // Copy My IP
+                if (mx >= winX + winW - 130.0f && mx <= winX + winW - 40.0f && my >= winY + 68.0f && my <= winY + 96.0f) {
                     std::string myIP = (_guestNATStatus.publicIP.empty() ? "127.0.0.1" : _guestNATStatus.publicIP) + ":27016";
                     setClipboardText(myIP);
-                    _connectStatusMsg = "Copied your IP (" + myIP + ") to clipboard! Send to Host to punch firewall.";
+                    _connectStatusMsg = "Copied your IP (" + myIP + ") to clipboard!";
                     return;
                 }
 
-                const auto& servers = _serverBrowser.getServers();
-
-                // 1. Select server row
+                // Server list rows
+                auto servers = _serverBrowser.getFilteredServers(_serverBrowserActiveTab, _serverFilterMap, _serverFilterMaxPing, _serverFilterNotFull, _serverFilterHasPlayers);
                 for (size_t i = 0; i < servers.size() && i < 6; ++i) {
-                    float rowY = 168.0f + static_cast<float>(i) * 52.0f;
-                    if (mx >= 110.0f && mx <= 1170.0f && my >= rowY && my <= rowY + 46.0f) {
+                    float rowY = winY + 134.0f + static_cast<float>(i) * 40.0f;
+                    if (mx >= winX + 22.0f && mx <= winX + winW - 22.0f && my >= rowY && my <= rowY + 36.0f) {
                         _selectedServerIndex = static_cast<int>(i);
                         _directConnectIP = servers[i].ip + ":" + std::to_string(servers[i].port);
                         return;
                     }
                 }
 
-                // 2. Direct Connect input box (x: 110..800, y: 480..524)
-                if (mx >= 110.0f && mx <= 800.0f && my >= 480.0f && my <= 524.0f) {
+                // Bottom Filter Controls (winY + 432 .. winY + 462)
+                if (my >= winY + 432.0f && my <= winY + 462.0f) {
+                    // [x] Not Full
+                    if (mx >= winX + 20.0f && mx <= winX + 160.0f) {
+                        _serverFilterNotFull = !_serverFilterNotFull;
+                        return;
+                    }
+                    // [x] Has Players
+                    if (mx >= winX + 170.0f && mx <= winX + 320.0f) {
+                        _serverFilterHasPlayers = !_serverFilterHasPlayers;
+                        return;
+                    }
+                    // Max Ping cycle (Any -> <100 -> <150 -> <250)
+                    if (mx >= winX + 330.0f && mx <= winX + 490.0f) {
+                        if (_serverFilterMaxPing == 0) _serverFilterMaxPing = 100;
+                        else if (_serverFilterMaxPing == 100) _serverFilterMaxPing = 150;
+                        else if (_serverFilterMaxPing == 150) _serverFilterMaxPing = 250;
+                        else _serverFilterMaxPing = 0;
+                        return;
+                    }
+                    // Add Fav button
+                    if (mx >= winX + winW - 140.0f && mx <= winX + winW - 20.0f) {
+                        std::string favIP = "127.0.0.1";
+                        uint16_t favPort = DEFAULT_SERVER_PORT;
+                        if (!_directConnectIP.empty()) {
+                            size_t colon = _directConnectIP.find(':');
+                            if (colon != std::string::npos) {
+                                favIP = _directConnectIP.substr(0, colon);
+                                try { favPort = static_cast<uint16_t>(std::stoi(_directConnectIP.substr(colon + 1))); } catch (...) {}
+                            } else {
+                                favIP = _directConnectIP;
+                            }
+                        }
+                        _serverBrowser.addFavorite(favIP, favPort);
+                        _connectStatusMsg = "Toggled Favorite: " + favIP + ":" + std::to_string(favPort);
+                        return;
+                    }
+                }
+
+                // Direct IP field
+                if (mx >= winX + 20.0f && mx <= winX + 620.0f && my >= winY + 472.0f && my <= winY + 504.0f) {
                     _directConnectActive = true;
                     _pnpJoinCodeActive = false;
                     return;
                 }
-
-                // 3. PASTE button (x: 815..940, y: 480..524)
-                if (mx >= 815.0f && mx <= 940.0f && my >= 480.0f && my <= 524.0f) {
+                // Direct IP Paste
+                if (mx >= winX + 630.0f && mx <= winX + 710.0f && my >= winY + 472.0f && my <= winY + 504.0f) {
                     std::string clip = getClipboardText();
-                    if (!clip.empty()) {
-                        _directConnectIP = clip;
-                    }
+                    if (!clip.empty()) _directConnectIP = clip;
                     return;
                 }
-
-                // 4. CLEAR button (x: 955..1060, y: 480..524)
-                if (mx >= 955.0f && mx <= 1060.0f && my >= 480.0f && my <= 524.0f) {
+                // Direct IP Clear
+                if (mx >= winX + 720.0f && mx <= winX + 800.0f && my >= winY + 472.0f && my <= winY + 504.0f) {
                     _directConnectIP.clear();
                     return;
                 }
 
-                // 5. Refresh button (x: 620..800, y: 560..608)
-                if (mx >= 620.0f && mx <= 800.0f && my >= 560.0f && my <= 608.0f) {
-                    _serverBrowser.refresh();
-                    return;
-                }
-
-                // 6. Connect to Server button (x: 830..1170, y: 560..608)
-                if (mx >= 830.0f && mx <= 1170.0f && my >= 560.0f && my <= 608.0f) {
+                // Bottom Close button
+                if (mx >= winX + 20.0f && mx <= winX + 160.0f && my >= winY + 524.0f && my <= winY + 558.0f) {
                     if (_isConnecting) {
                         _isConnecting = false;
                         _netClient.disconnect();
-                        _connectStatusMsg = "Connection cancelled by user.";
+                        _connectStatusMsg = "";
+                    }
+                    _menuScreen = MenuScreen::Main;
+                    return;
+                }
+                // Bottom Refresh button
+                if (mx >= winX + winW - 320.0f && mx <= winX + winW - 180.0f && my >= winY + 524.0f && my <= winY + 558.0f) {
+                    _serverBrowser.refresh();
+                    return;
+                }
+                // Bottom Connect button
+                if (mx >= winX + winW - 160.0f && mx <= winX + winW - 20.0f && my >= winY + 524.0f && my <= winY + 558.0f) {
+                    if (_isConnecting) {
+                        _isConnecting = false;
+                        _netClient.disconnect();
+                        _connectStatusMsg = "Connection cancelled.";
                         return;
                     }
 
@@ -2169,59 +3126,135 @@ public:
                     _netClient.connect(targetIP, targetPort, "GuestPlayer");
                     return;
                 }
-
-                // 7. Back button (x: 110..290, y: 560..608)
-                if (mx >= 110.0f && mx <= 290.0f && my >= 560.0f && my <= 608.0f) {
-                    if (_isConnecting) {
-                        _isConnecting = false;
-                        _netClient.disconnect();
-                        _connectStatusMsg = "";
+            }
+        }
+        else if (_menuScreen == MenuScreen::Addons) {
+            if (lmbClick) {
+                // Top-right [X] close button
+                if (mx >= winX + winW - 28.0f && mx <= winX + winW - 6.0f && my >= winY + 6.0f && my <= winY + 28.0f) {
+                    _menuScreen = MenuScreen::Main;
+                    return;
+                }
+                // Category tabs on left (winX + 26 .. winX + 234, winY + 80 + c * 40)
+                for (int c = 0; c < 5; ++c) {
+                    float cy = winY + 80.0f + static_cast<float>(c) * 40.0f;
+                    if (mx >= winX + 26.0f && mx <= winX + 234.0f && my >= cy && my <= cy + 34.0f) {
+                        _selectedAddonCategory = c;
+                        return;
                     }
-                    _menuScreen = MenuScreen::MultiSelect;
+                }
+                // Checkbox on addon cards
+                for (size_t i = 0; i < _discoveredAddons.size() && i < 5; ++i) {
+                    float cardY = winY + 80.0f + static_cast<float>(i) * 78.0f;
+                    float cbX = winX + 270.0f + 580.0f;
+                    float cbY = cardY + 20.0f;
+                    if (mx >= cbX && mx <= cbX + 85.0f && my >= cbY && my <= cbY + 28.0f) {
+                        _discoveredAddons[i].enabled = !_discoveredAddons[i].enabled;
+                        std::filesystem::path addonPath = std::filesystem::path("addons") / _discoveredAddons[i].folderName;
+                        if (_discoveredAddons[i].enabled) {
+                            VFS::get().mountAddonLayer(addonPath);
+                            if (std::filesystem::exists(addonPath / "scripts" / "startup.lua")) {
+                                _scriptEngine.executeStartupHook((addonPath / "scripts" / "startup.lua").string());
+                            }
+                        } else {
+                            VFS::get().unmountAddonLayer(addonPath);
+                            if (_discoveredAddons[i].folderName == "cod_intro") {
+                                ScriptEngine::setHUDText("cod_intro_status", "DISABLED");
+                            }
+                        }
+                        return;
+                    }
+                }
+                // Bottom Close button
+                if (mx >= winX + 20.0f && mx <= winX + 160.0f && my >= winY + 524.0f && my <= winY + 558.0f) {
+                    _menuScreen = MenuScreen::Main;
+                    return;
+                }
+                // Bottom Refresh button
+                if (mx >= winX + 180.0f && mx <= winX + 320.0f && my >= winY + 524.0f && my <= winY + 558.0f) {
+                    refreshDiscoveredAddons();
                     return;
                 }
             }
         }
-        else if (_menuScreen == MenuScreen::Singleplayer) {
+        else if (_menuScreen == MenuScreen::Options) {
+            const float optX = 230.0f;
+            const float optY = 90.0f;
+            const float optW = 820.0f;
+            const float optH = 540.0f;
+
             if (lmbClick) {
-                // Map list click (x: 140..940, y: 130 + i * 55)
-                for (int i = 0; i < (int)_availableMaps.size(); ++i) {
-                    float iy = 130.0f + i * 55.0f;
-                    if (mx >= 140.0f && mx <= 940.0f && my >= iy && my <= iy + 48.0f) {
-                        _selectedMapIndex = i;
-                        _sessionConfig.mapPath = _availableMaps[i];
-                        _sessionConfig.enableBots = false; // Solo singleplayer exploration
+                // Top-right [X] close button
+                if (mx >= optX + optW - 28.0f && mx <= optX + optW - 6.0f && my >= optY + 6.0f && my <= optY + 28.0f) {
+                    _menuScreen = MenuScreen::Main;
+                    return;
+                }
+                // Tabs: [ VIDEO ], [ AUDIO ], [ CONTROLS ]
+                if (my >= optY + 42.0f && my <= optY + 68.0f) {
+                    if (mx >= optX + 20.0f && mx <= optX + 140.0f) { _optionsActiveTab = 0; return; }
+                    if (mx >= optX + 145.0f && mx <= optX + 265.0f) { _optionsActiveTab = 1; return; }
+                    if (mx >= optX + 270.0f && mx <= optX + 390.0f) { _optionsActiveTab = 2; return; }
+                }
+
+                if (_optionsActiveTab == 0) { // Video
+                    // Shadows toggle
+                    if (mx >= optX + 320.0f && mx <= optX + 460.0f && my >= optY + 98.0f && my <= optY + 128.0f) {
+                        _optShadows = !_optShadows;
+                        _devConsole.r_shadows = _optShadows;
+                        return;
+                    }
+                    // Shadow Res 1024 / 2048
+                    if (my >= optY + 148.0f && my <= optY + 178.0f) {
+                        if (mx >= optX + 320.0f && mx <= optX + 410.0f) { _optShadowRes = 1024; _devConsole.r_shadow_res = 1024; return; }
+                        if (mx >= optX + 420.0f && mx <= optX + 510.0f) { _optShadowRes = 2048; _devConsole.r_shadow_res = 2048; return; }
+                    }
+                    // FOV 75 / 90 / 105
+                    if (my >= optY + 198.0f && my <= optY + 228.0f) {
+                        if (mx >= optX + 320.0f && mx <= optX + 380.0f) { _optFov = 75; _camera.fieldOfView = 75.0f; _camera.syncProperties(); return; }
+                        if (mx >= optX + 390.0f && mx <= optX + 450.0f) { _optFov = 90; _camera.fieldOfView = 90.0f; _camera.syncProperties(); return; }
+                        if (mx >= optX + 460.0f && mx <= optX + 520.0f) { _optFov = 105; _camera.fieldOfView = 105.0f; _camera.syncProperties(); return; }
+                    }
+                } else if (_optionsActiveTab == 1) { // Audio
+                    if (my >= optY + 98.0f && my <= optY + 128.0f) {
+                        if (mx >= optX + 320.0f && mx <= optX + 360.0f) { _optMasterVolume = std::max(0.0f, _optMasterVolume - 0.1f); return; }
+                        if (mx >= optX + 460.0f && mx <= optX + 500.0f) { _optMasterVolume = std::min(1.0f, _optMasterVolume + 0.1f); return; }
+                    }
+                } else if (_optionsActiveTab == 2) { // Controls
+                    if (my >= optY + 98.0f && my <= optY + 128.0f) {
+                        if (mx >= optX + 320.0f && mx <= optX + 360.0f) { _optMouseSens = std::max(0.02f, _optMouseSens - 0.02f); return; }
+                        if (mx >= optX + 460.0f && mx <= optX + 500.0f) { _optMouseSens = std::min(0.50f, _optMouseSens + 0.02f); return; }
+                    }
+                    if (mx >= optX + 320.0f && mx <= optX + 460.0f && my >= optY + 148.0f && my <= optY + 178.0f) {
+                        _optInvertY = !_optInvertY;
                         return;
                     }
                 }
 
-                // Launch Map (x: 140..370, y: 560..608)
-                if (mx >= 140.0f && mx <= 370.0f && my >= 560.0f && my <= 608.0f) {
-                    if (!_availableMaps.empty() && _selectedMapIndex < (int)_availableMaps.size()) {
-                        _sessionConfig.mapPath = _availableMaps[_selectedMapIndex];
-                        _sessionConfig.enableBots = false;
-                        startSession(_sessionConfig);
-                    }
+                // Bottom Cancel / OK buttons
+                if (mx >= optX + 20.0f && mx <= optX + 160.0f && my >= optY + 484.0f && my <= optY + 518.0f) {
+                    _menuScreen = MenuScreen::Main;
                     return;
                 }
-                // Open from disk (x: 390..660, y: 560..608)
-                if (mx >= 390.0f && mx <= 660.0f && my >= 560.0f && my <= 608.0f) {
-                    std::string picked = LabDialogs::openFileDialog(getWindow(), "Lab Scene Files (*.labscene)\0*.labscene\0Lab Map Files (*.labmap)\0*.labmap\0", "assets\\maps");
-                    if (!picked.empty() && LabDialogs::isAllowedSceneFile(picked)) {
-                        _sessionConfig.mapPath = toSceneDisplayPath(picked);
-                        _sessionConfig.enableBots = false;
-                        startSession(_sessionConfig);
-                    }
+                if (mx >= optX + optW - 160.0f && mx <= optX + optW - 20.0f && my >= optY + 484.0f && my <= optY + 518.0f) {
+                    _menuScreen = MenuScreen::Main;
                     return;
                 }
-                // Resume (x: 680..920, y: 560..608)
-                if (_currentMap && mx >= 680.0f && mx <= 920.0f && my >= 560.0f && my <= 608.0f) {
-                    _inMenu = false;
-                    setCursorCaptured(true);
+            }
+        }
+        else if (_menuScreen == MenuScreen::MultiSelect) {
+            if (lmbClick) {
+                // Card 1: Host Game
+                if (mx >= winX + 40.0f && mx <= winX + 460.0f && my >= winY + 70.0f && my <= winY + 450.0f) {
+                    _menuScreen = MenuScreen::HostGame;
                     return;
                 }
-                // Back (x: 940..1120, y: 560..608)
-                if (mx >= 940.0f && mx <= 1120.0f && my >= 560.0f && my <= 608.0f) {
+                // Card 2: Join Game
+                if (mx >= winX + 520.0f && mx <= winX + 940.0f && my >= winY + 70.0f && my <= winY + 450.0f) {
+                    _menuScreen = MenuScreen::JoinGame;
+                    return;
+                }
+                // Bottom Back button
+                if (mx >= winX + 40.0f && mx <= winX + 180.0f && my >= winY + 500.0f && my <= winY + 534.0f) {
                     _menuScreen = MenuScreen::Main;
                     return;
                 }
@@ -2253,8 +3286,10 @@ public:
             stlMesh = _cachedWeaponMeshes[curIdx];
         }
 
-        Vec3 animPosOffset = _weaponAnimator.calculatePositionOffset(Vec3(0, 0, 0));
+        Vec3 animPosOffset = _weaponAnimator.calculatePositionOffset(Vec3(0, 0, 0)) + _devConsole.cam_viewmodel_offset;
         Vec3 animRotOffset = _weaponAnimator.calculateRotationOffset(Vec3(0, 0, 0));
+        float savedFov = _camera.fieldOfView;
+        _camera.fieldOfView = _devConsole.cam_viewmodel_fov;
         _weaponSystem.renderViewModel(_camera, tex, stlMesh, _muzzleFlashTime,
                                       animPosOffset, animRotOffset,
                                       &grip.rightSocketPos, &grip.rightSocketRot,
@@ -2263,463 +3298,832 @@ public:
                                       &grip.weaponOffset, &grip.weaponRotation, &grip.weaponScale,
                                       skin.uvScale,
                                       grip.lockHands);
+        _camera.fieldOfView = savedFov;
     }
 
     void drawMenu() {
         int fbW = 0, fbH = 0;
         getFramebufferSize(fbW, fbH);
-        int curW = (fbW > 0) ? fbW : getWidth();
-        int curH = (fbH > 0) ? fbH : getHeight();
+        // Framebuffer size
+        (void)fbW; (void)fbH;
 
-        if (_menuScreen == MenuScreen::CharacterStudio) {
-            _characterStudio.render(curW, curH);
-            return;
-        }
+
 
         int w = 1280, h = 720;
         Renderer::beginUI(w, h);
 
-        // Dark background overlay (Half-Life 2 style backdrop)
-        Renderer::drawRect(0, 0, (float)w, (float)h, { 0.06f, 0.08f, 0.11f });
+        // Backdrop
+        if (_currentMap != nullptr) {
+            Renderer::drawRect(0, 0, (float)w, (float)h, { 0.0f, 0.0f, 0.0f }, 0.52f);
+        } else {
+            Renderer::drawRect(0, 0, (float)w, (float)h, { 0.04f, 0.05f, 0.07f }, 1.0f);
+            Renderer::drawRect(0, 0, (float)w, 80.0f, { 0.02f, 0.03f, 0.04f }, 0.70f);
+            Renderer::drawRect(0, (float)h - 50.0f, (float)w, 50.0f, { 0.02f, 0.03f, 0.04f }, 0.70f);
+        }
+
+        // Shared Lambda drawing helpers for authentic Valve Source VGUI2 dialogs
+        auto drawVguiWindow = [](float x, float y, float winWidth, float winHeight, const std::string& title, bool isCloseHovered) {
+            Renderer::drawRect(x, y, winWidth, winHeight, Vec3(0.11f, 0.13f, 0.16f), 0.96f);
+            Renderer::drawRect(x, y, winWidth, 1.0f, Vec3(0.28f, 0.32f, 0.38f), 0.85f);
+            Renderer::drawRect(x, y, 1.0f, winHeight, Vec3(0.28f, 0.32f, 0.38f), 0.85f);
+            Renderer::drawRect(x + winWidth - 1.0f, y, 1.0f, winHeight, Vec3(0.06f, 0.07f, 0.09f), 0.85f);
+            Renderer::drawRect(x, y + winHeight - 1.0f, winWidth, 1.0f, Vec3(0.06f, 0.07f, 0.09f), 0.85f);
+
+            Renderer::drawRect(x + 1.0f, y + 1.0f, winWidth - 2.0f, 32.0f, Vec3(0.15f, 0.17f, 0.21f), 0.98f);
+            Renderer::drawRect(x, y + 33.0f, winWidth, 1.0f, Vec3(0.06f, 0.07f, 0.08f), 0.90f);
+            LabFont::drawText(x + 14.0f, y + 8.0f, title, 1.75f, Vec3(0.92f, 0.94f, 0.97f), LabFontType::GeoSans);
+
+            float closeX = x + winWidth - 26.0f;
+            float closeY = y + 5.0f;
+            Vec3 closeBg = isCloseHovered ? Vec3(0.55f, 0.15f, 0.15f) : Vec3(0.18f, 0.20f, 0.24f);
+            Renderer::drawRect(closeX, closeY, 20.0f, 20.0f, closeBg);
+            Renderer::drawRect(closeX, closeY, 20.0f, 1.0f, Vec3(0.30f, 0.34f, 0.40f));
+            LabFont::drawText(closeX + 5.0f, closeY + 3.0f, "X", 1.40f, Vec3(0.95f, 0.95f, 0.95f), LabFontType::GeoSans);
+        };
+
+        auto drawVguiWell = [](float x, float y, float wellW, float wellH, const std::string& header) {
+            Renderer::drawRect(x, y, wellW, wellH, Vec3(0.07f, 0.08f, 0.10f), 0.95f);
+            Renderer::drawRect(x, y, wellW, 1.0f, Vec3(0.04f, 0.05f, 0.06f));
+            Renderer::drawRect(x, y, 1.0f, wellH, Vec3(0.04f, 0.05f, 0.06f));
+            Renderer::drawRect(x + wellW - 1.0f, y, 1.0f, wellH, Vec3(0.20f, 0.23f, 0.28f));
+            Renderer::drawRect(x, y + wellH - 1.0f, wellW, 1.0f, Vec3(0.20f, 0.23f, 0.28f));
+
+            if (!header.empty()) {
+                Renderer::drawRect(x + 1.0f, y + 1.0f, wellW - 2.0f, 24.0f, Vec3(0.12f, 0.14f, 0.17f));
+                Renderer::drawRect(x, y + 25.0f, wellW, 1.0f, Vec3(0.05f, 0.06f, 0.07f));
+                LabFont::drawText(x + 10.0f, y + 5.0f, header, 1.45f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::GeoSans);
+            }
+        };
+
+        auto drawVguiButton = [](float x, float y, float btnW, float btnH, const std::string& text, bool isHovered, bool isPrimary) {
+            Vec3 bg = isPrimary
+                ? (isHovered ? Vec3(0.20f, 0.26f, 0.34f) : Vec3(0.15f, 0.20f, 0.26f))
+                : (isHovered ? Vec3(0.22f, 0.25f, 0.30f) : Vec3(0.16f, 0.18f, 0.22f));
+            Vec3 border = isPrimary
+                ? (isHovered ? Vec3(0.35f, 0.45f, 0.58f) : Vec3(0.25f, 0.33f, 0.42f))
+                : (isHovered ? Vec3(0.32f, 0.36f, 0.44f) : Vec3(0.24f, 0.28f, 0.34f));
+            Vec3 txtCol = isPrimary
+                ? (isHovered ? Vec3(1.0f, 1.0f, 1.0f) : Vec3(1.0f, 0.84f, 0.24f))
+                : (isHovered ? Vec3(1.0f, 1.0f, 1.0f) : Vec3(0.78f, 0.81f, 0.85f));
+
+            Renderer::drawRect(x, y, btnW, btnH, bg);
+            Renderer::drawRect(x, y, btnW, 1.0f, border);
+            Renderer::drawRect(x, y, 1.0f, btnH, border);
+            Renderer::drawRect(x + btnW - 1.0f, y, 1.0f, btnH, border);
+            Renderer::drawRect(x, y + btnH - 1.0f, btnW, 1.0f, border);
+
+            if (isPrimary) {
+                Renderer::drawRect(x + 2.0f, y + btnH - 2.0f, btnW - 4.0f, 2.0f, Vec3(1.0f, 0.72f, 0.15f));
+            }
+
+            float textX = x + 16.0f;
+            float textY = y + (btnH - 16.0f) * 0.5f - 1.0f;
+            LabFont::drawText(textX, textY, text, 1.55f, txtCol, LabFontType::GeoSans);
+        };
+
+        auto drawVguiProgressBar = [](float x, float y, float barW, float barH, float fraction, const Vec3& fillColor) {
+            fraction = std::clamp(fraction, 0.0f, 1.0f);
+            Renderer::drawRect(x, y, barW, barH, Vec3(0.05f, 0.06f, 0.07f));
+            Renderer::drawRect(x, y, barW, 1.0f, Vec3(0.18f, 0.21f, 0.26f));
+            Renderer::drawRect(x, y, 1.0f, barH, Vec3(0.18f, 0.21f, 0.26f));
+            Renderer::drawRect(x + barW - 1.0f, y, 1.0f, barH, Vec3(0.18f, 0.21f, 0.26f));
+            Renderer::drawRect(x, y + barH - 1.0f, barW, 1.0f, Vec3(0.18f, 0.21f, 0.26f));
+
+            float fillW = (barW - 2.0f) * fraction;
+            if (fillW > 0.0f) {
+                Renderer::drawRect(x + 1.0f, y + 1.0f, fillW, barH - 2.0f, fillColor);
+                for (float tick = 10.0f; tick < fillW; tick += 10.0f) {
+                    Renderer::drawRect(x + 1.0f + tick, y + 1.0f, 1.0f, barH - 2.0f, Vec3(0.05f, 0.06f, 0.07f), 0.6f);
+                }
+            }
+        };
+
+        const float winX = 150.0f;
+        const float winY = 70.0f;
+        const float winW = 980.0f;
+        const float winH = 580.0f;
 
         if (_menuScreen == MenuScreen::Main) {
-            // Main Frame
-            Renderer::drawRect(80.0f, 60.0f, 1120.0f, 600.0f, { 0.1f, 0.13f, 0.18f });
-            Renderer::drawRect(82.0f, 62.0f, 1116.0f, 44.0f, { 0.15f, 0.22f, 0.32f });
-            Renderer::drawRect(82.0f, 106.0f, 1116.0f, 4.0f, { 0.2f, 0.75f, 0.95f });
+            // Top-left Game Title
+            LabFont::drawText(72.0f, 54.0f, "FROZEN-LIFE", 3.2f, Vec3(0.95f, 0.97f, 1.0f), LabFontType::GeoSans);
+            LabFont::drawText(74.0f, 92.0f, "LAB ENGINE // SOURCE FPS FOUNDATION", 1.40f, Vec3(0.46f, 0.62f, 0.80f), LabFontType::GeoSans);
+            Renderer::drawRect(74.0f, 114.0f, 280.0f, 1.5f, Vec3(0.20f, 0.35f, 0.55f), 0.65f);
 
-            LabFont::drawText(100.0f, 74.0f, "FROZEN-LIFE : LAB FPS ENGINE", 2.4f, Vec3(0.95f, 0.98f, 1.0f), LabFontType::GeoSans);
-            LabFont::drawText(720.0f, 76.0f, "v0.4 Tactical Combat & Bot Arena", 1.7f, Vec3(0.4f, 0.7f, 0.95f), LabFontType::GeoSans);
-
-            // Left Navigation Menu
-            struct MenuItem {
+            // Left Navigation Menu Stack
+            struct MainMenuItem {
                 std::string title;
-                std::string desc;
                 float y;
                 bool active;
             };
 
-            std::vector<MenuItem> items = {
-                { "CAMPAIGN / MISSIONS", "Explore maps solo without hostile combat bot squads", 185.0f, true },
-                { "MULTIPLAYER (HOST / JOIN)", "Host a custom LAN match with bots, game modes (FFA/DM/TDM) & rules", 245.0f, true },
-                { "CHARACTER & WEAPON STUDIO", "Lab Studio: 3D grip poser, reload timeline, skins & face lip-sync", 305.0f, true },
-                { "RESUME MISSION [ESC]", "Return to current active gameplay session", 365.0f, (_currentMap != nullptr) },
-                { "QUIT GAME", "Exit to desktop", 425.0f, true }
-            };
+            std::vector<MainMenuItem> items;
+            float curY = 160.0f;
+            if (_hasActiveGame && _currentMap != nullptr) {
+                items.push_back({ "RESUME", curY, true });
+                curY += 44.0f;
+                items.push_back({ "DISCONNECT", curY, true });
+                curY += 44.0f;
+            }
+            items.push_back({ "NEW GAME", curY, true });
+            curY += 44.0f;
+            items.push_back({ "FIND SERVERS", curY, true });
+            curY += 44.0f;
+            items.push_back({ "CREATE SERVER", curY, true });
+            curY += 44.0f;
+            items.push_back({ "ADDONS", curY, true });
+            curY += 44.0f;
+            items.push_back({ "ACHIEVEMENTS", curY, true });
+            curY += 44.0f;
+            items.push_back({ "OPTIONS", curY, true });
+            curY += 44.0f;
+            items.push_back({ "QUIT", curY, true });
 
             for (const auto& it : items) {
-                bool isHovered = it.active && (_menuMouseX >= 120.0f && _menuMouseX <= 500.0f && _menuMouseY >= it.y && _menuMouseY <= it.y + 48.0f);
-                Vec3 bgCol = it.active ? (isHovered ? Vec3(0.24f, 0.40f, 0.62f) : Vec3(0.18f, 0.28f, 0.40f)) : Vec3(0.12f, 0.14f, 0.18f);
-                Vec3 txtCol = it.active ? (isHovered ? Vec3(1.0f, 1.0f, 0.82f) : Vec3(1, 1, 1)) : Vec3(0.4f, 0.4f, 0.45f);
+                bool isHovered = it.active && (_menuMouseX >= 60.0f && _menuMouseX <= 420.0f && _menuMouseY >= it.y && _menuMouseY <= it.y + 36.0f);
+                Vec3 txtCol = it.active ? (isHovered ? Vec3(1.0f, 0.84f, 0.22f) : Vec3(0.80f, 0.84f, 0.88f)) : Vec3(0.40f, 0.44f, 0.48f);
 
-                Renderer::drawRect(120.0f, it.y, 380.0f, 48.0f, bgCol);
-                Renderer::drawRect(120.0f, it.y, 4.0f, 48.0f, isHovered ? Vec3(1.0f, 0.85f, 0.2f) : Vec3(0.2f, 0.75f, 0.95f));
                 if (isHovered) {
-                    Renderer::drawRect(120.0f, it.y, 380.0f, 1.5f, Vec3(0.35f, 0.85f, 1.0f));
-                    Renderer::drawRect(120.0f, it.y + 46.5f, 380.0f, 1.5f, Vec3(0.35f, 0.85f, 1.0f));
-                    Renderer::drawRect(498.5f, it.y, 1.5f, 48.0f, Vec3(0.35f, 0.85f, 1.0f));
+                    Renderer::drawRect(54.0f, it.y + 2.0f, 3.5f, 24.0f, Vec3(1.0f, 0.80f, 0.18f), 0.95f);
                 }
-                LabFont::drawText(140.0f, it.y + 14.0f, it.title, 2.0f, txtCol, LabFontType::GeoSans);
+                LabFont::drawText(72.0f, it.y + 4.0f, it.title, 2.2f, txtCol, LabFontType::GeoSans);
             }
 
-            // Right side status panel
-            Renderer::drawRect(540.0f, 200.0f, 620.0f, 252.0f, Vec3(0.08f, 0.10f, 0.14f));
-            Renderer::drawRect(540.0f, 200.0f, 620.0f, 1.0f, Vec3(0.2f, 0.3f, 0.4f));
-            LabFont::drawText(560.0f, 220.0f, "ENGINE SUBSYSTEMS STATUS", 2.0f, Vec3(0.95f, 0.75f, 0.1f), LabFontType::GeoSans);
-            LabFont::drawText(560.0f, 260.0f, "> Rendering: OpenGL 4.5 Core (Direct State Access + Source Engine UV)", 1.6f, Vec3(0.8f, 0.85f, 0.9f), LabFontType::GeoSans);
-            LabFont::drawText(560.0f, 290.0f, "> Optimization: 6-Plane Frustum Culling ('To czego oko nie widzi...')", 1.6f, Vec3(0.8f, 0.85f, 0.9f), LabFontType::GeoSans);
-            LabFont::drawText(560.0f, 320.0f, "> Combat: Hitscan Raycast with Headshot Multiplier + 3D Tracers", 1.6f, Vec3(0.8f, 0.85f, 0.9f), LabFontType::GeoSans);
-            LabFont::drawText(560.0f, 350.0f, "> AI Squad: Tactical Patrol & Combat State Machine (LoS + Bursts)", 1.6f, Vec3(0.8f, 0.85f, 0.9f), LabFontType::GeoSans);
-            LabFont::drawText(560.0f, 380.0f, "> Multiplayer: Host Match with FFA / DM / TDM Rules & Custom Bots", 1.6f, Vec3(0.8f, 0.85f, 0.9f), LabFontType::GeoSans);
+            // Right side session telemetry card (only shown during active gameplay session)
+            if (_hasActiveGame && _currentMap) {
+                drawVguiWell(720.0f, 160.0f, 480.0f, 220.0f, "CURRENT ACTIVE SESSION");
+                LabFont::drawText(744.0f, 200.0f, "MAP:    " + _currentMap->metadata.name, 1.6f, Vec3(0.85f, 0.90f, 0.95f), LabFontType::GeoSans);
+                LabFont::drawText(744.0f, 230.0f, "MODE:   " + _sessionConfig.getModeString(), 1.6f, Vec3(0.85f, 0.90f, 0.95f), LabFontType::GeoSans);
+                LabFont::drawText(744.0f, 260.0f, "HOST:   Localhost / 27015", 1.6f, Vec3(0.85f, 0.90f, 0.95f), LabFontType::GeoSans);
+                LabFont::drawText(744.0f, 290.0f, "STATUS: Session running in background", 1.45f, Vec3(0.35f, 0.85f, 0.55f), LabFontType::System);
+            }
 
-            LabFont::drawText(120.0f, 625.0f, "USE MOUSE TO CLICK MENU OPTIONS | F2: HAMMER EDITOR | F9: RUN", 1.4f, Vec3(0.45f, 0.55f, 0.65f), LabFontType::GeoSans);
+            std::string footerText = _hasActiveGame ? "[ESC] RESUME   |   [~] CONSOLE   |   [TAB] SCOREBOARD" : "[~] CONSOLE";
+            LabFont::drawText(72.0f, 672.0f, footerText, 1.40f, Vec3(0.48f, 0.55f, 0.65f), LabFontType::GeoSans);
         }
-        else if (_menuScreen == MenuScreen::MultiSelect) {
-            // Multiplayer Mode Selection Frame
-            Renderer::drawRect(80.0f, 60.0f, 1120.0f, 600.0f, { 0.1f, 0.13f, 0.18f });
-            Renderer::drawRect(82.0f, 62.0f, 1116.0f, 44.0f, { 0.15f, 0.22f, 0.32f });
-            Renderer::drawRect(82.0f, 106.0f, 1116.0f, 4.0f, { 0.2f, 0.75f, 0.95f });
+        else if (_menuScreen == MenuScreen::Achievements) {
+            bool isCloseHov = (_menuMouseX >= winX + winW - 28.0f && _menuMouseX <= winX + winW - 6.0f && _menuMouseY >= winY + 6.0f && _menuMouseY <= winY + 28.0f);
+            drawVguiWindow(winX, winY, winW, winH, "ACHIEVEMENTS & STATISTICS", isCloseHov);
 
-            LabFont::drawText(100.0f, 74.0f, "MULTIPLAYER : SELECT MODE", 2.4f, Vec3(0.95f, 0.98f, 1.0f), LabFontType::GeoSans);
-
-            // Card 1: Host Game / Create Server
-            Renderer::drawRect(140.0f, 180.0f, 460.0f, 240.0f, Vec3(0.14f, 0.18f, 0.25f));
-            Renderer::drawRect(140.0f, 180.0f, 460.0f, 36.0f, Vec3(0.18f, 0.45f, 0.75f));
-            LabFont::drawText(160.0f, 192.0f, "CREATE SERVER / HOST GAME", 2.0f, Vec3(1, 1, 1), LabFontType::GeoSans);
-            LabFont::drawText(160.0f, 240.0f, "Host a custom LAN match with bots.", 1.7f, Vec3(0.8f, 0.85f, 0.9f), LabFontType::GeoSans);
-            LabFont::drawText(160.0f, 270.0f, "Select map, choose FFA / DM / TDM mode,", 1.6f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::GeoSans);
-            LabFont::drawText(160.0f, 300.0f, "and configure exact bot squad count (0-8).", 1.6f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::GeoSans);
-            Renderer::drawRect(160.0f, 350.0f, 420.0f, 45.0f, Vec3(0.20f, 0.65f, 0.42f));
-            LabFont::drawText(220.0f, 364.0f, "CONFIGURE & HOST SERVER", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
-
-            // Card 2: Find Servers / Join Game
-            Renderer::drawRect(680.0f, 180.0f, 460.0f, 240.0f, Vec3(0.14f, 0.18f, 0.25f));
-            Renderer::drawRect(680.0f, 180.0f, 460.0f, 36.0f, Vec3(0.25f, 0.35f, 0.55f));
-            LabFont::drawText(700.0f, 192.0f, "FIND SERVERS / JOIN GAME", 2.0f, Vec3(1, 1, 1), LabFontType::GeoSans);
-            LabFont::drawText(700.0f, 240.0f, "Browse active servers on local LAN.", 1.7f, Vec3(0.8f, 0.85f, 0.9f), LabFontType::GeoSans);
-            LabFont::drawText(700.0f, 270.0f, "View ping, active map, and player counts.", 1.6f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::GeoSans);
-            LabFont::drawText(700.0f, 300.0f, "Direct connect to servers via IP address.", 1.6f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::GeoSans);
-            Renderer::drawRect(700.0f, 350.0f, 420.0f, 45.0f, Vec3(0.22f, 0.48f, 0.78f));
-            LabFont::drawText(770.0f, 364.0f, "OPEN SERVER BROWSER", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
-
-            // Back button
-            Renderer::drawRect(140.0f, 580.0f, 240.0f, 48.0f, Vec3(0.20f, 0.25f, 0.35f));
-            LabFont::drawText(170.0f, 596.0f, "< BACK TO MAIN MENU", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
-        }
-        else if (_menuScreen == MenuScreen::HostGame) {
-            // Host Game Configuration Screen
-            Renderer::drawRect(80.0f, 60.0f, 1120.0f, 600.0f, { 0.1f, 0.13f, 0.18f });
-            Renderer::drawRect(82.0f, 62.0f, 1116.0f, 44.0f, { 0.15f, 0.22f, 0.32f });
-            Renderer::drawRect(82.0f, 106.0f, 1116.0f, 4.0f, { 0.2f, 0.75f, 0.95f });
-
-            LabFont::drawText(100.0f, 74.0f, "MULTIPLAYER : HOST SERVER & MATCH SETUP", 2.4f, Vec3(0.95f, 0.98f, 1.0f), LabFontType::GeoSans);
-
-            // Left Column: Map Selection Box
-            Renderer::drawRect(100.0f, 120.0f, 440.0f, 425.0f, Vec3(0.08f, 0.10f, 0.14f));
-            Renderer::drawRect(100.0f, 120.0f, 440.0f, 32.0f, Vec3(0.18f, 0.35f, 0.55f));
-            LabFont::drawText(120.0f, 128.0f, "1. SELECT MAP", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
-
-            for (int i = 0; i < (int)_availableMaps.size(); ++i) {
-                float iy = 170.0f + i * 50.0f;
-                bool isSel = (_sessionConfig.mapPath == _availableMaps[i]);
-                Renderer::drawRect(115.0f, iy, 410.0f, 42.0f, isSel ? Vec3(0.18f, 0.45f, 0.75f) : Vec3(0.12f, 0.15f, 0.20f));
-                if (isSel) Renderer::drawRect(115.0f, iy, 5.0f, 42.0f, Vec3(0.98f, 0.78f, 0.08f));
-                LabFont::drawText(130.0f, iy + 12.0f, toSceneDisplayPath(_availableMaps[i]), 1.7f, isSel ? Vec3(1, 1, 1) : Vec3(0.7f, 0.75f, 0.8f), LabFontType::GeoSans);
+            // Tabs
+            const char* tabs[2] = { "ACHIEVEMENTS", "STATISTICS" };
+            for (int t = 0; t < 2; ++t) {
+                float tx = winX + 20.0f + static_cast<float>(t) * 145.0f;
+                bool isSel = (_achievementsActiveTab == t);
+                bool isHov = (_menuMouseX >= tx && _menuMouseX <= tx + 140.0f && _menuMouseY >= winY + 42.0f && _menuMouseY <= winY + 68.0f);
+                Vec3 tabBg = isSel ? Vec3(0.14f, 0.16f, 0.20f) : (isHov ? Vec3(0.12f, 0.14f, 0.17f) : Vec3(0.09f, 0.10f, 0.12f));
+                Vec3 txtCol = isSel ? Vec3(1.0f, 0.83f, 0.22f) : (isHov ? Vec3(0.85f, 0.88f, 0.92f) : Vec3(0.50f, 0.54f, 0.58f));
+                Renderer::drawRect(tx, winY + 42.0f, 140.0f, 26.0f, tabBg);
+                if (isSel) Renderer::drawRect(tx, winY + 66.0f, 140.0f, 2.0f, Vec3(1.0f, 0.70f, 0.0f));
+                LabFont::drawText(tx + 16.0f, winY + 47.0f, tabs[t], 1.45f, txtCol, LabFontType::GeoSans);
             }
 
-            Renderer::drawRect(115.0f, 485.0f, 410.0f, 42.0f, Vec3(0.20f, 0.32f, 0.48f));
-            LabFont::drawText(170.0f, 498.0f, "OPEN SCENE FROM DISK... [O]", 1.6f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            if (_achievementsActiveTab == 0) {
+                // Summary progress bar
+                int unlockedCount = (int)std::count_if(_achievements.begin(), _achievements.end(), [](const auto& a){ return a.unlocked; });
+                int totalCount = (int)_achievements.size();
+                float progRatio = totalCount > 0 ? ((float)unlockedCount / (float)totalCount) : 0.0f;
+                int percent = (int)(progRatio * 100.0f);
 
-            // Right Column: Rules & Bot Settings Box
-            Renderer::drawRect(560.0f, 120.0f, 620.0f, 425.0f, Vec3(0.08f, 0.10f, 0.14f));
-            Renderer::drawRect(560.0f, 120.0f, 620.0f, 32.0f, Vec3(0.18f, 0.35f, 0.55f));
-            LabFont::drawText(580.0f, 128.0f, "2. SERVER & MATCH RULES", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
+                drawVguiWell(winX + 20.0f, winY + 76.0f, winW - 40.0f, 42.0f, "");
+                std::string progStr = std::to_string(unlockedCount) + " of " + std::to_string(totalCount) + " Achievements Unlocked (" + std::to_string(percent) + "%)";
+                LabFont::drawText(winX + 32.0f, winY + 88.0f, progStr, 1.55f, Vec3(1.0f, 0.84f, 0.22f), LabFontType::GeoSans);
+                drawVguiProgressBar(winX + 370.0f, winY + 89.0f, 360.0f, 16.0f, progRatio, Vec3(0.83f, 0.61f, 0.16f));
 
-            // 1. Network Mode: LAN vs P2P
-            LabFont::drawText(580.0f, 160.0f, "NETWORK MODE:", 1.7f, Vec3(0.85f, 0.88f, 0.95f), LabFontType::GeoSans);
-            bool isLAN = (_sessionConfig.networkMode == NetworkMode::LAN);
-            bool isP2P = (_sessionConfig.networkMode == NetworkMode::P2P);
+                // Checkbox: [ ] Hide completed
+                bool isCbHov = (_menuMouseX >= winX + winW - 210.0f && _menuMouseX <= winX + winW - 20.0f && _menuMouseY >= winY + 82.0f && _menuMouseY <= winY + 110.0f);
+                std::string cbText = _achievementsHideCompleted ? "[x] Hide Unlocked" : "[ ] Hide Unlocked";
+                LabFont::drawText(winX + winW - 205.0f, winY + 88.0f, cbText, 1.40f, isCbHov ? Vec3(1, 1, 1) : Vec3(0.70f, 0.75f, 0.82f), LabFontType::GeoSans);
 
-            Renderer::drawRect(580.0f, 182.0f, 275.0f, 38.0f, isLAN ? Vec3(0.18f, 0.65f, 0.45f) : Vec3(0.14f, 0.18f, 0.24f));
-            if (isLAN) Renderer::drawRect(580.0f, 182.0f, 275.0f, 2.0f, Vec3(0.98f, 0.78f, 0.08f));
-            LabFont::drawText(660.0f, 194.0f, "[ LAN ]", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
+                // Grid of 8 achievements (2 columns x 4 rows)
+                drawVguiWell(winX + 20.0f, winY + 124.0f, winW - 40.0f, 388.0f, "");
 
-            Renderer::drawRect(870.0f, 182.0f, 290.0f, 38.0f, isP2P ? Vec3(0.20f, 0.55f, 0.75f) : Vec3(0.14f, 0.18f, 0.24f));
-            if (isP2P) Renderer::drawRect(870.0f, 182.0f, 290.0f, 2.0f, Vec3(0.2f, 0.85f, 1.0f));
-            LabFont::drawText(960.0f, 194.0f, "[ P2P ]", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
+                int cardIdx = 0;
+                for (size_t i = 0; i < _achievements.size(); ++i) {
+                    const auto& a = _achievements[i];
+                    if (_achievementsHideCompleted && a.unlocked) continue;
 
-            // 2. Game Mode Buttons
-            LabFont::drawText(580.0f, 228.0f, "GAME MODE:", 1.7f, Vec3(0.85f, 0.88f, 0.95f), LabFontType::GeoSans);
-            bool isFFA = (_sessionConfig.mode == GameMode::FFA);
-            bool isDM  = (_sessionConfig.mode == GameMode::DM);
-            bool isTDM = (_sessionConfig.mode == GameMode::TDM);
+                    int col = cardIdx % 2;
+                    int row = cardIdx / 2;
+                    cardIdx++;
+                    if (row >= 4) break;
 
-            Renderer::drawRect(580.0f, 248.0f, 180.0f, 36.0f, isFFA ? Vec3(0.18f, 0.65f, 0.45f) : Vec3(0.14f, 0.18f, 0.24f));
-            if (isFFA) Renderer::drawRect(580.0f, 248.0f, 180.0f, 2.0f, Vec3(0.98f, 0.78f, 0.08f));
-            LabFont::drawText(620.0f, 258.0f, "FFA (All)", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+                    float cx = winX + 30.0f + static_cast<float>(col) * 470.0f;
+                    float cy = winY + 134.0f + static_cast<float>(row) * 92.0f;
 
-            Renderer::drawRect(770.0f, 248.0f, 180.0f, 36.0f, isDM ? Vec3(0.18f, 0.65f, 0.45f) : Vec3(0.14f, 0.18f, 0.24f));
-            if (isDM) Renderer::drawRect(770.0f, 248.0f, 180.0f, 2.0f, Vec3(0.98f, 0.78f, 0.08f));
-            LabFont::drawText(800.0f, 258.0f, "Deathmatch", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+                    // Card background
+                    Renderer::drawRect(cx, cy, 455.0f, 84.0f, a.unlocked ? Vec3(0.12f, 0.15f, 0.19f) : Vec3(0.09f, 0.10f, 0.12f));
+                    Renderer::drawRect(cx, cy, 455.0f, 1.0f, a.unlocked ? Vec3(0.25f, 0.32f, 0.42f) : Vec3(0.16f, 0.18f, 0.22f));
+                    Renderer::drawRect(cx, cy, 1.0f, 84.0f, a.unlocked ? Vec3(0.25f, 0.32f, 0.42f) : Vec3(0.16f, 0.18f, 0.22f));
+                    Renderer::drawRect(cx + 454.0f, cy, 1.0f, 84.0f, Vec3(0.05f, 0.06f, 0.07f));
+                    Renderer::drawRect(cx, cy + 83.0f, 455.0f, 1.0f, Vec3(0.05f, 0.06f, 0.07f));
 
-            Renderer::drawRect(960.0f, 248.0f, 200.0f, 36.0f, isTDM ? Vec3(0.18f, 0.65f, 0.45f) : Vec3(0.14f, 0.18f, 0.24f));
-            if (isTDM) Renderer::drawRect(960.0f, 248.0f, 200.0f, 2.0f, Vec3(0.98f, 0.78f, 0.08f));
-            LabFont::drawText(1010.0f, 258.0f, "Team DM", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
-
-            // 3. Bots Toggle & Count
-            LabFont::drawText(580.0f, 294.0f, "COMBAT AI BOTS:", 1.7f, Vec3(0.85f, 0.88f, 0.95f), LabFontType::GeoSans);
-            Vec3 botBtnBg = _sessionConfig.enableBots ? Vec3(0.18f, 0.65f, 0.35f) : Vec3(0.24f, 0.26f, 0.30f);
-            std::string botBtnText = _sessionConfig.enableBots ? "BOTS: ENABLED (ON)" : "BOTS: DISABLED (OFF)";
-            Renderer::drawRect(580.0f, 314.0f, 275.0f, 36.0f, botBtnBg);
-            LabFont::drawText(610.0f, 324.0f, botBtnText, 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
-
-            Renderer::drawRect(875.0f, 314.0f, 45.0f, 36.0f, Vec3(0.22f, 0.28f, 0.38f));
-            LabFont::drawText(892.0f, 323.0f, "-", 2.2f, Vec3(1, 1, 1), LabFontType::GeoSans);
-
-            Renderer::drawRect(928.0f, 314.0f, 130.0f, 36.0f, Vec3(0.12f, 0.15f, 0.20f));
-            std::string botCountStr = std::to_string(_sessionConfig.botCount) + " BOTS";
-            LabFont::drawText(950.0f, 324.0f, botCountStr, 1.8f, Vec3(0.95f, 0.85f, 0.2f), LabFontType::GeoSans);
-
-            Renderer::drawRect(1066.0f, 314.0f, 45.0f, 36.0f, Vec3(0.22f, 0.28f, 0.38f));
-            LabFont::drawText(1082.0f, 323.0f, "+", 2.2f, Vec3(1, 1, 1), LabFontType::GeoSans);
-
-            // 4. Frag Limit & Port Badge
-            LabFont::drawText(580.0f, 360.0f, "FRAG LIMIT & SERVER CONFIG:", 1.7f, Vec3(0.85f, 0.88f, 0.95f), LabFontType::GeoSans);
-            Renderer::drawRect(580.0f, 380.0f, 45.0f, 36.0f, Vec3(0.22f, 0.28f, 0.38f));
-            LabFont::drawText(598.0f, 389.0f, "-", 2.2f, Vec3(1, 1, 1), LabFontType::GeoSans);
-
-            Renderer::drawRect(633.0f, 380.0f, 130.0f, 36.0f, Vec3(0.12f, 0.15f, 0.20f));
-            std::string fragLimitStr = std::to_string(_sessionConfig.fragLimit) + " KILLS";
-            LabFont::drawText(652.0f, 390.0f, fragLimitStr, 1.8f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::GeoSans);
-
-            Renderer::drawRect(771.0f, 380.0f, 45.0f, 36.0f, Vec3(0.22f, 0.28f, 0.38f));
-            LabFont::drawText(787.0f, 389.0f, "+", 2.2f, Vec3(1, 1, 1), LabFontType::GeoSans);
-
-            if (!_hasQueriedNAT) {
-                _hostNATStatus = NATDiscovery::queryFullStatus(_sessionConfig.port);
-                _hasQueriedNAT = true;
-            }
-
-            Renderer::drawRect(830.0f, 380.0f, 330.0f, 36.0f, Vec3(0.10f, 0.14f, 0.20f));
-            Renderer::drawRect(830.0f, 380.0f, 330.0f, 1.0f, Vec3(0.2f, 0.75f, 0.95f));
-            std::string ipDisplay = "LAN: " + (_hostNATStatus.localIP.empty() ? "127.0.0.1" : _hostNATStatus.localIP) + ":" + std::to_string(_sessionConfig.port);
-            LabFont::drawText(845.0f, 391.0f, ipDisplay, 1.4f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::GeoSans);
-
-            // 5. Descriptive Info Box
-            Renderer::drawRect(580.0f, 424.0f, 580.0f, 46.0f, Vec3(0.06f, 0.08f, 0.12f));
-            Renderer::drawRect(580.0f, 424.0f, 4.0f, 46.0f, isLAN ? Vec3(0.2f, 0.85f, 0.4f) : (_hostNATStatus.upnpActive ? Vec3(0.2f, 0.85f, 0.4f) : Vec3(0.95f, 0.65f, 0.15f)));
-            if (isLAN) {
-                LabFont::drawText(595.0f, 432.0f, "LAN Mode: Broadcasts UDP discovery on local network so nearby players find server.", 1.35f, Vec3(0.85f, 0.9f, 0.95f), LabFontType::System);
-                LabFont::drawText(595.0f, 450.0f, "Direct connect available on " + (_hostNATStatus.localIP.empty() ? "127.0.0.1" : _hostNATStatus.localIP) + ":" + std::to_string(_sessionConfig.port), 1.35f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::System);
-            } else {
-                std::string pubStr = "Public Internet IP: " + (_hostNATStatus.publicIP.empty() ? _hostNATStatus.localIP : _hostNATStatus.publicIP) + ":" + std::to_string(_sessionConfig.port);
-                LabFont::drawText(595.0f, 432.0f, pubStr, 1.35f, Vec3(0.2f, 0.9f, 0.45f), LabFontType::System);
-                std::string notice = _hostNATStatus.upnpActive ? "UPnP IGD Active: Port mapped on router! Share Public IP with friend." : "Router Firewall: Forward UDP 27015, or use Radmin VPN, or Punch below";
-                LabFont::drawText(595.0f, 450.0f, notice, 1.35f, _hostNATStatus.upnpActive ? Vec3(0.4f, 0.95f, 0.5f) : Vec3(0.98f, 0.75f, 0.25f), LabFontType::System);
-            }
-
-            // Copy Invite / IP button (x: 580..1160, y: 476..512)
-            Renderer::drawRect(580.0f, 476.0f, 580.0f, 36.0f, Vec3(0.16f, 0.32f, 0.48f));
-            Renderer::drawRect(580.0f, 476.0f, 580.0f, 2.0f, Vec3(0.3f, 0.85f, 1.0f));
-            std::string copyInviteBtnText = "[COPY INVITE ADDRESS TO CLIPBOARD]";
-            LabFont::drawText(660.0f, 487.0f, copyInviteBtnText, 1.6f, Vec3(1, 1, 1), LabFontType::GeoSans);
-
-            // Plug & Play Room Code Box (x: 580..1160, y: 518..554)
-            Renderer::drawRect(580.0f, 518.0f, 230.0f, 36.0f, Vec3(0.10f, 0.18f, 0.28f));
-            Renderer::drawRect(580.0f, 518.0f, 230.0f, 1.0f, Vec3(0.3f, 0.85f, 1.0f));
-            LabFont::drawText(592.0f, 529.0f, "ROOM: [" + _pnpRoomCode + "]", 1.6f, Vec3(0.3f, 0.95f, 1.0f), LabFontType::GeoSans);
-
-            Renderer::drawRect(820.0f, 518.0f, 160.0f, 36.0f, Vec3(0.18f, 0.34f, 0.50f));
-            Renderer::drawRect(820.0f, 518.0f, 160.0f, 1.0f, Vec3(0.3f, 0.75f, 1.0f));
-            LabFont::drawText(836.0f, 529.0f, "COPY ROOM CODE", 1.4f, Vec3(1, 1, 1), LabFontType::GeoSans);
-
-            Renderer::drawRect(990.0f, 518.0f, 170.0f, 36.0f, Vec3(0.20f, 0.55f, 0.35f));
-            Renderer::drawRect(990.0f, 518.0f, 170.0f, 1.0f, Vec3(0.4f, 0.95f, 0.55f));
-            LabFont::drawText(1015.0f, 529.0f, "NEW ROOM CODE", 1.4f, Vec3(1, 1, 1), LabFontType::GeoSans);
-
-            if (!_punchStatusMsg.empty()) {
-                LabFont::drawText(580.0f, 558.0f, _punchStatusMsg, 1.25f, Vec3(0.35f, 0.95f, 0.5f), LabFontType::System);
-            }
-
-            // Bottom Buttons: Back and Launch
-            Renderer::drawRect(100.0f, 570.0f, 200.0f, 48.0f, Vec3(0.20f, 0.25f, 0.35f));
-            LabFont::drawText(150.0f, 586.0f, "< BACK", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
-
-            std::string launchBtnText = "START SERVER & LAUNCH MATCH";
-            Vec3 launchBtnBg = isLAN ? Vec3(0.18f, 0.65f, 0.35f) : Vec3(0.20f, 0.55f, 0.75f);
-            Renderer::drawRect(740.0f, 570.0f, 440.0f, 48.0f, launchBtnBg);
-            Renderer::drawRect(740.0f, 570.0f, 440.0f, 2.0f, Vec3(0.98f, 0.78f, 0.08f));
-            LabFont::drawText(770.0f, 586.0f, launchBtnText, 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
-        }
-        else if (_menuScreen == MenuScreen::JoinGame) {
-            // Server Browser Frame
-            Renderer::drawRect(80.0f, 60.0f, 1120.0f, 600.0f, { 0.08f, 0.10f, 0.14f });
-            Renderer::drawRect(82.0f, 62.0f, 1116.0f, 44.0f, { 0.12f, 0.16f, 0.22f });
-            Renderer::drawRect(82.0f, 106.0f, 1116.0f, 4.0f, { 0.2f, 0.75f, 0.95f });
-
-            LabFont::drawText(100.0f, 74.0f, "MULTIPLAYER : PLUG & PLAY QUICK JOIN & BROWSER", 2.2f, Vec3(0.95f, 0.98f, 1.0f), LabFontType::GeoSans);
-
-            if (!_hasQueriedGuestNAT) {
-                _guestNATStatus = NATDiscovery::queryFullStatus(27016);
-                _hasQueriedGuestNAT = true;
-            }
-
-            std::string myPubDisplay = "MY IP: " + (_guestNATStatus.publicIP.empty() ? "127.0.0.1" : _guestNATStatus.publicIP) + ":27016";
-            LabFont::drawText(720.0f, 76.0f, myPubDisplay, 1.35f, Vec3(0.95f, 0.85f, 0.2f), LabFontType::System);
-
-            Renderer::drawRect(1050.0f, 70.0f, 110.0f, 26.0f, Vec3(0.18f, 0.38f, 0.58f));
-            Renderer::drawRect(1050.0f, 70.0f, 110.0f, 1.0f, Vec3(0.4f, 0.85f, 1.0f));
-            LabFont::drawText(1062.0f, 77.0f, "COPY MY IP", 1.25f, Vec3(1, 1, 1), LabFontType::GeoSans);
-
-            // Plug & Play Quick Join Bar (x: 110..1170, y: 116..154)
-            Renderer::drawRect(110.0f, 116.0f, 250.0f, 38.0f, _pnpJoinCodeActive ? Vec3(0.12f, 0.22f, 0.35f) : Vec3(0.08f, 0.12f, 0.18f));
-            Renderer::drawRect(110.0f, 116.0f, 250.0f, 1.0f, _pnpJoinCodeActive ? Vec3(0.3f, 0.85f, 1.0f) : Vec3(0.2f, 0.3f, 0.45f));
-            std::string codeDisplay = "ROOM CODE: " + _pnpJoinCode + (_pnpJoinCodeActive ? "_" : "");
-            LabFont::drawText(125.0f, 126.0f, codeDisplay, 1.6f, Vec3(0.3f, 0.95f, 1.0f), LabFontType::GeoSans);
-
-            Renderer::drawRect(370.0f, 116.0f, 85.0f, 38.0f, Vec3(0.18f, 0.34f, 0.50f));
-            LabFont::drawText(388.0f, 126.0f, "PASTE", 1.5f, Vec3(1, 1, 1), LabFontType::GeoSans);
-
-            Renderer::drawRect(465.0f, 116.0f, 400.0f, 38.0f, Vec3(0.18f, 0.65f, 0.38f));
-            Renderer::drawRect(465.0f, 116.0f, 400.0f, 2.0f, Vec3(0.4f, 0.95f, 0.65f));
-            LabFont::drawText(485.0f, 126.0f, "JOIN VIA ROOM CODE (PLUG & PLAY)", 1.5f, Vec3(1, 1, 1), LabFontType::GeoSans);
-
-            LabFont::drawText(880.0f, 128.0f, "Zero config / Auto-NAT punch", 1.25f, Vec3(0.5f, 0.85f, 0.65f), LabFontType::System);
-
-            // Table Header
-            Renderer::drawRect(110.0f, 164.0f, 1060.0f, 30.0f, Vec3(0.14f, 0.20f, 0.28f));
-            LabFont::drawText(130.0f, 172.0f, "SERVER NAME", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
-            LabFont::drawText(500.0f, 172.0f, "MAP", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
-            LabFont::drawText(720.0f, 172.0f, "MODE", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
-            LabFont::drawText(880.0f, 172.0f, "PLAYERS", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
-            LabFont::drawText(1030.0f, 172.0f, "PING", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
-
-            const auto& servers = _serverBrowser.getServers();
-            if (servers.empty()) {
-                Renderer::drawRect(110.0f, 202.0f, 1060.0f, 80.0f, Vec3(0.06f, 0.08f, 0.11f));
-                Renderer::drawRect(110.0f, 202.0f, 4.0f, 80.0f, Vec3(0.85f, 0.35f, 0.25f));
-                LabFont::drawText(130.0f, 216.0f, "NO RUNNING SERVERS FOUND ON LAN / LOCALHOST", 1.8f, Vec3(0.95f, 0.45f, 0.45f), LabFontType::GeoSans);
-                LabFont::drawText(130.0f, 244.0f, "To connect over Internet: Enter 4-digit Room Code above and click JOIN (Plug & Play)!", 1.4f, Vec3(0.4f, 0.85f, 0.95f), LabFontType::System);
-            } else {
-                for (size_t i = 0; i < servers.size() && i < 5; ++i) {
-                    const auto& s = servers[i];
-                    float rowY = 202.0f + static_cast<float>(i) * 50.0f;
-                    bool isSelected = (_selectedServerIndex == static_cast<int>(i));
-
-                    Vec3 rowBg = isSelected ? Vec3(0.18f, 0.40f, 0.65f) : ((i % 2 == 0) ? Vec3(0.10f, 0.14f, 0.19f) : Vec3(0.08f, 0.11f, 0.15f));
-                    Renderer::drawRect(110.0f, rowY, 1060.0f, 44.0f, rowBg);
-                    if (isSelected) {
-                        Renderer::drawRect(110.0f, rowY, 5.0f, 44.0f, Vec3(0.2f, 0.85f, 1.0f));
+                    // Badge box
+                    Renderer::drawRect(cx + 10.0f, cy + 10.0f, 44.0f, 44.0f, a.unlocked ? Vec3(0.18f, 0.24f, 0.32f) : Vec3(0.07f, 0.08f, 0.10f));
+                    Renderer::drawRect(cx + 10.0f, cy + 10.0f, 44.0f, 1.0f, a.unlocked ? Vec3(1.0f, 0.72f, 0.15f) : Vec3(0.20f, 0.22f, 0.26f));
+                    Renderer::drawRect(cx + 10.0f, cy + 10.0f, 1.0f, 44.0f, a.unlocked ? Vec3(1.0f, 0.72f, 0.15f) : Vec3(0.20f, 0.22f, 0.26f));
+                    Texture* badgeTex = a.iconTexture.empty() ? nullptr : getTexture(a.iconTexture);
+                    if (badgeTex) {
+                        Vec3 badgeTint = a.unlocked ? Vec3(1.0f, 0.85f, 0.25f) : Vec3(0.40f, 0.44f, 0.50f);
+                        float badgeAlpha = a.unlocked ? 1.0f : 0.40f;
+                        Renderer::drawTextureRect(cx + 14.0f, cy + 14.0f, 36.0f, 36.0f, *badgeTex, badgeTint, badgeAlpha);
+                    } else {
+                        LabFont::drawText(cx + 18.0f, cy + 20.0f, a.icon, 1.60f, a.unlocked ? Vec3(1.0f, 0.84f, 0.22f) : Vec3(0.40f, 0.44f, 0.50f), LabFontType::GeoSans);
                     }
 
-                    LabFont::drawText(130.0f, rowY + 12.0f, s.name, 1.8f, isSelected ? Vec3(1, 1, 1) : Vec3(0.9f, 0.95f, 1.0f), LabFontType::GeoSans);
-                    LabFont::drawText(500.0f, rowY + 12.0f, toSceneDisplayPath(s.map), 1.8f, Vec3(0.75f, 0.85f, 0.95f), LabFontType::GeoSans);
-                    LabFont::drawText(720.0f, rowY + 12.0f, s.mode, 1.8f, Vec3(0.95f, 0.85f, 0.2f), LabFontType::GeoSans);
-                    std::string plStr = std::to_string(s.playerCount) + " / " + std::to_string(s.maxPlayers);
-                    LabFont::drawText(880.0f, rowY + 12.0f, plStr, 1.8f, Vec3(0.9f, 0.95f, 1.0f), LabFontType::GeoSans);
-                    std::string pingStr = std::to_string(s.pingMs) + " ms";
-                    LabFont::drawText(1030.0f, rowY + 12.0f, pingStr, 1.8f, Vec3(0.2f, 0.9f, 0.35f), LabFontType::GeoSans);
+                    // Title & Description
+                    LabFont::drawText(cx + 64.0f, cy + 10.0f, a.title, 1.55f, a.unlocked ? Vec3(0.95f, 0.98f, 1.0f) : Vec3(0.70f, 0.74f, 0.80f), LabFontType::GeoSans);
+                    LabFont::drawText(cx + 64.0f, cy + 30.0f, a.description, 1.25f, Vec3(0.55f, 0.60f, 0.68f), LabFontType::System);
+
+                    // Mini Progress bar
+                    float frac = a.maxProgress > 0 ? ((float)a.currentProgress / (float)a.maxProgress) : 0.0f;
+                    drawVguiProgressBar(cx + 64.0f, cy + 58.0f, 230.0f, 12.0f, frac, a.unlocked ? Vec3(0.42f, 0.66f, 0.20f) : Vec3(0.70f, 0.52f, 0.15f));
+                    std::string progCount = std::to_string(a.currentProgress) + " / " + std::to_string(a.maxProgress);
+                    LabFont::drawText(cx + 302.0f, cy + 57.0f, progCount, 1.25f, Vec3(0.60f, 0.65f, 0.72f), LabFontType::GeoSans);
+
+                    // Status Badge
+                    if (a.unlocked) {
+                        LabFont::drawText(cx + 355.0f, cy + 10.0f, "[ UNLOCKED ]", 1.35f, Vec3(1.0f, 0.80f, 0.20f), LabFontType::GeoSans);
+                    } else {
+                        LabFont::drawText(cx + 368.0f, cy + 10.0f, "[ LOCKED ]", 1.35f, Vec3(0.40f, 0.44f, 0.50f), LabFontType::GeoSans);
+                    }
+                }
+            } else {
+                // Tab 1: Career Statistics
+                drawVguiWell(winX + 20.0f, winY + 76.0f, winW - 40.0f, 436.0f, "CAREER GAMEPLAY STATISTICS");
+
+                struct StatRow {
+                    std::string label;
+                    std::string value;
+                };
+
+                int kdRatioInt = _careerStats.totalDeaths > 0 ? (int)((_careerStats.totalKills * 100) / _careerStats.totalDeaths) : (_careerStats.totalKills * 100);
+                std::string kdStr = std::to_string(kdRatioInt / 100) + "." + std::to_string((kdRatioInt % 100) < 10 ? 0 : 0) + std::to_string(kdRatioInt % 100);
+                int hsPct = _careerStats.totalKills > 0 ? ((_careerStats.headshots * 100) / _careerStats.totalKills) : 0;
+                int accPct = _careerStats.shotsFired > 0 ? ((_careerStats.shotsHit * 100) / _careerStats.shotsFired) : 0;
+                int playMinutes = (int)(_careerStats.totalPlaytimeSeconds / 60.0f);
+
+                std::vector<StatRow> leftStats = {
+                    { "TOTAL KILLS / FRAGS", std::to_string(_careerStats.totalKills) },
+                    { "TOTAL DEATHS", std::to_string(_careerStats.totalDeaths) },
+                    { "KILL / DEATH RATIO", kdStr },
+                    { "HEADSHOT ELIMINATIONS", std::to_string(_careerStats.headshots) },
+                    { "HEADSHOT ACCURACY RATIO", std::to_string(hsPct) + " %" }
+                };
+
+                std::vector<StatRow> rightStats = {
+                    { "TOTAL SHOTS FIRED", std::to_string(_careerStats.shotsFired) },
+                    { "OVERALL WEAPON ACCURACY", std::to_string(accPct) + " %" },
+                    { "BUNNYHOP JUMPS EXECUTED", std::to_string(_careerStats.bhopJumps) },
+                    { "EXPLOSIVE BARRELS DETONATED", std::to_string(_careerStats.barrelsExploded) },
+                    { "RECORDED PLAYTIME", std::to_string(playMinutes) + " minutes" }
+                };
+
+                for (size_t r = 0; r < leftStats.size(); ++r) {
+                    float ry = winY + 115.0f + static_cast<float>(r) * 56.0f;
+                    Renderer::drawRect(winX + 40.0f, ry, 430.0f, 44.0f, (r % 2 == 0) ? Vec3(0.09f, 0.11f, 0.14f) : Vec3(0.12f, 0.14f, 0.18f));
+                    LabFont::drawText(winX + 54.0f, ry + 12.0f, leftStats[r].label, 1.45f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::GeoSans);
+                    LabFont::drawText(winX + 380.0f, ry + 12.0f, leftStats[r].value, 1.55f, Vec3(1.0f, 0.84f, 0.22f), LabFontType::GeoSans);
+                }
+
+                for (size_t r = 0; r < rightStats.size(); ++r) {
+                    float ry = winY + 115.0f + static_cast<float>(r) * 56.0f;
+                    Renderer::drawRect(winX + 510.0f, ry, 430.0f, 44.0f, (r % 2 == 0) ? Vec3(0.09f, 0.11f, 0.14f) : Vec3(0.12f, 0.14f, 0.18f));
+                    LabFont::drawText(winX + 524.0f, ry + 12.0f, rightStats[r].label, 1.45f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::GeoSans);
+                    LabFont::drawText(winX + 850.0f, ry + 12.0f, rightStats[r].value, 1.55f, Vec3(1.0f, 0.84f, 0.22f), LabFontType::GeoSans);
                 }
             }
 
-            // Direct Connect field
-            Renderer::drawRect(110.0f, 480.0f, 690.0f, 44.0f, _directConnectActive ? Vec3(0.12f, 0.18f, 0.28f) : Vec3(0.06f, 0.08f, 0.12f));
-            Renderer::drawRect(110.0f, 480.0f, 690.0f, 2.0f, _directConnectActive ? Vec3(0.3f, 0.85f, 1.0f) : Vec3(0.18f, 0.24f, 0.32f));
-            std::string dcDisplay = "DIRECT IP TARGET:  " + _directConnectIP + (_directConnectActive ? "_" : "");
-            LabFont::drawText(130.0f, 494.0f, dcDisplay, 1.8f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::GeoSans);
+            // Bottom action buttons
+            bool isCloseBtnHov = (_menuMouseX >= winX + 20.0f && _menuMouseX <= winX + 160.0f && _menuMouseY >= winY + 524.0f && _menuMouseY <= winY + 558.0f);
+            drawVguiButton(winX + 20.0f, winY + 524.0f, 140.0f, 34.0f, "Close", isCloseBtnHov, false);
 
-            // [PASTE] button (x: 815..940, y: 480..524)
-            Renderer::drawRect(815.0f, 480.0f, 125.0f, 44.0f, Vec3(0.18f, 0.38f, 0.58f));
-            Renderer::drawRect(815.0f, 480.0f, 125.0f, 2.0f, Vec3(0.4f, 0.85f, 1.0f));
-            LabFont::drawText(850.0f, 494.0f, "PASTE", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
-
-            // [CLEAR] button (x: 955..1060, y: 480..524)
-            Renderer::drawRect(955.0f, 480.0f, 105.0f, 44.0f, Vec3(0.28f, 0.18f, 0.22f));
-            LabFont::drawText(980.0f, 494.0f, "CLEAR", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
-
-            // Connection Status Feedback line
-            if (_isConnecting) {
-                Renderer::drawRect(110.0f, 530.0f, 1060.0f, 24.0f, Vec3(0.08f, 0.12f, 0.18f));
-                std::string connStatus = ">> CONNECTING TO " + _netClient.getServerAddressString() + " (ATTEMPT " + std::to_string(_netClient.getConnectAttempts()) + "/20) ...";
-                LabFont::drawText(130.0f, 534.0f, connStatus, 1.4f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::System);
-            } else if (!_connectStatusMsg.empty()) {
-                bool isErr = (_connectStatusMsg.find("FAILED") != std::string::npos || _connectStatusMsg.find("TIMED OUT") != std::string::npos);
-                Renderer::drawRect(110.0f, 530.0f, 1060.0f, 24.0f, Vec3(0.08f, 0.12f, 0.18f));
-                LabFont::drawText(130.0f, 534.0f, _connectStatusMsg, 1.4f, isErr ? Vec3(1.0f, 0.35f, 0.35f) : Vec3(0.35f, 0.9f, 0.45f), LabFontType::System);
-            }
-
-            // Bottom Buttons: BACK, REFRESH, CONNECT TO SERVER / CANCEL
-            Renderer::drawRect(110.0f, 560.0f, 180.0f, 48.0f, Vec3(0.20f, 0.25f, 0.35f));
-            LabFont::drawText(150.0f, 576.0f, "< BACK", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
-
-            Renderer::drawRect(620.0f, 560.0f, 180.0f, 48.0f, Vec3(0.18f, 0.32f, 0.48f));
-            LabFont::drawText(655.0f, 576.0f, "REFRESH", 1.8f, Vec3(0.9f, 0.95f, 1.0f), LabFontType::GeoSans);
-
-            if (_isConnecting) {
-                Renderer::drawRect(830.0f, 560.0f, 340.0f, 48.0f, Vec3(0.75f, 0.25f, 0.15f));
-                Renderer::drawRect(830.0f, 560.0f, 340.0f, 2.0f, Vec3(1.0f, 0.5f, 0.3f));
-                std::string cancelText = "CANCEL CONNECTING [" + std::to_string(_netClient.getConnectAttempts()) + "/20]";
-                LabFont::drawText(845.0f, 576.0f, cancelText, 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
-            } else {
-                Renderer::drawRect(830.0f, 560.0f, 340.0f, 48.0f, Vec3(0.20f, 0.65f, 0.42f));
-                Renderer::drawRect(830.0f, 560.0f, 340.0f, 2.0f, Vec3(0.4f, 0.95f, 0.65f));
-                LabFont::drawText(860.0f, 576.0f, "CONNECT TO SERVER", 1.8f, Vec3(1, 1, 1), LabFontType::GeoSans);
-            }
+            bool isResetHov = (_menuMouseX >= winX + 180.0f && _menuMouseX <= winX + 320.0f && _menuMouseY >= winY + 524.0f && _menuMouseY <= winY + 558.0f);
+            drawVguiButton(winX + 180.0f, winY + 524.0f, 140.0f, 34.0f, "Reset Stats", isResetHov, false);
         }
         else if (_menuScreen == MenuScreen::Singleplayer) {
-            // Existing Singleplayer Map Selection
-            Renderer::drawRect(100.0f, 60.0f, 1080.0f, 600.0f, { 0.1f, 0.13f, 0.18f });
-            Renderer::drawRect(102.0f, 62.0f, 1076.0f, 40.0f, { 0.15f, 0.22f, 0.32f });
-            Renderer::drawRect(102.0f, 100.0f, 1076.0f, 4.0f, { 0.2f, 0.75f, 0.95f });
+            bool isCloseHov = (_menuMouseX >= winX + winW - 28.0f && _menuMouseX <= winX + winW - 6.0f && _menuMouseY >= winY + 6.0f && _menuMouseY <= winY + 28.0f);
+            drawVguiWindow(winX, winY, winW, winH, "NEW GAME", isCloseHov);
 
-            LabFont::drawText(120.0f, 72.0f, "CAMPAIGN & SOLO SECTOR EXPLORATION", 2.2f, Vec3(0.9f, 0.95f, 1.0f), LabFontType::GeoSans);
+            // Left Well: Map Selection
+            drawVguiWell(winX + 20.0f, winY + 46.0f, 440.0f, 455.0f, "CHAPTER & SECTOR SELECTION");
 
-            float startY = 130.0f;
-            for (int i = 0; i < (int)_availableMaps.size(); ++i) {
-                bool isSelected = (i == _selectedMapIndex);
-                float itemY = startY + i * 55.0f;
+            int maxVis = 7;
+            int totalMaps = (int)_availableMaps.size();
+            _mapScrollOffset = std::clamp(_mapScrollOffset, 0, std::max(0, totalMaps - maxVis));
+            int visCount = std::min(maxVis, totalMaps - _mapScrollOffset);
 
-                Vec3 barColor = isSelected ? Vec3(0.18f, 0.45f, 0.75f) : Vec3(0.12f, 0.16f, 0.22f);
-                Renderer::drawRect(140.0f, itemY, 800.0f, 45.0f, barColor);
-                if (isSelected) Renderer::drawRect(140.0f, itemY, 6.0f, 45.0f, Vec3(0.98f, 0.78f, 0.08f));
-
-                std::string mapDisplay = toSceneDisplayPath(_availableMaps[i]);
-                LabFont::drawText(160.0f, itemY + 14.0f, mapDisplay, 2.0f, isSelected ? Vec3(1, 1, 1) : Vec3(0.7f, 0.75f, 0.8f), LabFontType::GeoSans);
+            for (int i = 0; i < visCount; ++i) {
+                int mapIdx = _mapScrollOffset + i;
+                float iy = winY + 80.0f + static_cast<float>(i) * 44.0f;
+                bool isSel = (mapIdx == _selectedMapIndex);
+                bool isHov = (_menuMouseX >= winX + 26.0f && _menuMouseX <= winX + 454.0f && _menuMouseY >= iy && _menuMouseY <= iy + 38.0f);
+                Vec3 rowBg = isSel ? Vec3(0.18f, 0.24f, 0.32f) : (isHov ? Vec3(0.12f, 0.15f, 0.19f) : Vec3(0.08f, 0.09f, 0.11f));
+                Renderer::drawRect(winX + 26.0f, iy, 428.0f, 38.0f, rowBg);
+                if (isSel) {
+                    Renderer::drawRect(winX + 26.0f, iy, 3.5f, 38.0f, Vec3(1.0f, 0.72f, 0.15f));
+                }
+                LabFont::drawText(winX + 38.0f, iy + 10.0f, getMapTitle(_availableMaps[mapIdx]), 1.55f, isSel ? Vec3(1, 1, 1) : Vec3(0.78f, 0.82f, 0.88f), LabFontType::GeoSans);
             }
 
-            // Launch button
-            Renderer::drawRect(140.0f, 560.0f, 230.0f, 48.0f, Vec3(0.18f, 0.65f, 0.45f));
-            LabFont::drawText(160.0f, 576.0f, "LAUNCH MAP [ENTER]", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
-
-            // Open from disk
-            Renderer::drawRect(390.0f, 560.0f, 270.0f, 48.0f, Vec3(0.22f, 0.45f, 0.75f));
-            LabFont::drawText(405.0f, 576.0f, "OPEN FROM DISK... [O]", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
-
-            // Resume
-            if (_currentMap) {
-                Renderer::drawRect(680.0f, 560.0f, 240.0f, 48.0f, Vec3(0.75f, 0.45f, 0.15f));
-                LabFont::drawText(695.0f, 576.0f, "RESUME [ESC]", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            // Scroll / Navigation Bar
+            if (totalMaps > maxVis) {
+                bool isUpHov = (_menuMouseX >= winX + 26.0f && _menuMouseX <= winX + 76.0f && _menuMouseY >= winY + 395.0f && _menuMouseY <= winY + 425.0f);
+                bool isDnHov = (_menuMouseX >= winX + 404.0f && _menuMouseX <= winX + 454.0f && _menuMouseY >= winY + 395.0f && _menuMouseY <= winY + 425.0f);
+                drawVguiButton(winX + 26.0f, winY + 395.0f, 50.0f, 30.0f, "UP", isUpHov, false);
+                std::string pageStr = std::to_string(_mapScrollOffset + 1) + " - " + std::to_string(_mapScrollOffset + visCount) + " of " + std::to_string(totalMaps);
+                LabFont::drawText(winX + 180.0f, winY + 403.0f, pageStr, 1.45f, Vec3(0.65f, 0.70f, 0.78f), LabFontType::GeoSans);
+                drawVguiButton(winX + 404.0f, winY + 395.0f, 50.0f, 30.0f, "DN", isDnHov, false);
             }
 
-            // Back
-            Renderer::drawRect(940.0f, 560.0f, 180.0f, 48.0f, Vec3(0.20f, 0.25f, 0.35f));
-            LabFont::drawText(980.0f, 576.0f, "< BACK", 1.7f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            // Right Well: Map Information
+            drawVguiWell(winX + 480.0f, winY + 46.0f, 480.0f, 455.0f, "MISSION BRIEFING");
+
+            std::string curMapName = (_selectedMapIndex < (int)_availableMaps.size()) ? toSceneDisplayPath(_availableMaps[_selectedMapIndex]) : "Cryo Facility";
+            LabFont::drawText(winX + 504.0f, winY + 84.0f, curMapName, 2.2f, Vec3(1.0f, 0.84f, 0.22f), LabFontType::GeoSans);
+            LabFont::drawText(winX + 504.0f, winY + 124.0f, "TYPE:     Singleplayer Solo Exploration & Combat", 1.45f, Vec3(0.80f, 0.85f, 0.90f), LabFontType::GeoSans);
+            std::string mapPathStr = (_selectedMapIndex < (int)_availableMaps.size()) ? _availableMaps[_selectedMapIndex] : "";
+            LabFont::drawText(winX + 504.0f, winY + 154.0f, "PATH:     " + mapPathStr, 1.30f, Vec3(0.55f, 0.65f, 0.75f), LabFontType::System);
+            LabFont::drawText(winX + 504.0f, winY + 184.0f, "ENGINE:   OpenGL 4.5+ Core DSA / Blinn-Phong", 1.40f, Vec3(0.35f, 0.85f, 0.55f), LabFontType::System);
+            LabFont::drawText(winX + 504.0f, winY + 214.0f, "PHYSICS:  Source 64Hz Bhop, triggers & dynamic collisions", 1.40f, Vec3(0.35f, 0.85f, 0.95f), LabFontType::System);
+
+            // Bottom Buttons
+            bool isBackHov = (_menuMouseX >= winX + 20.0f && _menuMouseX <= winX + 160.0f && _menuMouseY >= winY + 524.0f && _menuMouseY <= winY + 558.0f);
+            drawVguiButton(winX + 20.0f, winY + 524.0f, 140.0f, 34.0f, "Back", isBackHov, false);
+
+            bool isBrowseHov = (_menuMouseX >= winX + 180.0f && _menuMouseX <= winX + 330.0f && _menuMouseY >= winY + 524.0f && _menuMouseY <= winY + 558.0f);
+            drawVguiButton(winX + 180.0f, winY + 524.0f, 150.0f, 34.0f, "Browse...", isBrowseHov, false);
+
+            bool isStartHov = (_menuMouseX >= winX + winW - 160.0f && _menuMouseX <= winX + winW - 20.0f && _menuMouseY >= winY + 524.0f && _menuMouseY <= winY + 558.0f);
+            drawVguiButton(winX + winW - 160.0f, winY + 524.0f, 140.0f, 34.0f, "Start", isStartHov, true);
+        }
+        else if (_menuScreen == MenuScreen::HostGame) {
+            bool isCloseHov = (_menuMouseX >= winX + winW - 28.0f && _menuMouseX <= winX + winW - 6.0f && _menuMouseY >= winY + 6.0f && _menuMouseY <= winY + 28.0f);
+            drawVguiWindow(winX, winY, winW, winH, "CREATE SERVER", isCloseHov);
+
+            // Left Well: Map Selection
+            drawVguiWell(winX + 20.0f, winY + 46.0f, 440.0f, 455.0f, "SELECT MAP");
+
+            int maxVisHost = 7;
+            int totalMapsHost = (int)_availableMaps.size();
+            _mapScrollOffset = std::clamp(_mapScrollOffset, 0, std::max(0, totalMapsHost - maxVisHost));
+            int visCountHost = std::min(maxVisHost, totalMapsHost - _mapScrollOffset);
+
+            for (int i = 0; i < visCountHost; ++i) {
+                int mapIdx = _mapScrollOffset + i;
+                float iy = winY + 80.0f + static_cast<float>(i) * 44.0f;
+                bool isSel = (_sessionConfig.mapPath == _availableMaps[mapIdx]);
+                bool isHov = (_menuMouseX >= winX + 26.0f && _menuMouseX <= winX + 454.0f && _menuMouseY >= iy && _menuMouseY <= iy + 38.0f);
+                Vec3 rowBg = isSel ? Vec3(0.18f, 0.24f, 0.32f) : (isHov ? Vec3(0.12f, 0.15f, 0.19f) : Vec3(0.08f, 0.09f, 0.11f));
+                Renderer::drawRect(winX + 26.0f, iy, 428.0f, 38.0f, rowBg);
+                if (isSel) Renderer::drawRect(winX + 26.0f, iy, 3.5f, 38.0f, Vec3(1.0f, 0.72f, 0.15f));
+                LabFont::drawText(winX + 38.0f, iy + 10.0f, getMapTitle(_availableMaps[mapIdx]), 1.55f, isSel ? Vec3(1, 1, 1) : Vec3(0.78f, 0.82f, 0.88f), LabFontType::GeoSans);
+            }
+
+            if (totalMapsHost > maxVisHost) {
+                bool isUpHov = (_menuMouseX >= winX + 26.0f && _menuMouseX <= winX + 76.0f && _menuMouseY >= winY + 395.0f && _menuMouseY <= winY + 425.0f);
+                bool isDnHov = (_menuMouseX >= winX + 404.0f && _menuMouseX <= winX + 454.0f && _menuMouseY >= winY + 395.0f && _menuMouseY <= winY + 425.0f);
+                drawVguiButton(winX + 26.0f, winY + 395.0f, 50.0f, 30.0f, "UP", isUpHov, false);
+                std::string pageStr = std::to_string(_mapScrollOffset + 1) + " - " + std::to_string(_mapScrollOffset + visCountHost) + " of " + std::to_string(totalMapsHost);
+                LabFont::drawText(winX + 180.0f, winY + 403.0f, pageStr, 1.45f, Vec3(0.65f, 0.70f, 0.78f), LabFontType::GeoSans);
+                drawVguiButton(winX + 404.0f, winY + 395.0f, 50.0f, 30.0f, "DN", isDnHov, false);
+            }
+
+            bool isBrowseHov = (_menuMouseX >= winX + 26.0f && _menuMouseX <= winX + 454.0f && _menuMouseY >= winY + 450.0f && _menuMouseY <= winY + 484.0f);
+            drawVguiButton(winX + 26.0f, winY + 450.0f, 428.0f, 34.0f, "Browse Disk Map...", isBrowseHov, false);
+
+            // Right Well: Rules & Bots
+            drawVguiWell(winX + 480.0f, winY + 46.0f, 480.0f, 455.0f, "SERVER SETTINGS");
+
+            // Network Mode
+            LabFont::drawText(winX + 490.0f, winY + 62.0f, "NETWORK MODE", 1.35f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::GeoSans);
+            bool isLAN = (_sessionConfig.networkMode == NetworkMode::LAN);
+            drawVguiButton(winX + 490.0f, winY + 80.0f, 225.0f, 30.0f, "LAN Mode", false, isLAN);
+            drawVguiButton(winX + 725.0f, winY + 80.0f, 225.0f, 30.0f, "P2P / Internet", false, !isLAN);
+
+            // Game Mode
+            LabFont::drawText(winX + 490.0f, winY + 116.0f, "GAME MODE", 1.35f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::GeoSans);
+            drawVguiButton(winX + 490.0f, winY + 130.0f, 145.0f, 30.0f, "FFA", false, _sessionConfig.mode == GameMode::FFA);
+            drawVguiButton(winX + 645.0f, winY + 130.0f, 145.0f, 30.0f, "DM", false, _sessionConfig.mode == GameMode::DM);
+            drawVguiButton(winX + 800.0f, winY + 130.0f, 150.0f, 30.0f, "TDM", false, _sessionConfig.mode == GameMode::TDM);
+
+            // Combat Bots
+            LabFont::drawText(winX + 490.0f, winY + 166.0f, "AI COMBAT SQUAD", 1.35f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::GeoSans);
+            drawVguiButton(winX + 490.0f, winY + 180.0f, 220.0f, 30.0f, _sessionConfig.enableBots ? "Bots: Enabled" : "Bots: Disabled", false, _sessionConfig.enableBots);
+            drawVguiButton(winX + 725.0f, winY + 180.0f, 40.0f, 30.0f, "-", false, false);
+            std::string botCntStr = std::to_string(_sessionConfig.botCount) + " Bots";
+            LabFont::drawText(winX + 780.0f, winY + 186.0f, botCntStr, 1.50f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            drawVguiButton(winX + 910.0f, winY + 180.0f, 40.0f, 30.0f, "+", false, false);
+
+            // Frag Limit
+            LabFont::drawText(winX + 490.0f, winY + 216.0f, "MATCH LIMITS", 1.35f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::GeoSans);
+            drawVguiButton(winX + 725.0f, winY + 230.0f, 40.0f, 30.0f, "-", false, false);
+            std::string fragStr = std::to_string(_sessionConfig.fragLimit) + " Frags";
+            LabFont::drawText(winX + 780.0f, winY + 236.0f, fragStr, 1.50f, Vec3(1, 1, 1), LabFontType::GeoSans);
+            drawVguiButton(winX + 910.0f, winY + 230.0f, 40.0f, 30.0f, "+", false, false);
+
+            // Telemetry
+            drawVguiButton(winX + 490.0f, winY + 280.0f, 220.0f, 30.0f, "Copy Host IP", false, false);
+            drawVguiButton(winX + 725.0f, winY + 280.0f, 110.0f, 30.0f, "Copy Code", false, false);
+            drawVguiButton(winX + 845.0f, winY + 280.0f, 105.0f, 30.0f, "New Code", false, false);
+
+            if (!_punchStatusMsg.empty()) {
+                LabFont::drawText(winX + 490.0f, winY + 330.0f, _punchStatusMsg, 1.25f, Vec3(0.35f, 0.95f, 0.50f), LabFontType::System);
+            }
+
+            // Bottom Buttons
+            bool isCloseBtnHov = (_menuMouseX >= winX + 20.0f && _menuMouseX <= winX + 160.0f && _menuMouseY >= winY + 524.0f && _menuMouseY <= winY + 558.0f);
+            drawVguiButton(winX + 20.0f, winY + 524.0f, 140.0f, 34.0f, "Close", isCloseBtnHov, false);
+
+            bool isStartBtnHov = (_menuMouseX >= winX + winW - 160.0f && _menuMouseX <= winX + winW - 20.0f && _menuMouseY >= winY + 524.0f && _menuMouseY <= winY + 558.0f);
+            drawVguiButton(winX + winW - 160.0f, winY + 524.0f, 140.0f, 34.0f, "Start", isStartBtnHov, true);
+        }
+        else if (_menuScreen == MenuScreen::JoinGame) {
+            bool isCloseHov = (_menuMouseX >= winX + winW - 28.0f && _menuMouseX <= winX + winW - 6.0f && _menuMouseY >= winY + 6.0f && _menuMouseY <= winY + 28.0f);
+            drawVguiWindow(winX, winY, winW, winH, "FIND SERVERS", isCloseHov);
+
+            // Top Source VGUI2 Server Browser Tabs: INTERNET, FAVORITES, HISTORY, LAN, FRIENDS
+            const char* srvTabs[5] = { "INTERNET", "FAVORITES", "HISTORY", "LAN", "FRIENDS" };
+            for (int t = 0; t < 5; ++t) {
+                float tx = winX + 20.0f + static_cast<float>(t) * 118.0f;
+                bool isSel = (_serverBrowserActiveTab == t);
+                bool isHov = (_menuMouseX >= tx && _menuMouseX <= tx + 112.0f && _menuMouseY >= winY + 38.0f && _menuMouseY <= winY + 62.0f);
+                Vec3 tabBg = isSel ? Vec3(0.14f, 0.16f, 0.20f) : (isHov ? Vec3(0.12f, 0.14f, 0.17f) : Vec3(0.09f, 0.10f, 0.12f));
+                Vec3 txtCol = isSel ? Vec3(1.0f, 0.83f, 0.22f) : (isHov ? Vec3(0.85f, 0.88f, 0.92f) : Vec3(0.50f, 0.54f, 0.58f));
+                Renderer::drawRect(tx, winY + 38.0f, 112.0f, 24.0f, tabBg);
+                if (isSel) Renderer::drawRect(tx, winY + 60.0f, 112.0f, 2.0f, Vec3(1.0f, 0.70f, 0.0f));
+                LabFont::drawText(tx + 12.0f, winY + 42.0f, srvTabs[t], 1.35f, txtCol, LabFontType::GeoSans);
+            }
+
+            // Quick Join Bar
+            drawVguiWell(winX + 20.0f, winY + 64.0f, winW - 40.0f, 38.0f, "");
+            std::string codeDisplay = "ROOM CODE: " + _pnpJoinCode + (_pnpJoinCodeActive ? "_" : "");
+            Renderer::drawRect(winX + 30.0f, winY + 68.0f, 200.0f, 28.0f, _pnpJoinCodeActive ? Vec3(0.14f, 0.18f, 0.24f) : Vec3(0.09f, 0.10f, 0.13f));
+            LabFont::drawText(winX + 40.0f, winY + 74.0f, codeDisplay, 1.40f, Vec3(1.0f, 0.84f, 0.22f), LabFontType::GeoSans);
+
+            drawVguiButton(winX + 240.0f, winY + 68.0f, 80.0f, 28.0f, "Paste", false, false);
+            drawVguiButton(winX + 330.0f, winY + 68.0f, 110.0f, 28.0f, "Join Code", false, true);
+            drawVguiButton(winX + winW - 130.0f, winY + 68.0f, 90.0f, 28.0f, "Copy IP", false, false);
+
+            if (!_connectStatusMsg.empty()) {
+                LabFont::drawText(winX + 460.0f, winY + 74.0f, _connectStatusMsg, 1.20f, Vec3(0.35f, 0.85f, 0.95f), LabFontType::System);
+            }
+
+            // Server List Table Header
+            Renderer::drawRect(winX + 20.0f, winY + 108.0f, winW - 40.0f, 24.0f, Vec3(0.12f, 0.14f, 0.18f));
+            LabFont::drawText(winX + 35.0f, winY + 112.0f, "SERVER NAME", 1.35f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::GeoSans);
+            LabFont::drawText(winX + 340.0f, winY + 112.0f, "GAME", 1.35f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::GeoSans);
+            LabFont::drawText(winX + 480.0f, winY + 112.0f, "MAP", 1.35f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::GeoSans);
+            LabFont::drawText(winX + 660.0f, winY + 112.0f, "MODE", 1.35f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::GeoSans);
+            LabFont::drawText(winX + 760.0f, winY + 112.0f, "PLAYERS", 1.35f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::GeoSans);
+            LabFont::drawText(winX + 870.0f, winY + 112.0f, "PING", 1.35f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::GeoSans);
+
+            // Table Content Well
+            drawVguiWell(winX + 20.0f, winY + 132.0f, winW - 40.0f, 294.0f, "");
+
+            auto servers = _serverBrowser.getFilteredServers(_serverBrowserActiveTab, _serverFilterMap, _serverFilterMaxPing, _serverFilterNotFull, _serverFilterHasPlayers);
+            if (servers.empty()) {
+                std::string emptyMsg = (_serverBrowserActiveTab == 1) ? "No favorite servers saved yet. Select a server and click [Add Fav]." :
+                                       (_serverBrowserActiveTab == 2) ? "No recent servers in connection history." :
+                                       "No servers matching active filters. Use Room Code above or Direct IP below.";
+                LabFont::drawText(winX + 40.0f, winY + 160.0f, emptyMsg, 1.45f, Vec3(0.55f, 0.60f, 0.68f), LabFontType::GeoSans);
+            } else {
+                for (size_t i = 0; i < servers.size() && i < 6; ++i) {
+                    float rowY = winY + 134.0f + static_cast<float>(i) * 40.0f;
+                    bool isSel = ((int)i == _selectedServerIndex);
+                    bool isHov = (_menuMouseX >= winX + 22.0f && _menuMouseX <= winX + winW - 22.0f && _menuMouseY >= rowY && _menuMouseY <= rowY + 36.0f);
+                    Vec3 rBg = isSel ? Vec3(0.18f, 0.24f, 0.32f) : (isHov ? Vec3(0.12f, 0.15f, 0.19f) : ((i % 2 == 0) ? Vec3(0.08f, 0.09f, 0.11f) : Vec3(0.10f, 0.11f, 0.14f)));
+                    Renderer::drawRect(winX + 22.0f, rowY, winW - 44.0f, 36.0f, rBg);
+                    if (isSel) Renderer::drawRect(winX + 22.0f, rowY, 3.5f, 36.0f, Vec3(1.0f, 0.72f, 0.15f));
+
+                    std::string srvLabel = (servers[i].isFavorite ? "[*] " : "") + servers[i].name;
+                    LabFont::drawText(winX + 35.0f, rowY + 10.0f, srvLabel, 1.45f, isSel ? Vec3(1, 1, 1) : Vec3(0.85f, 0.88f, 0.92f), LabFontType::GeoSans);
+                    LabFont::drawText(winX + 340.0f, rowY + 10.0f, servers[i].game, 1.40f, Vec3(0.65f, 0.72f, 0.80f), LabFontType::GeoSans);
+                    LabFont::drawText(winX + 480.0f, rowY + 10.0f, servers[i].map, 1.45f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::GeoSans);
+                    LabFont::drawText(winX + 660.0f, rowY + 10.0f, servers[i].mode, 1.45f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::GeoSans);
+                    std::string plyStr = std::to_string(servers[i].playerCount) + " / " + std::to_string(servers[i].maxPlayers);
+                    LabFont::drawText(winX + 760.0f, rowY + 10.0f, plyStr, 1.45f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::GeoSans);
+                    LabFont::drawText(winX + 870.0f, rowY + 10.0f, std::to_string(servers[i].pingMs) + "ms", 1.45f, Vec3(0.35f, 0.85f, 0.55f), LabFontType::GeoSans);
+                }
+            }
+
+            // Bottom Filter Bar (Source VGUI2 Filter Row)
+            drawVguiButton(winX + 20.0f, winY + 432.0f, 140.0f, 30.0f, _serverFilterNotFull ? "[x] Not Full" : "[ ] Not Full", false, _serverFilterNotFull);
+            drawVguiButton(winX + 170.0f, winY + 432.0f, 150.0f, 30.0f, _serverFilterHasPlayers ? "[x] Has Players" : "[ ] Has Players", false, _serverFilterHasPlayers);
+            std::string pingFilterLbl = (_serverFilterMaxPing == 0) ? "Ping: Any" : ("Ping < " + std::to_string(_serverFilterMaxPing));
+            drawVguiButton(winX + 330.0f, winY + 432.0f, 160.0f, 30.0f, pingFilterLbl, false, _serverFilterMaxPing > 0);
+            drawVguiButton(winX + winW - 140.0f, winY + 432.0f, 120.0f, 30.0f, "Add Fav", false, false);
+
+            // Direct IP Connect Bar
+            std::string directDisplay = "DIRECT IP: " + _directConnectIP + (_directConnectActive ? "_" : "");
+            Renderer::drawRect(winX + 20.0f, winY + 472.0f, 600.0f, 32.0f, _directConnectActive ? Vec3(0.14f, 0.18f, 0.24f) : Vec3(0.09f, 0.10f, 0.13f));
+            LabFont::drawText(winX + 32.0f, winY + 480.0f, directDisplay, 1.45f, Vec3(1.0f, 0.84f, 0.22f), LabFontType::GeoSans);
+            drawVguiButton(winX + 630.0f, winY + 472.0f, 80.0f, 32.0f, "Paste", false, false);
+            drawVguiButton(winX + 720.0f, winY + 472.0f, 80.0f, 32.0f, "Clear", false, false);
+
+            // Bottom Buttons
+            bool isCloseBtnHov = (_menuMouseX >= winX + 20.0f && _menuMouseX <= winX + 160.0f && _menuMouseY >= winY + 524.0f && _menuMouseY <= winY + 558.0f);
+            drawVguiButton(winX + 20.0f, winY + 524.0f, 140.0f, 34.0f, "Close", isCloseBtnHov, false);
+
+            bool isRefreshHov = (_menuMouseX >= winX + winW - 320.0f && _menuMouseX <= winX + winW - 180.0f && _menuMouseY >= winY + 524.0f && _menuMouseY <= winY + 558.0f);
+            drawVguiButton(winX + winW - 320.0f, winY + 524.0f, 140.0f, 34.0f, "Refresh", isRefreshHov, false);
+
+            bool isConnectHov = (_menuMouseX >= winX + winW - 160.0f && _menuMouseX <= winX + winW - 20.0f && _menuMouseY >= winY + 524.0f && _menuMouseY <= winY + 558.0f);
+            drawVguiButton(winX + winW - 160.0f, winY + 524.0f, 140.0f, 34.0f, _isConnecting ? "Cancel" : "Connect", isConnectHov, true);
+        }
+        else if (_menuScreen == MenuScreen::LoadingMap) {
+            const float loadW = 720.0f;
+            const float loadH = 420.0f;
+            const float loadX = (1280.0f - loadW) * 0.5f;
+            const float loadY = (720.0f - loadH) * 0.5f;
+
+            drawVguiWindow(loadX, loadY, loadW, loadH, "LOADING SECTOR // RESOURCE SYNCHRONIZATION", false);
+            drawVguiWell(loadX + 20.0f, loadY + 48.0f, loadW - 40.0f, 300.0f, "FASTDL & WORLD INITIALIZATION");
+
+            LabFont::drawText(loadX + 38.0f, loadY + 86.0f, "TARGET SECTOR: " + _loadingState.pendingConfig.mapPath, 1.55f, Vec3(1.0f, 0.84f, 0.22f), LabFontType::GeoSans);
+            LabFont::drawText(loadX + 38.0f, loadY + 114.0f, "GAMEPLAY MODE: " + _loadingState.pendingConfig.getModeString(), 1.40f, Vec3(0.75f, 0.82f, 0.90f), LabFontType::GeoSans);
+
+            const char* stages[5] = {
+                "1. Establishing network handshake & server tick synchronization...",
+                "2. FastDL: Verifying & downloading missing .lmap / .lpak packages...",
+                "3. Parsing BSP world geometry, lightmaps & static props...",
+                "4. Precaching 70-bone Guard skeletal rig & 3D spatial audio...",
+                "5. Sending client info & spawning local player entity..."
+            };
+            for (int s = 0; s < 5; ++s) {
+                float sy = loadY + 148.0f + static_cast<float>(s) * 24.0f;
+                bool done = (_loadingState.stageIndex > s);
+                bool active = (_loadingState.stageIndex == s);
+                Vec3 col = done ? Vec3(0.35f, 0.88f, 0.50f) : (active ? Vec3(1.0f, 0.84f, 0.22f) : Vec3(0.45f, 0.50f, 0.56f));
+                std::string prefix = done ? "[OK] " : (active ? "[>>] " : "[..] ");
+                LabFont::drawText(loadX + 42.0f, sy, prefix + stages[s], 1.30f, col, LabFontType::System);
+            }
+
+            // FastDL Transfer Bar
+            float dlFrac = (_loadingState.fastDlTotalBytes > 0)
+                ? (static_cast<float>(_loadingState.fastDlBytesDownloaded) / static_cast<float>(_loadingState.fastDlTotalBytes))
+                : 1.0f;
+            std::string dlText = "FastDL Package: " + _loadingState.fastDlCurrentFile + " (" +
+                                 std::to_string(_loadingState.fastDlBytesDownloaded / 1024) + " KB / " +
+                                 std::to_string(_loadingState.fastDlTotalBytes / 1024) + " KB)";
+            LabFont::drawText(loadX + 38.0f, loadY + 276.0f, dlText, 1.25f, Vec3(0.65f, 0.75f, 0.88f), LabFontType::System);
+            drawVguiProgressBar(loadX + 38.0f, loadY + 296.0f, loadW - 76.0f, 14.0f, dlFrac, Vec3(0.25f, 0.72f, 0.95f));
+
+            // Overall Segmented Source Orange Progress Bar
+            LabFont::drawText(loadX + 20.0f, loadY + loadH - 44.0f, _loadingState.statusText, 1.35f, Vec3(0.85f, 0.88f, 0.92f), LabFontType::GeoSans);
+            drawVguiProgressBar(loadX + 38.0f, loadY + 322.0f, loadW - 76.0f, 18.0f, _loadingState.progress, Vec3(0.92f, 0.68f, 0.16f));
+
+            bool isCancelHov = (_menuMouseX >= loadX + loadW - 150.0f && _menuMouseX <= loadX + loadW - 20.0f && _menuMouseY >= loadY + loadH - 50.0f && _menuMouseY <= loadY + loadH - 16.0f);
+            drawVguiButton(loadX + loadW - 150.0f, loadY + loadH - 50.0f, 130.0f, 34.0f, "Cancel", isCancelHov, false);
+        }
+        else if (_menuScreen == MenuScreen::Addons) {
+            bool isCloseHov = (_menuMouseX >= winX + winW - 28.0f && _menuMouseX <= winX + winW - 6.0f && _menuMouseY >= winY + 6.0f && _menuMouseY <= winY + 28.0f);
+            drawVguiWindow(winX, winY, winW, winH, "ADDONS MANAGER", isCloseHov);
+
+            // Left Well: Categories
+            drawVguiWell(winX + 20.0f, winY + 46.0f, 220.0f, 455.0f, "CATEGORIES");
+
+            const char* cats[5] = { "ALL PACKAGES", "MAPS & LEVELS", "MODELS & SKINS", "LUA SCRIPTS", "UI HUD PACKS" };
+            for (int c = 0; c < 5; ++c) {
+                float cy = winY + 80.0f + static_cast<float>(c) * 40.0f;
+                bool isSel = (c == _selectedAddonCategory);
+                bool isHov = (_menuMouseX >= winX + 26.0f && _menuMouseX <= winX + 234.0f && _menuMouseY >= cy && _menuMouseY <= cy + 34.0f);
+                Vec3 rBg = isSel ? Vec3(0.18f, 0.24f, 0.32f) : (isHov ? Vec3(0.12f, 0.15f, 0.19f) : Vec3(0.08f, 0.09f, 0.11f));
+                Renderer::drawRect(winX + 26.0f, cy, 208.0f, 34.0f, rBg);
+                if (isSel) Renderer::drawRect(winX + 26.0f, cy, 3.5f, 34.0f, Vec3(1.0f, 0.72f, 0.15f));
+                LabFont::drawText(winX + 36.0f, cy + 9.0f, cats[c], 1.45f, isSel ? Vec3(1, 1, 1) : Vec3(0.75f, 0.80f, 0.86f), LabFontType::GeoSans);
+            }
+
+            // Right Well: Addons List
+            drawVguiWell(winX + 260.0f, winY + 46.0f, 700.0f, 455.0f, "INSTALLED PACKAGES");
+
+            if (_discoveredAddons.empty()) {
+                LabFont::drawText(winX + 280.0f, winY + 90.0f, "No addons detected in /addons directory.", 1.55f, Vec3(0.55f, 0.60f, 0.68f), LabFontType::GeoSans);
+                LabFont::drawText(winX + 280.0f, winY + 120.0f, "Drop maps, models, scripts or skins into /addons/my_mod to load them!", 1.35f, Vec3(0.40f, 0.45f, 0.52f), LabFontType::System);
+            } else {
+                for (size_t i = 0; i < _discoveredAddons.size() && i < 5; ++i) {
+                    float cardY = winY + 80.0f + static_cast<float>(i) * 78.0f;
+                    const auto& mod = _discoveredAddons[i];
+
+                    Renderer::drawRect(winX + 270.0f, cardY, 680.0f, 70.0f, mod.enabled ? Vec3(0.11f, 0.13f, 0.17f) : Vec3(0.08f, 0.09f, 0.11f));
+                    Renderer::drawRect(winX + 270.0f, cardY, 680.0f, 1.0f, Vec3(0.18f, 0.22f, 0.28f));
+                    Renderer::drawRect(winX + 270.0f, cardY, 1.0f, 70.0f, Vec3(0.18f, 0.22f, 0.28f));
+
+                    LabFont::drawText(winX + 284.0f, cardY + 10.0f, mod.title + " v" + mod.version, 1.60f, mod.enabled ? Vec3(1.0f, 0.84f, 0.22f) : Vec3(0.60f, 0.64f, 0.70f), LabFontType::GeoSans);
+                    std::string sub = "Folder: /addons/" + mod.folderName + " | Author: " + mod.author;
+                    LabFont::drawText(winX + 284.0f, cardY + 30.0f, sub, 1.25f, Vec3(0.50f, 0.55f, 0.62f), LabFontType::System);
+                    LabFont::drawText(winX + 284.0f, cardY + 48.0f, mod.description, 1.30f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::System);
+
+                    // Checkbox
+                    float cbX = winX + 270.0f + 580.0f;
+                    float cbY = cardY + 20.0f;
+                    drawVguiButton(cbX, cbY, 85.0f, 28.0f, mod.enabled ? "[v] Enabled" : "[ ] Disabled", false, mod.enabled);
+                }
+            }
+
+            // Bottom Buttons
+            bool isCloseBtnHov = (_menuMouseX >= winX + 20.0f && _menuMouseX <= winX + 160.0f && _menuMouseY >= winY + 524.0f && _menuMouseY <= winY + 558.0f);
+            drawVguiButton(winX + 20.0f, winY + 524.0f, 140.0f, 34.0f, "Close", isCloseBtnHov, false);
+
+            bool isRefreshHov = (_menuMouseX >= winX + 180.0f && _menuMouseX <= winX + 320.0f && _menuMouseY >= winY + 524.0f && _menuMouseY <= winY + 558.0f);
+            drawVguiButton(winX + 180.0f, winY + 524.0f, 140.0f, 34.0f, "Refresh", isRefreshHov, false);
+        }
+        else if (_menuScreen == MenuScreen::Options) {
+            const float optX = 230.0f;
+            const float optY = 90.0f;
+            const float optW = 820.0f;
+            const float optH = 540.0f;
+
+            bool isCloseHov = (_menuMouseX >= optX + optW - 28.0f && _menuMouseX <= optX + optW - 6.0f && _menuMouseY >= optY + 6.0f && _menuMouseY <= optY + 28.0f);
+            drawVguiWindow(optX, optY, optW, optH, "OPTIONS", isCloseHov);
+
+            // Tabs
+            const char* optTabs[3] = { "VIDEO", "AUDIO", "CONTROLS" };
+            for (int t = 0; t < 3; ++t) {
+                float tx = optX + 20.0f + static_cast<float>(t) * 125.0f;
+                bool isSel = (_optionsActiveTab == t);
+                bool isHov = (_menuMouseX >= tx && _menuMouseX <= tx + 120.0f && _menuMouseY >= optY + 42.0f && _menuMouseY <= optY + 68.0f);
+                Vec3 tabBg = isSel ? Vec3(0.14f, 0.16f, 0.20f) : (isHov ? Vec3(0.12f, 0.14f, 0.17f) : Vec3(0.09f, 0.10f, 0.12f));
+                Vec3 txtCol = isSel ? Vec3(1.0f, 0.83f, 0.22f) : (isHov ? Vec3(0.85f, 0.88f, 0.92f) : Vec3(0.50f, 0.54f, 0.58f));
+                Renderer::drawRect(tx, optY + 42.0f, 120.0f, 26.0f, tabBg);
+                if (isSel) Renderer::drawRect(tx, optY + 66.0f, 120.0f, 2.0f, Vec3(1.0f, 0.70f, 0.0f));
+                LabFont::drawText(tx + 16.0f, optY + 47.0f, optTabs[t], 1.45f, txtCol, LabFontType::GeoSans);
+            }
+
+            // Container Well
+            drawVguiWell(optX + 20.0f, optY + 74.0f, optW - 40.0f, 396.0f, "");
+
+            if (_optionsActiveTab == 0) { // Video
+                LabFont::drawText(optX + 44.0f, optY + 104.0f, "DYNAMIC SHADOWS", 1.55f, Vec3(0.85f, 0.88f, 0.94f), LabFontType::GeoSans);
+                drawVguiButton(optX + 320.0f, optY + 98.0f, 140.0f, 30.0f, _optShadows ? "Enabled" : "Disabled", false, _optShadows);
+
+                LabFont::drawText(optX + 44.0f, optY + 154.0f, "SHADOW MAP RESOLUTION", 1.55f, Vec3(0.85f, 0.88f, 0.94f), LabFontType::GeoSans);
+                drawVguiButton(optX + 320.0f, optY + 148.0f, 90.0f, 30.0f, "1024", false, _optShadowRes == 1024);
+                drawVguiButton(optX + 420.0f, optY + 148.0f, 90.0f, 30.0f, "2048", false, _optShadowRes == 2048);
+
+                LabFont::drawText(optX + 44.0f, optY + 204.0f, "FIELD OF VIEW (FOV)", 1.55f, Vec3(0.85f, 0.88f, 0.94f), LabFontType::GeoSans);
+                drawVguiButton(optX + 320.0f, optY + 198.0f, 60.0f, 30.0f, "75", false, _optFov == 75);
+                drawVguiButton(optX + 390.0f, optY + 198.0f, 60.0f, 30.0f, "90", false, _optFov == 90);
+                drawVguiButton(optX + 460.0f, optY + 198.0f, 60.0f, 30.0f, "105", false, _optFov == 105);
+            } else if (_optionsActiveTab == 1) { // Audio
+                LabFont::drawText(optX + 44.0f, optY + 104.0f, "MASTER VOLUME", 1.55f, Vec3(0.85f, 0.88f, 0.94f), LabFontType::GeoSans);
+                drawVguiButton(optX + 320.0f, optY + 98.0f, 40.0f, 30.0f, "-", false, false);
+                std::string volStr = std::to_string((int)(_optMasterVolume * 100.0f)) + " %";
+                LabFont::drawText(optX + 380.0f, optY + 104.0f, volStr, 1.55f, Vec3(1, 1, 1), LabFontType::GeoSans);
+                drawVguiButton(optX + 460.0f, optY + 98.0f, 40.0f, 30.0f, "+", false, false);
+            } else if (_optionsActiveTab == 2) { // Controls
+                LabFont::drawText(optX + 44.0f, optY + 104.0f, "MOUSE SENSITIVITY", 1.55f, Vec3(0.85f, 0.88f, 0.94f), LabFontType::GeoSans);
+                drawVguiButton(optX + 320.0f, optY + 98.0f, 40.0f, 30.0f, "-", false, false);
+                char sensBuf[32];
+                snprintf(sensBuf, sizeof(sensBuf), "%.2f", _optMouseSens);
+                LabFont::drawText(optX + 380.0f, optY + 104.0f, sensBuf, 1.55f, Vec3(1, 1, 1), LabFontType::GeoSans);
+                drawVguiButton(optX + 460.0f, optY + 98.0f, 40.0f, 30.0f, "+", false, false);
+
+                LabFont::drawText(optX + 44.0f, optY + 154.0f, "INVERT VERTICAL AXIS", 1.55f, Vec3(0.85f, 0.88f, 0.94f), LabFontType::GeoSans);
+                drawVguiButton(optX + 320.0f, optY + 148.0f, 140.0f, 30.0f, _optInvertY ? "Enabled" : "Disabled", false, _optInvertY);
+
+                LabFont::drawText(optX + 44.0f, optY + 210.0f, "KEYBOARD SHORTCUTS:", 1.45f, Vec3(1.0f, 0.84f, 0.22f), LabFontType::GeoSans);
+                LabFont::drawText(optX + 44.0f, optY + 236.0f, "WASD - Movement               |  LMB - Primary Weapon Fire", 1.35f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::System);
+                LabFont::drawText(optX + 44.0f, optY + 258.0f, "SPACE - Jump / Source Bhop    |  RMB - Phys Cannon / Iron Sights", 1.35f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::System);
+                LabFont::drawText(optX + 44.0f, optY + 280.0f, "R - Reload Weapon             |  F - Tactical Flashlight", 1.35f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::System);
+                LabFont::drawText(optX + 44.0f, optY + 302.0f, "~ - Developer Console         |  F2 - Hammer 3D Editor", 1.35f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::System);
+            }
+
+            // Bottom Buttons
+            bool isCancelHov = (_menuMouseX >= optX + 20.0f && _menuMouseX <= optX + 160.0f && _menuMouseY >= optY + 484.0f && _menuMouseY <= optY + 518.0f);
+            drawVguiButton(optX + 20.0f, optY + 484.0f, 140.0f, 34.0f, "Cancel", isCancelHov, false);
+
+            bool isOkHov = (_menuMouseX >= optX + optW - 160.0f && _menuMouseX <= optX + optW - 20.0f && _menuMouseY >= optY + 484.0f && _menuMouseY <= optY + 518.0f);
+            drawVguiButton(optX + optW - 160.0f, optY + 484.0f, 140.0f, 34.0f, "OK", isOkHov, true);
+        }
+        else if (_menuScreen == MenuScreen::MultiSelect) {
+            bool isCloseHov = (_menuMouseX >= winX + winW - 28.0f && _menuMouseX <= winX + winW - 6.0f && _menuMouseY >= winY + 6.0f && _menuMouseY <= winY + 28.0f);
+            drawVguiWindow(winX, winY, winW, winH, "MULTIPLAYER", isCloseHov);
+
+            // Card 1: Create Server
+            drawVguiWell(winX + 40.0f, winY + 70.0f, 420.0f, 380.0f, "CREATE SERVER");
+            LabFont::drawText(winX + 60.0f, winY + 120.0f, "Host a custom LAN or P2P session.", 1.55f, Vec3(0.85f, 0.90f, 0.95f), LabFontType::GeoSans);
+            LabFont::drawText(winX + 60.0f, winY + 150.0f, "Configure combat bot squad count and match rules.", 1.40f, Vec3(0.65f, 0.70f, 0.78f), LabFontType::GeoSans);
+            drawVguiButton(winX + 60.0f, winY + 360.0f, 380.0f, 38.0f, "Configure & Host", false, true);
+
+            // Card 2: Find Servers
+            drawVguiWell(winX + 520.0f, winY + 70.0f, 420.0f, 380.0f, "FIND SERVERS");
+            LabFont::drawText(winX + 540.0f, winY + 120.0f, "Browse servers running on LAN network.", 1.55f, Vec3(0.85f, 0.90f, 0.95f), LabFontType::GeoSans);
+            LabFont::drawText(winX + 540.0f, winY + 150.0f, "Connect with 4-digit Room Code or Direct IP.", 1.40f, Vec3(0.65f, 0.70f, 0.78f), LabFontType::GeoSans);
+            drawVguiButton(winX + 540.0f, winY + 360.0f, 380.0f, 38.0f, "Open Browser", false, true);
+
+            // Bottom Back button
+            bool isBackHov = (_menuMouseX >= winX + 40.0f && _menuMouseX <= winX + 180.0f && _menuMouseY >= winY + 500.0f && _menuMouseY <= winY + 534.0f);
+            drawVguiButton(winX + 40.0f, winY + 500.0f, 140.0f, 34.0f, "Back", isBackHov, false);
         }
 
         Renderer::endUI();
     }
 
+
     void drawUI() {
         int w = 1280, h = 720;
+        if (_devConsole.ui_scale > 0.1f && std::abs(_devConsole.ui_scale - 1.0f) > 0.01f) {
+            w = static_cast<int>(1280.0f / _devConsole.ui_scale);
+            h = static_cast<int>(720.0f / _devConsole.ui_scale);
+        }
 
-        if (!_hammerEditor.active) {
-            if (_isPlayerDead) {
-                _hud.renderDeathScreen(w, h, _playerRespawnTimer);
-            } else {
-                _hud.render(w, h);
-                _interactiveSystem.renderHUD(w, h);
+        if (_inMenu) {
+            Renderer::beginUI(w, h);
+            Renderer::drawRect(0.0f, 0.0f, static_cast<float>(w), static_cast<float>(h), Vec3(0.02f, 0.03f, 0.06f), 0.42f);
+            Renderer::endUI();
+            drawMenu();
+            if (_devConsole.isOpen) {
+                _devConsole.render(w, h);
             }
-            _chat.render(w, h);
+            return;
+        }
 
-            // Scoreboard (Hold or toggle TAB)
-            if (Input::isKeyPressed(258)) { // GLFW_KEY_TAB
-                std::vector<ScoreboardEntry> entries;
+        _hud.showCrosshair = _devConsole.ui_crosshair;
+        _hud.crosshairColor = _devConsole.ui_crosshair_color_rgb;
 
-                ScoreboardEntry pe;
-                pe.name = "[YOU] Player";
-                pe.kills = _playerKills;
-                pe.deaths = _playerDeaths;
-                pe.ping = "5ms";
-                pe.isBot = false;
-                pe.isLocalPlayer = true;
-                pe.isAlive = !_isPlayerDead;
-                pe.status = _isPlayerDead ? "DEAD (" + std::to_string(std::max(0, (int)std::ceil(_playerRespawnTimer))) + "s)" : "ALIVE";
-                pe.team = (_sessionConfig.mode == GameMode::TDM) ? "Blue (Alpha)" : "Free-For-All";
-                entries.push_back(pe);
-
-                for (const auto& bot : _aiManager.bots) {
-                    ScoreboardEntry be;
-                    be.name = bot.name;
-                    be.kills = bot.kills;
-                    be.deaths = bot.deaths;
-                    be.ping = "BOT";
-                    be.isBot = true;
-                    be.isLocalPlayer = false;
-                    be.isAlive = bot.isAlive();
-                    be.status = bot.isAlive() ? "ALIVE" : ("DEAD (" + std::to_string(std::max(0, (int)std::ceil(bot.respawnTimer))) + "s)");
-                    be.team = (_sessionConfig.mode == GameMode::TDM) ? ((bot.team == 0) ? "Red" : "Blue") : "Free-For-All";
-                    entries.push_back(be);
-                }
-
-                std::sort(entries.begin(), entries.end(), [](const ScoreboardEntry& a, const ScoreboardEntry& b) {
-                    return a.kills > b.kills;
-                });
-
-                std::string mapTitle = _currentMap ? _currentMap->metadata.name : "Sector";
-                _hud.renderScoreboard(w, h, entries, mapTitle, _sessionConfig.getModeString(), _sessionConfig.fragLimit);
+        if (_devConsole.ui_hide) {
+            int winW = w, winH = h;
+            getWindowSize(winW, winH);
+            if (winW <= 0) winW = w;
+            if (winH <= 0) winH = h;
+            if (_devConsole.isOpen) {
+                _devConsole.render(winW, winH);
             }
+            return;
+        }
+
+        if (_isPlayerDead) {
+            _hud.renderDeathScreen(w, h, _playerRespawnTimer);
         } else {
-            _hammerEditor.drawUI(w, h);
+            _hud.render(w, h);
+            _interactiveSystem.renderHUD(w, h);
+
+            // Call of Duty Style Tactical Entrance Typewriter Overlay (powered by addons/cod_intro/scripts/startup.lua)
+            if (_codIntroTimer > 0.0f && _codIntroTimer <= _codIntroDuration) {
+                std::string l1 = ScriptEngine::getHUDText("cod_intro_line1");
+                std::string l2 = ScriptEngine::getHUDText("cod_intro_line2");
+                std::string l3 = ScriptEngine::getHUDText("cod_intro_line3");
+                if (!l1.empty()) {
+                    Renderer::beginUI(w, h);
+                    float alpha = 1.0f;
+                    if (_codIntroTimer > _codIntroDuration - 0.8f) {
+                        alpha = std::clamp((_codIntroDuration - _codIntroTimer) / 0.8f, 0.0f, 1.0f);
+                    }
+                    auto typewriterSlice = [](const std::string& full, float elapsed, float startDelay) -> std::string {
+                        if (elapsed <= startDelay) return "";
+                        size_t chars = static_cast<size_t>((elapsed - startDelay) * 32.0f);
+                        if (chars >= full.size()) return full;
+                        return full.substr(0, chars) + "_";
+                    };
+                    float baseX = 48.0f;
+                    float baseY = static_cast<float>(h) - 215.0f;
+                    Renderer::drawRect(baseX - 10.0f, baseY - 8.0f, 520.0f, 78.0f, Vec3(0.02f, 0.05f, 0.04f), 0.65f * alpha);
+                    Renderer::drawRect(baseX - 10.0f, baseY - 8.0f, 3.0f, 78.0f, Vec3(0.35f, 0.95f, 0.45f), 0.90f * alpha);
+                    LabFont::drawText(baseX, baseY, typewriterSlice(l1, _codIntroTimer, 0.0f), 1.45f, Vec3(0.45f, 1.0f, 0.55f) * alpha, LabFontType::GeoSans);
+                    LabFont::drawText(baseX, baseY + 24.0f, typewriterSlice(l2, _codIntroTimer, 0.45f), 1.35f, Vec3(0.75f, 0.95f, 0.80f) * alpha, LabFontType::System);
+                    LabFont::drawText(baseX, baseY + 46.0f, typewriterSlice(l3, _codIntroTimer, 0.95f), 1.35f, Vec3(0.75f, 0.95f, 0.80f) * alpha, LabFontType::System);
+                    Renderer::endUI();
+                }
+            }
+        }
+        _chat.render(w, h);
+
+        // Scoreboard (Hold or toggle TAB)
+        if (Input::isKeyPressed(258)) { // GLFW_KEY_TAB
+            std::vector<ScoreboardEntry> entries;
+
+            ScoreboardEntry pe;
+            pe.name = "[YOU] Player";
+            pe.kills = _playerKills;
+            pe.deaths = _playerDeaths;
+            pe.ping = "5ms";
+            pe.isBot = false;
+            pe.isLocalPlayer = true;
+            pe.isAlive = !_isPlayerDead;
+            pe.status = _isPlayerDead ? "DEAD (" + std::to_string(std::max(0, (int)std::ceil(_playerRespawnTimer))) + "s)" : "ALIVE";
+            pe.team = (_sessionConfig.mode == GameMode::TDM) ? "Blue (Alpha)" : "Free-For-All";
+            entries.push_back(pe);
+
+            for (const auto& bot : _aiManager.bots) {
+                ScoreboardEntry be;
+                be.name = bot.name;
+                be.kills = bot.kills;
+                be.deaths = bot.deaths;
+                be.ping = "BOT";
+                be.isBot = true;
+                be.isLocalPlayer = false;
+                be.isAlive = bot.isAlive();
+                be.status = bot.isAlive() ? "ALIVE" : ("DEAD (" + std::to_string(std::max(0, (int)std::ceil(bot.respawnTimer))) + "s)");
+                be.team = (_sessionConfig.mode == GameMode::TDM) ? ((bot.team == 0) ? "Red" : "Blue") : "Free-For-All";
+                entries.push_back(be);
+            }
+
+            std::sort(entries.begin(), entries.end(), [](const ScoreboardEntry& a, const ScoreboardEntry& b) {
+                return a.kills > b.kills;
+            });
+
+            std::string mapTitle = _currentMap ? _currentMap->metadata.name : "Sector";
+            _hud.renderScoreboard(w, h, entries, mapTitle, _sessionConfig.getModeString(), _sessionConfig.fragLimit);
         }
 
         // Debug mode overlay (F3)
@@ -2732,6 +4136,88 @@ public:
                                   " | Pickups: " + std::to_string(_pickups.items.size());
             LabFont::drawText(20.0f, 25.0f, dbgBots, 1.5f, Vec3(1, 1, 1), LabFontType::System);
             Renderer::endUI();
+        }
+
+        // 2D Telemetry overlays & Developer Console (real measured frame timing)
+        static auto s_prevTelemetryTime = std::chrono::steady_clock::now();
+        static float s_smoothedFrameMs = 16.67f;
+        auto nowTelemetryTime = std::chrono::steady_clock::now();
+        float rawFrameMs = std::chrono::duration<float, std::milli>(nowTelemetryTime - s_prevTelemetryTime).count();
+        s_prevTelemetryTime = nowTelemetryTime;
+        if (rawFrameMs > 0.1f && rawFrameMs < 500.0f) {
+            s_smoothedFrameMs = s_smoothedFrameMs * 0.90f + rawFrameMs * 0.10f;
+        }
+
+        DevTelemetryData tData;
+        tData.currentSpeed = _velocity.length();
+        tData.horizontalSpeed = std::sqrt(_velocity.x * _velocity.x + _velocity.z * _velocity.z);
+        tData.velocity = _velocity;
+        tData.playerPos = _camera.getPosition();
+        tData.pitch = _camera.getPitch();
+        tData.yaw = _camera.getYaw();
+        tData.frametimeMs = s_smoothedFrameMs;
+        tData.fps = (s_smoothedFrameMs > 0.01f) ? (1000.0f / s_smoothedFrameMs) : 60.0f;
+        tData.pingMs = _netClient.isConnected() ? 25 : 0;
+        tData.activeBots = (int)_aiManager.bots.size();
+        tData.isGrounded = _isGrounded;
+        tData.isBhopActive = (!_isGrounded && tData.horizontalSpeed > 5.2f);
+        tData.drawCalls = Renderer::getDrawCallCount();
+        tData.vertexCount = Renderer::getVertexCount();
+#ifdef _WIN32
+        PROCESS_MEMORY_COUNTERS_EX pmc;
+        if (GetProcessMemoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS*)&pmc, sizeof(pmc))) {
+            tData.ramWorkingSetMB = pmc.WorkingSetSize / (1024 * 1024);
+        }
+#endif
+        // Closest AI Bot telemetry
+        float closestDist = 999.0f;
+        const CombatBot* closestBot = nullptr;
+        for (const auto& b : _aiManager.bots) {
+            if (b.isAlive()) {
+                float dist = (b.position - _camera.getPosition()).length();
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    closestBot = &b;
+                }
+            }
+        }
+        if (closestBot) {
+            std::string stStr = "PATROL";
+            switch (closestBot->state) {
+                case AIState::Patrol: stStr = "PATROL"; break;
+                case AIState::Talk:   stStr = "TALK"; break;
+                case AIState::Alert:  stStr = "ALERT"; break;
+                case AIState::Chase:  stStr = "CHASE"; break;
+                case AIState::Attack: stStr = "ATTACK"; break;
+                case AIState::Hurt:   stStr = "HURT"; break;
+                case AIState::Dead:   stStr = "DEAD"; break;
+            }
+            char bBuf[128];
+            snprintf(bBuf, sizeof(bBuf), "%s | State: %s | Dist: %.1fm", closestBot->name.c_str(), stStr.c_str(), closestDist);
+            tData.closestBotInfo = bBuf;
+
+            if (closestBot->state == AIState::Talk && !closestBot->activeSubtitle.empty()) {
+                Renderer::beginUI(w, h);
+                float subW = 680.0f;
+                float subH = 44.0f;
+                float subX = (w - subW) * 0.5f;
+                float subY = h - 135.0f;
+                Renderer::drawRect(subX, subY, subW, subH, Vec3(0.06f, 0.09f, 0.14f));
+                Renderer::drawRect(subX, subY, 4.0f, subH, Vec3(0.2f, 0.85f, 1.0f));
+                std::string line = "[" + closestBot->name + "]: " + closestBot->activeSubtitle;
+                LabFont::drawText(subX + 14.0f, subY + 14.0f, line, 1.55f, Vec3(0.85f, 0.96f, 1.0f), LabFontType::GeoSans);
+                Renderer::endUI();
+            }
+        }
+
+        int winW = w, winH = h;
+        getWindowSize(winW, winH);
+        if (winW <= 0) winW = w;
+        if (winH <= 0) winH = h;
+
+        _devConsole.renderOverlay(winW, winH, tData);
+        if (_devConsole.isOpen) {
+            _devConsole.render(winW, winH);
         }
     }
 
@@ -2844,17 +4330,29 @@ public:
             return;
         }
 
-        if (_inMenu) {
+        if (_inMenu && _currentMap == nullptr) {
+            loadSelectedMap("assets/maps/menu_background.labscene");
+            _hasActiveGame = false;
+            _inMenu = true;
+            setCursorCaptured(false);
+        }
+
+        if (_inMenu && _currentMap == nullptr) {
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-            drawMenu();
+            drawUI();
             return;
         }
 
         // ==================== PASS 1: DYNAMIC SHADOW DEPTH PASS ====================
         Mat4 lightSpaceMatrix;
-        if (_currentMap && _shadowMap.isInitialized()) {
-            Vec3 sunDir = Vec3(-0.35f, -1.0f, -0.45f);
-            lightSpaceMatrix = ShadowMap::computeSunLightSpaceMatrix(sunDir, _camera.getPosition(), 38.0f);
+        if (_devConsole.r_shadows && _currentMap && _shadowMap.isInitialized()) {
+            if (_shadowMap.getWidth() != _devConsole.r_shadow_res && _devConsole.r_shadow_res >= 512) {
+                _shadowMap.init(_devConsole.r_shadow_res, _devConsole.r_shadow_res);
+            }
+            Vec3 sunDir = (_currentMap && _currentMap->metadata.sunDir.lengthSq() > 0.01f)
+                ? _currentMap->metadata.sunDir
+                : Vec3(-0.35f, -1.0f, -0.45f);
+            lightSpaceMatrix = ShadowMap::computeSunLightSpaceMatrix(sunDir, _camera.getPosition(), 28.0f);
             _shadowMap.beginShadowPass(lightSpaceMatrix);
             Renderer::beginShadowDepthPass(lightSpaceMatrix);
 
@@ -2882,6 +4380,18 @@ public:
             // Render Combat AI bots into shadow map
             _aiManager.renderShadowPass();
 
+            // Render Local Player shadow in third person
+            if (_devConsole.cam_thirdperson && _aiManager.skinnedMesh && _playerAnimator.getSkeleton()) {
+                float pScale = _aiManager.skinnedMesh->getBaseScale(1.85f);
+                float yOff = -_aiManager.skinnedMesh->getMinBounds().y * pScale;
+                Vec3 pFeet = _camera.getPosition() - Vec3(0.0f, 1.70f, 0.0f);
+                float modelYaw = std::atan2(_camera.getFront().x, _camera.getFront().z) * 180.0f / 3.14159265f;
+                Mat4 pModel = Mat4::translate(pFeet + Vec3(0.0f, yOff, 0.0f)) *
+                              Mat4::rotate(modelYaw * 3.14159265f / 180.0f, Vec3(0, 1, 0)) *
+                              Mat4::scale(Vec3(pScale, pScale, pScale));
+                Renderer::drawShadowSkinnedMesh(*_aiManager.skinnedMesh, pModel, _playerAnimator.getSkinMatrices());
+            }
+
             // Render Dynamic Rigid Body Physics Props into shadow map
             _physicsWorld.renderShadow();
 
@@ -2889,9 +4399,9 @@ public:
             _shadowMap.endShadowPass(getWidth(), getHeight());
         }
 
-        // Ensure post-process pipeline and camera aspect match current viewport dimensions
-        int curW = getWidth();
-        int curH = getHeight();
+        // Ensure post-process pipeline and camera aspect match physical framebuffer dimensions (prevents High-DPI blur)
+        int curW = 1280, curH = 720;
+        getFramebufferSize(curW, curH);
         if (curW > 0 && curH > 0) {
             _camera.setAspect((float)curW / (float)curH);
             if (curW != _postProcess.getWidth() || curH != _postProcess.getHeight()) {
@@ -2900,21 +4410,24 @@ public:
         }
 
         // ==================== PASS 2: COLOR & LIGHTING SCENE PASS (HDR FBO) ====================
+        _postProcess.setClearColor(_devConsole.wrd_skybox_color);
         _postProcess.beginScene();
 
-        // Update Sun & Ambient Lighting (Handling Hammer Darkness Mode)
-        if (_hammerEditor.active && _hammerEditor.darknessMode) {
-            Renderer::setSunLight(
-                Vec3(0.0f, -1.0f, 0.0f),
-                Vec3(0.0f, 0.0f, 0.0f),
-                Vec3(0.012f, 0.015f, 0.022f)
-            );
-        } else if (_currentMap) {
+        // Update Sun & Ambient Lighting (Handling Hammer Darkness Mode & wrd_light_ambient)
+        if (_currentMap) {
             Renderer::setSunLight(
                 _currentMap->metadata.sunDir,
                 _currentMap->metadata.sunColor,
-                _currentMap->metadata.ambientColor
+                _devConsole.wrd_light_ambient
             );
+        }
+
+        // Atmospheric Volumetric Fog (wrd_fog & wrd_fog_density)
+        if (_devConsole.wrd_fog) {
+            float fogEnd = 1.0f / std::max(0.001f, _devConsole.wrd_fog_density);
+            Renderer::setFog(true, _devConsole.wrd_skybox_color, 2.0f, fogEnd);
+        } else {
+            Renderer::setFog(false);
         }
 
         // Upload Dynamic Point Lights to Renderer
@@ -2934,9 +4447,62 @@ public:
             Renderer::clearPointLights();
         }
 
+        // Camera Thirdperson & Camera Shake Setup
+        Vec3 origCamPos = _camera.getPosition();
+        float origYaw = _camera.getYaw();
+        float origPitch = _camera.getPitch();
+
+        if (_camShakeTrauma > 0.0f) {
+            float trauma2 = _camShakeTrauma * _camShakeTrauma;
+            float t = static_cast<float>(glfwGetTime());
+            _camera.setYaw(origYaw + std::sin(t * 45.0f) * 2.5f * trauma2);
+            _camera.setPitch(origPitch + std::cos(t * 37.0f) * 1.8f * trauma2);
+        }
+
+        if (_devConsole.cam_thirdperson) {
+            Vec3 tppOffset = _camera.getRight() * 0.45f + Vec3(0.0f, 0.35f, 0.0f) - _camera.getFront() * 2.5f;
+            float targetDist = tppOffset.length();
+            if (targetDist > 0.001f) {
+                Vec3 rayDir = tppOffset / targetDist;
+                float allowedDist = targetDist;
+                if (_currentMap) {
+                    auto solidBoxes = LabCollision::getMapSolidBoxes(*_currentMap);
+                    for (const auto& box : solidBoxes) {
+                        float tHit = 0.0f;
+                        if (Raycast::rayIntersectAABB(origCamPos, rayDir, box.min, box.max, tHit)) {
+                            if (tHit > 0.1f && tHit < allowedDist) {
+                                allowedDist = std::max(0.2f, tHit - 0.25f);
+                            }
+                        }
+                    }
+                }
+                _camera.setPosition(origCamPos + rayDir * allowedDist);
+            }
+        }
+
         Renderer::beginFrame(_camera);
 
-        if (_shadowMap.isInitialized()) {
+        // Dynamic gunfire & projectile point lights (Source Engine style dynamic illumination)
+        if (_muzzleFlashTime > 0.0f) {
+            Vec3 flashWorldPos = _camera.getPosition() + _camera.getFront() * 0.75f;
+            Renderer::addPointLight(flashWorldPos, Vec3(1.0f, 0.78f, 0.25f), 2.8f, 7.0f);
+        }
+        for (const auto& bot : _aiManager.bots) {
+            if (bot.isAlive() && bot.muzzleFlashTimer > 0.0f) {
+                Renderer::addPointLight(bot.position + Vec3(0.0f, 1.25f, 0.0f), Vec3(1.0f, 0.75f, 0.22f), 2.2f, 5.5f);
+            }
+        }
+        for (const auto& proj : _weaponSystem.getProjectiles()) {
+            if (proj.active) {
+                Renderer::addPointLight(proj.position, proj.color, 2.4f, 6.0f);
+            }
+        }
+
+        if (_devConsole.wrd_wireframe) {
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        }
+
+        if (_devConsole.r_shadows && _shadowMap.isInitialized()) {
             Renderer::setShadowMap(lightSpaceMatrix, _shadowMap.getDepthTexture());
         } else {
             Renderer::disableShadowMap();
@@ -2994,58 +4560,129 @@ public:
         // Render Combat AI Bots
         _aiManager.render();
 
-        // Render other connected multiplayer players from network snapshot
+        // Render other connected multiplayer players from network snapshot using 70-bone Guard model & per-player Animator
         if (_netClient.isConnected()) {
             const auto& snap = _netClient.getLatestSnapshot();
             for (uint16_t i = 0; i < snap.playerCount; ++i) {
                 const auto& p = snap.players[i];
                 if (p.clientId == _netClient.getClientId() || !p.isAlive) continue;
 
-                // Ground-aligned player model (eye position 1.70m -> feet at ground)
                 Vec3 pFeet = p.position - Vec3(0.0f, 1.70f, 0.0f);
                 if (_aiManager.skinnedMesh && _aiManager.skeleton) {
+                    Animator& rAnim = _remotePlayerAnimators[p.clientId];
+                    if (!rAnim.getSkeleton() && !_aiManager.animations.empty()) {
+                        rAnim.setSkeleton(_aiManager.skeleton);
+                        for (const auto& clip : _aiManager.animations) {
+                            rAnim.addClip(clip);
+                        }
+                        rAnim.playAnimation("Idle", true);
+                    }
+                    float rSpeed = std::sqrt(p.velocity.x * p.velocity.x + p.velocity.z * p.velocity.z);
+                    if (rSpeed > 5.5f) {
+                        rAnim.playAnimation("Run Forward", true, 0.15f);
+                    } else if (rSpeed > 0.3f) {
+                        rAnim.playAnimation("Walking", true, 0.15f);
+                    } else {
+                        rAnim.playAnimation("Idle", true, 0.2f);
+                    }
+                    rAnim.update(0.016f);
+
                     float pScale = _aiManager.skinnedMesh->getBaseScale(1.85f);
                     float yOff = -_aiManager.skinnedMesh->getMinBounds().y * pScale;
                     Mat4 pModel = Mat4::translate(pFeet + Vec3(0.0f, yOff, 0.0f)) *
                                   Mat4::rotate(p.yaw * 3.14159265f / 180.0f, Vec3(0, 1, 0)) *
                                   Mat4::scale(Vec3(pScale, pScale, pScale));
                     Renderer::drawSkinnedMesh(*_aiManager.skinnedMesh, pModel,
-                                              _aiManager.bots.empty() ? std::vector<Mat4>() : _aiManager.bots[0].animator.getSkinMatrices(),
-                                              Vec3(0.35f, 0.65f, 0.95f), nullptr, true);
-                } else {
-                    Renderer::drawCube(pFeet + Vec3(0.0f, 0.92f, 0.0f), Vec3(0.0f, p.yaw, 0.0f), Vec3(0.55f, 1.85f, 0.35f), Vec3(0.2f, 0.5f, 0.85f));
-                }
+                                              rAnim.getSkinMatrices(),
+                                              Vec3(1.0f, 1.0f, 1.0f), _aiManager.guardTexture.get(), true);
 
-                // Overhead health bar & name tag
-                Vec3 tagPos = p.position + Vec3(0.0f, 0.35f, 0.0f);
-                Renderer::drawCube(tagPos, Vec3(0.0f, p.yaw, 0.0f), Vec3(0.7f, 0.08f, 0.02f), Vec3(0.1f, 0.1f, 0.15f), nullptr, false);
-                float hpRatio = std::clamp(p.health / 150.0f, 0.0f, 1.0f);
-                Renderer::drawCube(tagPos + Vec3(0.0f, 0.0f, 0.01f), Vec3(0.0f, p.yaw, 0.0f), Vec3(0.68f * hpRatio, 0.06f, 0.02f), Vec3(0.2f, 0.85f, 0.3f), nullptr, false);
+                    int wIdx = static_cast<int>(p.activeWeapon);
+                    if (wIdx >= 0 && wIdx < 9) {
+                        const Mesh* wMesh = _aiManager.weaponMeshes[wIdx] ? _aiManager.weaponMeshes[wIdx].get() : _aiManager.weaponMesh.get();
+                        if (wMesh) {
+                            const Texture* wTex = _aiManager.weaponTextures[wIdx].get();
+                            const BotWeaponConfig* bCfg = &_aiManager.botWeaponConfigs[wIdx];
+                            float invScale = (pScale > 0.00001f) ? (1.0f / pScale) : 1.0f;
+                            Vec3 offset = bCfg ? bCfg->offset : Vec3(0.0f, -0.05f, 0.02f);
+                            Vec3 rot = bCfg ? bCfg->rotation : Vec3(5.73f, -11.46f, 0.0f);
+                            Vec3 scale = bCfg ? bCfg->scale : Vec3(1.0f, 1.0f, 1.0f);
+                            Vec3 socketPos = offset * invScale;
+                            Quat socketRot = Quat::fromEuler(rot.x * 3.14159265f / 180.0f,
+                                                             rot.y * 3.14159265f / 180.0f,
+                                                             rot.z * 3.14159265f / 180.0f);
+                            Vec3 weaponScale = Vec3(0.016f * scale.x * invScale,
+                                                    0.016f * scale.y * invScale,
+                                                    0.016f * scale.z * invScale);
+                            Mat4 weaponSocket = rAnim.getSocketTransform("Socket_Weapon", pModel,
+                                makeTransform(socketPos, socketRot, weaponScale));
+                            Renderer::drawMesh(*wMesh, weaponSocket, Vec3(0.92f, 0.92f, 0.95f), wTex, true);
+                        }
+                    }
+                }
             }
         }
 
-        // Render Dynamic Rigid Body Physics Props (Crates, Barrels, Shattered Debris)
+        // Render Local Player in Thirdperson mode (cam_thirdperson)
+        if (_devConsole.cam_thirdperson) {
+            Vec3 pFeet = origCamPos - Vec3(0.0f, 1.70f, 0.0f);
+            float modelYaw = std::atan2(_camera.getFront().x, _camera.getFront().z) * 180.0f / 3.14159265f;
+            if (_aiManager.skinnedMesh && _playerAnimator.getSkeleton()) {
+                float pScale = _aiManager.skinnedMesh->getBaseScale(1.85f);
+                float yOff = -_aiManager.skinnedMesh->getMinBounds().y * pScale;
+                Mat4 pModel = Mat4::translate(pFeet + Vec3(0.0f, yOff, 0.0f)) *
+                              Mat4::rotate(modelYaw * 3.14159265f / 180.0f, Vec3(0, 1, 0)) *
+                              Mat4::scale(Vec3(pScale, pScale, pScale));
+                Vec3 pColor = (_sessionConfig.mode == GameMode::TDM) ? Vec3(0.2f, 0.6f, 1.0f) : Vec3(1.0f, 1.0f, 1.0f);
+                Renderer::drawSkinnedMesh(*_aiManager.skinnedMesh, pModel,
+                                          _playerAnimator.getSkinMatrices(),
+                                          pColor, _aiManager.guardTexture.get(), true);
+
+                // Render equipped weapon in player's hands via hand socket
+                int wIdx = static_cast<int>(_weaponSystem.getActiveWeapon().def.id);
+                if (wIdx >= 0 && wIdx < 9) {
+                    const Mesh* wMesh = _aiManager.weaponMeshes[wIdx] ? _aiManager.weaponMeshes[wIdx].get() : _aiManager.weaponMesh.get();
+                    if (wMesh) {
+                        const Texture* wTex = _aiManager.weaponTextures[wIdx].get();
+                        const BotWeaponConfig* bCfg = &_aiManager.botWeaponConfigs[wIdx];
+                        float invScale = (pScale > 0.00001f) ? (1.0f / pScale) : 1.0f;
+                        Vec3 offset = bCfg ? bCfg->offset : Vec3(0.0f, -0.05f, 0.02f);
+                        Vec3 rot = bCfg ? bCfg->rotation : Vec3(5.73f, -11.46f, 0.0f);
+                        Vec3 scale = bCfg ? bCfg->scale : Vec3(1.0f, 1.0f, 1.0f);
+                        Vec3 socketPos = offset * invScale;
+                        Quat socketRot = Quat::fromEuler(rot.x * 3.14159265f / 180.0f,
+                                                         rot.y * 3.14159265f / 180.0f,
+                                                         rot.z * 3.14159265f / 180.0f);
+                        Vec3 weaponScale = Vec3(0.016f * scale.x * invScale,
+                                                0.016f * scale.y * invScale,
+                                                0.016f * scale.z * invScale);
+                        Mat4 weaponSocket = _playerAnimator.getSocketTransform("Socket_Weapon", pModel,
+                            makeTransform(socketPos, socketRot, weaponScale));
+                        Renderer::drawMesh(*wMesh, weaponSocket, Vec3(0.92f, 0.92f, 0.95f), wTex, true);
+                    }
+                }
+            } else {
+                Renderer::drawCylinder(pFeet + Vec3(0.0f, 0.92f, 0.0f), Vec3(0.0f, modelYaw, 0.0f), Vec3(0.55f, 1.85f, 0.35f), Vec3(0.2f, 0.8f, 0.4f));
+            }
+        }
+
+        // Render Dynamic Rigid Body Physics Props (Crates, Cylindrical Barrels, Shattered Debris)
         _physicsWorld.render();
 
         // Render 3D World Pickups (Ammo crates, Medkits, and 1-min Weapon Spawn Pads)
         _pickups.render(_cachedWeaponMeshes, _cachedWeaponTextures);
 
-        // Render 3D Bullet Tracers (Source / Half-Life 2 style luminous beams)
+        // Render 3D Bullet Tracers (Source / Half-Life 2 style additive luminous beams)
         for (const auto& tr : _tracers) {
-            Vec3 diff = tr.end - tr.start;
-            float len = diff.length();
-            if (len < 0.05f) continue;
-            Vec3 mid = tr.start + diff * 0.5f;
-            float yaw = std::atan2(diff.x, diff.z) * 180.0f / 3.14159265f;
-            float pitch = -std::asin(std::clamp(diff.y / len, -1.0f, 1.0f)) * 180.0f / 3.14159265f;
-            Renderer::drawCube(mid, Vec3(pitch, yaw, 0.0f), Vec3(tr.thickness, tr.thickness, len), tr.color, nullptr, false);
+            float alpha = std::clamp(1.0f - (tr.lifetime / (std::max)(0.01f, tr.maxLifetime)), 0.1f, 1.0f);
+            Renderer::drawAdditiveTracer(tr.start, tr.end, tr.color * alpha, tr.thickness);
         }
 
         // Render Active Projectiles (RPG Rockets & Plasma Orbs)
         for (const auto& proj : _weaponSystem.getProjectiles()) {
             if (!proj.active) continue;
-            float pSize = (proj.weaponId == WeaponID::RPG) ? 0.22f : 0.16f;
-            Renderer::drawCube(proj.position, Vec3(0, 0, 0), Vec3(pSize, pSize, pSize * 2.0f), proj.color, nullptr, false);
+            float pSize = (proj.weaponId == WeaponID::RPG) ? 0.24f : 0.18f;
+            Vec3 pDir = (proj.velocity.lengthSq() > 0.001f) ? proj.velocity.normalized() : Vec3(0, 0, -1);
+            Renderer::drawMuzzleFlash(proj.position, pDir, pSize, proj.color);
         }
 
         // Render Dynamic Projective Decals (Bullet holes, blood splatters, scorch marks)
@@ -3058,10 +4695,117 @@ public:
         _particleSystem.render(_camera);
 
         // Lab Hammer Editor 3D Ghost/Grid Overlay
-        _hammerEditor.draw3DOverlay(_currentMap.get());
+        
 
-        // Viewmodel (only drawn when not in Hammer Editor mode)
-        if (!_hammerEditor.active) {
+        // ==================== 3D DEBUG OVERLAYS (COLLIDERS, TRIGGERS, AI, PHYSICS) ====================
+        if (_devConsole.log_colliders || _devConsole.log_all) {
+            if (_currentMap) {
+                for (const auto& b : _currentMap->brushes) {
+                    Renderer::drawWireCube(b.position, b.size, Vec3(0.1f, 1.0f, 0.3f));
+                }
+            }
+            for (const auto& bot : _aiManager.bots) {
+                if (bot.isAlive()) {
+                    Renderer::drawWireCube(bot.position + Vec3(0.0f, 0.92f, 0.0f), Vec3(0.6f, 1.85f, 0.6f), Vec3(1.0f, 0.2f, 0.2f));
+                }
+            }
+            for (const auto& rb : _physicsWorld.bodies) {
+                if (!rb->isDestroyed) {
+                    Renderer::drawWireCube(rb->position, rb->halfExtents * 2.0f, Vec3(0.1f, 0.8f, 1.0f));
+                }
+            }
+            Renderer::drawWireCube(origCamPos - Vec3(0.0f, 0.78f, 0.0f), Vec3(0.65f, 1.85f, 0.65f), Vec3(1.0f, 0.9f, 0.1f));
+        }
+
+        if (_devConsole.log_triggers || _devConsole.log_all) {
+            if (_currentMap) {
+                for (const auto& d : _currentMap->doors) {
+                    Renderer::drawWireCube(d.position, d.size * 1.15f, Vec3(1.0f, 0.6f, 0.1f));
+                }
+                for (const auto& tr : _currentMap->triggers) {
+                    Vec3 trCol = tr.triggered ? Vec3(0.4f, 0.5f, 0.55f) : Vec3(0.15f, 0.9f, 1.0f);
+                    Renderer::drawWireCube(tr.position, tr.size, trCol);
+                }
+            }
+            for (const auto& item : _pickups.items) {
+                if (!item.collected) {
+                    Renderer::drawWireCube(item.position, Vec3(0.8f, 0.8f, 0.8f), Vec3(0.9f, 0.2f, 0.9f));
+                }
+            }
+            for (const auto& pad : _pickups.weaponPads) {
+                Renderer::drawWireCube(pad.position + Vec3(0.0f, 0.4f, 0.0f), Vec3(1.2f, 0.8f, 1.2f), Vec3(0.4f, 0.7f, 1.0f));
+            }
+        }
+
+        if (_devConsole.ai_sight || _devConsole.log_all) {
+            for (const auto& bot : _aiManager.bots) {
+                if (!bot.isAlive()) continue;
+                float radYaw = bot.rotation.y * 3.14159265f / 180.0f;
+                Vec3 fwd(std::sin(radYaw), 0.0f, std::cos(radYaw));
+                Vec3 sightCenter = bot.position + Vec3(0.0f, 1.2f, 0.0f) + fwd * (bot.sightRange * 0.5f);
+                Vec3 coneCol = (bot.state == AIState::Attack) ? Vec3(1.0f, 0.2f, 0.2f) :
+                               (bot.state == AIState::Chase || bot.state == AIState::Alert) ? Vec3(1.0f, 0.8f, 0.1f) :
+                               Vec3(0.2f, 0.9f, 0.3f);
+                Renderer::drawWireCube(sightCenter, Vec3(bot.sightRange * 0.5f, 1.5f, bot.sightRange), coneCol);
+            }
+        }
+
+        if (_devConsole.ai_paths || _devConsole.log_all) {
+            for (const auto& bot : _aiManager.bots) {
+                if (!bot.isAlive()) continue;
+                Renderer::drawWireCube(bot.patrolStart, Vec3(0.4f, 0.4f, 0.4f), Vec3(0.2f, 0.5f, 1.0f));
+                Renderer::drawWireCube(bot.patrolEnd, Vec3(0.4f, 0.4f, 0.4f), Vec3(1.0f, 0.3f, 0.6f));
+                Vec3 pathMid = (bot.patrolStart + bot.patrolEnd) * 0.5f;
+                Vec3 pathDiff = bot.patrolEnd - bot.patrolStart;
+                float pLen = pathDiff.length();
+                if (pLen > 0.1f) {
+                    float pYaw = std::atan2(pathDiff.x, pathDiff.z) * 180.0f / 3.14159265f;
+                    Renderer::drawCube(pathMid + Vec3(0.0f, 0.05f, 0.0f), Vec3(0.0f, pYaw, 0.0f), Vec3(0.06f, 0.06f, pLen), Vec3(0.3f, 0.8f, 1.0f), nullptr, false);
+                }
+            }
+            if (_currentMap) {
+                for (size_t i = 0; i < _currentMap->waypoints.size(); ++i) {
+                    const auto& wp = _currentMap->waypoints[i];
+                    Renderer::drawWireCube(wp.position, Vec3(0.5f, 0.5f, 0.5f), Vec3(1.0f, 0.85f, 0.2f));
+                    if (i + 1 < _currentMap->waypoints.size()) {
+                        Vec3 diff = _currentMap->waypoints[i + 1].position - wp.position;
+                        float len = diff.length();
+                        if (len > 0.05f) {
+                            Vec3 mid = wp.position + diff * 0.5f;
+                            float yaw = std::atan2(diff.x, diff.z) * 180.0f / 3.14159265f;
+                            Renderer::drawCube(mid + Vec3(0, 0.1f, 0), Vec3(0, yaw, 0), Vec3(0.06f, 0.06f, len), Vec3(1.0f, 0.85f, 0.2f), nullptr, false);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (_devConsole.phys_debug) {
+            float vLen = _velocity.length();
+            if (vLen > 0.1f) {
+                Vec3 vMid = origCamPos + _velocity * 0.25f;
+                float vYaw = std::atan2(_velocity.x, _velocity.z) * 180.0f / 3.14159265f;
+                Renderer::drawCube(vMid, Vec3(0.0f, vYaw, 0.0f), Vec3(0.08f, 0.08f, vLen * 0.5f), Vec3(1.0f, 0.95f, 0.1f), nullptr, false);
+            }
+            Renderer::drawWireCube(origCamPos - Vec3(0.0f, 1.65f, 0.0f), Vec3(0.6f, 0.1f, 0.6f), _isGrounded ? Vec3(0.2f, 1.0f, 0.3f) : Vec3(1.0f, 0.2f, 0.2f));
+
+            for (const auto& rb : _physicsWorld.bodies) {
+                if (rb->isDestroyed) continue;
+                float rLen = rb->linearVelocity.length();
+                if (rLen > 0.1f) {
+                    Vec3 rMid = rb->position + rb->linearVelocity * 0.25f;
+                    float rYaw = std::atan2(rb->linearVelocity.x, rb->linearVelocity.z) * 180.0f / 3.14159265f;
+                    Renderer::drawCube(rMid, Vec3(0.0f, rYaw, 0.0f), Vec3(0.06f, 0.06f, rLen * 0.5f), Vec3(1.0f, 0.5f, 0.1f), nullptr, false);
+                }
+            }
+        }
+
+        if (_devConsole.wrd_wireframe) {
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        }
+
+        // Viewmodel (only drawn during active in-game FPP gameplay)
+        if (!_inMenu && !_devConsole.cam_thirdperson) {
             drawWeapon();
         }
 
@@ -3070,7 +4814,18 @@ public:
         Renderer::endFrame();
         _postProcess.endScene();
 
+        // Restore camera orientation and position if altered for thirdperson or camera shake
+        if (_devConsole.cam_thirdperson || _camShakeTrauma > 0.0f) {
+            _camera.setPosition(origCamPos);
+            _camera.setYaw(origYaw);
+            _camera.setPitch(origPitch);
+        }
+
         // ==================== PASS 3: HDR TONEMAPPING, BLOOM & CRYO FROST ====================
+        _postProcess.setBloomEnabled(_devConsole.r_bloom);
+        _postProcess.setFXAAEnabled(_devConsole.r_fxaa);
+        _postProcess.setPostProcessEnabled(_devConsole.r_postprocess);
+
         bool isCryo = (_currentMap && _currentMap->metadata.name.find("Cryo") != std::string::npos);
         float frost = PostProcessPipeline::calculateFrostVignette(_hud.health, _hud.maxHealth, isCryo);
         _postProcess.render(1.0f, frost, (float)glfwGetTime(), TonemapperType::ACESFilmic);
@@ -3174,6 +4929,12 @@ private:
     NetworkClient _netClient;
     ServerBrowser _serverBrowser;
     int _selectedServerIndex = 0;
+    int _serverBrowserActiveTab = 0;
+    std::string _serverFilterMap = "";
+    int _serverFilterMaxPing = 0;
+    bool _serverFilterNotFull = false;
+    bool _serverFilterHasPlayers = false;
+    LoadingSequenceState _loadingState;
     std::string _directConnectIP = "127.0.0.1:27015";
     bool _directConnectActive = false;
     bool _isConnecting = false;
@@ -3207,6 +4968,7 @@ private:
     MenuScreen _menuScreen = MenuScreen::Main;
     CharacterStudio _characterStudio;
     bool _inMenu = true;
+    bool _hasActiveGame = false;
     std::vector<std::string> _availableMaps;
     int _selectedMapIndex = 0;
     bool _escPressedLast = false;
@@ -3214,11 +4976,82 @@ private:
     bool _menuLmbLast = false;
     bool _lastMenuKeys[512] = { false };
 
+    // Achievements & Career Statistics (CS:Source & HL2 VGUI Style)
+    struct Achievement {
+        std::string id;
+        std::string title;
+        std::string description;
+        std::string icon;
+        int currentProgress = 0;
+        int maxProgress = 1;
+        bool unlocked = false;
+        std::string unlockDate = "";
+        std::string iconTexture = "";
+    };
+
+    struct GameCareerStats {
+        int totalKills = 38;
+        int totalDeaths = 14;
+        int headshots = 12;
+        int shotsFired = 342;
+        int shotsHit = 158;
+        int bhopJumps = 24;
+        int barrelsExploded = 6;
+        int mapsCompleted = 3;
+        float totalPlaytimeSeconds = 4320.0f;
+    };
+
+    std::vector<Achievement> _achievements;
+    GameCareerStats _careerStats;
+    int _achievementsActiveTab = 0; // 0 = Achievements, 1 = Statistics
+    bool _achievementsHideCompleted = false;
+    int _mapScrollOffset = 0;
+    float _menuCamTime = 0.0f;
+
+    // Addon Management State (Source Engine / GMod /addons/ model)
+    struct AddonItem {
+        std::string folderName;
+        std::string title;
+        std::string version;
+        std::string author;
+        std::string description;
+        bool enabled = true;
+        int mapCount = 0;
+    };
+    std::vector<AddonItem> _discoveredAddons;
+    int _selectedAddonCategory = 0; // 0 = All, 1 = Maps, 2 = Models, 3 = Scripts, 4 = Packages
+    int _selectedAddonIndex = 0;
+
+    // Options Dialog State (Source Engine VGUI Style)
+    int _optionsActiveTab = 0; // 0 = Video, 1 = Audio, 2 = Controls
+    float _optMasterVolume = 1.0f;
+    float _optMouseSens = 0.12f;
+    int _optShadowRes = 1024;
+    bool _optShadows = true;
+    int _optFov = 90;
+    bool _optInvertY = false;
+
     // Movement state
     Vec3 _velocity;
     bool _isGrounded;
     bool _isJumping;
     float _bobTime;
+    float _bhopGraceTimer = 0.0f;
+
+    // Developer Console & Telemetry
+    LabDevConsole _devConsole;
+    float _camShakeTrauma = 0.0f;
+    bool _gravePressedLast = false;
+    bool _f10PressedLast = false;
+    bool _tabPressedLast = false;
+    bool _devConsoleWasOpen = false;
+    bool _delPressedLast = false;
+    bool _upPressedLast = false;
+    bool _downPressedLast = false;
+    bool _leftPressedLast = false;
+    bool _rightPressedLast = false;
+    bool _pgUpPressedLast = false;
+    bool _pgDnPressedLast = false;
 
     // Combat & Respawn stats
     int _playerKills = 0;
@@ -3242,13 +5075,16 @@ private:
     // Animation & Combat state
     FrozenLifeGame::WeaponAnimator _weaponAnimator;
     AIManager _aiManager;
+    Animator _playerAnimator;
+    std::unordered_map<uint32_t, Animator> _remotePlayerAnimators;
+    float _playerShootTimer = 0.0f;
     PhysicsWorld _physicsWorld;
     std::vector<BulletTracer> _tracers;
     float _muzzleFlashTime;
     float _footstepTimer = 0.0f;
 
     // Hammer Editor & HUD
-    LabHammerEditor _hammerEditor;
+
     LabHUD _hud;
     bool _f2PressedLast = false;
     bool _ePressedLast = false;
@@ -3271,11 +5107,14 @@ private:
     float _menuMouseX = 640.0f;
     float _menuMouseY = 360.0f;
 
-    // Startup Splash Screen
+    // Startup Splash Screen & Addon Intro State
     bool _showSplash = true;
     bool _splashActive = true;
     float _splashTimer = 0.0f;
     float _splashDuration = 2.5f;
+    float _codIntroTimer = 0.0f;
+    float _codIntroDuration = 4.5f;
+    std::string _initialDirectMap;
 
     static FrozenLife* s_instance;
 };
@@ -3284,13 +5123,27 @@ FrozenLife* FrozenLife::s_instance = nullptr;
 
 int main(int argc, char* argv[]) {
     bool showSplash = true;
+    std::string directMap = "";
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--nosplash" || arg == "-nosplash") {
             showSplash = false;
+        } else if (arg == "-game" || arg == "--game") {
+            if (i + 1 < argc) {
+                std::string addonArg = argv[++i];
+                VFS::get().mountAddonLayer(addonArg);
+            }
+        } else if (arg == "+map" || arg == "--map" || arg == "-map") {
+            if (i + 1 < argc) {
+                directMap = argv[++i];
+                showSplash = false;
+            }
+        } else if (!arg.empty() && arg[0] != '-' && arg[0] != '+' && directMap.empty()) {
+            directMap = arg;
+            showSplash = false;
         }
     }
-    FrozenLife game(showSplash);
+    FrozenLife game(showSplash, directMap);
     game.run();
     return 0;
 }

@@ -1,12 +1,13 @@
 LABSCENE_VERSION 1
 
 ENVIRONMENT
-    name "Site-14 :: Chapter 1 - Cryogenic Sub-Level C"
+    name "Site-14 :: Chapter 1 - Cryogenic Sub-Level C & Dirty Corridor"
     author "Lab Engine Team"
     ambient 0.14 0.18 0.25
     sun_dir -0.35 -0.85 -0.40
     sun_color 0.82 0.90 1.00
     skybox_hdr ""
+    cubemap "cubemap_site14.bmp"
     exposure 1.05
     fog_distance 65.0
     fog_height 0.0
@@ -15,11 +16,16 @@ END_ENVIRONMENT
 
 STATIC
     static_mesh cube 0.0 -0.5 0.0 48.0 1.0 48.0 0.85 0.90 0.95 floor_lab.bmp 0.25 0.25 1
+        normal_map floor_lab_normal.bmp
     static_mesh cube 0.0 6.5 0.0 48.0 1.0 48.0 0.55 0.60 0.68 concrete_wall.bmp 0.25 0.25 1
-    static_mesh cube 0.0 3.0 -20.0 24.0 6.0 1.0 0.80 0.85 0.92 wall_concrete.bmp 0.25 0.25 1
+        normal_map concrete_wall_normal.bmp
+    static_mesh cube 0.0 3.0 -20.0 24.0 6.0 1.0 0.80 0.85 0.92 corridor_dirty_wall.bmp 0.25 0.25 1
+        normal_map concrete_wall_normal.bmp
     static_mesh cube 0.0 0.4 -19.4 24.0 0.8 0.2 1.00 1.00 1.00 hazard_stripes.bmp 0.25 0.25 1
-    static_mesh cube -12.0 3.0 -8.0 1.0 6.0 24.0 0.78 0.82 0.88 wall_concrete.bmp 0.25 0.25 1
-    static_mesh cube  12.0 3.0 -8.0 1.0 6.0 24.0 0.78 0.82 0.88 wall_concrete.bmp 0.25 0.25 1
+    static_mesh cube -12.0 3.0 -8.0 1.0 6.0 24.0 0.78 0.82 0.88 corridor_dirty_wall.bmp 0.25 0.25 1
+        normal_map concrete_wall_normal.bmp
+    static_mesh cube  12.0 3.0 -8.0 1.0 6.0 24.0 0.78 0.82 0.88 corridor_dirty_wall.bmp 0.25 0.25 1
+        normal_map concrete_wall_normal.bmp
     static_mesh cube -6.0 3.0 -10.0 1.5 6.0 1.5 0.55 0.78 0.98 cryo_ice.bmp 0.25 0.25 1
     static_mesh cube  6.0 3.0 -10.0 1.5 6.0 1.5 0.55 0.78 0.98 cryo_ice.bmp 0.25 0.25 1
 END_STATIC
@@ -32,6 +38,17 @@ ENTITIES
     entity weapon_spawner weapon_pistol 3.0 0.0 -4.0 0.0 60.0
     entity weapon_spawner weapon_shotgun 0.0 0.0 -9.0 0.0 60.0
     entity door site14_airlock_01 0.0 1.75 -12.0 4.0 3.5 0.4 0.0 3.6 0.0 0.25 0.35 0.45 2.5 5.5
+    entity prop lab_door.stl -4.5 1.4 -11.8 0.0 0.0 0.0 1.0 1.0 1.0 0.78 0.82 0.88 texture metal_hull.bmp name Prop_LabDoor_01
+    entity prop lab_locker.stl -10.8 1.0 -5.0 0.0 90.0 0.0 1.0 1.0 1.0 0.65 0.72 0.78 texture metal_hull.bmp name Prop_LabLocker_01
+    entity prop lab_locker.stl -10.8 1.0 -6.4 0.0 90.0 0.0 1.0 1.0 1.0 0.65 0.72 0.78 texture metal_hull.bmp name Prop_LabLocker_02
+    entity prop ceiling_lamp.stl 0.0 5.8 -4.0 0.0 0.0 0.0 1.0 1.0 1.0 0.92 0.95 1.00 texture metal_hull.bmp name Prop_CeilingLamp_01
+    entity prop ceiling_lamp.stl 0.0 5.8 -14.0 0.0 0.0 0.0 1.0 1.0 1.0 0.85 0.92 1.00 texture metal_hull.bmp name Prop_CeilingLamp_02
+    entity prop corridor_pipe.stl 11.2 4.6 -6.0 0.0 90.0 0.0 1.0 1.0 1.0 0.58 0.62 0.66 texture metal_hull.bmp name Prop_CorridorPipe_01
+    entity prop wall_stain.stl -11.45 1.8 -8.5 0.0 90.0 0.0 1.0 1.0 1.0 0.75 0.68 0.60 texture decal_rust_stain.bmp name Prop_WallStain_01
+    entity trigger_volume Trigger_CorridorDialog 0.0 1.5 -3.0 5.0 3.0 4.0 story_dialog Bot_Guard 1 assets/audio/bot_corridor_dialog.wav "Sector C breach detected. Follow me down the corridor!"
+    entity waypoint Waypoint_1 0.0 0.0 -5.0 Bot_Guard 0
+    entity waypoint Waypoint_2 -2.5 0.0 -9.5 Bot_Guard 1
+    entity waypoint Waypoint_3 0.0 0.0 -15.0 Bot_Guard 2
     entity light cryo_lamp_north 0.0 4.8 -14.0 0.55 0.82 1.00 3.2 16.0 point
     entity light cryo_lamp_entry 0.0 4.8 -2.0 0.85 0.92 1.00 2.6 14.0 point
     entity light hazard_beacon -5.5 3.5 -11.5 1.00 0.45 0.15 2.0 10.0 point

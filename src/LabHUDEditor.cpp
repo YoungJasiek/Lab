@@ -55,6 +55,9 @@ namespace Lab {
         out << ind2 << "lua_update \"" << elem.luaOnUpdate << "\"\n";
         out << ind2 << "lua_click \"" << elem.luaOnClick << "\"\n";
         out << ind2 << "lua_custom \"" << elem.luaCustom << "\"\n";
+        if (!elem.action.empty()) {
+            out << ind2 << "action \"" << elem.action << "\"\n";
+        }
         out << ind2 << "children " << elem.children.size() << "\n\n";
 
         for (const auto& child : elem.children) {
@@ -66,10 +69,12 @@ namespace Lab {
         std::ofstream out(filepath);
         if (!out) return false;
 
-        out << "LABHUD_VERSION " << version << "\n\n";
+        bool isLabUI = (filepath.size() >= 6 && filepath.substr(filepath.size() - 6) == ".labui");
+        out << (isLabUI ? "LABUI_VERSION " : "LABHUD_VERSION ") << version << "\n\n";
         out << "METADATA\n";
         out << "    name \"" << name << "\"\n";
         out << "    author \"" << author << "\"\n";
+        out << "    screen_type \"" << screenType << "\"\n";
         out << "    resolution " << resolutionW << " " << resolutionH << "\n";
         out << "END_METADATA\n\n";
 
@@ -140,6 +145,8 @@ namespace Lab {
                 std::string rem; std::getline(lss, rem); trimWhitespace(rem); elem.luaOnClick = stripQuotes(rem);
             } else if (prop == "lua_custom") {
                 std::string rem; std::getline(lss, rem); trimWhitespace(rem); elem.luaCustom = stripQuotes(rem);
+            } else if (prop == "action") {
+                std::string rem; std::getline(lss, rem); trimWhitespace(rem); elem.action = stripQuotes(rem);
             } else if (prop == "children") {
                 lss >> numChildren;
                 for (int i = 0; i < numChildren; ++i) {
@@ -167,7 +174,7 @@ namespace Lab {
             trimWhitespace(line);
             if (line.empty()) continue;
 
-            if (line.rfind("LABHUD_VERSION", 0) == 0) {
+            if (line.rfind("LABHUD_VERSION", 0) == 0 || line.rfind("LABUI_VERSION", 0) == 0) {
                 std::stringstream ss(line);
                 std::string dummy;
                 ss >> dummy >> proj->version;
@@ -184,6 +191,9 @@ namespace Lab {
                     } else if (key == "author") {
                         std::string val; std::getline(ss, val);
                         trimWhitespace(val); proj->author = stripQuotes(val);
+                    } else if (key == "screen_type") {
+                        std::string val; std::getline(ss, val);
+                        trimWhitespace(val); proj->screenType = stripQuotes(val);
                     } else if (key == "resolution") {
                         ss >> proj->resolutionW >> proj->resolutionH;
                     }
@@ -221,6 +231,123 @@ namespace Lab {
             }
         }
         return proj;
+    }
+
+    HUDProject HUDProject::createMainMenuPreset() {
+        HUDProject p;
+        p.name = "Frozen-Life Main Menu";
+        p.author = "LabUI Studio";
+        p.screenType = "MainMenu";
+        p.assets = {"assets/textures/corridor_dirty_wall.bmp"};
+
+        HUDElement bg; bg.id = "bg_panel"; bg.type = HUDElementType::Panel;
+        bg.x = 120; bg.y = 140; bg.w = 520; bg.h = 760;
+        bg.color = {0.10f, 0.12f, 0.14f}; bg.alpha = 0.92f; bg.zOrder = 0;
+
+        HUDElement logo; logo.id = "logo_image"; logo.type = HUDElementType::Image;
+        logo.x = 160; logo.y = 180; logo.w = 440; logo.h = 110;
+        logo.texturePath = "assets/textures/corridor_dirty_wall.bmp"; logo.zOrder = 1;
+
+        HUDElement title; title.id = "title_label"; title.type = HUDElementType::Label;
+        title.x = 160; title.y = 310; title.w = 440; title.h = 50;
+        title.text = "FROZEN-LIFE: SITE 14"; title.fontSize = 2.6f; title.color = {0.98f, 0.78f, 0.08f}; title.zOrder = 2;
+
+        HUDElement bStart; bStart.id = "btn_new_game"; bStart.type = HUDElementType::Button;
+        bStart.x = 160; bStart.y = 410; bStart.w = 440; bStart.h = 56;
+        bStart.text = "NEW CAMPAIGN (SITE 14)"; bStart.action = "start_game";
+        bStart.color = {0.22f, 0.36f, 0.24f}; bStart.zOrder = 3;
+
+        HUDElement bOpt; bOpt.id = "btn_options"; bOpt.type = HUDElementType::Button;
+        bOpt.x = 160; bOpt.y = 490; bOpt.w = 440; bOpt.h = 56;
+        bOpt.text = "OPTIONS & GRAPHICS"; bOpt.action = "open_options";
+        bOpt.color = {0.20f, 0.22f, 0.26f}; bOpt.zOrder = 3;
+
+        HUDElement bQuit; bQuit.id = "btn_quit"; bQuit.type = HUDElementType::Button;
+        bQuit.x = 160; bQuit.y = 570; bQuit.w = 440; bQuit.h = 56;
+        bQuit.text = "EXIT TO DESKTOP"; bQuit.action = "quit_game";
+        bQuit.color = {0.36f, 0.18f, 0.18f}; bQuit.zOrder = 3;
+
+        p.rootElements = {bg, logo, title, bStart, bOpt, bQuit};
+        return p;
+    }
+
+    HUDProject HUDProject::createPauseMenuPreset() {
+        HUDProject p;
+        p.name = "Pause Menu";
+        p.author = "LabUI Studio";
+        p.screenType = "PauseMenu";
+
+        HUDElement modal; modal.id = "pause_panel"; modal.type = HUDElementType::Panel;
+        modal.x = 660; modal.y = 260; modal.w = 600; modal.h = 520;
+        modal.color = {0.11f, 0.12f, 0.14f}; modal.alpha = 0.94f; modal.anchor = HUDAnchor::Center; modal.zOrder = 0;
+
+        HUDElement lbl; lbl.id = "pause_title"; lbl.type = HUDElementType::Label;
+        lbl.x = 700; lbl.y = 290; lbl.w = 520; lbl.h = 44;
+        lbl.text = "SIMULATION PAUSED"; lbl.fontSize = 2.4f; lbl.color = {0.98f, 0.78f, 0.08f}; lbl.zOrder = 1;
+
+        HUDElement bRes; bRes.id = "btn_resume"; bRes.type = HUDElementType::Button;
+        bRes.x = 740; bRes.y = 370; bRes.w = 440; bRes.h = 52;
+        bRes.text = "RESUME MISSION"; bRes.action = "resume_game"; bRes.color = {0.22f, 0.38f, 0.24f}; bRes.zOrder = 2;
+
+        HUDElement bOpt; bOpt.id = "btn_pause_options"; bOpt.type = HUDElementType::Button;
+        bOpt.x = 740; bOpt.y = 445; bOpt.w = 440; bOpt.h = 52;
+        bOpt.text = "OPTIONS"; bOpt.action = "open_options"; bOpt.color = {0.20f, 0.22f, 0.26f}; bOpt.zOrder = 2;
+
+        HUDElement bMain; bMain.id = "btn_main_menu"; bMain.type = HUDElementType::Button;
+        bMain.x = 740; bMain.y = 520; bMain.w = 440; bMain.h = 52;
+        bMain.text = "RETURN TO MAIN MENU"; bMain.action = "main_menu"; bMain.color = {0.36f, 0.18f, 0.18f}; bMain.zOrder = 2;
+
+        p.rootElements = {modal, lbl, bRes, bOpt, bMain};
+        return p;
+    }
+
+    HUDProject HUDProject::createOptionsMenuPreset() {
+        HUDProject p;
+        p.name = "Options Screen";
+        p.author = "LabUI Studio";
+        p.screenType = "OptionsMenu";
+
+        HUDElement pnl; pnl.id = "options_panel"; pnl.type = HUDElementType::Panel;
+        pnl.x = 460; pnl.y = 160; pnl.w = 1000; pnl.h = 740;
+        pnl.color = {0.11f, 0.12f, 0.15f}; pnl.alpha = 0.95f; pnl.zOrder = 0;
+
+        HUDElement hdr; hdr.id = "options_header"; hdr.type = HUDElementType::Label;
+        hdr.x = 500; hdr.y = 190; hdr.w = 600; hdr.h = 44;
+        hdr.text = "SYSTEM & RENDERER OPTIONS (BLINN-PHONG / FXAA)"; hdr.fontSize = 2.2f; hdr.color = {0.98f, 0.78f, 0.08f}; hdr.zOrder = 1;
+
+        HUDElement bApply; bApply.id = "btn_apply"; bApply.type = HUDElementType::Button;
+        bApply.x = 500; bApply.y = 780; bApply.w = 260; bApply.h = 50;
+        bApply.text = "APPLY SETTINGS"; bApply.action = "apply_options"; bApply.color = {0.22f, 0.38f, 0.24f}; bApply.zOrder = 2;
+
+        HUDElement bBack; bBack.id = "btn_back"; bBack.type = HUDElementType::Button;
+        bBack.x = 790; bBack.y = 780; bBack.w = 260; bBack.h = 50;
+        bBack.text = "BACK"; bBack.action = "close_options"; bBack.color = {0.24f, 0.24f, 0.26f}; bBack.zOrder = 2;
+
+        p.rootElements = {pnl, hdr, bApply, bBack};
+        return p;
+    }
+
+    HUDProject HUDProject::createHUDLayoutPreset() {
+        HUDProject p;
+        p.name = "HEV Tactical HUD";
+        p.author = "LabUI Studio";
+        p.screenType = "HUD";
+
+        HUDElement hpPanel; hpPanel.id = "hud_health_panel"; hpPanel.type = HUDElementType::Panel;
+        hpPanel.x = 40; hpPanel.y = -110; hpPanel.w = 260; hpPanel.h = 74;
+        hpPanel.color = {0.08f, 0.09f, 0.10f}; hpPanel.alpha = 0.80f; hpPanel.anchor = HUDAnchor::BottomLeft; hpPanel.zOrder = 0;
+
+        HUDElement hpVal; hpVal.id = "hud_health_label"; hpVal.type = HUDElementType::Label;
+        hpVal.x = 58; hpVal.y = -94; hpVal.w = 220; hpVal.h = 44;
+        hpVal.text = "HP 100"; hpVal.binding = "Player:getHealth()";
+        hpVal.color = {0.98f, 0.78f, 0.08f}; hpVal.anchor = HUDAnchor::BottomLeft; hpVal.zOrder = 1;
+
+        HUDElement xhair; xhair.id = "hud_crosshair"; xhair.type = HUDElementType::Crosshair;
+        xhair.x = -16; xhair.y = -16; xhair.w = 32; xhair.h = 32;
+        xhair.color = {0.20f, 1.0f, 0.35f}; xhair.anchor = HUDAnchor::Center; xhair.zOrder = 2;
+
+        p.rootElements = {hpPanel, hpVal, xhair};
+        return p;
     }
 }
 
@@ -714,9 +841,18 @@ namespace Lab {
             float tw = LabFont::getTextWidth(elem.text, fontScale, (LabFontType)elem.fontType);
             float tx = sx + std::max(0.0f, (sw - tw) * 0.5f);
             LabFont::drawText(tx, ty, elem.text, fontScale, elem.color, (LabFontType)elem.fontType);
+        } else if (elem.type == HUDElementType::Panel || elem.type == HUDElementType::Card) {
+            Renderer::drawRect(sx, sy, sw, sh, elem.color);
+            drawHammerBevel(sx, sy, sw, sh, false);
+        } else if (elem.type == HUDElementType::Image) {
+            Renderer::drawRect(sx, sy, sw, sh, Vec3(elem.color.x * 0.25f, elem.color.y * 0.28f, elem.color.z * 0.32f));
+            drawHammerBevel(sx, sy, sw, sh, true);
+            std::string imgLabel = elem.texturePath.empty() ? "[IMAGE]" : ("[IMG] " + std::filesystem::path(elem.texturePath).filename().string());
+            LabFont::drawText(sx + 6.0f, sy + sh * 0.42f, imgLabel, 1.15f * _canvasZoom, Vec3(0.85f, 0.90f, 0.95f), LabFontType::System);
         } else {
             Renderer::drawRect(sx, sy, sw, sh, elem.color);
             if (elem.type == HUDElementType::Button) {
+                drawHammerBevel(sx, sy, sw, sh, false);
                 float fontScale = elem.fontSize * _canvasZoom;
                 float th = LabFont::getTextHeight(fontScale, (LabFontType)elem.fontType);
                 float ty = sy + std::max(0.0f, (sh - th) * 0.5f);
@@ -1090,7 +1226,7 @@ namespace Lab {
             Renderer::drawRect(x + 5.0f, btmY, w - 10.0f, 1.0f, Vec3(0.3f, 0.3f, 0.3f));
             btmY += 6.0f;
             float hw = (w - 25.0f) * 0.5f;
-            if (drawHammerButton(x + 10.0f, btmY, hw, 26.0f, "+ Add Root")) {
+            if (drawHammerButton(x + 10.0f, btmY, hw, 26.0f, "+ Root")) {
                 HUDElement el;
                 el.id = "Element_" + std::to_string(_project.rootElements.size() + 1);
                 el.w = 120.0f; el.h = 40.0f; el.type = HUDElementType::Rect;
@@ -1100,7 +1236,7 @@ namespace Lab {
                 _selectedRef = _selectedRefs[0];
                 _projectDirty = true;
             }
-            if (drawHammerButton(x + 15.0f + hw, btmY, hw, 26.0f, "+ Add Child")) {
+            if (drawHammerButton(x + 15.0f + hw, btmY, hw, 26.0f, "+ Child")) {
                 if (!_selectedRefs.empty() && _selectedRefs[0].isRoot()) {
                     int rIdx = _selectedRefs[0].rootIndex;
                     HUDElement child;
@@ -1136,7 +1272,7 @@ namespace Lab {
                 }
             }
         } else if (_sidebarTab == HUDSidebarTab::Assets) {
-            if (drawHammerButton(x + 10, py, w - 20, 40, "+ IMPORT ASSET FROM DISK...")) {
+            if (drawHammerButton(x + 10, py, w - 20, 40, "+ Import")) {
                 importCustomAsset();
             }
             py += 50;
@@ -1290,7 +1426,7 @@ namespace Lab {
         LabFont::drawText(x + 10, py, "LUA SCRIPTING", 1.2f, Vec3(1, 0.5f, 0), LabFontType::System);
         py += 18;
 
-        if (drawHammerButton(x + 10, py, w - 20, 26, "Edit Lua Script...")) {
+        if (drawHammerButton(x + 10, py, w - 20, 26, "Edit Lua")) {
             openModal(ModalType::EditLua, "Edit Lua", "Enter script:", elem->luaCustom, [elem, this](const std::string& v){ elem->luaCustom = v; _projectDirty = true; });
         }
         py += 30;
@@ -1325,7 +1461,24 @@ namespace Lab {
             elem->luaOnClick = "Player:respawn(); HUD:hide()";
             _projectDirty = true;
         }
-        py += 24;
+        py += 26;
+
+        if (elem->type == HUDElementType::Button) {
+            Renderer::drawRect(x + 5, py, w - 10, 1, Vec3(0.3f, 0.3f, 0.3f));
+            py += 8;
+            LabFont::drawText(x + 10, py, "UI BUTTON ACTION (" + _project.screenType + ")", 1.2f, Vec3(0.3f, 0.85f, 1.0f), LabFontType::System);
+            py += 18;
+            if (drawHammerButton(x + 10, py, w - 20, 24, "Action: " + (elem->action.empty() ? "(none)" : elem->action))) {
+                openModal(ModalType::EditText, "Button Action", "Enter action ID:", elem->action, [elem, this](const std::string& v){ elem->action = v; _projectDirty = true; });
+            }
+            py += 26;
+            float abW = (w - 26.0f) * 0.5f;
+            if (drawHammerButton(x + 10, py, abW, 20, "start_game", elem->action == "start_game")) { elem->action = "start_game"; _projectDirty = true; }
+            if (drawHammerButton(x + 14 + abW, py, abW, 20, "open_options", elem->action == "open_options")) { elem->action = "open_options"; _projectDirty = true; }
+            py += 22;
+            if (drawHammerButton(x + 10, py, abW, 20, "resume_game", elem->action == "resume_game")) { elem->action = "resume_game"; _projectDirty = true; }
+            if (drawHammerButton(x + 14 + abW, py, abW, 20, "quit_game", elem->action == "quit_game")) { elem->action = "quit_game"; _projectDirty = true; }
+        }
     }
 
 }
@@ -1578,6 +1731,35 @@ namespace Lab {
         return el;
     }
 
+    void LabHUDEditor2D::switchScreenPreset(const std::string& screenType) {
+        if (screenType == "MainMenu") {
+            if (!loadHUDFile("assets/ui/main_menu.labui")) {
+                _project = HUDProject::createMainMenuPreset();
+                _projectFilePath = "assets/ui/main_menu.labui";
+                _mode = HUDEditorMode::Editor;
+            }
+        } else if (screenType == "PauseMenu") {
+            if (!loadHUDFile("assets/ui/pause_menu.labui")) {
+                _project = HUDProject::createPauseMenuPreset();
+                _projectFilePath = "assets/ui/pause_menu.labui";
+                _mode = HUDEditorMode::Editor;
+            }
+        } else if (screenType == "OptionsMenu") {
+            if (!loadHUDFile("assets/ui/options_menu.labui")) {
+                _project = HUDProject::createOptionsMenuPreset();
+                _projectFilePath = "assets/ui/options_menu.labui";
+                _mode = HUDEditorMode::Editor;
+            }
+        } else {
+            if (!loadHUDFile("assets/ui/hud_layout.labui")) {
+                _project = HUDProject::createHUDLayoutPreset();
+                _projectFilePath = "assets/ui/hud_layout.labui";
+                _mode = HUDEditorMode::Editor;
+            }
+        }
+        clearSelection();
+    }
+
     bool LabHUDEditor2D::loadHUDFile(const std::string& filepath) {
         std::string resolved = resolveHUDPath(filepath);
         auto loaded = HUDProject::loadFromFile(resolved);
@@ -1596,6 +1778,9 @@ namespace Lab {
         if (std::filesystem::exists(path)) return path;
         std::string fname = std::filesystem::path(path).filename().string();
         std::vector<std::string> candidates = {
+            "assets/ui/" + fname,
+            "../assets/ui/" + fname,
+            "../../assets/ui/" + fname,
             "games/frozen_life/assets/hud/" + fname,
             "games/labrunner_escape/assets/hud/" + fname,
             "games/magic_rpg/assets/hud/" + fname,
@@ -1613,6 +1798,9 @@ namespace Lab {
     void LabHUDEditor2D::scanProjects() {
         _discoveredProjects.clear();
         std::vector<std::string> dirs = {
+            "assets/ui",
+            "../assets/ui",
+            "../../assets/ui",
             "games/frozen_life/assets/hud",
             "games/labrunner_escape/assets/hud",
             "games/magic_rpg/assets/hud",
@@ -1625,7 +1813,8 @@ namespace Lab {
         for (const auto& d : dirs) {
             if (std::filesystem::exists(d)) {
                 for (const auto& entry : std::filesystem::directory_iterator(d)) {
-                    if (entry.path().extension() == ".labhud") {
+                    auto ext = entry.path().extension().string();
+                    if (ext == ".labui" || ext == ".labhud") {
                         std::string p = entry.path().string();
                         if (!seen.contains(p)) {
                             seen.insert(p);
@@ -1639,7 +1828,7 @@ namespace Lab {
 
     void LabHUDEditor2D::scanAssets() {
         _assetFiles.clear();
-        std::vector<std::string> dirs = {"assets/hud_assets", "../assets/hud_assets", "../../assets/hud_assets"};
+        std::vector<std::string> dirs = {"assets/hud_assets", "assets/textures", "../assets/hud_assets", "../../assets/hud_assets"};
         for (const auto& d : dirs) {
             if (std::filesystem::exists(d)) {
                 for (const auto& entry : std::filesystem::directory_iterator(d)) {
@@ -1659,25 +1848,31 @@ namespace Lab {
         Renderer::drawRect(0, 0, fw, fh, Vec3(0.11f, 0.12f, 0.14f));
 
         float bannerW = 720.0f;
-        float bannerH = 500.0f;
+        float bannerH = 540.0f;
         float bx = fw * 0.5f - bannerW * 0.5f;
         float by = fh * 0.5f - bannerH * 0.5f;
 
-        drawHammerPanel(bx, by, bannerW, bannerH, "LAB ENGINE 2026 - HUD / GUI WORKSPACE LAUNCHER");
+        drawHammerPanel(bx, by, bannerW, bannerH, "LAB ENGINE 2026 - 2D SCREEN & UI EDITOR (.labui / .labhud)");
 
-        LabFont::drawText(bx + 40.0f, by + 40.0f, "PROJECT SELECTOR", 2.2f, Vec3(1.0f, 0.55f, 0.1f), LabFontType::System);
-        LabFont::drawText(bx + 40.0f, by + 75.0f, "Choose an existing .labhud interface project or author a new layout:", 1.5f, Vec3(0.7f, 0.7f, 0.7f), LabFontType::System);
+        LabFont::drawText(bx + 40.0f, by + 40.0f, "2D UI & SCREEN SELECTOR", 2.2f, Vec3(1.0f, 0.55f, 0.1f), LabFontType::System);
+        LabFont::drawText(bx + 40.0f, by + 72.0f, "Design Main Menu, Pause Menu, Options screens, or HUD layouts (.labui):", 1.45f, Vec3(0.75f, 0.75f, 0.75f), LabFontType::System);
 
-        float py = by + 110.0f;
+        float py = by + 104.0f;
+        float presetW = (bannerW - 95.0f) / 4.0f;
+        if (drawHammerButton(bx + 40.0f, py, presetW, 34.0f, "[MAIN MENU]")) switchScreenPreset("MainMenu");
+        if (drawHammerButton(bx + 45.0f + presetW, py, presetW, 34.0f, "[PAUSE MENU]")) switchScreenPreset("PauseMenu");
+        if (drawHammerButton(bx + 50.0f + presetW * 2.0f, py, presetW, 34.0f, "[OPTIONS UI]")) switchScreenPreset("OptionsMenu");
+        if (drawHammerButton(bx + 55.0f + presetW * 3.0f, py, presetW, 34.0f, "[HUD LAYOUT]")) switchScreenPreset("HUD");
+        py += 46.0f;
 
         if (_discoveredProjects.empty()) {
             scanProjects();
         }
 
-        for (int i = 0; i < (int)_discoveredProjects.size() && i < 4; ++i) {
+        for (int i = 0; i < (int)_discoveredProjects.size() && i < 5; ++i) {
             std::string pName = std::filesystem::path(_discoveredProjects[i]).stem().string();
-            std::string btnText = "[PROJECT] " + pName + " (" + _discoveredProjects[i] + ")";
-            if (drawHammerButton(bx + 40.0f, py, bannerW - 80.0f, 38.0f, btnText, false, true)) {
+            std::string btnText = "[UI FILE] " + pName + " (" + _discoveredProjects[i] + ")";
+            if (drawHammerButton(bx + 40.0f, py, bannerW - 80.0f, 36.0f, btnText, false, true)) {
                 auto loaded = HUDProject::loadFromFile(_discoveredProjects[i]);
                 if (loaded) {
                     _project = *loaded;
@@ -1687,20 +1882,20 @@ namespace Lab {
                     scanAssets();
                 }
             }
-            py += 46.0f;
+            py += 42.0f;
         }
 
-        py = by + bannerH - 75.0f;
-        if (drawHammerButton(bx + 40.0f, py, 190.0f, 40.0f, "+ NEW PROJECT")) {
-            _project = HUDProject();
-            _project.name = "New HUD Layout";
-            _projectFilePath = "assets/hud_projects/new_hud.labhud";
+        py = by + bannerH - 70.0f;
+        if (drawHammerButton(bx + 40.0f, py, 190.0f, 40.0f, "+ New")) {
+            _project = HUDProject::createMainMenuPreset();
+            _project.name = "New UI Screen";
+            _projectFilePath = "assets/ui/custom_screen.labui";
             _mode = HUDEditorMode::Editor;
             _projectDirty = true;
             scanAssets();
         }
-        if (drawHammerButton(bx + 265.0f, py, 190.0f, 40.0f, "OPEN FILE...")) {
-            std::string chosen = LabDialogs::openFileDialog(_window, "Lab HUD Files (*.labhud)\0*.labhud\0All Files (*.*)\0*.*\0", "assets\\hud_projects");
+        if (drawHammerButton(bx + 265.0f, py, 190.0f, 40.0f, "Open")) {
+            std::string chosen = LabDialogs::openFileDialog(_window, "Lab UI Files (*.labui;*.labhud)\0*.labui;*.labhud\0All Files (*.*)\0*.*\0", "assets\\ui");
             if (!chosen.empty()) {
                 auto loaded = HUDProject::loadFromFile(chosen);
                 if (loaded) {
@@ -1716,7 +1911,7 @@ namespace Lab {
             _requestExit = true;
         }
 
-        LabFont::drawText(20.0f, fh - 24.0f, "Lab 2D/HUD Editor | Architecture: LabStudio Hammer Theme | Lua 5.4 | YoungJasiek", 1.4f, Vec3(0.5f, 0.5f, 0.5f), LabFontType::System);
+        LabFont::drawText(20.0f, fh - 24.0f, "Lab 2D Screen & UI Editor (.labui) | MainMenu / PauseMenu / Options / HUD | Lua 5.4", 1.4f, Vec3(0.5f, 0.5f, 0.5f), LabFontType::System);
     }
 
     void LabHUDEditor2D::updateProjectSelect(float dt) {
@@ -1738,7 +1933,7 @@ namespace Lab {
             mx += 72.0f;
         }
 
-        if (drawHammerButton(w - 180.0f, 3.0f, 170.0f, 26.0f, "< Back to SDK Editor")) {
+        if (drawHammerButton(w - 180.0f, 3.0f, 170.0f, 26.0f, "< Back")) {
             _requestExit = true;
         }
     }
@@ -1769,19 +1964,19 @@ namespace Lab {
 
         if (drawTool(0, "New Layout")) { _project = HUDProject(); _selectedRef.invalidate(); _selectedRefs.clear(); _projectDirty = true; }
         if (drawTool(1, "Open...")) {
-            std::string chosen = LabDialogs::openFileDialog(_window, "Lab HUD Files (*.labhud)\0*.labhud\0All Files (*.*)\0*.*\0", "assets\\hud_projects");
+            std::string chosen = LabDialogs::openFileDialog(_window, "Lab UI Files (*.labui;*.labhud)\0*.labui;*.labhud\0All Files (*.*)\0*.*\0", "assets\\ui");
             if (!chosen.empty()) {
                 auto loaded = HUDProject::loadFromFile(chosen);
                 if (loaded) { _project = *loaded; _projectFilePath = chosen; _projectDirty = false; }
             }
         }
         if (drawTool(2, "Save")) {
-            if (_projectFilePath.empty()) _projectFilePath = "assets/hud_projects/my_hud.labhud";
+            if (_projectFilePath.empty()) _projectFilePath = "assets/ui/custom_screen.labui";
             _project.saveToFile(_projectFilePath);
             _projectDirty = false;
         }
         if (drawTool(3, "Save As...")) {
-            std::string savePath = LabDialogs::saveFileDialog(_window, "Lab HUD Files (*.labhud)\0*.labhud\0All Files (*.*)\0*.*\0", "custom_hud.labhud", "assets\\hud_projects");
+            std::string savePath = LabDialogs::saveFileDialog(_window, "Lab UI Files (*.labui)\0*.labui\0Lab HUD Files (*.labhud)\0*.labhud\0All Files (*.*)\0*.*\0", "custom_screen.labui", "assets\\ui");
             if (!savePath.empty()) {
                 _project.saveToFile(savePath);
                 _projectFilePath = savePath;
@@ -1797,9 +1992,9 @@ namespace Lab {
         if (drawTool(8, "Import Asset from Disk")) importCustomAsset();
         drawSep();
 
-        auto drawToggleTool = [&](const std::string& label, bool active, const std::string& tooltip) -> bool {
+        auto drawToggleTool = [&](const std::string& label, bool active, const std::string& tooltip, float customW = 64.0f) -> bool {
             (void)tooltip;
-            float tw = 64.0f;
+            float tw = customW;
             bool clicked = false;
             bool hover = (_mouseX >= tx && _mouseX <= tx + tw && _mouseY >= 36.0f && _mouseY <= 68.0f);
             bool pressed = hover && _lmbPressed;
@@ -1807,7 +2002,7 @@ namespace Lab {
             Renderer::drawRect(tx, 36.0f, tw, 32.0f, bg);
             drawHammerBevel(tx, 36.0f, tw, 32.0f, pressed || active);
             Vec3 textCol = active ? Vec3(0.95f, 1.0f, 0.95f) : Vec3(0.70f, 0.70f, 0.70f);
-            LabFont::drawText(tx + 6.0f, 44.0f, label, 1.25f, textCol, LabFontType::System);
+            LabFont::drawText(tx + 6.0f, 44.0f, label, 1.2f, textCol, LabFontType::System);
             if (hover && _lmbClicked) clicked = true;
             tx += tw + 4.0f;
             return clicked;
@@ -1822,6 +2017,11 @@ namespace Lab {
         if (drawToggleTool(_clampToSafeZone ? "[X] CLAMP" : "[ ] CLAMP", _clampToSafeZone, "Toggle Safe Zone Drag Clamping")) {
             _clampToSafeZone = !_clampToSafeZone;
         }
+        drawSep();
+        if (drawToggleTool("HUD", _project.screenType == "HUD", "Edit HUD Screen", 48.0f)) switchScreenPreset("HUD");
+        if (drawToggleTool("MAIN MENU", _project.screenType == "MainMenu", "Edit Main Menu Screen", 86.0f)) switchScreenPreset("MainMenu");
+        if (drawToggleTool("PAUSE", _project.screenType == "PauseMenu", "Edit Pause Menu Screen", 58.0f)) switchScreenPreset("PauseMenu");
+        if (drawToggleTool("OPTIONS", _project.screenType == "OptionsMenu", "Edit Options Screen", 70.0f)) switchScreenPreset("OptionsMenu");
     }
 
     void LabHUDEditor2D::renderStatusBar(float w, float h) {

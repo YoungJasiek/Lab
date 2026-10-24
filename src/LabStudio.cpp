@@ -447,7 +447,10 @@ namespace Lab {
         getTexture("snow_frost.bmp");
 
         // Load Bot Skeletal Assets for Bot Socket 3D Preview
-        bool loadedBot = GLTFLoader::load("assets/models/t-800_run.glb", _botSkeleton, _botAnimations, _botMesh);
+        bool loadedBot = GLTFLoader::load("assets/models/guard.glb", _botSkeleton, _botAnimations, _botMesh);
+        if (!loadedBot || !_botMesh) {
+            loadedBot = GLTFLoader::load("assets/models/t-800_run.glb", _botSkeleton, _botAnimations, _botMesh);
+        }
         if (!loadedBot || !_botMesh) {
             loadedBot = GLTFLoader::load("assets/inwork/t-800_run.glb", _botSkeleton, _botAnimations, _botMesh);
         }
@@ -457,6 +460,35 @@ namespace Lab {
 
         // Ingest all FBX / binary animations for Bot Studio
         FBXLoader::loadAllFromDirectory("assets/animations", _botAnimations, _botSkeleton.get());
+
+        // Ensure canonical animation clip aliases (Walk, Shoot, Idle) exist
+        bool hasStudioShoot = false, hasStudioWalk = false, hasStudioIdle = false;
+        const AnimationClip* studioAttackSource = nullptr;
+        const AnimationClip* studioWalkSource = nullptr;
+        const AnimationClip* studioIdleSource = nullptr;
+        for (const auto& c : _botAnimations) {
+            if (c.name == "Shoot") hasStudioShoot = true;
+            if (c.name == "Walk") hasStudioWalk = true;
+            if (c.name == "Idle") hasStudioIdle = true;
+            if (c.name == "Attack" || c.name == "Firing Rifle") studioAttackSource = &c;
+            if (c.name == "Walking" || c.name == "Run Forward") studioWalkSource = &c;
+            if (c.name == "Pistol Idle") studioIdleSource = &c;
+        }
+        if (!hasStudioShoot && studioAttackSource) {
+            AnimationClip sc = *studioAttackSource;
+            sc.name = "Shoot";
+            _botAnimations.push_back(sc);
+        }
+        if (!hasStudioWalk && studioWalkSource) {
+            AnimationClip wc = *studioWalkSource;
+            wc.name = "Walk";
+            _botAnimations.push_back(wc);
+        }
+        if (!hasStudioIdle && studioIdleSource) {
+            AnimationClip ic = *studioIdleSource;
+            ic.name = "Idle";
+            _botAnimations.push_back(ic);
+        }
 
         if (_botSkeleton && _botMesh) {
             _botAnimator.setSkeleton(_botSkeleton);
@@ -570,9 +602,9 @@ namespace Lab {
             _cameraTarget = Vec3(0.0f, 1.62f, 0.0f);
             _turntableYaw = 0.0f;
             _turntablePitch = 4.0f;
-        } else if (_activeTab == StudioTab::Appearance) {
+        } else if (_activeTab == StudioTab::Appearance || _activeTab == StudioTab::AnimationTimeline || (_activeTab == StudioTab::GripPoser && _poserSubMode == PoserSubMode::BotWeaponSocket)) {
             _cameraDist = 2.4f;
-            _cameraTarget = Vec3(0.0f, 1.0f, 0.0f);
+            _cameraTarget = Vec3(0.0f, 1.05f, 0.0f);
             _turntableYaw = 15.0f;
             _turntablePitch = 8.0f;
         } else {
@@ -842,6 +874,7 @@ namespace Lab {
                 _dialoguePlaying = false;
                 _dialogueTimer = 0.0f;
                 _lipSyncEvaluator.update(0.0f, dt);
+                _botAnimator.setJawAngle(0.0f);
             } else {
                 int sampleIdx = static_cast<int>((_dialogueTimer / curLine.duration) * _speechTrackSamples.size());
                 sampleIdx = std::clamp(sampleIdx, 0, static_cast<int>(_speechTrackSamples.size()) - 1);
@@ -851,6 +884,7 @@ namespace Lab {
                 if (_facialHead) {
                     _lipSyncEvaluator.applyTo(*_facialHead);
                 }
+                _botAnimator.setJawAngle(_lipSyncEvaluator.getJawOpen() * 0.38f);
 
                 // Record waveform trace for visualizer
                 _dialogueWaveform.push_back(amp);
@@ -858,15 +892,20 @@ namespace Lab {
                     _dialogueWaveform.erase(_dialogueWaveform.begin());
                 }
             }
-        } else if (_facialHead && _activeTab == StudioTab::FaceDialogue) {
-            // Apply manual face sliders when speech is inactive
-            _facialHead->setWeight("Jaw_Open", _faceMorphs.jawOpen);
-            _facialHead->setWeight("Mouth_Narrow", _faceMorphs.mouthNarrow);
-            _facialHead->setWeight("Mouth_Smile", _faceMorphs.mouthSmile);
-            _facialHead->setWeight("Brow_Raise", _faceMorphs.browRaise);
-            _facialHead->setWeight("Eyes_Squint", _faceMorphs.eyesSquint);
-            _facialHead->setWeight("Mouth_Frown", _faceMorphs.mouthFrown);
-            _facialHead->evaluate();
+        } else if (_activeTab == StudioTab::FaceDialogue) {
+            if (_facialHead) {
+                // Apply manual face sliders when speech is inactive
+                _facialHead->setWeight("Jaw_Open", _faceMorphs.jawOpen);
+                _facialHead->setWeight("Mouth_Narrow", _faceMorphs.mouthNarrow);
+                _facialHead->setWeight("Mouth_Smile", _faceMorphs.mouthSmile);
+                _facialHead->setWeight("Brow_Raise", _faceMorphs.browRaise);
+                _facialHead->setWeight("Eyes_Squint", _faceMorphs.eyesSquint);
+                _facialHead->setWeight("Mouth_Frown", _faceMorphs.mouthFrown);
+                _facialHead->evaluate();
+            }
+            _botAnimator.setJawAngle(_faceMorphs.jawOpen * 0.38f);
+        } else {
+            _botAnimator.setJawAngle(0.0f);
         }
 
         if (_animPlaying) {
@@ -878,6 +917,8 @@ namespace Lab {
                     _activeAnimState = StudioAnimState::Idle;
                 }
             }
+        } else if (_botAnimator.getSkeleton() && _activeTab == StudioTab::FaceDialogue) {
+            _botAnimator.update(0.0f);
         }
 
         _lastMouseX = mouseX;
@@ -935,12 +976,7 @@ namespace Lab {
 
         Camera studioCam(60.0f, static_cast<float>(vpW) / static_cast<float>(vpH), 0.01f, 100.0f);
         studioCam.setPosition(camEye);
-
-        Vec3 camForward = (_cameraTarget - camEye).normalized();
-        float yawDeg = std::atan2(camForward.x, camForward.z) * 180.0f / PI;
-        float pitchDeg = std::asin(std::clamp(camForward.y, -1.0f, 1.0f)) * 180.0f / PI;
-        studioCam.setYaw(yawDeg);
-        studioCam.setPitch(pitchDeg);
+        studioCam.lookAt(_cameraTarget);
 
         Renderer::beginFrame(studioCam);
 
@@ -1021,7 +1057,9 @@ namespace Lab {
                 float yOffset = -_botMesh->getMinBounds().y * botScale;
                 Mat4 botModel = Mat4::translate(botPos + Vec3(0.0f, yOffset, 0.0f)) *
                                 Mat4::scale(Vec3(botScale, botScale, botScale));
-                Renderer::drawSkinnedMesh(*_botMesh, botModel, _botAnimator.getSkinMatrices(), Vec3(0.32f, 0.35f, 0.40f), nullptr, true);
+                const Texture* bTex = getTexture("guard.bmp");
+                if (!bTex) bTex = getTexture("guard_body.bmp");
+                Renderer::drawSkinnedMesh(*_botMesh, botModel, _botAnimator.getSkinMatrices(), Vec3(1.0f, 1.0f, 1.0f), bTex, true);
 
                 float invBotScale = (botScale > 0.00001f) ? (1.0f / botScale) : 1.0f;
                 Vec3 sPos = grip.botSocket.offset * invBotScale;
@@ -1155,6 +1193,20 @@ namespace Lab {
         Renderer::drawCube(Vec3(0, 0.03f, 0), Vec3(0, 0, 0), Vec3(0.9f, 0.06f, 0.9f), Vec3(0.18f, 0.20f, 0.24f), nullptr, true);
         Renderer::drawCube(Vec3(0, 0.065f, 0), Vec3(0, 0, 0), Vec3(0.75f, 0.02f, 0.75f), Vec3(0.24f, 0.28f, 0.32f), nullptr, true);
 
+        if (_botMesh && _botAnimator.getSkeleton()) {
+            float botScale = _botMesh->getBaseScale(1.85f);
+            float yOffset = -_botMesh->getMinBounds().y * botScale;
+            Mat4 botModel = Mat4::translate(Vec3(0.0f, yOffset, 0.0f)) *
+                            Mat4::scale(Vec3(botScale, botScale, botScale));
+            Vec3 botColor = Vec3(std::min(1.0f, _appearance.fatiguesColor.x * 3.5f),
+                                 std::min(1.0f, _appearance.fatiguesColor.y * 3.5f),
+                                 std::min(1.0f, _appearance.fatiguesColor.z * 3.5f));
+            const Texture* bTex = getTexture("guard.bmp");
+            if (!bTex) bTex = getTexture("guard_body.bmp");
+            Renderer::drawSkinnedMesh(*_botMesh, botModel, _botAnimator.getSkinMatrices(), botColor, bTex, true);
+            return;
+        }
+
         // Fatigues & Armor Colors
         Vec3 fatCol = _appearance.fatiguesColor;
         Vec3 plateCol = _appearance.armorPlateColor;
@@ -1208,7 +1260,21 @@ namespace Lab {
     }
 
     void CharacterStudio::renderFaceDialogueView() {
-        // Close-up on 3D Combat Head
+        if (_botMesh && _botAnimator.getSkeleton()) {
+            float botScale = _botMesh->getBaseScale(1.85f);
+            float yOffset = -_botMesh->getMinBounds().y * botScale;
+            Mat4 botModel = Mat4::translate(Vec3(0.0f, yOffset, 0.0f)) *
+                            Mat4::scale(Vec3(botScale, botScale, botScale));
+            Vec3 botColor = Vec3(std::min(1.0f, _appearance.fatiguesColor.x * 3.5f),
+                                 std::min(1.0f, _appearance.fatiguesColor.y * 3.5f),
+                                 std::min(1.0f, _appearance.fatiguesColor.z * 3.5f));
+            const Texture* bTex = getTexture("guard.bmp");
+            if (!bTex) bTex = getTexture("guard_body.bmp");
+            Renderer::drawSkinnedMesh(*_botMesh, botModel, _botAnimator.getSkinMatrices(), botColor, bTex, true);
+            return;
+        }
+
+        // Close-up on 3D Combat Head fallback
         Vec3 headPos(0.0f, 1.58f, 0.0f);
         if (_facialHead) {
             _facialHead->evaluate();
@@ -1340,7 +1406,7 @@ namespace Lab {
                 }
             }});
             items.push_back({ "", "", true, false, false, nullptr }); // Separator
-            items.push_back({ "Reset Factory Defaults", "", false, false, false, [this]() {
+            items.push_back({ "Reset Defaults", "", false, false, false, [this]() {
                 pushUndoState();
                 resetDefaults();
                 log("Reset all character and weapon parameters to factory defaults.");
@@ -1810,7 +1876,7 @@ namespace Lab {
             drawHammerSlider(x + 14.0f, curY + 22.0f, w - 28.0f, 16.0f, "Offset X (L/R):", grip.weaponOffset.x, -0.50f, 0.50f);
             drawHammerSlider(x + 14.0f, curY + 40.0f, w - 28.0f, 16.0f, "Offset Y (U/D):", grip.weaponOffset.y, -0.50f, 0.50f);
             drawHammerSlider(x + 14.0f, curY + 58.0f, w - 28.0f, 16.0f, "Offset Z (F/B):", grip.weaponOffset.z, -0.50f, 0.50f);
-            if (drawHammerButton(x + 14.0f, curY + 76.0f, w - 28.0f, 18.0f, "Center Position (0, 0, 0)")) {
+            if (drawHammerButton(x + 14.0f, curY + 76.0f, w - 28.0f, 18.0f, "Center")) {
                 centerActiveWeapon();
             }
             curY += 106.0f;
@@ -1823,7 +1889,7 @@ namespace Lab {
             drawHammerSlider(x + 14.0f, curY + 22.0f, w - 28.0f, 16.0f, "Pitch X (Rot X):", grip.weaponRotation.x, -180.0f, 180.0f, "%.1f deg");
             drawHammerSlider(x + 14.0f, curY + 40.0f, w - 28.0f, 16.0f, "Yaw Y (Rot Y):", grip.weaponRotation.y, -180.0f, 180.0f, "%.1f deg");
             drawHammerSlider(x + 14.0f, curY + 58.0f, w - 28.0f, 16.0f, "Roll Z (Rot Z):", grip.weaponRotation.z, -180.0f, 180.0f, "%.1f deg");
-            if (drawHammerButton(x + 14.0f, curY + 76.0f, w - 28.0f, 18.0f, "Zero Rotation (0, 0, 0)")) {
+            if (drawHammerButton(x + 14.0f, curY + 76.0f, w - 28.0f, 18.0f, "Zero Rot")) {
                 resetActiveWeaponRotation();
             }
             curY += 106.0f;
@@ -1844,17 +1910,17 @@ namespace Lab {
             drawHammerSlider(x + 14.0f, curY + 40.0f, w - 28.0f, 16.0f, "Scale X (Width):", grip.weaponScale.x, 0.10f, 3.00f, "%.2f x");
             drawHammerSlider(x + 14.0f, curY + 58.0f, w - 28.0f, 16.0f, "Scale Y (Height):", grip.weaponScale.y, 0.10f, 3.00f, "%.2f x");
             drawHammerSlider(x + 14.0f, curY + 76.0f, w - 28.0f, 16.0f, "Scale Z (Length):", grip.weaponScale.z, 0.10f, 3.00f, "%.2f x");
-            if (drawHammerButton(x + 14.0f, curY + 94.0f, w - 28.0f, 18.0f, "Reset Scale (1.00 x)")) {
+            if (drawHammerButton(x + 14.0f, curY + 94.0f, w - 28.0f, 18.0f, "Reset Scale")) {
                 resetActiveWeaponScale();
             }
             curY += 124.0f;
 
             // Bottom Action Buttons
             float actW = (w - 32.0f) * 0.5f;
-            if (drawHammerButton(x + 12.0f, curY, actW, 26.0f, "Reset Transforms")) {
+            if (drawHammerButton(x + 12.0f, curY, actW, 26.0f, "Reset")) {
                 resetActiveWeaponAllTransforms();
             }
-            if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply In-Game", false, true)) {
+            if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply", false, true)) {
                 saveConfig("assets/configs/character_studio.cfg");
                 if (_onApplyInGame) _onApplyInGame();
                 log("Saved and applied weapon transforms to active game!");
@@ -1886,12 +1952,12 @@ namespace Lab {
 
             // Action Buttons
             float actW = (w - 32.0f) * 0.5f;
-            if (drawHammerButton(x + 12.0f, curY, actW, 26.0f, "Reset Hand Sockets")) {
+            if (drawHammerButton(x + 12.0f, curY, actW, 26.0f, "Reset")) {
                 pushUndoState();
                 resetDefaults();
                 log("Reset weapon hand sockets to defaults.");
             }
-            if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply In-Game", false, true)) {
+            if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply", false, true)) {
                 saveConfig("assets/configs/character_studio.cfg");
                 if (_onApplyInGame) _onApplyInGame();
                 log("Saved and applied custom weapon sockets to active game!");
@@ -1909,12 +1975,12 @@ namespace Lab {
 
             // Action Buttons
             float actW = (w - 32.0f) * 0.5f;
-            if (drawHammerButton(x + 12.0f, curY, actW, 26.0f, "Reset ADS")) {
+            if (drawHammerButton(x + 12.0f, curY, actW, 26.0f, "Reset")) {
                 pushUndoState();
                 grip.adsOffset = Vec3(0.0f, -0.05f, 0.12f);
                 log("Reset ADS alignment to default center.");
             }
-            if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply In-Game", false, true)) {
+            if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply", false, true)) {
                 saveConfig("assets/configs/character_studio.cfg");
                 if (_onApplyInGame) _onApplyInGame();
                 log("Saved and applied custom weapon sockets to active game!");
@@ -1973,7 +2039,7 @@ namespace Lab {
                 pushUndoState();
                 resetBotWeaponSocket();
             }
-            if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply In-Game", false, true)) {
+            if (drawHammerButton(x + 12.0f + actW + 8.0f, curY, actW, 26.0f, "Apply", false, true)) {
                 saveConfig("assets/configs/character_studio.cfg");
                 if (_onApplyInGame) _onApplyInGame();
                 log("Saved and applied custom bot weapon sockets to active game!");
@@ -2047,7 +2113,7 @@ namespace Lab {
 
         // Keyframe Management Buttons
         float kfBtnW = (w - 24.0f - pbPad) / 2.0f;
-        if (drawHammerButton(x + 12.0f, curY, kfBtnW, 24.0f, "+ ADD KEYFRAME")) {
+        if (drawHammerButton(x + 12.0f, curY, kfBtnW, 24.0f, "+ Key")) {
             pushUndoState();
             AnimKeyframe newKf;
             newKf.time = _scrubberPos;
@@ -2059,7 +2125,7 @@ namespace Lab {
                       [](const AnimKeyframe& a, const AnimKeyframe& b) { return a.time < b.time; });
             log("Added keyframe at t=" + std::to_string(_scrubberPos));
         }
-        if (drawHammerButton(x + 12.0f + kfBtnW + pbPad, curY, kfBtnW, 24.0f, "- DEL KEYFRAME")) {
+        if (drawHammerButton(x + 12.0f + kfBtnW + pbPad, curY, kfBtnW, 24.0f, "- Key")) {
             if (_animTrack.keyframes.size() > 1) {
                 pushUndoState();
                 auto closestIt = _animTrack.keyframes.begin();
@@ -2151,7 +2217,7 @@ namespace Lab {
         }
         curY += 26.0f;
 
-        if (drawHammerButton(x + 12.0f, curY, w - 24.0f, 22.0f, "Browse Custom STL File...")) {
+        if (drawHammerButton(x + 12.0f, curY, w - 24.0f, 22.0f, "Browse")) {
             std::string picked = LabDialogs::openFileDialog(_window, "3D STL Model (*.stl)\0*.stl\0All Files (*.*)\0*.*\0", "assets\\models");
             if (!picked.empty()) {
                 pushUndoState();
@@ -2195,7 +2261,7 @@ namespace Lab {
         }
         curY += 24.0f;
 
-        if (drawHammerButton(x + 12.0f, curY, w - 24.0f, 22.0f, "Browse Custom Texture (PNG/BMP/TGA)...")) {
+        if (drawHammerButton(x + 12.0f, curY, w - 24.0f, 22.0f, "Browse")) {
             std::string picked = LabDialogs::openFileDialog(_window, "Texture Images (*.png;*.bmp;*.tga;*.jpg)\0*.png;*.bmp;*.tga;*.jpg\0All Files (*.*)\0*.*\0", "assets\\models\\textures");
             if (!picked.empty()) {
                 pushUndoState();
@@ -2245,7 +2311,7 @@ namespace Lab {
 
         // Bottom Action Buttons
         float actW = (w - 32.0f) * 0.5f;
-        if (drawHammerButton(x + 12.0f, curY, actW, 26.0f, "Save Preset")) {
+        if (drawHammerButton(x + 12.0f, curY, actW, 26.0f, "Save")) {
             saveConfig("assets/configs/character_studio.cfg");
             log("Saved weapon skin config to assets/configs/character_studio.cfg");
         }
@@ -2323,7 +2389,7 @@ namespace Lab {
         drawHammerSlider(x + 14.0f, curY + 66.0f, w - 28.0f, 18.0f, "Uniform Blue:", _appearance.fatiguesColor.z, 0.05f, 1.0f);
         curY += 100.0f;
 
-        if (drawHammerButton(x + 12.0f, curY, w - 24.0f, 26.0f, "Save Operative Appearance", false, true)) {
+        if (drawHammerButton(x + 12.0f, curY, w - 24.0f, 26.0f, "Save", false, true)) {
             saveConfig("assets/configs/character_studio.cfg");
             log("Saved character appearance outfit.");
         }
@@ -2368,12 +2434,12 @@ namespace Lab {
         curY += 120.0f;
 
         float actW = (w - 36.0f) * 0.5f;
-        if (drawHammerButton(x + 14.0f, curY, actW, 26.0f, _dialoguePlaying ? "SPEAKING..." : "TEST DIALOGUE", _dialoguePlaying, true)) {
+        if (drawHammerButton(x + 14.0f, curY, actW, 26.0f, _dialoguePlaying ? "Speaking" : "Test", _dialoguePlaying, true)) {
             _dialoguePlaying = true;
             _dialogueTimer = 0.0f;
             log("Started speech playback and phoneme lip-sync track.");
         }
-        if (drawHammerButton(x + 14.0f + actW + 8.0f, curY, actW, 26.0f, "Reset Mimics")) {
+        if (drawHammerButton(x + 14.0f + actW + 8.0f, curY, actW, 26.0f, "Reset")) {
             pushUndoState();
             _faceMorphs = { 0, 0, 0, 0, 0, 0 };
             _dialoguePlaying = false;

@@ -1868,6 +1868,80 @@ namespace Lab {
         _queryTimer = 1.0f;
     }
 
+    void ServerBrowser::addFavorite(const std::string& ip, uint16_t port) {
+        for (auto& s : _servers) {
+            if (s.ip == ip && s.port == port) {
+                s.isFavorite = !s.isFavorite;
+            }
+        }
+        for (auto it = _favorites.begin(); it != _favorites.end(); ++it) {
+            if (it->ip == ip && it->port == port) {
+                _favorites.erase(it);
+                return;
+            }
+        }
+        DiscoveredServer fav;
+        fav.ip = ip;
+        fav.port = port;
+        fav.name = "Favorite Server (" + ip + ")";
+        fav.isFavorite = true;
+        for (const auto& s : _servers) {
+            if (s.ip == ip && s.port == port) {
+                fav = s;
+                fav.isFavorite = true;
+                break;
+            }
+        }
+        _favorites.push_back(fav);
+    }
+
+    void ServerBrowser::addHistory(const std::string& ip, uint16_t port, const std::string& name, const std::string& map) {
+        for (auto& h : _history) {
+            if (h.ip == ip && h.port == port) {
+                h.name = name;
+                h.map = map;
+                return;
+            }
+        }
+        DiscoveredServer hist;
+        hist.ip = ip;
+        hist.port = port;
+        hist.name = name;
+        hist.map = map;
+        hist.isHistory = true;
+        _history.push_back(hist);
+    }
+
+    std::vector<DiscoveredServer> ServerBrowser::getFilteredServers(int tabIndex, const std::string& mapFilter, int maxPing, bool notFull, bool hasPlayers) const {
+        // tabIndex: 0 = Internet, 1 = Favorites, 2 = History, 3 = LAN, 4 = Friends
+        std::vector<DiscoveredServer> sourceList;
+        if (tabIndex == 1) {
+            sourceList = _favorites;
+        } else if (tabIndex == 2) {
+            sourceList = _history;
+        } else {
+            sourceList = _servers;
+        }
+
+        std::vector<DiscoveredServer> result;
+        for (const auto& s : sourceList) {
+            if (tabIndex == 3 && !s.isLAN) continue;
+            if (tabIndex == 4 && !s.isFriends) continue;
+            if (!mapFilter.empty()) {
+                std::string mLow = s.map;
+                std::string fLow = mapFilter;
+                for (char& c : mLow) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                for (char& c : fLow) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                if (mLow.find(fLow) == std::string::npos) continue;
+            }
+            if (maxPing > 0 && s.pingMs > maxPing) continue;
+            if (notFull && s.playerCount >= s.maxPlayers) continue;
+            if (hasPlayers && s.playerCount <= 0) continue;
+            result.push_back(s);
+        }
+        return result;
+    }
+
     void ServerBrowser::sendQueryTo(const std::string& ip, uint16_t port) {
         if (!_initialized) return;
         SocketAddress target(ip, port);

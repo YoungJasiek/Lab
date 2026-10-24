@@ -220,10 +220,7 @@ namespace Lab {
             float luma = dot(mapped, vec3(0.299, 0.587, 0.114));
             mapped = clamp(mix(vec3(luma), mapped, uSaturation), 0.0, 1.0);
 
-            // 3. Subtle film grain
-            float grain = (hash(vTexCoords * vec2(1280.0, 720.0) + vec2(uTime * 13.0, uTime * 37.0)) - 0.5) * 0.015;
-            mapped = clamp(mapped + vec3(grain), 0.0, 1.0);
-
+            // Clean output without artificial noise or film grain
             FragColor = vec4(mapped, 1.0);
         }
     )";
@@ -474,7 +471,7 @@ namespace Lab {
         if (!_initialized) return;
         glBindFramebuffer(GL_FRAMEBUFFER, _hdrFbo);
         glViewport(0, 0, _width, _height);
-        glClearColor(0.05f, 0.07f, 0.10f, 1.0f);
+        glClearColor(_clearColor.x, _clearColor.y, _clearColor.z, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     }
 
@@ -485,42 +482,44 @@ namespace Lab {
     void PostProcessPipeline::render(float exposure, float frostIntensity, float timeSeconds, TonemapperType tonemapper) {
         if (!_initialized) return;
 
-        // 1. Initial downsample and bright extraction pass into PingPong[0]
-        glBindFramebuffer(GL_FRAMEBUFFER, _pingPongFbo[0]);
-        glViewport(0, 0, _bloomWidth, _bloomHeight);
-        glClear(GL_COLOR_BUFFER_BIT);
+        if (_postProcessEnabled && _bloomEnabled) {
+            // 1. Initial downsample and bright extraction pass into PingPong[0]
+            glBindFramebuffer(GL_FRAMEBUFFER, _pingPongFbo[0]);
+            glViewport(0, 0, _bloomWidth, _bloomHeight);
+            glClear(GL_COLOR_BUFFER_BIT);
 
-        if (!_extractShader) {
-            _extractShader = std::make_unique<Shader>(s_quadVertexShader, s_extractBrightFragmentShader);
-        }
+            if (!_extractShader) {
+                _extractShader = std::make_unique<Shader>(s_quadVertexShader, s_extractBrightFragmentShader);
+            }
 
-        _extractShader->use();
-        _extractShader->setInt("uHDRScene", 0);
-        _extractShader->setFloat("uThreshold", 0.95f);
-        glBindTextureUnit(0, _hdrColorTexture);
+            _extractShader->use();
+            _extractShader->setInt("uHDRScene", 0);
+            _extractShader->setFloat("uThreshold", 0.95f);
+            glBindTextureUnit(0, _hdrColorTexture);
 
-        glBindVertexArray(_quadVao);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
-
-        // 2. Separable Multi-Pass Gaussian Blur (5 iterations = 10 passes)
-        _blurShader->use();
-        _blurShader->setInt("uImage", 0);
-
-        bool horizontal = true;
-        bool firstIteration = true;
-        int blurAmount = 6;
-
-        for (int i = 0; i < blurAmount; ++i) {
-            glBindFramebuffer(GL_FRAMEBUFFER, _pingPongFbo[horizontal ? 1 : 0]);
-            _blurShader->setInt("uHorizontal", horizontal ? 1 : 0);
-
-            unsigned int inputTex = firstIteration ? _pingPongColor[0] : _pingPongColor[horizontal ? 0 : 1];
-            glBindTextureUnit(0, inputTex);
-
+            glBindVertexArray(_quadVao);
             glDrawArrays(GL_TRIANGLES, 0, 6);
 
-            horizontal = !horizontal;
-            if (firstIteration) firstIteration = false;
+            // 2. Separable Multi-Pass Gaussian Blur (5 iterations = 10 passes)
+            _blurShader->use();
+            _blurShader->setInt("uImage", 0);
+
+            bool horizontal = true;
+            bool firstIteration = true;
+            int blurAmount = 6;
+
+            for (int i = 0; i < blurAmount; ++i) {
+                glBindFramebuffer(GL_FRAMEBUFFER, _pingPongFbo[horizontal ? 1 : 0]);
+                _blurShader->setInt("uHorizontal", horizontal ? 1 : 0);
+
+                unsigned int inputTex = firstIteration ? _pingPongColor[0] : _pingPongColor[horizontal ? 0 : 1];
+                glBindTextureUnit(0, inputTex);
+
+                glDrawArrays(GL_TRIANGLES, 0, 6);
+
+                horizontal = !horizontal;
+                if (firstIteration) firstIteration = false;
+            }
         }
 
         // 3. Composite Pass back to default backbuffer (screen)
@@ -531,15 +530,15 @@ namespace Lab {
         _compositeShader->use();
         _compositeShader->setInt("uScene", 0);
         _compositeShader->setInt("uBloom", 1);
-        _compositeShader->setFloat("uBloomIntensity", 0.45f);
+        _compositeShader->setFloat("uBloomIntensity", (_postProcessEnabled && _bloomEnabled) ? 0.45f : 0.0f);
         _compositeShader->setFloat("uExposure", exposure);
-        float effectiveOverlay = (frostIntensity > 0.0f) ? frostIntensity : _overlayIntensity;
+        float effectiveOverlay = _postProcessEnabled ? ((frostIntensity > 0.0f) ? frostIntensity : _overlayIntensity) : 0.0f;
         _compositeShader->setFloat("uFrostIntensity", effectiveOverlay);
         _compositeShader->setFloat("uTime", timeSeconds);
-        _compositeShader->setInt("uTonemapper", (int)tonemapper);
-        _compositeShader->setFloat("uContrast", _contrast);
-        _compositeShader->setFloat("uSaturation", _saturation);
-        _compositeShader->setInt("uEnableFXAA", _fxaaEnabled ? 1 : 0);
+        _compositeShader->setInt("uTonemapper", static_cast<int>(tonemapper));
+        _compositeShader->setFloat("uContrast", _postProcessEnabled ? _contrast : 1.0f);
+        _compositeShader->setFloat("uSaturation", _postProcessEnabled ? _saturation : 1.0f);
+        _compositeShader->setInt("uEnableFXAA", (_postProcessEnabled && _fxaaEnabled) ? 1 : 0);
         _compositeShader->setVec2("uInvScreenSize", Vec2(1.0f / std::max(1, _width), 1.0f / std::max(1, _height)));
 
         glBindTextureUnit(0, _hdrColorTexture);

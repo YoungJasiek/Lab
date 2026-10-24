@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <filesystem>
 
 namespace Lab {
 
@@ -15,6 +16,7 @@ namespace Lab {
         Vec3 ambientColor = { 0.2f, 0.25f, 0.35f };
         Vec3 sunDir = { -0.4f, -0.8f, -0.4f };
         Vec3 sunColor = { 0.9f, 0.95f, 1.0f };
+        std::string cubemapPath = "assets/textures/cubemap_site14.bmp";
     };
 
     struct MapBrush {
@@ -26,8 +28,10 @@ namespace Lab {
         Vec3 size = { 1, 1, 1 };
         Vec3 color = { 1, 1, 1 };
         std::string texturePath = "";
+        std::string normalMapPath = "";
         Vec2 uvScale = { 0.25f, 0.25f };
         int uvMode = 1;
+        bool collidable = true;
 
         // Custom polygon vertices and indices for CSG clipped brushes (type == "poly")
         std::vector<Vertex> customVertices;
@@ -44,6 +48,8 @@ namespace Lab {
         Vec3 scale = { 1, 1, 1 };
         Vec3 color = { 1, 1, 1 };
         std::string texturePath = "";
+        std::string normalMapPath = "";
+        bool collidable = true;
 
         // Component Attachments & Configurations
         bool hasAudio = false;
@@ -92,10 +98,47 @@ namespace Lab {
         float openSpeed = 3.0f;
         float triggerRadius = 4.0f;
 
+        // Mechanism & Activator Configuration
+        std::string activator = "proximity"; // "proximity", "trigger_only", "manual"
+        std::string keycardRequired = "";    // "", "keycard_l1", "keycard_l2"
+        bool requiresKeycard = false;
+        std::string dependency = "";        // Name of required activator/generator/switch entity
+        bool autoClose = true;
+
         // Runtime animation state
         float currentProgress = 0.0f;
         bool isOpen = false;
         bool isLocked = false;
+    };
+
+    struct MapTrigger {
+        std::string name = "trigger_story";
+        Vec3 position = { 0.0f, 1.5f, 0.0f };
+        Vec3 size = { 4.0f, 3.0f, 4.0f };
+        std::string eventType = "story_dialog"; // e.g. "story_dialog", "door_open", "door_unlock", "script"
+        std::string targetBot = "Bot_Guard";
+        std::string targetEntity = "";          // Target door or mechanism entity to manipulate (e.g. "door_0")
+        std::string targetWaypoint = "";        // Target waypoint to direct bot or story path to
+        std::string targetAction = "open";      // "open", "close", "toggle", "unlock", "lock", "fire"
+        std::string dialogText = "WARNING: Sector 14 containment breach detected! Follow me to the airlock!";
+        std::string audioPath = "assets/audio/bot_corridor_dialog.wav";
+        std::string script = "";
+        bool once = true;
+        bool triggered = false;
+    };
+
+    struct MapWaypoint {
+        std::string name = "wp_0";
+        Vec3 position = { 0.0f, 0.0f, 0.0f };
+        std::string botName = "Bot_Guard";
+        int orderIndex = 0;
+        std::string animation = "Idle";
+        float facingYaw = 0.0f;
+        float waitDuration = 2.0f;
+
+        // Linked Story & Gameplay Trigger
+        std::string targetTrigger = "";         // Trigger name to execute when bot arrives at this node
+        std::string triggerAction = "fire";     // "fire", "enable", "disable"
     };
 
     struct MapCamera {
@@ -197,7 +240,7 @@ namespace Lab {
     class LabMap;
 
     struct MapEntityHandle {
-        enum class Type { None, Brush, Prop, Door, Sprite, Light, Camera };
+        enum class Type { None, Brush, Prop, Door, Sprite, Light, Camera, Trigger, Waypoint };
         Type type = Type::None;
         size_t index = 0;
         std::string name = "";
@@ -210,6 +253,28 @@ namespace Lab {
         bool isValid() const { return type != Type::None && getPosition() != nullptr; }
     };
 
+    #pragma pack(push, 1)
+    struct BakedMapHeader {
+        uint32_t magic = 0x50414D4C; // "LMAP" (little-endian: 'L', 'M', 'A', 'P')
+        uint32_t version = 1;
+        uint32_t flags = 0;          // bit 0: encrypted, bit 1: hasEmbeddedAssets, bit 2: authenticated
+        uint32_t checksum = 0;       // CRC32 of payload
+        uint64_t sceneOffset = 0;
+        uint64_t sceneLength = 0;
+        uint64_t lightmapOffset = 0;
+        uint64_t lightmapLength = 0;
+        uint64_t embeddedPakOffset = 0;
+        uint64_t embeddedPakLength = 0;
+    };
+    #pragma pack(pop)
+
+    enum BakedMapFlags : uint32_t {
+        BAKED_MAP_NONE            = 0,
+        BAKED_MAP_ENCRYPTED       = (1 << 0),
+        BAKED_MAP_EMBEDDED_ASSETS = (1 << 1),
+        BAKED_MAP_AUTHENTICATED   = (1 << 2)
+    };
+
     class LabMap {
     public:
         virtual ~LabMap() = default;
@@ -219,6 +284,8 @@ namespace Lab {
         std::vector<MapBrush> brushes;
         std::vector<MapProp> props;
         std::vector<MapDoor> doors;
+        std::vector<MapTrigger> triggers;
+        std::vector<MapWaypoint> waypoints;
         std::vector<MapSpawnPoint> spawnPoints;
         std::vector<MapWeaponSpawner> weaponSpawners;
         std::vector<MapLight> lights;
@@ -232,6 +299,16 @@ namespace Lab {
 
         static std::unique_ptr<LabMap> loadFromFile(const std::string& filePath);
         bool saveToFile(const std::string& filePath) const;
+
+        // Bake and encrypt self-contained binary map (.lmap) with checksum & optional embedded assets
+        bool bakeToFile(const std::string& filePath, bool encrypt = true,
+                        const std::vector<std::pair<std::string, std::filesystem::path>>& embeddedAssets = {}) const;
+
+        // Security validation & quarantine against tampered/spoofed maps
+        static bool verifyMapIntegrity(const std::string& filePath, uint32_t expectedChecksum = 0);
+        static bool isOfficialMap(const std::string& filePath);
+        static std::string getQuarantinedDownloadPath(const std::string& serverHost, const std::string& mapName, uint32_t mapCrc);
     };
 
 } // namespace Lab
+

@@ -153,6 +153,7 @@ namespace Lab {
         std::string luaOnUpdate; // Called each tick to update text/visibility/state
         std::string luaOnClick;  // Called on click event
         std::string luaCustom;   // Arbitrary custom Lua snippet or script path
+        std::string action;      // UI Screen button action (e.g., "start_game", "open_options", "resume_game", "quit_game")
 
         // Icon ID (for Icon type, maps to HammerIcons)
         int iconId = -1;
@@ -170,13 +171,21 @@ namespace Lab {
         std::vector<HUDElement> children;
     };
 
+    enum class UIScreenType : int {
+        HUD = 0,
+        MainMenu = 1,
+        PauseMenu = 2,
+        OptionsMenu = 3
+    };
+
     // =========================================================================
-    // HUD Project — full .labhud document
+    // HUD Project — full .labui / .labhud document
     // =========================================================================
 
     struct HUDProject {
-        std::string name = "Untitled HUD";
+        std::string name = "Untitled UI";
         std::string author = "Unknown";
+        std::string screenType = "HUD"; // "HUD", "MainMenu", "PauseMenu", "OptionsMenu"
         float resolutionW = 1920.0f;
         float resolutionH = 1080.0f;
         int version = 1;
@@ -185,6 +194,11 @@ namespace Lab {
 
         bool saveToFile(const std::string& filepath) const;
         static std::unique_ptr<HUDProject> loadFromFile(const std::string& filepath);
+
+        static HUDProject createMainMenuPreset();
+        static HUDProject createPauseMenuPreset();
+        static HUDProject createOptionsMenuPreset();
+        static HUDProject createHUDLayoutPreset();
     };
 
     // =========================================================================
@@ -264,6 +278,9 @@ namespace Lab {
 
         bool loadHUDFile(const std::string& filepath);
         const std::string& getProjectFilePath() const { return _projectFilePath; }
+        HUDProject& getProject() { return _project; }
+        const HUDProject& getProject() const { return _project; }
+        void switchScreenPreset(const std::string& screenType);
 
         bool requestExit() const { return _requestExit; }
         void clearRequestExit() { _requestExit = false; }

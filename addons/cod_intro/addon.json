@@ -1,0 +1,7 @@
+{
+    "title": "CoD Tactical Entrance Intro",
+    "version": "1.0",
+    "author": "Lab SDK Team",
+    "description": "Call of Duty style tactical typewriter telemetry entrance sequence powered by Lua startup hooks.",
+    "startup_script": "scripts/startup.lua"
+}

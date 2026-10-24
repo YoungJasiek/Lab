@@ -18,6 +18,17 @@ Ten plik dotyczy każdego narzędzia AI (i człowieka) pracującego nad repozyto
 - Bez ciężkiego SSAO i fotorealizmu.
 - Zmiana któregokolwiek z tych punktów wymaga decyzji właściciela, nie PR-a.
 
+## UI / UX i nazewnictwo przycisków
+
+- Etykiety przycisków, narzędzi i ikon w edytorach (Hammer, LFM, Studio, HUD) muszą być **krótkie, zwarte i czytelne** (zazwyczaj 1–2 słowa).
+- Nigdy nie używaj rozwlekłych opisów technicznych na przyciskach i ikonach.
+- Zestawienie standardów:
+  - Używaj **Bake** zamiast Bake Production Map / Bake Production .lmap.
+  - Używaj **Render** lub **Export** zamiast Render via ffmpeg / Export Cinematic MP4.
+  - Używaj **Play** lub **Run** zamiast Launch Game Simulation.
+  - Używaj **Build** zamiast Build All Geometry.
+  - Używaj **Save** zamiast Save Map File to Disk.
+
 ## Zasady kodu
 
 **Zawsze:**

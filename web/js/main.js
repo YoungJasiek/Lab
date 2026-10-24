@@ -47,14 +47,71 @@ function initMobileSidebar() {
   const sidebar = document.querySelector('.vdc-sidebar');
   if (!burger || !sidebar) return;
 
-  burger.addEventListener('click', () => {
-    sidebar.classList.toggle('open');
+  // Create or get overlay backdrop
+  let overlay = document.querySelector('.vdc-sidebar-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'vdc-sidebar-overlay';
+    document.body.appendChild(overlay);
+  }
+
+  // Create mobile drawer header with title and close button if not present
+  if (!sidebar.querySelector('.vdc-sidebar-mobile-header')) {
+    const mobileHeader = document.createElement('div');
+    mobileHeader.className = 'vdc-sidebar-mobile-header';
+    mobileHeader.innerHTML = `
+      <span class="vdc-sidebar-mobile-title">Lab Navigation</span>
+      <button class="vdc-sidebar-close-btn" aria-label="Close navigation" type="button">&times;</button>
+    `;
+    sidebar.insertBefore(mobileHeader, sidebar.firstChild);
+
+    const closeBtn = mobileHeader.querySelector('.vdc-sidebar-close-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', closeSidebar);
+    }
+  }
+
+  function openSidebar() {
+    sidebar.classList.add('open');
+    overlay.classList.add('active');
+    document.body.classList.add('sidebar-open');
+    burger.setAttribute('aria-expanded', 'true');
+  }
+
+  function closeSidebar() {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('active');
+    document.body.classList.remove('sidebar-open');
+    burger.setAttribute('aria-expanded', 'false');
+  }
+
+  burger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (sidebar.classList.contains('open')) {
+      closeSidebar();
+    } else {
+      openSidebar();
+    }
+  });
+
+  overlay.addEventListener('click', closeSidebar);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && sidebar.classList.contains('open')) {
+      closeSidebar();
+    }
   });
 
   sidebar.querySelectorAll('a').forEach(link => {
     link.addEventListener('click', () => {
-      sidebar.classList.remove('open');
+      closeSidebar();
     });
+  });
+
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 768 && sidebar.classList.contains('open')) {
+      closeSidebar();
+    }
   });
 }
 

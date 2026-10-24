@@ -34,3 +34,4 @@
 #include "LabNetwork.h"
 #include "LabStudio.h"
 #include "LabHUDEditor.h"
+#include "LabSDK.h"

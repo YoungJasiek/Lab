@@ -678,14 +678,22 @@ namespace Lab {
             }
 
             Mat4 model = b->getTransformMatrix();
-            Renderer::drawCube(model, b->color, tex, true, { 1.0f, 1.0f }, 1);
+            if (b->type == PropType::ExplosiveBarrel) {
+                Renderer::drawCylinder(model, b->color, tex, true, { 1.0f, 1.0f }, 1);
+            } else {
+                Renderer::drawCube(model, b->color, tex, true, { 1.0f, 1.0f }, 1);
+            }
         }
     }
 
     void PhysicsWorld::renderShadow() const {
         for (const auto& b : bodies) {
             if (b->isDestroyed) continue;
-            Renderer::drawShadowCube(b->getTransformMatrix());
+            if (b->type == PropType::ExplosiveBarrel) {
+                Renderer::drawShadowCylinder(b->getTransformMatrix());
+            } else {
+                Renderer::drawShadowCube(b->getTransformMatrix());
+            }
         }
     }
 
