@@ -1,0 +1,14 @@
+{
+  "name": "Player",
+  "steamId": "STEAM_0:1:424242",
+  "level": 1,
+  "xp": 0,
+  "kills": 0,
+  "deaths": 0,
+  "wins": 0,
+  "matchesPlayed": 0,
+  "preferredTeam": -1,
+  "preferredModel": "guard",
+  "primaryWeapon": 3,
+  "secondaryWeapon": 1
+}

@@ -164,6 +164,19 @@ namespace Lab {
         std::string targetTexture = "Screen";
     };
 
+    struct MapEnv {
+        bool fogEnabled = false;
+        Vec3 fogColor = { 0.5f, 0.6f, 0.7f };
+        float fogStart = 10.0f;
+        float fogEnd = 120.0f;
+        float fogDensity = 0.01f;
+        std::string skybox = "";
+        Vec3 skyColor = { 0.05f, 0.07f, 0.10f };
+        Vec3 sunDir = { -0.4f, -0.8f, -0.4f };
+        Vec3 sunColor = { 0.9f, 0.95f, 1.0f };
+        Vec3 ambientColor = { 0.2f, 0.2f, 0.25f };
+    };
+
     struct MapSpawn {
         Vec3 position = { 0.0f, 1.8f, 0.0f };
         float yaw = 0.0f;
@@ -281,6 +294,7 @@ namespace Lab {
         virtual ~LabMap() = default;
 
         MapMetadata metadata;
+        MapEnv env;
         MapSpawn spawn; // Legacy fallback single spawn
         std::vector<MapBrush> brushes;
         std::vector<MapProp> props;

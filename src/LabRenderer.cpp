@@ -678,32 +678,87 @@ namespace Lab {
         }
     }
 
-    // --- Texture Loaders ---
+    // --- Texture Loaders & Cross-Platform Asset Resolver ---
+    static std::string normalizeSeparators(std::string p) {
+        for (char& c : p) {
+            if (c == '\\') c = '/';
+        }
+        return p;
+    }
+
+    static std::string findExistingAssetCandidate(const std::string& rawCandidate) {
+        std::string cand = normalizeSeparators(rawCandidate);
+        std::error_code ec;
+        if (std::filesystem::exists(cand, ec) && !std::filesystem::is_directory(cand, ec)) return cand;
+
+        // Try alternating image extensions (.png, .bmp, .jpg, .tga, lowercase/uppercase)
+        std::filesystem::path cp(cand);
+        std::string stem = cp.stem().string();
+        std::filesystem::path parent = cp.parent_path();
+        const char* tryExts[] = { ".png", ".bmp", ".jpg", ".tga", ".PNG", ".BMP", ".JPG", ".TGA" };
+        for (const char* e : tryExts) {
+            auto alt = (parent.empty() ? std::filesystem::path(stem + e) : (parent / (stem + e))).string();
+            if (std::filesystem::exists(alt, ec) && !std::filesystem::is_directory(alt, ec)) return alt;
+        }
+
+        // On Linux / POSIX ext4 filesystems: perform case-insensitive directory scan
+        std::filesystem::path searchDir = parent.empty() ? std::filesystem::path(".") : parent;
+        if (std::filesystem::exists(searchDir, ec) && std::filesystem::is_directory(searchDir, ec)) {
+            std::string lowerFname = cp.filename().string();
+            for (char& c : lowerFname) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            std::string lowerStem = stem;
+            for (char& c : lowerStem) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+
+            for (const auto& entry : std::filesystem::directory_iterator(searchDir, ec)) {
+                if (entry.is_directory(ec)) continue;
+                std::string entryName = entry.path().filename().string();
+                std::string entryLower = entryName;
+                for (char& c : entryLower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                if (entryLower == lowerFname) {
+                    return entry.path().string();
+                }
+                std::string entryStemLower = entry.path().stem().string();
+                for (char& c : entryStemLower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                if (entryStemLower == lowerStem) {
+                    return entry.path().string();
+                }
+            }
+        }
+        return "";
+    }
+
     static std::string resolveAssetPath(const std::string& path) {
         static std::unordered_map<std::string, std::string> s_pathCache;
-        auto it = s_pathCache.find(path);
+        std::string normPath = normalizeSeparators(path);
+        auto it = s_pathCache.find(normPath);
         if (it != s_pathCache.end()) return it->second;
 
-        auto vfsResolved = VFS::get().resolve(path);
-        if (!vfsResolved.empty() && std::filesystem::exists(vfsResolved)) {
-            std::string resolvedStr = vfsResolved.string();
-            s_pathCache[path] = resolvedStr;
-            return resolvedStr;
+        auto vfsResolved = VFS::get().resolve(normPath);
+        if (!vfsResolved.empty()) {
+            std::string found = findExistingAssetCandidate(vfsResolved.string());
+            if (!found.empty()) {
+                s_pathCache[normPath] = found;
+                return found;
+            }
         }
-        if (path.find("://") == std::string::npos && path.find(":/") == std::string::npos) {
-            auto vfsAssets = VFS::get().resolve("assets://" + path);
-            if (!vfsAssets.empty() && std::filesystem::exists(vfsAssets)) {
-                std::string resolvedStr = vfsAssets.string();
-                s_pathCache[path] = resolvedStr;
-                return resolvedStr;
+        if (normPath.find("://") == std::string::npos && normPath.find(":/") == std::string::npos) {
+            auto vfsAssets = VFS::get().resolve("assets://" + normPath);
+            if (!vfsAssets.empty()) {
+                std::string found = findExistingAssetCandidate(vfsAssets.string());
+                if (!found.empty()) {
+                    s_pathCache[normPath] = found;
+                    return found;
+                }
             }
         }
 
-        if (std::filesystem::exists(path)) {
-            s_pathCache[path] = path;
-            return path;
+        std::string directFound = findExistingAssetCandidate(normPath);
+        if (!directFound.empty()) {
+            s_pathCache[normPath] = directFound;
+            return directFound;
         }
-        std::string fname = std::filesystem::path(path).filename().string();
+
+        std::string fname = std::filesystem::path(normPath).filename().string();
         std::vector<std::string> candidates = {
             fname,
             "assets/models/textures/" + fname,
@@ -721,37 +776,38 @@ namespace Lab {
             "../../assets/models/" + fname,
             "../../assets/maps/" + fname,
             "../../assets/" + fname,
-            "assets/textures/" + path,
-            "assets/models/" + path,
+            "assets/textures/" + normPath,
+            "assets/models/" + normPath,
             "logos/" + fname,
             "assets/textures/logos/" + fname,
             "../logos/" + fname,
             "../assets/textures/logos/" + fname,
             "../../logos/" + fname,
             "../../assets/textures/logos/" + fname,
-            "assets/" + path,
-            "../" + path,
-            "../assets/textures/" + path,
-            "../assets/models/" + path,
-            "../assets/" + path,
-            "../../" + path,
-            "../../assets/textures/" + path,
-            "../../assets/models/" + path,
-            "../../assets/" + path,
-            "build/Release/" + path,
-            "build/Debug/" + path,
-            "Release/" + path,
-            "Debug/" + path
+            "assets/" + normPath,
+            "../" + normPath,
+            "../assets/textures/" + normPath,
+            "../assets/models/" + normPath,
+            "../assets/" + normPath,
+            "../../" + normPath,
+            "../../assets/textures/" + normPath,
+            "../../assets/models/" + normPath,
+            "../../assets/" + normPath,
+            "build/Release/" + normPath,
+            "build/Debug/" + normPath,
+            "Release/" + normPath,
+            "Debug/" + normPath
         };
 
         for (const auto& candidate : candidates) {
-            if (std::filesystem::exists(candidate)) {
-                s_pathCache[path] = candidate;
-                return candidate;
+            std::string match = findExistingAssetCandidate(candidate);
+            if (!match.empty()) {
+                s_pathCache[normPath] = match;
+                return match;
             }
         }
-        s_pathCache[path] = path;
-        return path;
+        s_pathCache[normPath] = normPath;
+        return normPath;
     }
 
     unsigned char* loadTGA(const char* filename, int* width, int* height, int* bpp) {

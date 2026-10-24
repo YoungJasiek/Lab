@@ -21,7 +21,8 @@ namespace Lab {
         Addons,
         Options,
         Achievements,
-        LoadingMap
+        LoadingMap,
+        Profile
     };
 
     enum class NetworkMode {

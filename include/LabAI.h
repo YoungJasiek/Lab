@@ -26,7 +26,11 @@ namespace Lab {
         Guard,         // Security officer (guard.glb), allied NPC in Story/Campaign, speaks dialogue with lip-sync, armed with Pistol
         Scientist,     // Research scientist / researcher, civilian non-combatant, keycard/terminal operator
         Worker,        // Facility technician / engineer, hazard suit, armed with Pipe
-        CombatSynth    // Hostile military combat android (clean non-infringing synth design for Deathmatch and enemy campaign waves)
+        CombatSynth,   // Hostile military combat android (clean non-infringing synth design for Deathmatch and enemy campaign waves)
+        TeamAlpha,     // TDM Team 0 (Red / Bravo)
+        TeamBravo,     // TDM Team 1 (Blue / Alpha)
+        Companion,     // Story/Campaign allied follower providing cover fire
+        Boss           // Story/Campaign heavy hostile boss
     };
 
     class CombatBot {

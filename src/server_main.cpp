@@ -6,6 +6,13 @@
 #include <csignal>
 #include <string>
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <timeapi.h>
+#pragma comment(lib, "winmm.lib")
+#endif
+
 static bool g_serverRunning = true;
 
 static void signalHandler(int /*signum*/) {
@@ -14,6 +21,9 @@ static void signalHandler(int /*signum*/) {
 }
 
 int main(int argc, char* argv[]) {
+#ifdef _WIN32
+    timeBeginPeriod(1);
+#endif
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--bake-maps" || arg == "-bake-maps") {
@@ -111,15 +121,20 @@ int main(int argc, char* argv[]) {
     std::cout << "  - Network Mode:   " << (config.networkMode == Lab::NetMatchMode::P2P ? "P2P (Direct/Relay)" : "LAN (Broadcast Discovery)") << "\n";
     std::cout << "  - LAN Broadcast:  " << (config.lanMode ? "Active" : "Disabled") << "\n";
     std::cout << "=======================================================\n";
-    Lab::NATStatus nat = Lab::NATDiscovery::queryFullStatus(config.port);
-    std::cout << "[NAT / UPnP Diagnostics]:\n";
-    std::cout << "  - Local Adapter IP: " << nat.localIP << ":" << config.port << "\n";
-    std::cout << "  - Public STUN IP:   " << nat.publicIP << ":" << config.port << "\n";
-    std::cout << "  - Router Port State:" << nat.upnpMessage << "\n";
-    std::cout << "  - Plug & Play Code: [" << server.getRoomCode() << "]\n";
     std::cout << "=======================================================\n";
     std::cout << "[Server] Ready. Listening on UDP 0.0.0.0:" << config.port << ".\n";
+    std::cout << "[Server] Plug & Play Room Code: [" << server.getRoomCode() << "]\n";
     std::cout << "[Server] Press Ctrl+C to stop server.\n\n";
+
+    // Asynchronous NAT discovery so UDP socket binds and serves clients immediately in <1ms
+    std::thread([port = config.port, roomCode = server.getRoomCode()]() {
+        Lab::NATStatus nat = Lab::NATDiscovery::queryFullStatus(port);
+        std::cout << "\n[NAT / UPnP Diagnostics]:\n"
+                  << "  - Local Adapter IP: " << nat.localIP << ":" << port << "\n"
+                  << "  - Public STUN IP:   " << nat.publicIP << ":" << port << "\n"
+                  << "  - Router Port State:" << nat.upnpMessage << "\n"
+                  << "  - Plug & Play Code: [" << roomCode << "]\n\n";
+    }).detach();
 
     using Clock = std::chrono::steady_clock;
     auto lastTime = Clock::now();
@@ -158,6 +173,9 @@ int main(int argc, char* argv[]) {
 
     server.stop();
     Lab::NetworkSystem::shutdown();
+#ifdef _WIN32
+    timeEndPeriod(1);
+#endif
     std::cout << "[Server] Dedicated Server clean exit.\n";
     return 0;
 }

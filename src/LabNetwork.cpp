@@ -1525,11 +1525,14 @@ namespace Lab {
 
         for (size_t i = 0; i < snapshot.playerCount; ++i) {
             snapshot.players[i] = _clients[i].state;
+            snapshot.players[i].pingMs = static_cast<uint16_t>(std::clamp(_clients[i].ping * 1000.0f, 0.0f, 9999.0f));
+            safeStrCopy(snapshot.players[i].name, sizeof(snapshot.players[i].name), _clients[i].name.c_str());
         }
 
+        size_t actualSize = sizeof(NetHeader) + sizeof(uint32_t) * 2 + sizeof(uint16_t) + (snapshot.playerCount * sizeof(NetPlayerState));
         for (const auto& client : _clients) {
             snapshot.lastProcessedCmd = client.lastProcessedCmd;
-            _socket.sendTo(&snapshot, sizeof(snapshot), client.address);
+            _socket.sendTo(&snapshot, actualSize, client.address);
         }
     }
 
@@ -1713,14 +1716,13 @@ namespace Lab {
 
         if (_state != ClientConnectionState::Connected) return;
 
-        // Periodically send Ping to measure round-trip time (every 1 second)
+        // Periodically send Ping to measure real round-trip time (every 500ms)
         _pingTimer += dt;
-        if (_pingTimer >= 1.0f) {
+        if (_pingTimer >= 0.5f) {
             NetMsgPingPong ping;
             ping.header.type = static_cast<uint8_t>(NetMsgType::Ping);
-            static float s_time = 0.0f;
-            s_time += _pingTimer;
-            ping.timestamp = s_time;
+            double nowSec = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+            ping.timestamp = static_cast<float>(nowSec);
             _socket.sendTo(&ping, sizeof(ping), _serverAddr);
             _pingTimer = 0.0f;
         }
@@ -1828,13 +1830,18 @@ namespace Lab {
                               << ", Map: " << _connectedMapName << "\n";
                 }
             } else if (msgType == NetMsgType::ServerSnapshot) {
-                if (bytes >= static_cast<int>(sizeof(NetServerSnapshot))) {
-                    std::memcpy(&_latestSnapshot, packetBuffer, sizeof(NetServerSnapshot));
+                size_t minHeaderSize = sizeof(NetHeader) + sizeof(uint32_t) * 2 + sizeof(uint16_t);
+                if (bytes >= static_cast<int>(minHeaderSize)) {
+                    size_t copyBytes = std::min(static_cast<size_t>(bytes), sizeof(NetServerSnapshot));
+                    std::memset(&_latestSnapshot, 0, sizeof(NetServerSnapshot));
+                    std::memcpy(&_latestSnapshot, packetBuffer, copyBytes);
                     _hasNewSnapshot = true;
                 }
             } else if (msgType == NetMsgType::Pong) {
                 if (bytes >= static_cast<int>(sizeof(NetMsgPingPong))) {
-                    _rtt = 0.012f;
+                    const auto* pong = reinterpret_cast<const NetMsgPingPong*>(packetBuffer);
+                    double nowSec = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+                    _rtt = static_cast<float>(std::max(0.0002, nowSec - static_cast<double>(pong->timestamp)));
                 }
             } else if (msgType == NetMsgType::ChatMessage) {
                 if (bytes >= static_cast<int>(sizeof(NetChatMessage))) {

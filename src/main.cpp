@@ -5,6 +5,7 @@
 #include "LabGpuPreference.h"
 #include "LabDevConsole.h"
 #include "LabVFS.h"
+#include "LabProfile.h"
 #include "../games/frozen_life/include/FrozenLifeAnim.h"
 #include <iostream>
 #include <algorithm>
@@ -323,7 +324,7 @@ public:
                 ip = addr.substr(0, colon);
                 try { port = static_cast<uint16_t>(std::stoi(addr.substr(colon + 1))); } catch (...) {}
             }
-            _netClient.connect(ip, port, "Player");
+            _netClient.connect(ip, port, ProfileManager::get().getProfile().name);
             _isConnecting = true;
         };
         _devConsole.onNetDisconnect = [this]() {
@@ -1532,6 +1533,20 @@ public:
             }
         }
 
+        // Handle Match Intermission timer
+        if (_isIntermission) {
+            _intermissionTimer -= time.delta;
+            if (_intermissionTimer <= 0.0f) {
+                _isIntermission = false;
+                _playerKills = 0;
+                _playerDeaths = 0;
+                _hud.frags = 0;
+                if (_devConsole.onRestartRound) _devConsole.onRestartRound();
+            }
+        } else {
+            checkMatchEndCondition();
+        }
+
         // Handle Death State & Respawn countdown
         if (_isPlayerDead) {
             _playerRespawnTimer -= time.delta;
@@ -2369,11 +2384,15 @@ public:
         // F3 Debug Mode Toggle
         if (Input::isKeyPressed(292)) { // GLFW_KEY_F3
             if (!_f3PressedLast) {
-                _debugMode = !_debugMode;
-                _weaponSystem.unlockAll();
-                syncHudWeapon();
-                LabLog::info("Debug mode: " + std::string(_debugMode ? "ON" : "OFF") + " (All weapons unlocked)");
-                _chat.addMessage("[SYSTEM]", "Debug mode ON: All 9 weapons unlocked!", Vec3(0.3f, 0.95f, 0.5f));
+                if (_netClient.isConnected() && _devConsole.sv_cheats == 0) {
+                    _chat.addMessage("[CONSOLE]", "Cannot use F3 debug cheat on connected server without sv_cheats 1", Vec3(1.0f, 0.35f, 0.35f));
+                } else {
+                    _debugMode = !_debugMode;
+                    _weaponSystem.unlockAll();
+                    syncHudWeapon();
+                    LabLog::info("Debug mode: " + std::string(_debugMode ? "ON" : "OFF") + " (All weapons unlocked)");
+                    _chat.addMessage("[SYSTEM]", "Debug mode ON: All 9 weapons unlocked!", Vec3(0.3f, 0.95f, 0.5f));
+                }
                 _f3PressedLast = true;
             }
         } else {
@@ -2560,18 +2579,60 @@ public:
         }
     }
 
+    void checkMatchEndCondition() {
+        if (_isIntermission) return;
+        int limit = _sessionConfig.fragLimit;
+        if (limit <= 0) limit = 20;
+
+        std::string winner = "";
+        if (_playerKills >= limit) {
+            winner = ProfileManager::get().getProfile().name;
+        } else {
+            for (const auto& bot : _aiManager.bots) {
+                if (bot.kills >= limit) {
+                    winner = bot.name;
+                    break;
+                }
+            }
+            if (winner.empty() && _netClient.isConnected()) {
+                const auto& snap = _netClient.getLatestSnapshot();
+                for (size_t i = 0; i < snap.playerCount; ++i) {
+                    if (snap.players[i].kills >= limit) {
+                        winner = (snap.players[i].name[0] != '\0') ? snap.players[i].name : ("Player_" + std::to_string(snap.players[i].clientId));
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!winner.empty()) {
+            _isIntermission = true;
+            _intermissionTimer = 5.0f;
+            _intermissionWinner = winner;
+            bool localWon = (winner == ProfileManager::get().getProfile().name);
+            ProfileManager::get().recordMatch(localWon);
+            std::string endMsg = "MATCH COMPLETED! WINNER: " + winner + " REACHED " + std::to_string(limit) + " FRAGS!";
+            _hud.showCombatMessage(endMsg, 5.0f);
+            _chat.addMessage("[SERVER]", endMsg, Vec3(1.0f, 0.85f, 0.2f));
+            AudioEngine::playSound(localWon ? SoundID::AccessGranted : SoundID::AccessDenied);
+        }
+    }
+
     void recordPlayerKill(bool isHeadshot = false, bool isBarrel = false) {
         _playerKills++;
         _hud.frags = _playerKills;
         _careerStats.totalKills++;
+        ProfileManager::get().addKill();
         if (isHeadshot) _careerStats.headshots++;
         if (isBarrel) _careerStats.barrelsExploded++;
         updateAchievements();
+        checkMatchEndCondition();
     }
 
     void recordPlayerDeath() {
         _playerDeaths++;
         _careerStats.totalDeaths++;
+        ProfileManager::get().addDeath();
         updateAchievements();
     }
 
@@ -2640,7 +2701,18 @@ public:
                     return;
                 }
                 curY += 44.0f;
-                // Item 4: Addons
+                // Item 4: Player Profile
+                if (mx >= 60.0f && mx <= 420.0f && my >= curY && my <= curY + 36.0f) {
+                    const auto& prof = ProfileManager::get().getProfile();
+                    _profileEditName = prof.name;
+                    _profilePrimaryChoice = prof.primaryWeapon;
+                    _profileSecondaryChoice = prof.secondaryWeapon;
+                    _profileModelChoice = (prof.preferredModel == "worker" ? 1 : (prof.preferredModel == "scientist" ? 2 : 0));
+                    _menuScreen = MenuScreen::Profile;
+                    return;
+                }
+                curY += 44.0f;
+                // Item 5: Addons
                 if (mx >= 60.0f && mx <= 420.0f && my >= curY && my <= curY + 36.0f) {
                     refreshDiscoveredAddons();
                     _menuScreen = MenuScreen::Addons;
@@ -2664,6 +2736,44 @@ public:
                 if (mx >= 60.0f && mx <= 420.0f && my >= curY && my <= curY + 36.0f) {
                     stop();
                     return;
+                }
+            }
+        }
+        else if (_menuScreen == MenuScreen::Profile) {
+            if (lmbClick) {
+                // Top-right [X] close button or Bottom Close
+                if ((mx >= winX + winW - 28.0f && mx <= winX + winW - 6.0f && my >= winY + 6.0f && my <= winY + 28.0f) ||
+                    (mx >= winX + 20.0f && mx <= winX + 160.0f && my >= winY + 524.0f && my <= winY + 558.0f)) {
+                    _menuScreen = MenuScreen::Main;
+                    return;
+                }
+                // Save button
+                if (mx >= winX + winW - 160.0f && mx <= winX + winW - 20.0f && my >= winY + 524.0f && my <= winY + 558.0f) {
+                    auto& prof = ProfileManager::get().getProfile();
+                    if (!_profileEditName.empty()) prof.name = _profileEditName;
+                    prof.primaryWeapon = static_cast<uint8_t>(_profilePrimaryChoice);
+                    prof.secondaryWeapon = static_cast<uint8_t>(_profileSecondaryChoice);
+                    prof.preferredModel = (_profileModelChoice == 0 ? "guard" : (_profileModelChoice == 1 ? "worker" : "scientist"));
+                    ProfileManager::get().saveToFile();
+                    _menuScreen = MenuScreen::Main;
+                    return;
+                }
+                // Primary weapon choices
+                if (my >= winY + 105.0f && my <= winY + 137.0f) {
+                    if (mx >= winX + 510.0f && mx <= winX + 640.0f) { _profilePrimaryChoice = 3; return; }
+                    if (mx >= winX + 650.0f && mx <= winX + 780.0f) { _profilePrimaryChoice = 2; return; }
+                    if (mx >= winX + 790.0f && mx <= winX + 920.0f) { _profilePrimaryChoice = 5; return; }
+                }
+                // Secondary weapon choices
+                if (my >= winY + 180.0f && my <= winY + 212.0f) {
+                    if (mx >= winX + 510.0f && mx <= winX + 640.0f) { _profileSecondaryChoice = 1; return; }
+                    if (mx >= winX + 650.0f && mx <= winX + 780.0f) { _profileSecondaryChoice = 4; return; }
+                }
+                // Model choices
+                if (my >= winY + 255.0f && my <= winY + 287.0f) {
+                    if (mx >= winX + 510.0f && mx <= winX + 640.0f) { _profileModelChoice = 0; return; }
+                    if (mx >= winX + 650.0f && mx <= winX + 780.0f) { _profileModelChoice = 1; return; }
+                    if (mx >= winX + 790.0f && mx <= winX + 920.0f) { _profileModelChoice = 2; return; }
                 }
             }
         }
@@ -2927,7 +3037,7 @@ public:
                     _localServer.stop();
                     _isLocalHost = true;
                     _localServer.start(srvCfg);
-                    _netClient.connect("127.0.0.1", srvCfg.port, "HostPlayer");
+                    _netClient.connect("127.0.0.1", srvCfg.port, ProfileManager::get().getProfile().name);
                     for (int i = 0; i < 4 && !_netClient.isConnected(); ++i) {
                         _localServer.tick(0.016f);
                         _netClient.update(0.016f, _camera.getPosition(), _velocity, _camera.getYaw(), _camera.getPitch(), 0, 0.0f, 0.0f, 0);
@@ -3021,7 +3131,7 @@ public:
                             NATDiscovery::punchHole(room.publicIP, room.publicPort, 27016);
                         }
                         _directConnectIP = targetIP + ":" + std::to_string(targetPort);
-                        _netClient.connect(targetIP, targetPort, "GuestPlayer");
+                        _netClient.connect(targetIP, targetPort, ProfileManager::get().getProfile().name);
                     } else {
                         _isConnecting = false;
                         _connectStatusMsg = "ROOM [" + _pnpJoinCode + "] NOT FOUND!";
@@ -3158,7 +3268,7 @@ public:
                     _isConnecting = true;
                     _connectAnimTimer = 0.0f;
                     _connectStatusMsg = "CONNECTING TO " + targetIP + ":" + std::to_string(targetPort) + "...";
-                    _netClient.connect(targetIP, targetPort, "GuestPlayer");
+                    _netClient.connect(targetIP, targetPort, ProfileManager::get().getProfile().name);
                     return;
                 }
             }
@@ -3465,6 +3575,8 @@ public:
             curY += 44.0f;
             items.push_back({ "CREATE SERVER", curY, true });
             curY += 44.0f;
+            items.push_back({ "PLAYER PROFILE", curY, true });
+            curY += 44.0f;
             items.push_back({ "ADDONS", curY, true });
             curY += 44.0f;
             items.push_back({ "ACHIEVEMENTS", curY, true });
@@ -3494,6 +3606,76 @@ public:
 
             std::string footerText = _hasActiveGame ? "[ESC] RESUME   |   [~] CONSOLE   |   [TAB] SCOREBOARD" : "[~] CONSOLE";
             LabFont::drawText(72.0f, 672.0f, footerText, 1.40f, Vec3(0.48f, 0.55f, 0.65f), LabFontType::GeoSans);
+        }
+        else if (_menuScreen == MenuScreen::Profile) {
+            bool isCloseHov = (_menuMouseX >= winX + winW - 28.0f && _menuMouseX <= winX + winW - 6.0f && _menuMouseY >= winY + 6.0f && _menuMouseY <= winY + 28.0f);
+            drawVguiWindow(winX, winY, winW, winH, "OPERATIVE PROFILE & LOADOUT", isCloseHov);
+
+            auto& prof = ProfileManager::get().getProfile();
+            // Left Well: Profile & Tactical Stats
+            drawVguiWell(winX + 20.0f, winY + 46.0f, 450.0f, 455.0f, "IDENTITY & CAREER STATS");
+            LabFont::drawText(winX + 40.0f, winY + 85.0f, "OPERATIVE CODENAME", 1.45f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::GeoSans);
+            drawVguiWell(winX + 40.0f, winY + 105.0f, 410.0f, 36.0f, "");
+            LabFont::drawText(winX + 52.0f, winY + 114.0f, _profileEditName.empty() ? prof.name : _profileEditName, 1.6f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            LabFont::drawText(winX + 40.0f, winY + 160.0f, "RANK & SECURITY CLEARANCE", 1.45f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::GeoSans);
+            std::string rankStr = prof.getRankTitle() + " (Level " + std::to_string(prof.level) + ")";
+            LabFont::drawText(winX + 40.0f, winY + 185.0f, rankStr, 1.7f, Vec3(1.0f, 0.84f, 0.22f), LabFontType::GeoSans);
+            float xpFrac = static_cast<float>(prof.xp % 1000) / 1000.0f;
+            drawVguiProgressBar(winX + 40.0f, winY + 215.0f, 410.0f, 16.0f, xpFrac, Vec3(0.83f, 0.61f, 0.16f));
+            LabFont::drawText(winX + 40.0f, winY + 236.0f, "XP: " + std::to_string(prof.xp % 1000) + " / 1000", 1.35f, Vec3(0.6f, 0.65f, 0.75f), LabFontType::GeoSans);
+
+            // Career telemetry grid
+            Renderer::drawRect(winX + 40.0f, winY + 265.0f, 410.0f, 30.0f, Vec3(0.10f, 0.12f, 0.16f));
+            LabFont::drawText(winX + 50.0f, winY + 272.0f, "CAREER KILLS", 1.35f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::GeoSans);
+            LabFont::drawText(winX + 340.0f, winY + 272.0f, std::to_string(prof.kills), 1.45f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            Renderer::drawRect(winX + 40.0f, winY + 300.0f, 410.0f, 30.0f, Vec3(0.12f, 0.14f, 0.18f));
+            LabFont::drawText(winX + 50.0f, winY + 307.0f, "CAREER DEATHS", 1.35f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::GeoSans);
+            LabFont::drawText(winX + 340.0f, winY + 307.0f, std::to_string(prof.deaths), 1.45f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            Renderer::drawRect(winX + 40.0f, winY + 335.0f, 410.0f, 30.0f, Vec3(0.10f, 0.12f, 0.16f));
+            LabFont::drawText(winX + 50.0f, winY + 342.0f, "KILL / DEATH RATIO", 1.35f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::GeoSans);
+            char kdBuf[32]; snprintf(kdBuf, sizeof(kdBuf), "%.2f", prof.getKD());
+            LabFont::drawText(winX + 340.0f, winY + 342.0f, kdBuf, 1.45f, Vec3(0.3f, 0.9f, 0.45f), LabFontType::GeoSans);
+
+            Renderer::drawRect(winX + 40.0f, winY + 370.0f, 410.0f, 30.0f, Vec3(0.12f, 0.14f, 0.18f));
+            LabFont::drawText(winX + 50.0f, winY + 377.0f, "MATCHES WON / PLAYED", 1.35f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::GeoSans);
+            LabFont::drawText(winX + 340.0f, winY + 377.0f, std::to_string(prof.wins) + " / " + std::to_string(prof.matchesPlayed), 1.45f, Vec3(1, 1, 1), LabFontType::GeoSans);
+
+            Renderer::drawRect(winX + 40.0f, winY + 405.0f, 410.0f, 30.0f, Vec3(0.10f, 0.12f, 0.16f));
+            LabFont::drawText(winX + 50.0f, winY + 412.0f, "WIN RATE", 1.35f, Vec3(0.7f, 0.75f, 0.8f), LabFontType::GeoSans);
+            char wrBuf[32]; snprintf(wrBuf, sizeof(wrBuf), "%.1f %%", prof.getWinRate());
+            LabFont::drawText(winX + 340.0f, winY + 412.0f, wrBuf, 1.45f, Vec3(1.0f, 0.84f, 0.22f), LabFontType::GeoSans);
+
+            // Right Well: Tactical DM Loadout Configuration
+            drawVguiWell(winX + 490.0f, winY + 46.0f, 470.0f, 455.0f, "TACTICAL LOADOUT (DM / TDM)");
+            LabFont::drawText(winX + 510.0f, winY + 85.0f, "PRIMARY WEAPON", 1.45f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::GeoSans);
+            drawVguiButton(winX + 510.0f, winY + 105.0f, 130.0f, 32.0f, "Rifle", false, _profilePrimaryChoice == 3);
+            drawVguiButton(winX + 650.0f, winY + 105.0f, 130.0f, 32.0f, "Shotgun", false, _profilePrimaryChoice == 2);
+            drawVguiButton(winX + 790.0f, winY + 105.0f, 130.0f, 32.0f, "Crossbow", false, _profilePrimaryChoice == 5);
+
+            LabFont::drawText(winX + 510.0f, winY + 160.0f, "SECONDARY SIDEARM", 1.45f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::GeoSans);
+            drawVguiButton(winX + 510.0f, winY + 180.0f, 130.0f, 32.0f, "Pistol", false, _profileSecondaryChoice == 1);
+            drawVguiButton(winX + 650.0f, winY + 180.0f, 130.0f, 32.0f, "Revolver", false, _profileSecondaryChoice == 4);
+
+            LabFont::drawText(winX + 510.0f, winY + 235.0f, "TACTICAL OPERATIVE MODEL", 1.45f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::GeoSans);
+            drawVguiButton(winX + 510.0f, winY + 255.0f, 130.0f, 32.0f, "Guard", false, _profileModelChoice == 0);
+            drawVguiButton(winX + 650.0f, winY + 255.0f, 130.0f, 32.0f, "Worker", false, _profileModelChoice == 1);
+            drawVguiButton(winX + 790.0f, winY + 255.0f, 130.0f, 32.0f, "Scientist", false, _profileModelChoice == 2);
+
+            LabFont::drawText(winX + 510.0f, winY + 310.0f, "CONFIG PREVIEW", 1.45f, Vec3(0.70f, 0.75f, 0.82f), LabFontType::GeoSans);
+            drawVguiWell(winX + 510.0f, winY + 330.0f, 430.0f, 150.0f, "");
+            LabFont::drawText(winX + 524.0f, winY + 350.0f, "Steam ID: " + prof.steamId, 1.40f, Vec3(0.6f, 0.85f, 1.0f), LabFontType::GeoSans);
+            LabFont::drawText(winX + 524.0f, winY + 380.0f, "Save Location: assets/configs/user_profile.json", 1.35f, Vec3(0.7f, 0.7f, 0.7f), LabFontType::GeoSans);
+            LabFont::drawText(winX + 524.0f, winY + 410.0f, "Status: Local profile active & synchronized", 1.35f, Vec3(0.35f, 0.9f, 0.45f), LabFontType::GeoSans);
+
+            // Bottom Buttons
+            bool isCloseBtnHov = (_menuMouseX >= winX + 20.0f && _menuMouseX <= winX + 160.0f && _menuMouseY >= winY + 524.0f && _menuMouseY <= winY + 558.0f);
+            drawVguiButton(winX + 20.0f, winY + 524.0f, 140.0f, 34.0f, "Close", isCloseBtnHov, false);
+
+            bool isSaveHov = (_menuMouseX >= winX + winW - 160.0f && _menuMouseX <= winX + winW - 20.0f && _menuMouseY >= winY + 524.0f && _menuMouseY <= winY + 558.0f);
+            drawVguiButton(winX + winW - 160.0f, winY + 524.0f, 140.0f, 34.0f, "Save", isSaveHov, true);
         }
         else if (_menuScreen == MenuScreen::Achievements) {
             bool isCloseHov = (_menuMouseX >= winX + winW - 28.0f && _menuMouseX <= winX + winW - 6.0f && _menuMouseY >= winY + 6.0f && _menuMouseY <= winY + 28.0f);
@@ -4087,6 +4269,21 @@ public:
             return;
         }
 
+        if (_isIntermission) {
+            // Render Match End Intermission Banner & Scoreboard
+            Renderer::beginUI(w, h);
+            Renderer::drawRect(0.0f, 0.0f, static_cast<float>(w), static_cast<float>(h), Vec3(0.0f, 0.0f, 0.0f), 0.75f);
+            Renderer::drawRect(0.0f, static_cast<float>(h) * 0.10f, static_cast<float>(w), 70.0f, Vec3(0.08f, 0.12f, 0.18f), 0.90f);
+            Renderer::drawRect(0.0f, static_cast<float>(h) * 0.10f, static_cast<float>(w), 2.0f, Vec3(1.0f, 0.80f, 0.20f));
+            Renderer::drawRect(0.0f, static_cast<float>(h) * 0.10f + 68.0f, static_cast<float>(w), 2.0f, Vec3(1.0f, 0.80f, 0.20f));
+
+            std::string winBanner = "MATCH OVER // WINNER: " + _intermissionWinner;
+            LabFont::drawText(static_cast<float>(w) * 0.5f - 240.0f, static_cast<float>(h) * 0.10f + 16.0f, winBanner, 2.4f, Vec3(1.0f, 0.85f, 0.25f), LabFontType::GeoSans);
+            std::string countdown = "NEXT ROUND COMMENCING IN " + std::to_string(static_cast<int>(std::ceil(_intermissionTimer))) + " SECONDS";
+            LabFont::drawText(static_cast<float>(w) * 0.5f - 180.0f, static_cast<float>(h) * 0.10f + 44.0f, countdown, 1.4f, Vec3(0.7f, 0.8f, 0.9f), LabFontType::GeoSans);
+            Renderer::endUI();
+        }
+
         if (_isPlayerDead) {
             _hud.renderDeathScreen(w, h, _playerRespawnTimer);
         } else {
@@ -4127,17 +4324,40 @@ public:
         if (Input::isKeyPressed(258)) { // GLFW_KEY_TAB
             std::vector<ScoreboardEntry> entries;
 
+            const auto& myProf = ProfileManager::get().getProfile();
             ScoreboardEntry pe;
-            pe.name = "[YOU] Player";
+            pe.name = "[YOU] " + myProf.name;
             pe.kills = _playerKills;
             pe.deaths = _playerDeaths;
-            pe.ping = "5ms";
+            pe.ping = _netClient.isConnected() ? (std::to_string(static_cast<int>(std::round(_netClient.getRTT() * 1000.0f))) + "ms") : "0ms";
             pe.isBot = false;
             pe.isLocalPlayer = true;
             pe.isAlive = !_isPlayerDead;
             pe.status = _isPlayerDead ? "DEAD (" + std::to_string(std::max(0, (int)std::ceil(_playerRespawnTimer))) + "s)" : "ALIVE";
             pe.team = (_sessionConfig.mode == GameMode::TDM) ? "Blue (Alpha)" : "Free-For-All";
             entries.push_back(pe);
+
+            // Populate all remote networked players from latest server snapshot
+            if (_netClient.isConnected()) {
+                const auto& snap = _netClient.getLatestSnapshot();
+                for (size_t i = 0; i < snap.playerCount; ++i) {
+                    const auto& p = snap.players[i];
+                    if (p.clientId == _netClient.getClientId()) continue;
+                    if (p.clientId == 0) continue;
+
+                    ScoreboardEntry re;
+                    re.name = (p.name[0] != '\0') ? p.name : ("Player_" + std::to_string(p.clientId));
+                    re.kills = p.kills;
+                    re.deaths = p.deaths;
+                    re.ping = std::to_string(p.pingMs) + "ms";
+                    re.isBot = false;
+                    re.isLocalPlayer = false;
+                    re.isAlive = (p.isAlive != 0);
+                    re.status = (p.isAlive != 0) ? "ALIVE" : "DEAD";
+                    re.team = (_sessionConfig.mode == GameMode::TDM) ? ((p.team == 0) ? "Red (Bravo)" : "Blue (Alpha)") : "Free-For-All";
+                    entries.push_back(re);
+                }
+            }
 
             for (const auto& bot : _aiManager.bots) {
                 ScoreboardEntry be;
@@ -4457,8 +4677,10 @@ public:
             );
         }
 
-        // Atmospheric Volumetric Fog (wrd_fog & wrd_fog_density)
-        if (_devConsole.wrd_fog) {
+        // Atmospheric Environment: apply map environment or live developer console toggles
+        if (_currentMap && _currentMap->env.fogEnabled) {
+            Renderer::setFog(true, _currentMap->env.fogColor, _currentMap->env.fogStart, _currentMap->env.fogEnd);
+        } else if (_devConsole.wrd_fog) {
             float fogEnd = 1.0f / std::max(0.001f, _devConsole.wrd_fog_density);
             Renderer::setFog(true, _devConsole.wrd_skybox_color, 2.0f, fogEnd);
         } else {
@@ -4624,8 +4846,11 @@ public:
 
                     float pScale = _aiManager.skinnedMesh->getBaseScale(1.85f);
                     float yOff = -_aiManager.skinnedMesh->getMinBounds().y * pScale;
+                    float radYaw = p.yaw * 3.14159265f / 180.0f;
+                    Vec3 fwd(std::cos(radYaw), 0.0f, std::sin(radYaw));
+                    float modelFacingYaw = std::atan2(fwd.x, fwd.z) * 180.0f / 3.14159265f;
                     Mat4 pModel = Mat4::translate(pFeet + Vec3(0.0f, yOff, 0.0f)) *
-                                  Mat4::rotate(p.yaw * 3.14159265f / 180.0f, Vec3(0, 1, 0)) *
+                                  Mat4::rotate(modelFacingYaw * 3.14159265f / 180.0f, Vec3(0, 1, 0)) *
                                   Mat4::scale(Vec3(pScale, pScale, pScale));
                     Renderer::drawSkinnedMesh(*_aiManager.skinnedMesh, pModel,
                                               rAnim.getSkinMatrices(),
@@ -5111,6 +5336,15 @@ private:
     int _playerDeaths = 0;
     bool _isPlayerDead = false;
     float _playerRespawnTimer = 0.0f;
+
+    // Match Intermission & Frag Limit
+    bool _isIntermission = false;
+    float _intermissionTimer = 0.0f;
+    std::string _intermissionWinner = "";
+    std::string _profileEditName = "";
+    int _profilePrimaryChoice = 3;
+    int _profileSecondaryChoice = 1;
+    int _profileModelChoice = 0; // 0=guard, 1=worker, 2=scientist
 
     // Chat & Pickups
     LabChat _chat;

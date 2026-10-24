@@ -13,7 +13,7 @@ namespace Lab {
     constexpr uint32_t NET_MAGIC = 0x4C414231; // "LAB1"
     constexpr uint16_t NET_PROTOCOL_VERSION = 1;
     constexpr uint16_t DEFAULT_SERVER_PORT = 27015;
-    constexpr size_t MAX_PACKET_SIZE = 1400;
+    constexpr size_t MAX_PACKET_SIZE = 2048;
     constexpr int MAX_NETWORK_PLAYERS = 16;
 
     // --- Message Types ---
@@ -100,6 +100,9 @@ namespace Lab {
         uint16_t kills = 0;
         uint16_t deaths = 0;
         char name[32] = { 0 };
+        uint16_t pingMs = 0;
+        int8_t team = -1;
+        uint8_t pad = 0;
     };
 
     struct NetServerSnapshot {

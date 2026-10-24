@@ -115,7 +115,7 @@ namespace Lab {
         // wrd_ (World, Map & Environment)
         float wrd_timescale = 1.0f;
         bool wrd_wireframe = false;
-        bool wrd_fog = true;
+        bool wrd_fog = false;
         float wrd_fog_density = 0.02f;
         bool wrd_postprocess = true;
         std::string wrd_skybox = "#0d121a";

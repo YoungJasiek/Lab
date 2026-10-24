@@ -52,7 +52,10 @@ namespace Lab {
     CombatBot::CombatBot(int botId, const std::string& botName, const Vec3& spawnPos, const Vec3& pEnd, int botTeam, WeaponID weapon)
         : id(botId), name(botName), position(spawnPos), team(botTeam), equippedWeapon(weapon),
           patrolStart(spawnPos), patrolEnd(pEnd) {
-        if (name.find("Guard") != std::string::npos || name.find("guard") != std::string::npos ||
+        if (botTeam == -1) {
+            // FFA / DM bot is ALWAYS hostile to everyone
+            isFriendly = false;
+        } else if (name.find("Guard") != std::string::npos || name.find("guard") != std::string::npos ||
             name.find("Barney") != std::string::npos || name.find("Security") != std::string::npos ||
             name.find("Ally") != std::string::npos || name.find("Friendly") != std::string::npos) {
             isFriendly = true;
@@ -1046,13 +1049,24 @@ namespace Lab {
         if (count <= 0) return;
         initAssets();
 
+        bool isMultiplayerArena = (mode == GameMode::FFA || mode == GameMode::DM || mode == GameMode::TDM);
+
         for (int i = 0; i < count; ++i) {
             int botTeam = (mode == GameMode::TDM) ? (i % 2) : -1;
-            std::string bName = (i == 0 && map && !map->waypoints.empty() && !map->waypoints[0].botName.empty())
-                                ? map->waypoints[0].botName
-                                : ("Combat Synth #" + std::to_string(i + 1));
-            if (count == 1 || (map && (!map->triggers.empty() || !map->waypoints.empty()) && i == 0)) {
-                bName = "Guard";
+            std::string bName;
+            if (isMultiplayerArena) {
+                if (mode == GameMode::TDM) {
+                    bName = (botTeam == 0 ? "Red Synth #" : "Blue Synth #") + std::to_string((i / 2) + 1);
+                } else {
+                    bName = "Combat Synth #" + std::to_string(i + 1);
+                }
+            } else {
+                bName = (i == 0 && map && !map->waypoints.empty() && !map->waypoints[0].botName.empty())
+                                    ? map->waypoints[0].botName
+                                    : ("Combat Synth #" + std::to_string(i + 1));
+                if (count == 1 || (map && (!map->triggers.empty() || !map->waypoints.empty()) && i == 0)) {
+                    bName = "Guard";
+                }
             }
 
             MapSpawnPoint sp;
@@ -1084,12 +1098,15 @@ namespace Lab {
 
             // Determine Archetype
             BotArchetype botArchetype = BotArchetype::CombatSynth;
-            bool isGuard = (bName.find("Guard") != std::string::npos || bName.find("guard") != std::string::npos ||
+            if (mode == GameMode::TDM) {
+                botArchetype = (botTeam == 0) ? BotArchetype::TeamAlpha : BotArchetype::TeamBravo;
+            }
+            bool isGuard = !isMultiplayerArena && (bName.find("Guard") != std::string::npos || bName.find("guard") != std::string::npos ||
                             bName.find("Security") != std::string::npos || bName.find("Barney") != std::string::npos ||
                             mode == GameMode::Campaign);
-            bool isScientist = (bName.find("Scientist") != std::string::npos || bName.find("scientist") != std::string::npos ||
+            bool isScientist = !isMultiplayerArena && (bName.find("Scientist") != std::string::npos || bName.find("scientist") != std::string::npos ||
                                 bName.find("Kleiner") != std::string::npos || bName.find("Doctor") != std::string::npos);
-            bool isWorker = (bName.find("Worker") != std::string::npos || bName.find("worker") != std::string::npos ||
+            bool isWorker = !isMultiplayerArena && (bName.find("Worker") != std::string::npos || bName.find("worker") != std::string::npos ||
                              bName.find("Engineer") != std::string::npos || bName.find("Tech") != std::string::npos);
 
             WeaponID assignedWep = static_cast<WeaponID>((i + 2) % 9);

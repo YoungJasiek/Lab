@@ -120,6 +120,11 @@ add_library(LabCore SHARED
     src/LabProfiler.cpp
     src/LabVCS.cpp
     src/LabProject.cpp
+
+    src/LabProfile.cpp
+
+    include/LabProfile.h
+
     include/LabCore.h
     include/LabInput.h
     include/LabEvent.h
@@ -400,6 +405,9 @@ set_target_properties(LabStudio PROPERTIES OUTPUT_NAME "lchs")
 add_executable(LabServer src/server_main.cpp)
 target_compile_options(LabServer PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabServer PRIVATE LabEngineLib)
+if(WIN32)
+    target_link_libraries(LabServer PRIVATE winmm)
+endif()
 
 # 6. Full Engine Automated Verification Suite
 add_executable(TestVerify src/test_verify.cpp)
