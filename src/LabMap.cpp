@@ -1,3 +1,4 @@
+#include "LabPickups.h"
 #include "LabMap.h"
 #include "LabScene.h"
 #include "LabCore.h"
@@ -9,6 +10,18 @@
 #include <iostream>
 
 namespace Lab {
+
+    std::string MapWeaponSpawner::getWeaponName() const {
+        if (!prefabRef.empty()) {
+            const auto* def = FindSpawnerItemDef(prefabRef);
+            if (def) return def->displayName;
+            return prefabRef;
+        }
+        const auto* def = FindSpawnerItemDefByWeaponId(weaponId);
+        if (def) return def->displayName;
+        return "Item_" + std::to_string(weaponId);
+    }
+
 
     static std::string resolveMapPath(const std::string& path) {
         if (std::filesystem::exists(path)) return path;
@@ -464,20 +477,25 @@ namespace Lab {
                     MapWeaponSpawner ws;
                     std::string wepToken;
                     ss >> wepToken >> ws.position.x >> ws.position.y >> ws.position.z >> ws.yaw >> ws.respawnTime;
-                    if (wepToken == "pipe" || wepToken == "0") ws.weaponId = 0;
-                    else if (wepToken == "pistol" || wepToken == "1") ws.weaponId = 1;
-                    else if (wepToken == "shotgun" || wepToken == "2") ws.weaponId = 2;
-                    else if (wepToken == "m4a4s" || wepToken == "3") ws.weaponId = 3;
-                    else if (wepToken == "sg553" || wepToken == "4") ws.weaponId = 4;
-                    else if (wepToken == "minigun" || wepToken == "5") ws.weaponId = 5;
-                    else if (wepToken == "plasma" || wepToken == "6") ws.weaponId = 6;
-                    else if (wepToken == "railgun" || wepToken == "7") ws.weaponId = 7;
-                    else if (wepToken == "rpg" || wepToken == "8") ws.weaponId = 8;
-                    else {
-                        try { ws.weaponId = std::stoi(wepToken); } catch (...) { ws.weaponId = 2; }
+                    ws.prefabRef = wepToken;
+                    const auto* def = FindSpawnerItemDef(wepToken);
+                    if (def) {
+                        ws.weaponId = def->weaponId;
+                    } else {
+                        if (wepToken == "pipe" || wepToken == "0") { ws.weaponId = 0; ws.prefabRef = "weapon_pipe"; }
+                        else if (wepToken == "pistol" || wepToken == "1") { ws.weaponId = 1; ws.prefabRef = "weapon_pistol"; }
+                        else if (wepToken == "shotgun" || wepToken == "2") { ws.weaponId = 2; ws.prefabRef = "weapon_shotgun"; }
+                        else if (wepToken == "m4a4s" || wepToken == "3") { ws.weaponId = 3; ws.prefabRef = "weapon_m4a4s"; }
+                        else if (wepToken == "sg553" || wepToken == "4") { ws.weaponId = 4; ws.prefabRef = "weapon_sg553"; }
+                        else if (wepToken == "minigun" || wepToken == "5") { ws.weaponId = 5; ws.prefabRef = "weapon_minigun"; }
+                        else if (wepToken == "plasma" || wepToken == "6") { ws.weaponId = 6; ws.prefabRef = "weapon_plasma"; }
+                        else if (wepToken == "railgun" || wepToken == "7") { ws.weaponId = 7; ws.prefabRef = "weapon_railgun"; }
+                        else if (wepToken == "rpg" || wepToken == "8") { ws.weaponId = 8; ws.prefabRef = "weapon_rpg"; }
+                        else {
+                            try { ws.weaponId = std::stoi(wepToken); } catch (...) { ws.weaponId = 2; }
+                        }
                     }
                     if (ws.respawnTime <= 0.0f) ws.respawnTime = 60.0f;
-                    ws.prefabRef = LabScene::weaponIdToPrefab(ws.weaponId);
                     map->weaponSpawners.push_back(ws);
                     lastParsed = LastParsedEntity::None;
                 } else if (token == "light" || token == "light_omni" || token == "light_spot") {

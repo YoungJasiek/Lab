@@ -709,7 +709,7 @@ public:
             // Initialize World Weapon Spawners (Persistent 60s cooldown pads)
             _pickups.weaponPads.clear();
             for (const auto& ws : _currentMap->weaponSpawners) {
-                _pickups.addWeaponPad(ws.weaponId, ws.position, ws.respawnTime, ws.yaw);
+                _pickups.addWeaponPad(ws.weaponId, ws.position, ws.respawnTime, ws.yaw, ws.prefabRef);
             }
             if (_pickups.weaponPads.empty()) {
                 // Default tactical arena weapon spawners
@@ -2290,10 +2290,12 @@ public:
         // Update Pickups and Proximity Collection
         int ammoAdded = 0;
         float healthAdded = 0.0f;
+        float armorAdded = 0.0f;
         int weaponUnlocked = -1;
         std::string pickupNotice;
         bool weaponRespawned = false;
-        _pickups.update(time.delta, _camera.getPosition(), ammoAdded, healthAdded, weaponUnlocked, pickupNotice, weaponRespawned);
+        std::string customItem;
+        _pickups.update(time.delta, _camera.getPosition(), ammoAdded, healthAdded, armorAdded, weaponUnlocked, pickupNotice, weaponRespawned, customItem);
         if (weaponUnlocked >= 0 && weaponUnlocked < 9) {
             _weaponSystem.unlockWeapon((WeaponID)weaponUnlocked, true);
             _weaponSystem.switchWeapon((WeaponID)weaponUnlocked);
@@ -2304,8 +2306,15 @@ public:
             AudioEngine::playSound(SoundID::WeaponSpawn);
         }
         if (weaponRespawned) {
-            _chat.addMessage("[ARSENAL]", "A weapon has respawned on the arena pad!", Vec3(0.3f, 0.7f, 0.9f));
+            _chat.addMessage("[ARSENAL]", "An item has respawned on the arena pad!", Vec3(0.3f, 0.7f, 0.9f));
             AudioEngine::playSound(SoundID::WeaponSpawn);
+        }
+        if (armorAdded > 0.0f) {
+            _hud.suitArmor = std::min(100.0f, _hud.suitArmor + armorAdded);
+            _hud.showCombatMessage(pickupNotice, 2.0f);
+            _chat.addMessage("[SUIT]", pickupNotice, Vec3(1.0f, 0.65f, 0.1f));
+            _particleSystem.spawnBeamSparks(_camera.getPosition(), _camera.getPosition() + Vec3(0, 0.8f, 0), Vec3(1.0f, 0.65f, 0.1f), 12);
+            AudioEngine::playSound(SoundID::PickupAmmo);
         }
         if (ammoAdded > 0) {
             _weaponSystem.getActiveWeapon().addAmmo(ammoAdded);
@@ -2321,6 +2330,11 @@ public:
             _hud.showCombatMessage(pickupNotice, 2.0f);
             _chat.addMessage("[ITEM]", pickupNotice, Vec3(0.2f, 0.95f, 0.4f));
             AudioEngine::playSound(SoundID::PickupMedkit);
+        }
+        if (!customItem.empty()) {
+            _hud.showCombatMessage(pickupNotice, 2.0f);
+            _chat.addMessage("[MOD]", pickupNotice, Vec3(0.8f, 0.3f, 1.0f));
+            AudioEngine::playSound(SoundID::WeaponSpawn);
         }
 
         // Update active Bullet Tracers

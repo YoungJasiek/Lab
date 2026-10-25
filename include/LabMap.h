@@ -211,10 +211,7 @@ namespace Lab {
         float yaw = 0.0f;
         float respawnTime = 60.0f;
 
-        std::string getWeaponName() const {
-            if (!prefabRef.empty()) return prefabRef;
-            return "Item_" + std::to_string(weaponId);
-        }
+        std::string getWeaponName() const;
     };
 
     enum class MapLightType {

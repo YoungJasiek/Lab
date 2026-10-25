@@ -1,3 +1,4 @@
+#include "LabPickups.h"
 #include "Lab.h"
 #include "LabGraphics.h"
 #include "LabScene.h"
@@ -4629,33 +4630,94 @@ public:
                 if (_selectionType == SelectionType::WeaponSpawner && _selectedIndex >= 0 && _selectedIndex < (int)_map->weaponSpawners.size()) {
                     auto& ws = _map->weaponSpawners[_selectedIndex];
                     float propY = l.rightY + 38.0f;
-                    float wepBtnY = propY + 114.0f;
-                    if (my >= wepBtnY && my <= wepBtnY + 26.0f) {
-                        if (mx >= l.rightX + 10.0f && mx <= l.rightX + 140.0f) {
-                            ws.weaponId = (ws.weaponId - 1 + 9) % 9;
-                            logMessage("Changed Spawner to: " + ws.getWeaponName());
-                            return;
+
+                    // Category Filter Pills
+                    float catY = propY + 104.0f;
+                    float catW = 54.0f;
+                    if (my >= catY && my <= catY + 22.0f) {
+                        for (int c = 0; c < 5; ++c) {
+                            float cx = l.rightX + 10.0f + c * 56.0f;
+                            if (mx >= cx && mx <= cx + catW) {
+                                _spawnerCatFilter = c;
+                                _spawnerItemOffset = 0;
+                                return;
+                            }
                         }
-                        if (mx >= l.rightX + 150.0f && mx <= l.rightX + 280.0f) {
-                            ws.weaponId = (ws.weaponId + 1) % 9;
-                            logMessage("Changed Spawner to: " + ws.getWeaponName());
+                    }
+
+                    // Item List rows
+                    auto items = getFilteredSpawnerItems();
+                    float listY = catY + 28.0f;
+                    int maxVisible = 5;
+                    int startIdx = std::clamp(_spawnerItemOffset, 0, std::max(0, (int)items.size() - maxVisible));
+
+                    for (int i = 0; i < maxVisible && (startIdx + i) < (int)items.size(); ++i) {
+                        float rowY = listY + i * 24.0f;
+                        if (my >= rowY && my <= rowY + 22.0f && mx >= l.rightX + 10.0f && mx <= l.rightX + 286.0f) {
+                            const auto& it = items[startIdx + i];
+                            ws.prefabRef = it.tag;
+                            ws.weaponId = it.weaponId;
+                            logMessage("Set Spawner item to: " + it.displayName);
                             return;
                         }
                     }
 
-                    float respBtnY = wepBtnY + 54.0f;
-                    if (my >= respBtnY && my <= respBtnY + 24.0f) {
-                        if (mx >= l.rightX + 10.0f && mx <= l.rightX + 80.0f) {
+                    // Pagination / Prev / Next buttons
+                    float wepBtnY = listY + maxVisible * 24.0f + 4.0f;
+                    if (my >= wepBtnY && my <= wepBtnY + 24.0f) {
+                        if (mx >= l.rightX + 10.0f && mx <= l.rightX + 144.0f) {
+                            if (_spawnerItemOffset > 0) {
+                                _spawnerItemOffset--;
+                            } else {
+                                const auto& all = GetSpawnerItemDefinitions();
+                                int curIdx = 0;
+                                for (size_t k = 0; k < all.size(); ++k) {
+                                    if (all[k].tag == ws.prefabRef) { curIdx = (int)k; break; }
+                                }
+                                int prevIdx = (curIdx - 1 + (int)all.size()) % (int)all.size();
+                                ws.prefabRef = all[prevIdx].tag;
+                                ws.weaponId = all[prevIdx].weaponId;
+                            }
+                            logMessage("Changed Spawner item: " + ws.getWeaponName());
+                            return;
+                        }
+                        if (mx >= l.rightX + 152.0f && mx <= l.rightX + 286.0f) {
+                            if (_spawnerItemOffset + maxVisible < (int)items.size()) {
+                                _spawnerItemOffset++;
+                            } else {
+                                const auto& all = GetSpawnerItemDefinitions();
+                                int curIdx = 0;
+                                for (size_t k = 0; k < all.size(); ++k) {
+                                    if (all[k].tag == ws.prefabRef) { curIdx = (int)k; break; }
+                                }
+                                int nextIdx = (curIdx + 1) % (int)all.size();
+                                ws.prefabRef = all[nextIdx].tag;
+                                ws.weaponId = all[nextIdx].weaponId;
+                            }
+                            logMessage("Changed Spawner item: " + ws.getWeaponName());
+                            return;
+                        }
+                    }
+
+                    // Respawn Time Buttons
+                    float respBtnY = wepBtnY + 28.0f;
+                    if (my >= respBtnY && my <= respBtnY + 22.0f) {
+                        if (mx >= l.rightX + 10.0f && mx <= l.rightX + 74.0f) {
                             ws.respawnTime = std::max(10.0f, ws.respawnTime - 15.0f);
                             logMessage("Respawn Time: " + std::to_string((int)ws.respawnTime) + "s");
                             return;
                         }
-                        if (mx >= l.rightX + 90.0f && mx <= l.rightX + 190.0f) {
-                            ws.respawnTime = 60.0f;
-                            logMessage("Respawn Time: 60s (1 min)");
+                        if (mx >= l.rightX + 78.0f && mx <= l.rightX + 146.0f) {
+                            ws.respawnTime = 30.0f;
+                            logMessage("Respawn Time: 30s");
                             return;
                         }
-                        if (mx >= l.rightX + 200.0f && mx <= l.rightX + 270.0f) {
+                        if (mx >= l.rightX + 150.0f && mx <= l.rightX + 218.0f) {
+                            ws.respawnTime = 60.0f;
+                            logMessage("Respawn Time: 60s");
+                            return;
+                        }
+                        if (mx >= l.rightX + 222.0f && mx <= l.rightX + 286.0f) {
                             ws.respawnTime = std::min(300.0f, ws.respawnTime + 15.0f);
                             logMessage("Respawn Time: " + std::to_string((int)ws.respawnTime) + "s");
                             return;
@@ -6648,7 +6710,7 @@ public:
                 Renderer::drawCube(arrowPos, Vec3(0.18f, 0.18f, 0.42f), teamCol, nullptr, false);
             }
 
-            // Render All Weapon Spawners with Pedestal & 3D Weapon Model (Check-once cached assets)
+            // Render All Spawners with Pedestal & 3D Item Representation
             for (size_t i = 0; i < _map->weaponSpawners.size(); ++i) {
                 const auto& ws = _map->weaponSpawners[i];
                 // Base ground pedestal
@@ -6657,11 +6719,90 @@ public:
                 Renderer::drawCube(ws.position + Vec3(0.0f, 0.082f, 0.0f), Vec3(0.0f, ws.yaw, 0.0f),
                                    Vec3(0.9f, 0.01f, 0.9f), Vec3(0.2f, 0.75f, 0.95f), nullptr, false);
 
-                // Render floating pickup entity node
-                float itemY = ws.position.y + 0.45f;
-                Renderer::drawCube(Vec3(ws.position.x, itemY, ws.position.z), Vec3(0.0f, ws.yaw, 0.0f),
-                                   Vec3(0.35f, 0.35f, 0.35f), Vec3(0.2f, 0.8f, 0.6f), nullptr, false);
-                Renderer::drawWireCube(Vec3(ws.position.x, itemY, ws.position.z), Vec3(0.45f, 0.45f, 0.45f), Vec3(0.3f, 1.0f, 0.8f));
+                float itemY = ws.position.y + 0.40f;
+                const auto* def = FindSpawnerItemDef(ws.prefabRef);
+                SpawnerItemKind kind = def ? def->kind : (ws.weaponId >= 0 ? SpawnerItemKind::Weapon : SpawnerItemKind::Medkit);
+
+                if (kind == SpawnerItemKind::Medkit || kind == SpawnerItemKind::HealthVial) {
+                    // White medical case with red cross
+                    Renderer::drawCube(Vec3(ws.position.x, itemY, ws.position.z), Vec3(0, ws.yaw, 0),
+                                       Vec3(0.34f, 0.24f, 0.20f), Vec3(0.95f, 0.95f, 0.95f), nullptr, false);
+                    Renderer::drawCube(Vec3(ws.position.x, itemY, ws.position.z), Vec3(0, ws.yaw, 0),
+                                       Vec3(0.08f, 0.18f, 0.22f), Vec3(0.95f, 0.15f, 0.15f), nullptr, false);
+                    Renderer::drawCube(Vec3(ws.position.x, itemY, ws.position.z), Vec3(0, ws.yaw, 0),
+                                       Vec3(0.22f, 0.08f, 0.22f), Vec3(0.95f, 0.15f, 0.15f), nullptr, false);
+                } else if (kind == SpawnerItemKind::ArmorBattery) {
+                    // HEV battery: Dark cylinder + iconic HEV hazard orange top/bottom + cyan plasma cell
+                    Renderer::drawCube(Vec3(ws.position.x, itemY, ws.position.z), Vec3(0, ws.yaw, 0),
+                                       Vec3(0.24f, 0.32f, 0.24f), Vec3(0.18f, 0.20f, 0.24f), nullptr, false);
+                    Renderer::drawCube(Vec3(ws.position.x, itemY + 0.14f, ws.position.z), Vec3(0, ws.yaw, 0),
+                                       Vec3(0.26f, 0.06f, 0.26f), Vec3(1.0f, 0.55f, 0.0f), nullptr, false);
+                    Renderer::drawCube(Vec3(ws.position.x, itemY - 0.14f, ws.position.z), Vec3(0, ws.yaw, 0),
+                                       Vec3(0.26f, 0.06f, 0.26f), Vec3(1.0f, 0.55f, 0.0f), nullptr, false);
+                    Renderer::drawCube(Vec3(ws.position.x, itemY, ws.position.z), Vec3(0, ws.yaw, 0),
+                                       Vec3(0.14f, 0.18f, 0.26f), Vec3(0.1f, 0.9f, 1.0f), nullptr, false);
+                } else if (kind == SpawnerItemKind::HEVSuit) {
+                    // HEV Hazard Suit: Dark frame + lambda hazard orange breastplate + cyan reactor
+                    Renderer::drawCube(Vec3(ws.position.x, itemY, ws.position.z), Vec3(0, ws.yaw, 0),
+                                       Vec3(0.38f, 0.42f, 0.24f), Vec3(0.16f, 0.18f, 0.20f), nullptr, false);
+                    Renderer::drawCube(Vec3(ws.position.x, itemY + 0.04f, ws.position.z), Vec3(0, ws.yaw, 0),
+                                       Vec3(0.40f, 0.26f, 0.16f), Vec3(1.0f, 0.52f, 0.02f), nullptr, false);
+                    Renderer::drawCube(Vec3(ws.position.x, itemY + 0.02f, ws.position.z), Vec3(0, ws.yaw, 0),
+                                       Vec3(0.14f, 0.12f, 0.28f), Vec3(0.2f, 0.85f, 1.0f), nullptr, false);
+                } else if (kind == SpawnerItemKind::AmmoBox) {
+                    // Olive ammo box + yellow caliber stripe
+                    Renderer::drawCube(Vec3(ws.position.x, itemY, ws.position.z), Vec3(0, ws.yaw, 0),
+                                       Vec3(0.36f, 0.22f, 0.22f), Vec3(0.22f, 0.35f, 0.18f), nullptr, false);
+                    Renderer::drawCube(Vec3(ws.position.x, itemY, ws.position.z), Vec3(0, ws.yaw, 0),
+                                       Vec3(0.38f, 0.05f, 0.24f), Vec3(0.95f, 0.82f, 0.15f), nullptr, false);
+                } else if (kind == SpawnerItemKind::Custom) {
+                    // Hologram mod crate
+                    Renderer::drawCube(Vec3(ws.position.x, itemY, ws.position.z), Vec3(0, ws.yaw, 0),
+                                       Vec3(0.36f, 0.36f, 0.36f), Vec3(0.6f, 0.2f, 0.9f), nullptr, false);
+                    Renderer::drawWireCube(Vec3(ws.position.x, itemY, ws.position.z),
+                                           Vec3(0.42f, 0.42f, 0.42f), Vec3(0.9f, 0.3f, 1.0f));
+                } else {
+                    int wepId = (def && def->weaponId >= 0) ? def->weaponId : ws.weaponId;
+                    switch (wepId) {
+                        case 0: // Pipe
+                            Renderer::drawCube(Vec3(ws.position.x, itemY, ws.position.z), Vec3(15.0f, ws.yaw, 25.0f),
+                                               Vec3(0.06f, 0.06f, 0.75f), Vec3(0.6f, 0.6f, 0.65f), nullptr, false);
+                            break;
+                        case 1: // Pistol
+                            Renderer::drawCube(Vec3(ws.position.x, itemY, ws.position.z), Vec3(0, ws.yaw, 0),
+                                               Vec3(0.08f, 0.14f, 0.28f), Vec3(0.22f, 0.24f, 0.28f), nullptr, false);
+                            break;
+                        case 2: // Shotgun
+                            Renderer::drawCube(Vec3(ws.position.x, itemY, ws.position.z), Vec3(0, ws.yaw, 0),
+                                               Vec3(0.09f, 0.12f, 0.82f), Vec3(0.35f, 0.25f, 0.18f), nullptr, false);
+                            break;
+                        case 3: // M4A4-S
+                            Renderer::drawCube(Vec3(ws.position.x, itemY, ws.position.z), Vec3(0, ws.yaw, 0),
+                                               Vec3(0.08f, 0.16f, 0.76f), Vec3(0.2f, 0.35f, 0.3f), nullptr, false);
+                            break;
+                        case 4: // SG553
+                            Renderer::drawCube(Vec3(ws.position.x, itemY, ws.position.z), Vec3(0, ws.yaw, 0),
+                                               Vec3(0.08f, 0.18f, 0.80f), Vec3(0.3f, 0.4f, 0.25f), nullptr, false);
+                            break;
+                        case 5: // Minigun
+                            Renderer::drawCube(Vec3(ws.position.x, itemY, ws.position.z), Vec3(0, ws.yaw, 0),
+                                               Vec3(0.18f, 0.22f, 0.90f), Vec3(0.18f, 0.18f, 0.20f), nullptr, false);
+                            break;
+                        case 6: // Plasma Gun
+                            Renderer::drawCube(Vec3(ws.position.x, itemY, ws.position.z), Vec3(0, ws.yaw, 0),
+                                               Vec3(0.14f, 0.18f, 0.70f), Vec3(0.2f, 0.6f, 0.9f), nullptr, false);
+                            break;
+                        case 7: // Railgun
+                            Renderer::drawCube(Vec3(ws.position.x, itemY, ws.position.z), Vec3(0, ws.yaw, 0),
+                                               Vec3(0.10f, 0.14f, 0.95f), Vec3(0.4f, 0.75f, 1.0f), nullptr, false);
+                            break;
+                        case 8: // RPG
+                        default:
+                            Renderer::drawCube(Vec3(ws.position.x, itemY, ws.position.z), Vec3(0, ws.yaw, 0),
+                                               Vec3(0.12f, 0.14f, 0.98f), Vec3(0.3f, 0.35f, 0.2f), nullptr, false);
+                            break;
+                    }
+                }
             }
 
             // Render All Map Dynamic Lights (Lamps)
@@ -7500,32 +7641,57 @@ public:
             // Dedicated Item / Pickup Node Properties
             if (_selectionType == SelectionType::WeaponSpawner && _selectedIndex >= 0 && _selectedIndex < (int)_map->weaponSpawners.size()) {
                 auto& ws = _map->weaponSpawners[_selectedIndex];
-                std::string selHeader = "Selection: Item Pickup Node #" + std::to_string(_selectedIndex);
+                std::string selHeader = "Selection: Spawner Node #" + std::to_string(_selectedIndex);
                 LabFont::drawText(l.rightX + 12.0f, propY, selHeader, 1.7f, orangeGlow, LabFontType::System);
 
-                std::string itemStr = "Role: Dynamic Collectible / Pickup Entity";
-                LabFont::drawText(l.rightX + 12.0f, propY + 24.0f, itemStr, 1.5f, greenAccent, LabFontType::System);
+                std::string itemStr = "Item: " + ws.getWeaponName();
+                LabFont::drawText(l.rightX + 12.0f, propY + 22.0f, itemStr, 1.5f, greenAccent, LabFontType::System);
+
+                std::string tagStr = "Prefab: " + (ws.prefabRef.empty() ? ("weapon_" + std::to_string(ws.weaponId)) : ws.prefabRef);
+                LabFont::drawText(l.rightX + 12.0f, propY + 42.0f, tagStr, 1.35f, textLight, LabFontType::System);
 
                 std::string posStr = "Pos: (" + std::to_string((int)ws.position.x) + ", " + std::to_string((int)ws.position.y) + ", " + std::to_string((int)ws.position.z) + ")";
-                LabFont::drawText(l.rightX + 12.0f, propY + 46.0f, posStr, 1.5f, textLight, LabFontType::System);
+                LabFont::drawText(l.rightX + 12.0f, propY + 62.0f, posStr, 1.35f, textLight, LabFontType::System);
 
-                std::string respStr = "Respawn Cooldown: " + std::to_string((int)ws.respawnTime) + "s (Default: 30s)";
-                LabFont::drawText(l.rightX + 12.0f, propY + 68.0f, respStr, 1.5f, textLight, LabFontType::System);
+                std::string respStr = "Respawn Cooldown: " + std::to_string((int)ws.respawnTime) + "s";
+                LabFont::drawText(l.rightX + 12.0f, propY + 82.0f, respStr, 1.35f, textLight, LabFontType::System);
 
-                // Category Buttons
-                LabFont::drawText(l.rightX + 12.0f, propY + 96.0f, "Cycle Pickup Sub-Type:", 1.6f, textLight, LabFontType::System);
-                float wepBtnY = propY + 114.0f;
-                drawDarkButton(l.rightX + 10.0f, wepBtnY, 130.0f, 26.0f, "< Prev");
-                drawDarkButton(l.rightX + 150.0f, wepBtnY, 130.0f, 26.0f, "Next >");
+                // Category Filter Pills
+                float catY = propY + 104.0f;
+                const char* catNames[5] = { "All", "Weap", "Meds", "Armor", "Ammo" };
+                float catW = 54.0f;
+                for (int c = 0; c < 5; ++c) {
+                    bool isCatActive = (_spawnerCatFilter == c);
+                    drawDarkButton(l.rightX + 10.0f + c * 56.0f, catY, catW, 22.0f, catNames[c], isCatActive, false, isCatActive);
+                }
 
-                // Respawn Time Buttons [-15s] [30s (Default)] [+15s]
-                LabFont::drawText(l.rightX + 12.0f, wepBtnY + 36.0f, "Set Respawn Delay Cooldown:", 1.6f, textLight, LabFontType::System);
-                float respBtnY = wepBtnY + 54.0f;
-                drawDarkButton(l.rightX + 10.0f, respBtnY, 70.0f, 24.0f, "-15s");
+                // Interactive Item List
+                auto items = getFilteredSpawnerItems();
+                float listY = catY + 28.0f;
+                int maxVisible = 5;
+                int startIdx = std::clamp(_spawnerItemOffset, 0, std::max(0, (int)items.size() - maxVisible));
 
-                bool isDefault30 = (std::abs(ws.respawnTime - 30.0f) < 0.1f);
-                drawDarkButton(l.rightX + 90.0f, respBtnY, 100.0f, 24.0f, "Default", isDefault30, false, isDefault30);
-                drawDarkButton(l.rightX + 200.0f, respBtnY, 70.0f, 24.0f, "+15s");
+                for (int i = 0; i < maxVisible && (startIdx + i) < (int)items.size(); ++i) {
+                    const auto& it = items[startIdx + i];
+                    bool isCur = (!ws.prefabRef.empty() && ws.prefabRef == it.tag) || (ws.weaponId == it.weaponId && it.kind == SpawnerItemKind::Weapon);
+                    float rowY = listY + i * 24.0f;
+                    std::string rowLabel = (isCur ? "> " : "  ") + it.displayName;
+                    drawDarkButton(l.rightX + 10.0f, rowY, 276.0f, 22.0f, rowLabel, isCur, false, isCur);
+                }
+
+                // Pagination / Prev / Next buttons
+                float wepBtnY = listY + maxVisible * 24.0f + 4.0f;
+                drawDarkButton(l.rightX + 10.0f, wepBtnY, 134.0f, 24.0f, "< Prev");
+                drawDarkButton(l.rightX + 152.0f, wepBtnY, 134.0f, 24.0f, "Next >");
+
+                // Respawn Time Buttons
+                float respBtnY = wepBtnY + 28.0f;
+                drawDarkButton(l.rightX + 10.0f, respBtnY, 64.0f, 22.0f, "-15s");
+                bool isDef30 = (std::abs(ws.respawnTime - 30.0f) < 0.1f);
+                drawDarkButton(l.rightX + 78.0f, respBtnY, 68.0f, 22.0f, "30s", isDef30);
+                bool isDef60 = (std::abs(ws.respawnTime - 60.0f) < 0.1f);
+                drawDarkButton(l.rightX + 150.0f, respBtnY, 68.0f, 22.0f, "60s", isDef60);
+                drawDarkButton(l.rightX + 222.0f, respBtnY, 64.0f, 22.0f, "+15s");
 
                 // Deselect & Delete buttons
                 drawDarkButton(l.deselX, l.deselY, l.deselW, l.deselH, "Deselect");
@@ -9948,6 +10114,22 @@ private:
 
     // Sidebar State
     SidebarTab _sidebarTab = SidebarTab::Properties;
+    int _spawnerCatFilter = 0; // 0=All, 1=Weapons, 2=Health, 3=Armor, 4=Ammo, 5=Modded
+    int _spawnerItemOffset = 0;
+
+    std::vector<SpawnerItemDef> getFilteredSpawnerItems() const {
+        const auto& all = GetSpawnerItemDefinitions();
+        if (_spawnerCatFilter == 0) return all;
+        std::vector<SpawnerItemDef> filtered;
+        for (const auto& it : all) {
+            if (_spawnerCatFilter == 1 && it.category == "Weapons") filtered.push_back(it);
+            else if (_spawnerCatFilter == 2 && it.category == "Health") filtered.push_back(it);
+            else if (_spawnerCatFilter == 3 && it.category == "Armor") filtered.push_back(it);
+            else if (_spawnerCatFilter == 4 && it.category == "Ammo") filtered.push_back(it);
+            else if (_spawnerCatFilter == 5 && it.category == "Modded") filtered.push_back(it);
+        }
+        return filtered;
+    }
     int _outlinerScroll = 0;
     int _prebuiltCategory = 0; // 0 = Entities / Geometry, 1 = Components / Items
 

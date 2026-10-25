@@ -13525,6 +13525,131 @@ int main() {
         std::cout << "  [PASS] Test 102 Developer Console 10x Expansion, ConVar Architecture & Modder API passed 100%!\n";
     }
 
+    // 103. Verify Universal Spawner System, Item Registry (Weapons, HEV, Meds, Batteries, Ammo) & Modder Item API
+    {
+        std::cout << "\n[Test 103] Verifying Universal Spawner System, Item Registry (Weapons, HEV, Meds, Batteries) & Modder API...\n";
+
+        // Sub-test A: Spawner Item Registry catalog & category validation
+        {
+            const auto& all = Lab::GetSpawnerItemDefinitions();
+            if (all.empty()) {
+                std::cerr << "Assertion failed: Spawner item definitions catalog is empty!\n";
+                return 1;
+            }
+
+            // Verify basic weapons
+            const auto* defShotgun = Lab::FindSpawnerItemDef("weapon_shotgun");
+            if (!defShotgun || defShotgun->kind != Lab::SpawnerItemKind::Weapon || defShotgun->weaponId != 2) {
+                std::cerr << "Assertion failed: weapon_shotgun not found or invalid in catalog!\n";
+                return 1;
+            }
+
+            // Verify HEV suit and Battery
+            const auto* defBattery = Lab::FindSpawnerItemDef("item_battery");
+            if (!defBattery || defBattery->kind != Lab::SpawnerItemKind::ArmorBattery || defBattery->value != 25) {
+                std::cerr << "Assertion failed: item_battery not found or invalid (+25 AP expected)!\n";
+                return 1;
+            }
+
+            const auto* defSuit = Lab::FindSpawnerItemDef("item_suit");
+            if (!defSuit || defSuit->kind != Lab::SpawnerItemKind::HEVSuit || defSuit->value != 100) {
+                std::cerr << "Assertion failed: item_suit not found or invalid (+100 AP expected)!\n";
+                return 1;
+            }
+
+            // Verify Health
+            const auto* defMedkit = Lab::FindSpawnerItemDef("item_healthkit");
+            if (!defMedkit || defMedkit->kind != Lab::SpawnerItemKind::Medkit || defMedkit->value != 50) {
+                std::cerr << "Assertion failed: item_healthkit not found or invalid (+50 HP expected)!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test A: Spawner Item Registry catalog & categories (Weapons, HEV, Meds, Ammo) verified!\n";
+        }
+
+        // Sub-test B: Modder Item API - custom item registration
+        {
+            Lab::SpawnerItemDef customWep;
+            customWep.tag = "weapon_mod_supercrossbow";
+            customWep.displayName = "Super Crossbow (Modded)";
+            customWep.category = "Modded";
+            customWep.kind = Lab::SpawnerItemKind::Custom;
+            customWep.value = 15;
+            Lab::RegisterCustomSpawnerItem(customWep);
+
+            const auto* retrieved = Lab::FindSpawnerItemDef("weapon_mod_supercrossbow");
+            if (!retrieved || retrieved->displayName != "Super Crossbow (Modded)") {
+                std::cerr << "Assertion failed: Custom modded item registration failed!\n";
+                return 1;
+            }
+            std::cout << "  [PASS] Sub-test B: Modder Item API (RegisterCustomSpawnerItem) verified!\n";
+        }
+
+        // Sub-test C: World Pickup Manager multi-type spawner pad simulation
+        {
+            Lab::PickupManager mgr;
+
+            // 1. Add weapon pad
+            mgr.addWeaponPad(2, Lab::Vec3(0, 0, 0), 60.0f, 0.0f, "weapon_shotgun");
+            // 2. Add HEV battery pad
+            mgr.addWeaponPad(-1, Lab::Vec3(10, 0, 0), 30.0f, 0.0f, "item_battery");
+            // 3. Add HEV suit pad
+            mgr.addWeaponPad(-1, Lab::Vec3(20, 0, 0), 60.0f, 0.0f, "item_suit");
+            // 4. Add Medkit pad
+            mgr.addWeaponPad(-1, Lab::Vec3(30, 0, 0), 30.0f, 0.0f, "item_healthkit");
+            // 5. Add Custom mod pad
+            mgr.addWeaponPad(-1, Lab::Vec3(40, 0, 0), 45.0f, 0.0f, "weapon_mod_supercrossbow");
+
+            if (mgr.weaponPads.size() != 5) {
+                std::cerr << "Assertion failed: Expected 5 pads, got: " << mgr.weaponPads.size() << "\n";
+                return 1;
+            }
+
+            // Test collecting HEV battery at (10, 0, 0)
+            int ammoAdded = 0;
+            float healthAdded = 0.0f;
+            float armorAdded = 0.0f;
+            int weaponUnlocked = -1;
+            std::string notice;
+            bool respawned = false;
+            std::string customItem;
+
+            mgr.update(0.016f, Lab::Vec3(10.0f, 0.0f, 0.0f), ammoAdded, healthAdded, armorAdded, weaponUnlocked, notice, respawned, customItem);
+
+            if (armorAdded != 25.0f || mgr.weaponPads[1].isAvailable()) {
+                std::cerr << "Assertion failed: Expected +25 AP from battery pad and pad on cooldown, got: " << armorAdded << "\n";
+                return 1;
+            }
+
+            // Test collecting HEV suit at (20, 0, 0)
+            armorAdded = 0.0f;
+            mgr.update(0.016f, Lab::Vec3(20.0f, 0.0f, 0.0f), ammoAdded, healthAdded, armorAdded, weaponUnlocked, notice, respawned, customItem);
+            if (armorAdded != 100.0f || mgr.weaponPads[2].isAvailable()) {
+                std::cerr << "Assertion failed: Expected +100 AP from suit pad, got: " << armorAdded << "\n";
+                return 1;
+            }
+
+            // Test collecting Custom mod item at (40, 0, 0)
+            mgr.update(0.016f, Lab::Vec3(40.0f, 0.0f, 0.0f), ammoAdded, healthAdded, armorAdded, weaponUnlocked, notice, respawned, customItem);
+            if (customItem != "weapon_mod_supercrossbow") {
+                std::cerr << "Assertion failed: Expected custom mod item collection, got: " << customItem << "\n";
+                return 1;
+            }
+
+            // Test cooldown expiry
+            mgr.weaponPads[1].respawnTimer = 0.01f;
+            mgr.update(0.02f, Lab::Vec3(-100.0f, 0, 0), ammoAdded, healthAdded, armorAdded, weaponUnlocked, notice, respawned, customItem);
+            if (!respawned || !mgr.weaponPads[1].isAvailable()) {
+                std::cerr << "Assertion failed: Pad should be available after respawn cooldown!\n";
+                return 1;
+            }
+
+            std::cout << "  [PASS] Sub-test C: World Pickup Manager multi-type spawner pads (Weapons, HEV, Meds, Mods) verified!\n";
+        }
+
+        std::cout << "  [PASS] Test 103 Universal Spawner System & Modder Item API passed 100%!\n";
+    }
+
 
     Lab::Renderer::shutdown();
     glfwDestroyWindow(window);

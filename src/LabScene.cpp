@@ -1,3 +1,4 @@
+#include "LabPickups.h"
 #include "LabScene.h"
 #include "LabCore.h"
 #include "LabRenderer.h"
@@ -770,7 +771,12 @@ namespace Lab {
                     std::string pref;
                     ss >> pref >> ws.position.x >> ws.position.y >> ws.position.z >> ws.yaw >> ws.respawnTime;
                     ws.prefabRef = pref;
-                    ws.weaponId = prefabToWeaponId(pref);
+                    const auto* def = FindSpawnerItemDef(pref);
+                    if (def) {
+                        ws.weaponId = def->weaponId;
+                    } else {
+                        ws.weaponId = prefabToWeaponId(pref);
+                    }
                     if (ws.respawnTime <= 0.0f) ws.respawnTime = 60.0f;
                     scene->weaponSpawners.push_back(ws);
                     lastParsed = LastParsedEntity::None;
