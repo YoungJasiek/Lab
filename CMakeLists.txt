@@ -328,10 +328,35 @@ target_compile_options(LabHUDEditorCore PRIVATE ${COMPILER_FLAGS})
 target_link_libraries(LabHUDEditorCore PUBLIC LabCore LabRender LabAnimation LabWorld)
 
 # -----------------------------------------------------------------------------
+# Primary Unified Lab Shared Library (Lab.dll / Lab.lib / libLab.so)
+# -----------------------------------------------------------------------------
+add_library(Lab SHARED
+    src/Lab.cpp
+)
+target_include_directories(Lab PUBLIC ${LAB_INCLUDES})
+target_compile_definitions(Lab PRIVATE LAB_BUILD LAB_CORE_BUILD)
+target_compile_options(Lab PRIVATE ${COMPILER_FLAGS})
+target_link_libraries(Lab PUBLIC
+    LabCore
+    LabRender
+    LabAudio
+    LabPhysics
+    LabAnimation
+    LabWorld
+    LabAI
+    LabNetwork
+    LabScript
+    LabStudioCore
+    LabHUDEditorCore
+)
+set_target_properties(Lab PROPERTIES OUTPUT_NAME "Lab")
+
+# -----------------------------------------------------------------------------
 # Unified Interface Target: LabEngineLib
 # -----------------------------------------------------------------------------
 add_library(LabEngineLib INTERFACE)
 target_link_libraries(LabEngineLib INTERFACE
+    Lab
     LabCore
     LabRender
     LabAudio
@@ -437,7 +462,7 @@ add_custom_target(LabAssets ALL
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/SyncAssets.cmake"
     COMMENT "Synchronizing clean runtime assets, fonts, and logos to output directory"
 )
-set(ASSET_TARGETS LabEditor FrozenLife LabStudio LabServer TestVerify lfm)
+set(ASSET_TARGETS Lab LabEditor FrozenLife LabStudio LabServer TestVerify lfm)
 foreach(tgt ${ASSET_TARGETS})
     add_dependencies(${tgt} LabAssets)
 endforeach()

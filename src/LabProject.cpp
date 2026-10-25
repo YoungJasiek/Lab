@@ -785,6 +785,7 @@ namespace Lab {
                   << "    void onInit() override {\n"
                   << "        Renderer::init();\n"
                   << "        LabLog::info(\"Launching standalone game project: " << safeName << "\");\n"
+                  << "        LabLog::info(std::string(\"Engine Version: \") + GetLabVersion() + \" (\" + GetLabBuildString() + \")\");\n"
                   << "    }\n\n"
                   << "    void onUpdate(const Time& time) override {\n"
                   << "        (void)time;\n"
@@ -802,18 +803,162 @@ namespace Lab {
             fMain.close();
         }
 
-        // 2. Local CMakeLists.txt
+        // 2. Standalone-capable CMakeLists.txt
         std::ofstream fCmake(projDir / "CMakeLists.txt");
         if (fCmake.is_open()) {
             fCmake << "cmake_minimum_required(VERSION 3.20)\n"
-                   << "project(" << safeName << " CXX)\n"
-                   << "set(CMAKE_CXX_STANDARD 20)\n\n"
-                   << "add_executable(" << safeName << " src/main.cpp)\n"
-                   << "target_link_libraries(" << safeName << " PRIVATE LabEngineLib)\n";
+                   << "project(" << safeName << " LANGUAGES CXX C)\n\n"
+                   << "set(CMAKE_CXX_STANDARD 20)\n"
+                   << "set(CMAKE_CXX_STANDARD_REQUIRED ON)\n"
+                   << "set(CMAKE_CXX_EXTENSIONS OFF)\n\n"
+                   << "# When configured within Lab Engine repository\n"
+                   << "if(TARGET Lab)\n"
+                   << "    add_executable(" << safeName << " src/main.cpp)\n"
+                   << "    target_link_libraries(" << safeName << " PRIVATE LabEngineLib)\n"
+                   << "else()\n"
+                   << "    # Standalone mode: Locate Lab Engine SDK root\n"
+                   << "    if(DEFINED ENV{LAB_ENGINE_DIR} AND EXISTS \"$ENV{LAB_ENGINE_DIR}/include/Lab.h\")\n"
+                   << "        set(LAB_ENGINE_DIR \"$ENV{LAB_ENGINE_DIR}\")\n"
+                   << "    elseif(EXISTS \"${CMAKE_CURRENT_SOURCE_DIR}/../../include/Lab.h\")\n"
+                   << "        get_filename_component(LAB_ENGINE_DIR \"${CMAKE_CURRENT_SOURCE_DIR}/../..\" ABSOLUTE)\n"
+                   << "    elseif(EXISTS \"${CMAKE_CURRENT_SOURCE_DIR}/../include/Lab.h\")\n"
+                   << "        get_filename_component(LAB_ENGINE_DIR \"${CMAKE_CURRENT_SOURCE_DIR}/..\" ABSOLUTE)\n"
+                   << "    else()\n"
+                   << "        message(FATAL_ERROR \"Could not find Lab Engine SDK! Please set LAB_ENGINE_DIR environment variable.\")\n"
+                   << "    endif()\n\n"
+                   << "    message(STATUS \"[Lab Game] Using Lab Engine at: ${LAB_ENGINE_DIR}\")\n\n"
+                   << "    include_directories(\n"
+                   << "        \"${LAB_ENGINE_DIR}/include\"\n"
+                   << "        \"${LAB_ENGINE_DIR}/external/glfw/include\"\n"
+                   << "        \"${LAB_ENGINE_DIR}/external/lua\"\n"
+                   << "        \"${LAB_ENGINE_DIR}/src/glad/include\"\n"
+                   << "    )\n\n"
+                   << "    link_directories(\n"
+                   << "        \"${LAB_ENGINE_DIR}/build/lib/Release\"\n"
+                   << "        \"${LAB_ENGINE_DIR}/build/lib/Debug\"\n"
+                   << "        \"${LAB_ENGINE_DIR}/build/lib\"\n"
+                   << "        \"${LAB_ENGINE_DIR}/build/Release\"\n"
+                   << "        \"${LAB_ENGINE_DIR}/build\"\n"
+                   << "        \"${LAB_ENGINE_DIR}/build-linux\"\n"
+                   << "    )\n\n"
+                   << "    add_executable(" << safeName << " src/main.cpp)\n\n"
+                   << "    if(WIN32)\n"
+                   << "        target_link_libraries(" << safeName << " PRIVATE\n"
+                   << "            Lab\n"
+                   << "            lcore\n"
+                   << "            lrender\n"
+                   << "            laudio\n"
+                   << "            lphys\n"
+                   << "            lanim\n"
+                   << "            lworld\n"
+                   << "            lai\n"
+                   << "            lnet\n"
+                   << "            lscript\n"
+                   << "            lstudiocore\n"
+                   << "            lhudcore\n"
+                   << "            opengl32\n"
+                   << "            winmm\n"
+                   << "        )\n\n"
+                   << "        add_custom_command(TARGET " << safeName << " POST_BUILD\n"
+                   << "            COMMAND ${CMAKE_COMMAND} -E make_directory \"$<TARGET_FILE_DIR:" << safeName << ">/assets\"\n"
+                   << "            COMMAND ${CMAKE_COMMAND} -E copy_directory\n"
+                   << "                \"${CMAKE_CURRENT_SOURCE_DIR}/assets\"\n"
+                   << "                \"$<TARGET_FILE_DIR:" << safeName << ">/assets\"\n"
+                   << "            COMMAND ${CMAKE_COMMAND} -E copy_if_different\n"
+                   << "                \"${CMAKE_CURRENT_SOURCE_DIR}/game.config\"\n"
+                   << "                \"$<TARGET_FILE_DIR:" << safeName << ">/game.config\"\n"
+                   << "            COMMAND powershell -Command \"Get-ChildItem -Path '${LAB_ENGINE_DIR}/build/Release/*.dll' -ErrorAction SilentlyContinue | ForEach-Object { Copy-Item -Force $_.FullName -Destination '$<TARGET_FILE_DIR:" << safeName << ">' }\"\n"
+                   << "            COMMENT \"Copying assets and Lab runtime DLLs to output directory\"\n"
+                   << "        )\n"
+                   << "    else()\n"
+                   << "        target_link_libraries(" << safeName << " PRIVATE\n"
+                   << "            Lab\n"
+                   << "            lcore\n"
+                   << "            lrender\n"
+                   << "            laudio\n"
+                   << "            lphys\n"
+                   << "            lanim\n"
+                   << "            lworld\n"
+                   << "            lai\n"
+                   << "            lnet\n"
+                   << "            lscript\n"
+                   << "            lstudiocore\n"
+                   << "            lhudcore\n"
+                   << "            GL\n"
+                   << "            pthread\n"
+                   << "            dl\n"
+                   << "        )\n\n"
+                   << "        add_custom_command(TARGET " << safeName << " POST_BUILD\n"
+                   << "            COMMAND ${CMAKE_COMMAND} -E make_directory \"$<TARGET_FILE_DIR:" << safeName << ">/assets\"\n"
+                   << "            COMMAND ${CMAKE_COMMAND} -E copy_directory\n"
+                   << "                \"${CMAKE_CURRENT_SOURCE_DIR}/assets\"\n"
+                   << "                \"$<TARGET_FILE_DIR:" << safeName << ">/assets\"\n"
+                   << "            COMMAND ${CMAKE_COMMAND} -E copy_if_different\n"
+                   << "                \"${CMAKE_CURRENT_SOURCE_DIR}/game.config\"\n"
+                   << "                \"$<TARGET_FILE_DIR:" << safeName << ">/game.config\"\n"
+                   << "            COMMAND ${CMAKE_COMMAND} -E copy_directory\n"
+                   << "                \"${LAB_ENGINE_DIR}/assets\"\n"
+                   << "                \"$<TARGET_FILE_DIR:" << safeName << ">/assets\"\n"
+                   << "            COMMENT \"Copying assets and Lab runtime files to output directory\"\n"
+                   << "        )\n"
+                   << "    endif()\n"
+                   << "endif()\n";
             fCmake.close();
         }
 
-        // 3. game.config
+        // 3. build.bat (Windows quick standalone build script)
+        std::ofstream fBuildBat(projDir / "build.bat");
+        if (fBuildBat.is_open()) {
+            fBuildBat << "@echo off\n"
+                      << "setlocal\n"
+                      << "echo ========================================================\n"
+                      << "echo  Building Standalone Lab Game: " << safeName << "\n"
+                      << "echo ========================================================\n\n"
+                      << "cmake -B build -S .\n"
+                      << "if %ERRORLEVEL% neq 0 (\n"
+                      << "    echo [ERROR] CMake configuration failed.\n"
+                      << "    exit /b %ERRORLEVEL%\n"
+                      << ")\n\n"
+                      << "cmake --build build --config Release\n"
+                      << "if %ERRORLEVEL% neq 0 (\n"
+                      << "    echo [ERROR] Build failed.\n"
+                      << "    exit /b %ERRORLEVEL%\n"
+                      << ")\n\n"
+                      << "echo.\n"
+                      << "echo [SUCCESS] Game built successfully! Run run_game.bat to play.\n";
+            fBuildBat.close();
+        }
+
+        // 4. run_game.bat (Windows quick launcher)
+        std::ofstream fRunBat(projDir / "run_game.bat");
+        if (fRunBat.is_open()) {
+            fRunBat << "@echo off\n"
+                    << "setlocal\n"
+                    << "set EXE_PATH=build\\Release\\" << safeName << ".exe\n"
+                    << "if not exist \"%EXE_PATH%\" set EXE_PATH=build\\" << safeName << ".exe\n\n"
+                    << "if exist \"%EXE_PATH%\" (\n"
+                    << "    echo Starting " << safeName << "...\n"
+                    << "    start \"\" \"%EXE_PATH%\"\n"
+                    << ") else (\n"
+                    << "    echo [ERROR] Executable not found: %EXE_PATH%\n"
+                    << "    echo Please run build.bat first!\n"
+                    << ")\n";
+            fRunBat.close();
+        }
+
+        // 5. build.sh (Linux/SteamOS quick build script)
+        std::ofstream fBuildSh(projDir / "build.sh");
+        if (fBuildSh.is_open()) {
+            fBuildSh << "#!/usr/bin/env bash\n"
+                     << "set -e\n"
+                     << "echo \"Building Standalone Lab Game: " << safeName << "...\"\n"
+                     << "cmake -B build -S .\n"
+                     << "cmake --build build -j$(nproc)\n"
+                     << "echo \"[SUCCESS] Build complete. Run ./build/" << safeName << "\"\n";
+            fBuildSh.close();
+        }
+
+        // 6. game.config
         std::ofstream fCfg(projDir / "game.config");
         if (fCfg.is_open()) {
             fCfg << "title=" << safeName << "\n"
@@ -826,7 +971,7 @@ namespace Lab {
             fCfg.close();
         }
 
-        // 4. Starter Lua rules script
+        // 7. Starter Lua rules script
         std::ofstream fLua(projDir / "assets" / "scripts" / "startup.lua");
         if (fLua.is_open()) {
             fLua << "-- Standalone Game Startup Script: " << safeName << "\n"
@@ -837,7 +982,7 @@ namespace Lab {
             fLua.close();
         }
 
-        // 5. Starter 3D Scene
+        // 8. Starter 3D Scene
         std::ofstream fMap(projDir / "assets" / "maps" / "start.labscene");
         if (fMap.is_open()) {
             fMap << "LABSCENE_VERSION 1\n"
@@ -851,11 +996,12 @@ namespace Lab {
         std::stringstream ss;
         ss << "[Engine] Successfully generated standalone game project: " << projDir.string() << "\n"
            << "[Engine] - C++20 Entry: " << (projDir / "src" / "main.cpp").string() << "\n"
+           << "[Engine] - CMakeLists: " << (projDir / "CMakeLists.txt").string() << "\n"
+           << "[Engine] - Quick Build: " << (projDir / "build.bat").string() << "\n"
+           << "[Engine] - Launcher:    " << (projDir / "run_game.bat").string() << "\n"
            << "[Engine] - Configuration: " << (projDir / "game.config").string() << "\n"
-           << "[Engine] - Assets: " << (projDir / "assets").string() << "\n"
-           << "[Engine] To build the standalone executable:\n"
-           << "         cmake --build build --config Release --target " << safeName << "\n"
-           << "[Engine] Executable: build/Release/" << safeName << ".exe";
+           << "[Engine] Standalone build: cd " << projDir.string() << " && build.bat\n"
+           << "[Engine] Engine tree build: cmake --build build --config Release --target " << safeName;
         outMessage = ss.str();
         return true;
     }

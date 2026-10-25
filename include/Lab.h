@@ -1,4 +1,5 @@
 #pragma once
+#include "LabExport.h"
 #include "LabCore.h"
 #include "LabMath.h"
 #include "LabComponent.h"
@@ -35,3 +36,8 @@
 #include "LabStudio.h"
 #include "LabHUDEditor.h"
 #include "LabSDK.h"
+
+namespace Lab {
+    LAB_API const char* GetLabVersion();
+    LAB_API const char* GetLabBuildString();
+}
