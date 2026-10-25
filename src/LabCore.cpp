@@ -55,6 +55,12 @@ namespace Lab {
         return s_logFile;
     }
 
+    static LabLog::LogListener s_logListener = nullptr;
+
+    void LabLog::setListener(LogListener listener) {
+        s_logListener = std::move(listener);
+    }
+
     static void logOutput(const std::string& level, const std::string& msg) {
         auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
         char timeBuf[32];
@@ -72,6 +78,10 @@ namespace Lab {
         if (logFile.is_open()) {
             logFile << line << std::endl;
             logFile.flush();
+        }
+
+        if (s_logListener) {
+            s_logListener(level, msg);
         }
     }
 

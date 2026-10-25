@@ -126,6 +126,10 @@ namespace Lab {
         std::vector<std::string> getAutocompleteSuggestions(const std::string& prefix, size_t maxCount = 10) const;
 
         // Execution & Scripting
+        using PrintSink = std::function<void(const std::string& output, const Vec3& color)>;
+        void print(const std::string& text, const Vec3& color = Vec3(0.9f, 0.9f, 0.9f));
+        void setActivePrintSink(PrintSink sink);
+        PrintSink getActivePrintSink() const { return _activePrintSink; }
         bool execute(const std::string& cmdLine, std::function<void(const std::string& output, const Vec3& color)> printFn = nullptr);
 
         // Meta commands
@@ -149,6 +153,7 @@ namespace Lab {
         std::unordered_map<std::string, ConCommand> _commands;
         std::unordered_map<std::string, std::string> _aliases;
         bool _cheatsEnabled = false;
+        PrintSink _activePrintSink = nullptr;
 
         void populateDefaultSourceCommands();
     };
@@ -159,5 +164,6 @@ namespace Lab {
     LAB_CORE_API bool RegisterConCommand(const std::string& name, ConCommandCallback callback, uint32_t flags,
                                          const std::string& helpText);
     LAB_CORE_API ConVar* FindConVar(const std::string& name);
+    LAB_CORE_API void ConPrint(const std::string& text, const Vec3& color = Vec3(0.9f, 0.9f, 0.9f));
 
 } // namespace Lab

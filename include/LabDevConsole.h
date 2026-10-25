@@ -38,7 +38,7 @@ namespace Lab {
     class LabDevConsole {
     public:
         LabDevConsole();
-        ~LabDevConsole() = default;
+        ~LabDevConsole();
 
         // Visibility & State
         bool isOpen = false;

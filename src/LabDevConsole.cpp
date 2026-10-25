@@ -21,11 +21,40 @@
 
 namespace Lab {
 
+    static LabDevConsole* s_activeDevConsole = nullptr;
+
     LabDevConsole::LabDevConsole() {
+        s_activeDevConsole = this;
         registerKnownCommands();
+
+        // 1. Hook LabLog directly into the developer console
+        LabLog::setListener([this](const std::string& level, const std::string& msg) {
+            Vec3 col(0.85f, 0.88f, 0.92f);
+            if (level == "WARN") {
+                col = Vec3(1.0f, 0.78f, 0.25f);
+            } else if (level == "ERROR") {
+                col = Vec3(1.0f, 0.40f, 0.40f);
+            } else if (level == "DEBUG") {
+                col = Vec3(0.55f, 0.65f, 0.75f);
+            }
+            print("[" + level + "] " + msg, col);
+        });
+
+        // 2. Hook ConVarRegistry active print sink
+        ConVarRegistry::get().setActivePrintSink([this](const std::string& out, const Vec3& col) {
+            print(out, col);
+        });
 
         print("Lab Engine Developer Console initialized.", Vec3(0.90f, 0.90f, 0.90f));
         print("Type 'help' for command list. Press [~] or [ESC] to close.", Vec3(0.75f, 0.75f, 0.75f));
+    }
+
+    LabDevConsole::~LabDevConsole() {
+        if (s_activeDevConsole == this) {
+            s_activeDevConsole = nullptr;
+            LabLog::setListener(nullptr);
+            ConVarRegistry::get().setActivePrintSink(nullptr);
+        }
     }
 
     void LabDevConsole::open() {
@@ -305,7 +334,7 @@ namespace Lab {
             if (cmd == "god") dispatchCommand("sp", "god", args);
             else if (cmd == "noclip") dispatchCommand("sp", "noclip", args);
             else if (cmd == "bhop") dispatchCommand("sp", "bhop", args);
-            else if (cmd == "clear") dispatchCommand("sys", "clear", args);
+            else if (cmd == "clear" || cmd == "cls") dispatchCommand("sys", "clear", args);
             else if (cmd == "copylog" || cmd == "condump") dispatchCommand("sys", "copylog", args);
             else if (cmd == "help") dispatchCommand("sys", "help", args);
             else if (cmd == "quit" || cmd == "exit") dispatchCommand("sys", "quit", args);

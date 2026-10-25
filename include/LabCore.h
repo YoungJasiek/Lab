@@ -2,6 +2,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <functional>
 #include "LabMath.h"
 #include "LabExport.h"
 
@@ -16,8 +17,10 @@ namespace Lab {
         float fixedDelta;
     };
 
-    class LabLog {
+    class LAB_CORE_API LabLog {
     public:
+        using LogListener = std::function<void(const std::string& level, const std::string& msg)>;
+        static void setListener(LogListener listener);
         static void info(const std::string& msg);
         static void warn(const std::string& msg);
         static void error(const std::string& msg);

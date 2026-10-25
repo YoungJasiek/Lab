@@ -914,7 +914,10 @@ namespace Lab {
     static int lua_ConsolePrint(lua_State* L) {
         const char* text = luaL_checkstring(L, 1);
         if (text) {
-            LabLog::info(std::string("[Console] ") + text);
+            float r = (float)luaL_optnumber(L, 2, 0.85);
+            float g = (float)luaL_optnumber(L, 3, 0.88);
+            float b = (float)luaL_optnumber(L, 4, 0.92);
+            ConVarRegistry::get().print(text, Vec3(r, g, b));
         }
         return 0;
     }

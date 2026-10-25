@@ -231,9 +231,33 @@ namespace Lab {
         return tokens;
     }
 
+    void ConVarRegistry::print(const std::string& text, const Vec3& color) {
+        if (_activePrintSink) {
+            _activePrintSink(text, color);
+        } else {
+            LabLog::info(text);
+        }
+    }
+
+    void ConVarRegistry::setActivePrintSink(PrintSink sink) {
+        _activePrintSink = std::move(sink);
+    }
+
+    void ConPrint(const std::string& text, const Vec3& color) {
+        ConVarRegistry::get().print(text, color);
+    }
+
     bool ConVarRegistry::execute(const std::string& cmdLine, std::function<void(const std::string&, const Vec3&)> printFn) {
+        struct SinkGuard {
+            PrintSink& target;
+            PrintSink old;
+            SinkGuard(PrintSink& t, PrintSink n) : target(t), old(t) { if (n) target = n; }
+            ~SinkGuard() { target = old; }
+        } guard(_activePrintSink, printFn);
+
         auto print = [&](const std::string& text, const Vec3& col = Vec3(0.9f, 0.9f, 0.9f)) {
-            if (printFn) printFn(text, col);
+            if (_activePrintSink) _activePrintSink(text, col);
+            else if (printFn) printFn(text, col);
         };
 
         if (cmdLine.empty()) return false;
@@ -555,9 +579,16 @@ bool ConVarRegistry::loadConfigFile(const std::string& filepath) {
         }, FCVAR_NONE, "Execute a script file of console commands");
         registerConCommand("status", [](const std::vector<std::string>& args) {
             (void)args;
+            ConPrint("hostname: Lab Local Session", Vec3(1.0f, 0.85f, 0.2f));
+            ConPrint("version : 1.0.0 / 24 2026.10 (LabEngine)", Vec3(0.85f, 0.88f, 0.92f));
+            ConPrint("type    : listen server (local)", Vec3(0.85f, 0.88f, 0.92f));
+            ConPrint("players : 1 active / 16 max", Vec3(0.85f, 0.88f, 0.92f));
         }, FCVAR_NONE, "Display host server and client network status");
         registerConCommand("version", [](const std::vector<std::string>& args) {
             (void)args;
+            ConPrint("Lab Engine 64-bit Core (Protocol 24, Build 2026.10)", Vec3(1.0f, 0.85f, 0.2f));
+            ConPrint("Target: Frozen-Life / Valve-Style FPS Foundation", Vec3(0.85f, 0.88f, 0.92f));
+            ConPrint("Graphics: OpenGL 4.6 Core Profile (DSA, Blinn-Phong)", Vec3(0.65f, 0.75f, 0.85f));
         }, FCVAR_NONE, "Print engine build version, commit, protocol and date");
         registerConCommand("alias", [](const std::vector<std::string>& args) {
             (void)args;
@@ -628,53 +659,53 @@ bool ConVarRegistry::loadConfigFile(const std::string& filepath) {
         
         registerConCommand("create_project", [](const std::vector<std::string>& args) {
             if (args.size() < 2) {
-                LabLog::error("Usage: create_project <projectName>");
+                ConPrint("Usage: create_project <projectName>", Vec3(1.0f, 0.4f, 0.4f));
                 return;
             }
             std::string msg;
             if (CreateStandaloneGameProject(args[1], msg)) {
-                LabLog::info(msg);
+                ConPrint(msg, Vec3(0.4f, 0.9f, 0.5f));
             } else {
-                LabLog::error(msg);
+                ConPrint(msg, Vec3(1.0f, 0.4f, 0.4f));
             }
         }, FCVAR_NONE, "Create a standalone C++ game project in games/<projectName>/");
 
         registerConCommand("create_game", [](const std::vector<std::string>& args) {
             if (args.size() < 2) {
-                LabLog::error("Usage: create_game <gameName>");
+                ConPrint("Usage: create_game <gameName>", Vec3(1.0f, 0.4f, 0.4f));
                 return;
             }
             std::string msg;
             if (CreateStandaloneGameProject(args[1], msg)) {
-                LabLog::info(msg);
+                ConPrint(msg, Vec3(0.4f, 0.9f, 0.5f));
             } else {
-                LabLog::error(msg);
+                ConPrint(msg, Vec3(1.0f, 0.4f, 0.4f));
             }
         }, FCVAR_NONE, "Create a standalone C++ game project in games/<gameName>/");
 
         registerConCommand("create_addon", [](const std::vector<std::string>& args) {
             if (args.size() < 2) {
-                LabLog::error("Usage: create_addon <addonName>");
+                ConPrint("Usage: create_addon <addonName>", Vec3(1.0f, 0.4f, 0.4f));
                 return;
             }
             std::string msg;
             if (CreateAssetAddon(args[1], msg)) {
-                LabLog::info(msg);
+                ConPrint(msg, Vec3(0.4f, 0.9f, 0.5f));
             } else {
-                LabLog::error(msg);
+                ConPrint(msg, Vec3(1.0f, 0.4f, 0.4f));
             }
         }, FCVAR_NONE, "Create a data-only asset addon in addons/<addonName>/");
 
         registerConCommand("create_mod", [](const std::vector<std::string>& args) {
             if (args.size() < 2) {
-                LabLog::error("Usage: create_mod <modName>");
+                ConPrint("Usage: create_mod <modName>", Vec3(1.0f, 0.4f, 0.4f));
                 return;
             }
             std::string msg;
             if (CreateAssetAddon(args[1], msg)) {
-                LabLog::info(msg);
+                ConPrint(msg, Vec3(0.4f, 0.9f, 0.5f));
             } else {
-                LabLog::error(msg);
+                ConPrint(msg, Vec3(1.0f, 0.4f, 0.4f));
             }
         }, FCVAR_NONE, "Create a data-only asset addon in addons/<modName>/");
 registerConCommand("host_writeconfig", [](const std::vector<std::string>& args) {
@@ -739,6 +770,7 @@ registerConCommand("host_writeconfig", [](const std::vector<std::string>& args) 
         }, FCVAR_NONE, "Retry connecting to the most recent server");
         registerConCommand("ping", [](const std::vector<std::string>& args) {
             (void)args;
+            ConPrint("Ping: 0 ms (Loopback / Local Host)", Vec3(0.4f, 0.9f, 0.5f));
         }, FCVAR_NONE, "Query current round-trip time to host server");
         registerConCommand("say", [](const std::vector<std::string>& args) {
             (void)args;
