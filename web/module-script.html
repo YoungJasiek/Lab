@@ -288,16 +288,18 @@
       
       <section id="sec-lua" class="wiki-section-container">
         <h2><span class="mw-headline">1. Embedded Lua 5.4.6 Runtime</span></h2>
-        
-                <p>Compiled statically into the module for maximum speed. Exposes safe C++ bindings to modify health, armor, respawn timers, and weapon cadences dynamically.</p>
-                
+        <p>Compiled statically into the module for maximum speed without external DLL overhead. Exposes safe C++ bindings to modify health, armor, respawn timers, cameras, HUD widgets, and weapon cadences dynamically.</p>
+        <div class="wiki-notice notice-tip" style="margin: 14px 0;">
+          <div class="wiki-notice-content">
+            <strong>Looking for the Complete Lua API &amp; Modding Guide?</strong>
+            Visit the comprehensive <a href="lua-scripting.html" style="font-weight:bold; color:var(--wiki-accent);">Lua 5.4 Scripting &amp; Modding API Reference</a> for exhaustive documentation of every global command (<code>Lab</code>, <code>Input</code>, <code>HUD</code>, <code>World</code>, <code>Console</code>, <code>Camera</code>, <code>scene</code>, <code>quat</code>, <code>Vec3</code>), lifecycle callbacks, and copy-pasteable modder recipes.
+          </div>
+        </div>
       </section>
 
       <section id="sec-mechanics" class="wiki-section-container">
-        <h2><span class="mw-headline">2. assets/scripts/game_mechanics.lua</span></h2>
-        
-                <p>Centralized configuration table defining all player mechanics, weapon fire rates, damage curves, and retinal scanner credentials.</p>
-                
+        <h2><span class="mw-headline">2. assets/scripts/game_mechanics.lua &amp; Addon Architecture</span></h2>
+        <p>Centralized configuration table defining player rules, weapon fire rates, damage curves, mission objectives, and retinal scanner credentials. Supports standalone addon hooks in <code>addons/&lt;mod&gt;/scripts/startup.lua</code> and map entity script attachments in <code>.lmap</code> files.</p>
       </section>
 
       <!-- CMake Integration Section -->

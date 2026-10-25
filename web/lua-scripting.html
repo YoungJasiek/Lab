@@ -165,6 +165,1168 @@
 
       
 
+      <h1 class="firstHeading">Lua 5.4 Scripting &amp; Modding API Reference</h1>
+
+      <aside class="infobox" aria-label="Scripting Infobox">
+        <div class="infobox-title">
+          LabScript API
+          <span class="infobox-subtitle">EMBEDDED LUA 5.4 VM</span>
+        </div>
+        <div class="infobox-image">
+          <img src="assets/img/LabLogo.webp" alt="LabScript Logo" style="max-height:120px; object-fit:contain;">
+          <div class="infobox-caption">Embedded ISO C Lua 5.4.6 runtime compiled statically into LabEngineLib</div>
+        </div>
+        <table class="infobox-table">
+          <tbody>
+            <tr>
+              <td class="infobox-label">Source Files</td>
+              <td class="infobox-data"><code>src/LabScript.cpp</code><br><code>include/LabScript.h</code></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Runtime Engine</td>
+              <td class="infobox-data">ISO C Lua 5.4.6 (sandboxed)</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Addon Scripts</td>
+              <td class="infobox-data"><code>addons/&lt;mod&gt;/scripts/startup.lua</code></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Gameplay Rules</td>
+              <td class="infobox-data"><code>assets/scripts/game_mechanics.lua</code></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Global Libraries</td>
+              <td class="infobox-data"><code>Lab</code>, <code>Input</code>, <code>HUD</code>, <code>World</code>, <code>Console</code>, <code>Camera</code>, <code>scene</code>, <code>quat</code>, <code>Vec3</code></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Map Entities</td>
+              <td class="infobox-data">Brushes, Props, Doors, Cameras, Sprites (<code>.lmap</code> / Hammer)</td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Hot Reloading</td>
+              <td class="infobox-data">Live reload via <kbd>Ctrl+R</kbd> or <code>executeString()</code></td>
+            </tr>
+            <tr>
+              <td class="infobox-label">Dev Console</td>
+              <td class="infobox-data">Tilde Key (<kbd>~</kbd>) in client and editor</td>
+            </tr>
+          </tbody>
+        </table>
+      </aside>
+
+      <!-- Technical Notice Callout -->
+      <div class="wiki-notice notice-note">
+        <div class="wiki-notice-content">
+          <strong>Modder &amp; Developer Guide:</strong>
+          This document is the exhaustive API reference manual for Lab Engine's embedded Lua 5.4 subsystem. It details every exported global table, function, lifecycle event, entity method, input mapping, camera command, and gameplay balance table with practical code snippets.
+        </div>
+      </div>
+
+      <!-- Collapsible Table of Contents -->
+      <div class="toc" role="navigation" aria-labelledby="mw-toc-heading">
+        <div class="toctitle">
+          <h2 id="mw-toc-heading">Contents</h2>
+          <span class="toctoggle">[<a href="javascript:void(0)" class="toggle-link">hide</a>]</span>
+        </div>
+        <ul>
+          <li class="toclevel-1"><a href="#sec-overview"><span class="tocnumber">1</span> <span class="toctext">Scripting Architecture &amp; Script Locations</span></a></li>
+          <li class="toclevel-1"><a href="#sec-lifecycle"><span class="tocnumber">2</span> <span class="toctext">Engine Lifecycle &amp; Event Callbacks</span></a></li>
+          <li class="toclevel-1"><a href="#sec-lab"><span class="tocnumber">3</span> <span class="toctext">Core Engine Library (Lab.*)</span></a></li>
+          <li class="toclevel-1"><a href="#sec-console"><span class="tocnumber">4</span> <span class="toctext">Console, ConVars &amp; Commands (Console.*)</span></a></li>
+          <li class="toclevel-1"><a href="#sec-input"><span class="tocnumber">5</span> <span class="toctext">Unified Input &amp; Action System (Input.*)</span></a></li>
+          <li class="toclevel-1"><a href="#sec-hud"><span class="tocnumber">6</span> <span class="toctext">Dynamic HUD &amp; UI Canvas Bridge (HUD.*)</span></a></li>
+          <li class="toclevel-1"><a href="#sec-world"><span class="tocnumber">7</span> <span class="toctext">World &amp; Entity Spawning (World.*)</span></a></li>
+          <li class="toclevel-1"><a href="#sec-entity"><span class="tocnumber">8</span> <span class="toctext">Entity Object Interface &amp; Components</span></a></li>
+          <li class="toclevel-1"><a href="#sec-scene"><span class="tocnumber">9</span> <span class="toctext">Scene Graph Queries (scene.*)</span></a></li>
+          <li class="toclevel-1"><a href="#sec-camera"><span class="tocnumber">10</span> <span class="toctext">Camera &amp; Cinecam Controller (Camera.*)</span></a></li>
+          <li class="toclevel-1"><a href="#sec-math"><span class="tocnumber">11</span> <span class="toctext">Math &amp; Linear Algebra (quat, Vec3)</span></a></li>
+          <li class="toclevel-1"><a href="#sec-tables"><span class="tocnumber">12</span> <span class="toctext">Data-Driven Game Balance Tables</span></a></li>
+          <li class="toclevel-1"><a href="#sec-recipes"><span class="tocnumber">13</span> <span class="toctext">Modder's Step-by-Step Recipes</span></a></li>
+          <li class="toclevel-1"><a href="#sec-security"><span class="tocnumber">14</span> <span class="toctext">Sandbox Security &amp; Performance</span></a></li>
+        </ul>
+      </div>
+
+      <!-- ================================================================
+           SECTION 1: ARCHITECTURE & SCRIPT LOCATIONS
+           ================================================================ -->
+      <h2 id="sec-overview">1. Scripting Architecture &amp; Script Locations</h2>
+      <p>
+        The <strong>LabScript</strong> subsystem embeds a sandboxed, high-performance <strong>Lua 5.4.6</strong> virtual machine directly into <code>LabEngineLib</code>. This completely decouples high-level gameplay rules, entity logic, UI state, and custom mod commands from C++ engine compilation.
+      </p>
+      <p>
+        Scripts are automatically discovered and loaded from three primary locations:
+      </p>
+      <ul>
+        <li><strong>Addon Startup Hooks (<code>addons/&lt;mod_name&gt;/scripts/startup.lua</code>):</strong> Executed when the user activates an addon or mod package. Ideal for registering custom console commands, ConVars, input bindings, and initializing HUD widgets.</li>
+        <li><strong>Map Entity Scripts (<code>assets/scripts/*.lua</code>):</strong> Linked directly to brushes, props, doors, cameras, and sprites in <code>.lmap</code> files or inside <strong>LabHammer</strong> via the <code>script</code> entity property. Executed automatically when a map is loaded.</li>
+        <li><strong>Central Gameplay Rules (<code>assets/scripts/game_mechanics.lua</code>):</strong> Defines core constants for player mechanics, weapon ballistics, medkits, ammo, and biometric scanner authorization.</li>
+      </ul>
+
+      <!-- ================================================================
+           SECTION 2: LIFECYCLE & EVENT CALLBACKS
+           ================================================================ -->
+      <h2 id="sec-lifecycle">2. Engine Lifecycle &amp; Event Callbacks</h2>
+      <p>
+        The native engine invokes specific global Lua functions when key simulation events occur. Modders implement these functions to respond to frame ticks, collisions, damage calculation, and mission progress.
+      </p>
+
+      <div style="overflow-x: auto; margin: 16px 0;">
+        <table class="infobox-table" style="width: 100%; border: 1px solid var(--wiki-border);">
+          <thead>
+            <tr style="background: var(--wiki-bg-inset); text-align: left;">
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Callback Function</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Parameters</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Returns</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code class="vdc-badge">OnGameStartup()</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Invoked when an addon startup script is executed via <code>executeStartupHook()</code>. Use to initialize mod state, register cvars, and prime HUD widgets.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code class="vdc-badge">OnUpdate(dt)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>dt</code> (number &ndash; seconds)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Invoked every simulation frame during gameplay and editor simulation mode. Ideal for continuous animation, patrol movements, and custom timers.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code class="vdc-badge">OnTriggerEnter(entityId, otherEntityId)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>entityId</code> (integer), <code>otherEntityId</code> (integer)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Triggered when a physics trigger volume or collision overlap occurs between two entities (e.g. player entering a door sensor, keycard pickup zone).</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code class="vdc-badge">CalculateDamage(incomingDamage, currentArmor, currentHealth)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>incomingDamage</code> (number), <code>currentArmor</code> (number), <code>currentHealth</code> (number)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>finalDamage</code> (number), <code>absorbed</code> (number), <code>isLethal</code> (boolean)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Evaluates incoming damage and armor absorption ratio. Modders can completely customize damage calculations, armor degradation curves, and invulnerability shields.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code class="vdc-badge">MissionProgress(cardsCollected, timeLeft)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>cardsCollected</code> (integer), <code>timeLeft</code> (number)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>status</code> (string &ndash; e.g. "WIN", "LOSE", "RUNNING"), <code>message</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Called periodically to evaluate level progression goals, keycard counts, and round countdowns.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code class="vdc-badge">OnRetinalScanComplete(scannerId, linkedDoorIndex)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>scannerId</code> (integer), <code>linkedDoorIndex</code> (integer)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>authorized</code> (boolean)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Triggered when an interactive retinal scanner entity finishes scanning. Return <code>true</code> to grant clearance and unlock associated doors.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="vdc-code-container">
+        <pre><code>-- Example: Implementing Engine Lifecycle Callbacks
+function OnGameStartup()
+    Lab.log("Addon 'Tactical Insertion' activated successfully!")
+    HUD.setText("mission_title", "SECTOR 14 // RECON")
+    HUD.setVisible("mission_title", true)
+end
+
+function OnUpdate(dt)
+    -- Rotate a custom beacon or animate an entity
+    local beacon = World.getEntity("SecurityBeacon")
+    if beacon then
+        beacon:move(0, math.sin(dt * 2.0) * 0.1, 0)
+    end
+end
+
+function OnTriggerEnter(entityId, otherEntityId)
+    Lab.log("Overlap: Entity #" .. tostring(entityId) .. " hit Entity #" .. tostring(otherEntityId))
+    if entityId == 101 then
+        Lab.playSound(25, 0.8)
+        HUD.setText("quest_banner", "Keycard collected!")
+    end
+end
+
+function CalculateDamage(incomingDamage, currentArmor, currentHealth)
+    local ratio = 0.70 -- 70% absorbed by suit armor
+    local absorbed = 0.0
+    if currentArmor > 0.0 then
+        absorbed = math.min(currentArmor, incomingDamage * ratio)
+    end
+    local finalDmg = incomingDamage - absorbed
+    local isLethal = (currentHealth - finalDmg <= 0.0)
+    return finalDmg, absorbed, isLethal
+end</code></pre>
+      </div>
+
+      <!-- ================================================================
+           SECTION 3: CORE ENGINE (Lab.*)
+           ================================================================ -->
+      <h2 id="sec-lab">3. Core Engine Library (Lab.*)</h2>
+      <p>
+        The <code>Lab</code> global table provides foundational host engine utilities including logging, spatial audio playback, map door unlocking, and multiplayer server chat broadcasting.
+      </p>
+
+      <div style="overflow-x: auto; margin: 16px 0;">
+        <table class="infobox-table" style="width: 100%; border: 1px solid var(--wiki-border);">
+          <thead>
+            <tr style="background: var(--wiki-bg-inset); text-align: left;">
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Command</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Parameters</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Returns</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Lab.log(message)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>message</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Writes an informational message to the engine log file and editor terminal with <code>[Lua]</code> prefix.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Lab.playSound(soundId, [volume])</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>soundId</code> (integer), <code>volume</code> (number &ndash; default 1.0)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Plays an audio clip via the <code>audio.dll</code> spatial sound engine by its SoundID enum (e.g. UI click, alarm, gunshot).</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Lab.unlockDoor(doorIndex)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>doorIndex</code> (integer)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Unlocks a map door by its brush/door entity index, triggering the engine host door unlock callback.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Lab.addChatMessage(sender, text)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>sender</code> (string), <code>text</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Broadcasts a chat or radio announcement into the server/multiplayer HUD chat buffer.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="vdc-code-container">
+        <pre><code>-- Example: Lab core utilities
+Lab.log("Initializing Cryo Security Override...")
+Lab.playSound(14, 0.75) -- Play access chime
+Lab.unlockDoor(2)       -- Unlock blast door #2
+Lab.addChatMessage("[SECURITY BOT]", "Sector 14 Quarantine Lifted.")</code></pre>
+      </div>
+
+      <!-- ================================================================
+           SECTION 4: CONSOLE & CONVARS (Console.*)
+           ================================================================ -->
+      <h2 id="sec-console">4. Console, ConVars &amp; Commands (Console.*)</h2>
+      <p>
+        Lab features a Source Engine-inspired developer console accessible with the <kbd>~</kbd> (Tilde) key. Modders can dynamically register their own console commands and persistent ConVars in Lua! Both <code>Console.*</code> and lowercase <code>console.*</code> are registered as aliases.
+      </p>
+
+      <div style="overflow-x: auto; margin: 16px 0;">
+        <table class="infobox-table" style="width: 100%; border: 1px solid var(--wiki-border);">
+          <thead>
+            <tr style="background: var(--wiki-bg-inset); text-align: left;">
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Command</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Parameters</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Returns</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Console.register_command(name, callback, [helpText], [flags])</code><br><em>Alias:</em> <code>registerCommand</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>name</code> (string), <code>callback</code> (function), <code>helpText</code> (string), <code>flags</code> (integer)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Registers a custom command into the engine console. When invoked, the callback receives an <code>args</code> table where <code>args[1]</code> is the command name, <code>args[2]</code> is the 1st parameter, etc. Automatically flagged with <code>FCVAR_MOD</code>.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Console.register_cvar(name, [defaultVal], [helpText], [flags])</code><br><em>Alias:</em> <code>registerCvar</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>name</code> (string), <code>defaultVal</code> (string &ndash; default "0"), <code>helpText</code> (string), <code>flags</code> (integer)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Registers a modding ConVar into <code>ConVarRegistry</code> with <code>FCVAR_MOD | FCVAR_ARCHIVE</code> flags. Persisted in config files.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Console.get_cvar(name)</code><br><em>Alias:</em> <code>getCvar</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>name</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>value</code> (string or <code>nil</code>)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Retrieves the current string value of any engine or mod ConVar (e.g. <code>"sp_speed"</code>, <code>"r_bloom"</code>).</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Console.set_cvar(name, value)</code><br><em>Alias:</em> <code>setCvar</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>name</code> (string), <code>value</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>success</code> (boolean)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Modifies the value of an existing ConVar dynamically. Returns <code>true</code> if found and modified.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Console.execute(commandString)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>commandString</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>success</code> (boolean)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Executes any native console command string (e.g. <code>"sp_cheats 1"</code>, <code>"god 1"</code>, <code>"wrd_restart"</code>).</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Console.print(text)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>text</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Prints text directly to the in-engine console window scrollback.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="vdc-code-container">
+        <pre><code>-- Example: Registering Custom Mod Commands & ConVars
+Console.register_cvar("mod_grav_multiplier", "1.0", "Custom gravity multiplier for Cryo mod")
+
+Console.register_command("mod_teleport", function(args)
+    -- args[1] is the command itself ("mod_teleport")
+    local targetName = args[2] or "Player"
+    local x = tonumber(args[3]) or 0.0
+    local y = tonumber(args[4]) or 2.0
+    local z = tonumber(args[5]) or 0.0
+
+    local ent = World.getEntity(targetName)
+    if ent then
+        ent:setPosition(x, y, z)
+        Console.print("Teleported entity '" .. targetName .. "' to (" .. x .. ", " .. y .. ", " .. z .. ")")
+    else
+        Console.print("Error: Entity '" .. targetName .. "' not found!")
+    end
+end, "Teleports an entity: mod_teleport <name> <x> <y> <z>")
+
+-- Execute existing engine commands programmatically
+Console.execute("sp_cheats 1")
+Console.execute("cam_fov 100")</code></pre>
+      </div>
+
+      <!-- ================================================================
+           SECTION 5: UNIFIED INPUT (Input.*)
+           ================================================================ -->
+      <h2 id="sec-input">5. Unified Input &amp; Action System (Input.*)</h2>
+      <p>
+        The <code>Input</code> global table connects directly to Lab's <code>InputActionManager</code>, allowing script authors to define action mappings (buttons, keys) and analog axes (mouse, sticks) with keyboard and gamepad binding support.
+      </p>
+
+      <div style="overflow-x: auto; margin: 16px 0;">
+        <table class="infobox-table" style="width: 100%; border: 1px solid var(--wiki-border);">
+          <thead>
+            <tr style="background: var(--wiki-bg-inset); text-align: left;">
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Command</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Parameters</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Returns</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Input.registerAction(name, [desc], [defaultKey], [defaultGamepadButton])</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>name</code> (string), <code>desc</code> (string), <code>defaultKey</code> (string or int), <code>defaultGamepadButton</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Registers a named action event (e.g. <code>"Sprint"</code>, <code>"Flashlight"</code>) with default bindings (e.g. <code>"Shift"</code>, <code>"ButtonA"</code>).</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Input.registerAxis(name, [desc], [posKey], [negKey], [gamepadAxis])</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>name</code> (string), <code>desc</code> (string), <code>posKey</code>, <code>negKey</code>, <code>gamepadAxis</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Registers an analog axis mapped to positive/negative keys and a gamepad stick axis (e.g. <code>"Throttle"</code>, <code>"W"</code>, <code>"S"</code>, <code>"LeftY"</code>).</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Input.isActionPressed(name)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>name</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>pressed</code> (boolean)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Returns <code>true</code> while the action button or key is held down.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Input.isActionJustPressed(name)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>name</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>justPressed</code> (boolean)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Returns <code>true</code> only in the single frame the action was pressed down (rising edge).</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Input.isActionJustReleased(name)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>name</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>justReleased</code> (boolean)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Returns <code>true</code> only in the frame the action was released (falling edge).</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Input.getAxis(name)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>name</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>value</code> (number &ndash; [-1.0, 1.0])</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Returns axis value. Supports <code>"MouseX"</code> and <code>"MouseY"</code> for raw delta mouse movement.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Input.bindKey(actionName, key)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>actionName</code> (string), <code>key</code> (string or int)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Binds a keyboard key (e.g. <code>"Space"</code>, <code>"E"</code>, <code>"F"</code>, <code>"LeftShift"</code>) to an action.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Input.bindGamepadButton(actionName, button)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>actionName</code> (string), <code>button</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Binds a controller button (e.g. <code>"A"</code>, <code>"B"</code>, <code>"X"</code>, <code>"Y"</code>, <code>"Start"</code>, <code>"LeftBumper"</code>).</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Input.bindGamepadAxis(axisName, gamepadAxis)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>axisName</code> (string), <code>gamepadAxis</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Binds a physical gamepad axis (e.g. <code>"LeftX"</code>, <code>"LeftY"</code>, <code>"RightX"</code>, <code>"RightY"</code>, <code>"LeftTrigger"</code>).</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Input.saveBindings(filepath)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>filepath</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>success</code> (boolean)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Saves current action mappings and keybindings to a config file on disk.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Input.loadBindings(filepath)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>filepath</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>success</code> (boolean)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Loads custom keybindings from a configuration file.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="vdc-code-container">
+        <pre><code>-- Example: Action registration and frame query
+Input.registerAction("Flashlight", "Toggles suit flashlight", "F", "Y")
+Input.registerAxis("MoveForward", "Forward movement axis", "W", "S", "LeftY")
+
+function OnUpdate(dt)
+    if Input.isActionJustPressed("Flashlight") then
+        Lab.playSound(5, 0.9) -- Click sound
+        local light = World.getEntity("SuitFlashlight")
+        if light then
+            light:setActive(not light:isActive())
+        end
+    end
+
+    local moveY = Input.getAxis("MoveForward")
+    local mouseDeltaX = Input.getAxis("MouseX")
+end</code></pre>
+      </div>
+
+      <!-- ================================================================
+           SECTION 6: DYNAMIC HUD (HUD.*)
+           ================================================================ -->
+      <h2 id="sec-hud">6. Dynamic HUD &amp; UI Canvas Bridge (HUD.*)</h2>
+      <p>
+        The <code>HUD</code> table establishes a live bridge between Lua scripts and the <code>hud.dll</code> 2D canvas. Modders can update text labels, health bars, quest objectives, countdown timers, and control widget visibility in real time.
+      </p>
+      <div class="wiki-notice notice-tip">
+        <div class="wiki-notice-content">
+          <strong>Case-Insensitive API Parity:</strong>
+          All <code>HUD</code> functions are registered with both camelCase (e.g. <code>setText</code>) and PascalCase (e.g. <code>SetText</code>) aliases to ensure seamless compatibility with existing community mods and addons.
+        </div>
+      </div>
+
+      <div style="overflow-x: auto; margin: 16px 0;">
+        <table class="infobox-table" style="width: 100%; border: 1px solid var(--wiki-border);">
+          <thead>
+            <tr style="background: var(--wiki-bg-inset); text-align: left;">
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Command</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Parameters</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Returns</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>HUD.setText(id, text)</code><br><em>Alias:</em> <code>SetText</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>id</code> (string), <code>text</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Sets the text content of a HUD element by its element ID in the active HUD layout (e.g. <code>"rpg.mana"</code>, <code>"timer_text"</code>).</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>HUD.getText(id)</code><br><em>Alias:</em> <code>GetText</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>id</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>text</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Retrieves the current string value of a HUD element. Returns <code>""</code> if not found.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>HUD.setValue(id, number)</code><br><em>Alias:</em> <code>SetValue</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>id</code> (string), <code>number</code> (number)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Sets a numerical value used by progress bars, health gauges, stamina meters, or alpha levels.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>HUD.getValue(id)</code><br><em>Alias:</em> <code>GetValue</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>id</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>value</code> (number)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Queries the current floating-point value assigned to a HUD element.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>HUD.setVisible(id, boolean)</code><br><em>Alias:</em> <code>SetVisible</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>id</code> (string), <code>boolean</code> (boolean)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Controls the visibility of a HUD element or container widget (<code>true</code> to show, <code>false</code> to hide).</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>HUD.isVisible(id)</code><br><em>Alias:</em> <code>IsVisible</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>id</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>visible</code> (boolean)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Returns <code>true</code> if the HUD widget is currently visible. Defaults to <code>true</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="vdc-code-container">
+        <pre><code>-- Example: Updating game HUD in Lua
+HUD.SetText("quest_status", "CARDS: 2 / 3")
+HUD.SetValue("suit_oxygen", 84.5)
+HUD.SetVisible("boss_healthbar", false)
+
+-- Dynamic mission timer inside OnUpdate
+local timeLeft = 120.0
+function OnUpdate(dt)
+    timeLeft = math.max(0, timeLeft - dt)
+    local mins = math.floor(timeLeft / 60)
+    local secs = math.floor(timeLeft % 60)
+    HUD.setText("mission_timer", string.format("%02d:%02d", mins, secs))
+    if timeLeft == 0 then
+        HUD.setText("mission_status", "CRYO CORE OVERHEATED")
+    end
+end</code></pre>
+      </div>
+
+      <!-- ================================================================
+           SECTION 7: WORLD API (World.*)
+           ================================================================ -->
+      <h2 id="sec-world">7. World &amp; Entity Spawning (World.*)</h2>
+      <p>
+        The <code>World</code> global table provides access to scene entities, map objects, scene nodes, and spawning primitives.
+      </p>
+
+      <div style="overflow-x: auto; margin: 16px 0;">
+        <table class="infobox-table" style="width: 100%; border: 1px solid var(--wiki-border);">
+          <thead>
+            <tr style="background: var(--wiki-bg-inset); text-align: left;">
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Command</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Parameters</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Returns</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>World.getEntity(name)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>name</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>entityTable</code> or <code>nil</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Finds an entity by its unique name in the active scene or map. Returns an entity handle with manipulation methods.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>World.createEntity(name, [tag])</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>name</code> (string), <code>tag</code> (string &ndash; optional)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>success</code> (boolean)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Creates a new entity in the active <code>LabScene</code> with the specified name and tag.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>World.moveEntity(name, dx, dy, dz)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>name</code> (string), <code>dx, dy, dz</code> (numbers)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Directly translates an entity's 3D position by the given delta vector without requiring an entity handle.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>World.getSceneNode(name)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>name</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>nodeTable</code> or <code>nil</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Inspects the scene graph node hierarchy. Returns a table containing <code>{ name, worldX, worldY, worldZ }</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ================================================================
+           SECTION 8: ENTITY OBJECT METHODS
+           ================================================================ -->
+      <h2 id="sec-entity">8. Entity Object Interface &amp; Components</h2>
+      <p>
+        Entity objects returned by <code>World.getEntity(name)</code> or <code>scene.findByName(name)</code> expose an object-oriented method table for full scene manipulation.
+      </p>
+
+      <div style="overflow-x: auto; margin: 16px 0;">
+        <table class="infobox-table" style="width: 100%; border: 1px solid var(--wiki-border);">
+          <thead>
+            <tr style="background: var(--wiki-bg-inset); text-align: left;">
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Entity Method</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Parameters</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Returns</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>ent:setPosition(x, y, z)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>x, y, z</code> (numbers)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Sets the entity's 3D position in world space coordinates.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>ent:getPosition()</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>x, y, z</code> (3 numbers)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Returns 3 separate numbers representing coordinates in world space.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>ent:move(dx, dy, dz)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>dx, dy, dz</code> (numbers)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Translates the entity relative to its current position.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>ent:getX()</code>, <code>ent:getY()</code>, <code>ent:getZ()</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>val</code> (number)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Returns the single X, Y, or Z coordinate value.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>ent:setX(x)</code>, <code>ent:setY(y)</code>, <code>ent:setZ(z)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>val</code> (number)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Sets a single coordinate axis without modifying the others.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>ent:getTag()</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>tag</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Returns the entity's assigned tag (e.g. <code>"Enemy"</code>, <code>"Pickup"</code>, <code>"Door"</code>).</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>ent:setTag(tag)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>tag</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Changes the entity's tag.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>ent:isActive()</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>active</code> (boolean)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Returns whether the entity is active and simulated in the scene.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>ent:setActive(boolean)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>active</code> (boolean)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Enables or disables the entity (hides renderer and skips physics tick).</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>ent:hasComponent(name)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>name</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>has</code> (boolean)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Checks if the entity possesses a component. Supports: <code>"Camera"</code>, <code>"Light"</code>, <code>"AudioSource"</code>, <code>"Cloth"</code>, <code>"WaterVolume"</code>, <code>"ForceField"</code>, <code>"Vehicle"</code>, <code>"Decal"</code>, <code>"PostProcess"</code>, <code>"Transform"</code>.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>ent:getParent()</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>parentName</code> (string or <code>nil</code>)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Returns the name of the parent entity in the scene hierarchy.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>ent:setParent(parentName)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>parentName</code> (string or <code>nil</code>)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Attaches the entity as a child to <code>parentName</code> in the scene graph (or pass <code>nil</code> to unparent).</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>ent.transform</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">table</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>properties &amp; methods</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Direct access to transform tables: <code>position = {x, y, z}</code>, <code>rotation = {x, y, z, w}</code>, <code>scale = {x, y, z}</code>, <code>lookAt(target)</code>, <code>rotate(axis, deg)</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="vdc-code-container">
+        <pre><code>-- Example: Entity inspection and hierarchy manipulation
+local turret = World.getEntity("AutoTurret_01")
+if turret then
+    local x, y, z = turret:getPosition()
+    turret:setPosition(x, y + 0.5, z)
+
+    -- Attach spotlight to turret head
+    local spot = World.getEntity("TurretLight")
+    if spot then
+        spot:setParent("AutoTurret_01")
+    end
+
+    -- Orient transform towards player
+    local player = scene.findByName("Player")
+    if player then
+        turret.transform:lookAt(player.transform.position)
+    end
+end</code></pre>
+      </div>
+
+      <!-- ================================================================
+           SECTION 9: SCENE GRAPH (scene.*)
+           ================================================================ -->
+      <h2 id="sec-scene">9. Scene Graph Queries (scene.*)</h2>
+      <p>
+        The <code>scene</code> table provides high-level ECS queries matching modern game engines. Both <code>scene.method()</code> and object-style <code>scene:method()</code> calls are supported.
+      </p>
+
+      <div style="overflow-x: auto; margin: 16px 0;">
+        <table class="infobox-table" style="width: 100%; border: 1px solid var(--wiki-border);">
+          <thead>
+            <tr style="background: var(--wiki-bg-inset); text-align: left;">
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Command</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Parameters</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Returns</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>scene.findByName(name)</code><br><em>Alias:</em> <code>FindByName</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>name</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>entityTable</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Finds an entity by name and synchronizes its transform position from the active C++ world scene.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>scene.findByTag(tag)</code><br><em>Alias:</em> <code>FindByTag</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>tag</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>entityTable</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Finds an entity tagged with the specified identifier (e.g. <code>"MainCamera"</code>, <code>"RespawnPoint"</code>).</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>scene.createEntity([name])</code><br><em>Alias:</em> <code>CreateEntity</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>name</code> (string &ndash; default "Entity")</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>entityTable</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Spawns and returns a new entity table in the script environment.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ================================================================
+           SECTION 10: CAMERA (Camera.*)
+           ================================================================ -->
+      <h2 id="sec-camera">10. Camera &amp; Cinecam Controller (Camera.*)</h2>
+      <p>
+        The <code>Camera</code> table manages viewport perspective, cinematic cutscene cameras, field-of-view, and position/rotation in 3D space.
+      </p>
+
+      <div style="overflow-x: auto; margin: 16px 0;">
+        <table class="infobox-table" style="width: 100%; border: 1px solid var(--wiki-border);">
+          <thead>
+            <tr style="background: var(--wiki-bg-inset); text-align: left;">
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Command</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Parameters</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Returns</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Camera.setActive(cameraName)</code><br><em>Global:</em> <code>setActiveCamera(name)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>cameraName</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Switches the active rendering viewport to the specified named camera entity (e.g. <code>"cam_fps"</code>, <code>"cam_cutscene"</code>).</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Camera.getActive()</code><br><em>Global:</em> <code>getActiveCamera()</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>cameraName</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Returns the name of the currently active camera entity.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Camera.setFov(cameraName, fov)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>cameraName</code> (string), <code>fov</code> (number &ndash; degrees)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Modifies the field-of-view of the target camera (e.g. 75.0 for standard, 40.0 for sniper zoom).</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Camera.setPosition(cameraName, x, y, z)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>cameraName</code> (string), <code>x, y, z</code> (numbers)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Sets the 3D position coordinates of the specified camera entity.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Camera.setRotation(cameraName, pitch, yaw, roll)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>cameraName</code> (string), <code>pitch, yaw, roll</code> (numbers &ndash; degrees)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><em>none</em></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Sets camera orientation in Euler angles (pitch, yaw, roll in degrees).</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Camera.get(cameraName)</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>cameraName</code> (string)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>camTable</code> or <code>nil</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Returns a table with properties: <code>{ name, fov, active, follow_target, x, y, z, pitch, yaw, roll }</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="vdc-code-container">
+        <pre><code>-- Example: Switching to a cinematic intro camera
+Camera.setActive("cam_intro_rail")
+Camera.setFov("cam_intro_rail", 85.0)
+Camera.setPosition("cam_intro_rail", 12.0, 4.5, -30.0)
+Camera.setRotation("cam_intro_rail", 10.0, 180.0, 0.0)
+
+local info = Camera.get("cam_intro_rail")
+if info then
+    Lab.log("Active cam FOV is: " .. tostring(info.fov))
+end</code></pre>
+      </div>
+
+      <!-- ================================================================
+           SECTION 11: MATH UTILITIES (quat, Vec3)
+           ================================================================ -->
+      <h2 id="sec-math">11. Math &amp; Linear Algebra (quat, Vec3)</h2>
+      <p>
+        Lab exposes lightweight 3D math primitives for quaternions and vectors:
+      </p>
+
+      <div style="overflow-x: auto; margin: 16px 0;">
+        <table class="infobox-table" style="width: 100%; border: 1px solid var(--wiki-border);">
+          <thead>
+            <tr style="background: var(--wiki-bg-inset); text-align: left;">
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Function</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Parameters</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Returns</th>
+              <th style="padding: 10px; border-bottom: 1px solid var(--wiki-border);">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>quat.fromEuler(pitch, yaw, roll)</code><br><em>Alias:</em> <code>Quat.fromEuler</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>pitch, yaw, roll</code> (numbers &ndash; degrees)</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>{ x, y, z, w }</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Converts pitch, yaw, and roll Euler angles (in degrees) into a normalized 4-component quaternion table.</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>Vec3.Lerp(a, b, t)</code><br><em>Alias:</em> <code>Vec3.lerp</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>a</code> (array/vector), <code>b</code> (array/vector), <code>t</code> (number &ndash; [0, 1])</td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);"><code>{ x, y, z }</code></td>
+              <td style="padding: 8px 10px; border-bottom: 1px solid var(--wiki-border-subtle);">Linearly interpolates between vector <code>a</code> and vector <code>b</code> with interpolation factor <code>t</code> clamped between 0.0 and 1.0.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="vdc-code-container">
+        <pre><code>-- Example: Smooth interpolation of camera position
+local startPos = { 0, 2, 0 }
+local targetPos = { 10, 5, -20 }
+local currentPos = Vec3.Lerp(startPos, targetPos, 0.5) -- { 5, 3.5, -10 }
+
+-- Quaternion from Euler rotation
+local q = quat.fromEuler(15, 90, 0)
+local ent = World.getEntity("PropSatellite")
+if ent then
+    ent.transform.rotation = q
+end</code></pre>
+      </div>
+
+      <!-- ================================================================
+           SECTION 12: GAMEPLAY TABLES
+           ================================================================ -->
+      <h2 id="sec-tables">12. Data-Driven Game Balance Tables</h2>
+      <p>
+        Lab caches configuration tables declared in <code>assets/scripts/game_mechanics.lua</code> (or customized in addon scripts). Modders tune these values without modifying a single line of engine code.
+      </p>
+
+      <h3>12.1. PlayerRules</h3>
+      <div class="vdc-code-container">
+        <pre><code>PlayerRules = {
+    maxHealth = 100.0,              -- Maximum health pool
+    startSuitArmor = 50.0,          -- Initial armor points upon spawn
+    armorAbsorptionRatio = 0.70,    -- Portion of damage absorbed by armor (0.0 to 1.0)
+    respawnTime = 3.0,              -- Delay in seconds before player respawns
+    barrelDamageMultiplier = 1.25   -- Multiplier applied to exploding red barrels
+}</code></pre>
+      </div>
+
+      <h3>12.2. RetinalScanner</h3>
+      <div class="vdc-code-container">
+        <pre><code>RetinalScanner = {
+    scanDuration = 1.5,             -- Time in seconds required to complete identity scan
+    authorizedUser = "SECURITY_ADMIN", -- Accepted user clearance badge
+    clearanceLevel = 2,             -- Security clearance tier required
+    targetDoorIndex = 1             -- Index of linked blast door entity to unlock
+}</code></pre>
+      </div>
+
+      <h3>12.3. Pickups</h3>
+      <div class="vdc-code-container">
+        <pre><code>Pickups = {
+    MedkitHeal = 50.0,              -- Hitpoints restored by small medkit
+    AmmoBoxAmount = 30,             -- Bullets awarded by standard ammunition crate
+    WeaponPadRespawnTime = 25.0     -- Seconds before weapon spawner respawns item
+}</code></pre>
+      </div>
+
+      <h3>12.4. Weapons Arsenal Definition</h3>
+      <div class="vdc-code-container">
+        <pre><code>Weapons = {
+    Pipe = {
+        id = 0, name = "CROWBAR_PIPE", damage = 40.0,
+        fireRate = 0.5, slot = 1, isMelee = true,
+        recoilPitch = 0.02, recoilKick = 0.03
+    },
+    Pistol = {
+        id = 1, name = "COMBAT_PISTOL", damage = 22.0,
+        fireRate = 0.2, clipSize = 15, reserve = 150, slot = 2,
+        isAuto = false, recoilPitch = 0.03, recoilKick = 0.04
+    },
+    Shotgun = {
+        id = 2, name = "TACTICAL_SHOTGUN", damage = 85.0,
+        fireRate = 0.85, clipSize = 8, reserve = 64, slot = 3,
+        isAuto = false, recoilPitch = 0.09, recoilKick = 0.12
+    },
+    RocketLauncher = {
+        id = 3, name = "CRYO_ROCKET", damage = 140.0,
+        fireRate = 1.2, clipSize = 4, reserve = 20, slot = 4,
+        isProj = true, splashDamage = 90.0, splashRadius = 6.0
+    }
+}</code></pre>
+      </div>
+
+      <h3>12.5. Mission Objectives</h3>
+      <div class="vdc-code-container">
+        <pre><code>Mission = {
+    name = "Quarantine Escape",
+    cardCount = 3,                  -- Security cards required for victory
+    timeLimit = 240.0,              -- Time limit in seconds before containment lock
+    startText = "Locate 3 Cryo Access Cards and escape through Sector Airlock!",
+    winText = "Sector containment bypassed! Evacuation successful.",
+    loseText = "Containment breached. Facility quarantined."
+}</code></pre>
+      </div>
+
+      <!-- ================================================================
+           SECTION 13: MODDER RECIPES
+           ================================================================ -->
+      <h2 id="sec-recipes">13. Modder's Step-by-Step Recipes</h2>
+
+      <h3>Recipe A: Standalone Addon with Startup Hook</h3>
+      <p>Create a file named <code>addons/cryo_speedrun/scripts/startup.lua</code>:</p>
+      <div class="vdc-code-container">
+        <pre><code>-- addons/cryo_speedrun/scripts/startup.lua
+function OnGameStartup()
+    Lab.log("[Speedrun Mod] Loaded successfully!")
+    HUD.setText("mod_banner", "SPEEDRUN MODE ACTIVE")
+    HUD.setVisible("mod_banner", true)
+
+    -- Register a reset speedrun command
+    Console.register_command("speedrun_reset", function(args)
+        Console.execute("wrd_restart")
+        HUD.setText("mod_banner", "SPEEDRUN RESTARTED")
+    end, "Resets current speedrun attempt")
+end
+
+OnGameStartup()</code></pre>
+      </div>
+
+      <h3>Recipe B: Moving Elevator Entity</h3>
+      <p>Attach this script to an elevator brush entity in <strong>LabHammer</strong>:</p>
+      <div class="vdc-code-container">
+        <pre><code>-- assets/scripts/elevator_platform.lua
+local moveSpeed = 2.0
+local maxY = 15.0
+local minY = 1.0
+local direction = 1.0
+
+function OnUpdate(dt)
+    local lift = World.getEntity("CargoElevator")
+    if not lift then return end
+
+    local y = lift:getY()
+    if y &gt;= maxY then direction = -1.0 end
+    if y &lt;= minY then direction = 1.0 end
+
+    lift:move(0, direction * moveSpeed * dt, 0)
+end</code></pre>
+      </div>
+
+      <h3>Recipe C: Security Keycard Trigger Zone</h3>
+      <div class="vdc-code-container">
+        <pre><code>-- assets/scripts/keycard_trigger.lua
+local cardCollected = false
+
+function OnTriggerEnter(entityId, otherEntityId)
+    if cardCollected then return end
+
+    -- Check if overlap is with Player (Entity #0)
+    if otherEntityId == 0 then
+        cardCollected = true
+        Lab.playSound(25, 1.0)
+        Lab.unlockDoor(3) -- Unlocks BlastDoor_03
+        HUD.setText("objective_text", "Keycard Verified. Door 3 Unlocked.")
+        Lab.addChatMessage("[FACILITY]", "Clearance granted to Sector 3.")
+
+        -- Deactivate pickup visual model
+        local pickup = World.getEntity("KeycardVisual")
+        if pickup then pickup:setActive(false) end
+    end
+end</code></pre>
+      </div>
+
+      <!-- ================================================================
+           SECTION 14: SECURITY & PERFORMANCE
+           ================================================================ -->
+      <h2 id="sec-security">14. Sandbox Security &amp; Performance</h2>
+      <p>
+        To ensure stability and protect player systems when running untrusted community addons and downloaded workshop maps, Lab enforces strict sandbox boundaries:
+      </p>
+      <ul>
+        <li><strong>Blocked OS Calls:</strong> <code>os.execute</code>, <code>os.remove</code>, <code>os.rename</code>, <code>os.exit</code>, <code>os.setenv</code>, and <code>os.tmpname</code> are completely stripped.</li>
+        <li><strong>No Direct Host I/O:</strong> The global <code>io</code> table, <code>dofile</code>, <code>loadfile</code>, and <code>package.loadlib</code> are removed to prevent arbitrary filesystem tampering. File loading is mediated solely through the engine's virtual filesystem (VFS).</li>
+        <li><strong>Protected Execution (pcall):</strong> All script evaluations, update ticks, and console commands are encapsulated in protected Lua calls (<code>lua_pcall</code>). Script runtime errors produce clean diagnostic log messages (<code>[Lua Error]</code>) rather than terminating the host application.</li>
+        <li><strong>Ahead-Of-Time Bytecode (.luac):</strong> Release titles can precompile Lua scripts to standard Lua 5.4 stripped bytecode via <code>compileLuaToBytecode()</code>, providing near-instant loading times with zero runtime lexical parsing overhead.</li>
+      </ul>
+
+      <div class="build-highlight-card" style="margin: 20px 0;">
+        <h3 style="margin-top:0; color:var(--wiki-accent);">&#128295; In-Engine Script IDE &amp; Live Hot-Reload</h3>
+        <p>
+          Press <kbd>Ctrl+R</kbd> inside <strong>LabEditor</strong> or execute <code>executeString()</code> to hot-reload all modified Lua scripts live into the active simulation without restarting your game or losing level progress.
+        </p>
+        <a href="module-script.html" class="vdc-badge accent" style="text-decoration:none;">View script.dll Architecture Specification &rarr;</a>
+      </div>
+
+      <div class="vdc-see-also">
+        <h3>See Also</h3>
+        <ul>
+          <li><a href="module-script.html">script.dll Subsystem</a> &ndash; Dynamic link library architecture, exports, and C++ interfaces.</li>
+          <li><a href="plugins.html">Native C++ Plugins</a> &ndash; Compiled .dll plugins and in-engine Package Manager.</li>
+          <li><a href="labeditor.html">LabEditor Suite</a> &ndash; In-engine Script IDE workspace and live scene inspection.</li>
+          <li><a href="labhud.html">LabHUD (2D Canvas)</a> &ndash; Authoring 2D HUD layouts, textures, fonts, and widget IDs.</li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a> &ndash; Weapon ballistics, recoil animation curves, and slots.</li>
+          <li><a href="project-hub.html">Community Project Hub</a> &ndash; Addon distribution, mods, and asset virtualization.</li>
+        </ul>
+      </div>
+      
+      <!-- ====================================================================
+       1. TOP HEADER (EXACT MATCH TO VALVE DEVELOPER COMMUNITY - IMAGE 2)
+       ==================================================================== -->
+  <header class="vdc-top-header" role="banner">
+    <div class="vdc-header-left">
+      <button class="vdc-mobile-burger" aria-label="Toggle navigation drawer">&#9776;</button>
+      <a href="index.html" class="vdc-brand">
+        <span class="vdc-logo-stamp">LAB</span>
+        <div class="vdc-brand-text">
+          <span class="vdc-brand-title">Developer Community</span>
+        </div>
+      </a>
+    </div>
+
+    <div class="vdc-header-right">
+      <div class="vdc-user-tools">
+        <a href="#" id="auth-btn-create" class="user-link">Create account</a>
+        <span class="pipe-sep" style="color:#505967; margin:0 4px;">&bull;</span>
+        <a href="#" id="auth-btn-login" class="user-link">Log in</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="vdc-page-container">
+    <!-- Left Sidebar Navigation (2007 MediaWiki Monobook) -->
+    <aside class="vdc-sidebar" role="navigation" aria-label="Sidebar navigation">
+      <div class="sidebar-block">
+        <div class="sidebar-title">Navigation</div>
+        <ul class="sidebar-links">
+          <li><a href="index.html">Main Page</a></li>
+          <li><a href="modules.html">Lab SDK Index</a></li>
+          <li><a href="wiki-contents.html">Wiki Contents</a></li>
+          <li><a href="project-hub.html">Community &amp; Project Hub</a></li>
+          <li><a href="talk.html">Discussion (Talk)</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title"><a href="modules.html" style="color:inherit; text-decoration:none;">Modular Subsystems (.dll)</a></div>
+        <ul class="sidebar-links">
+          <li><a href="module-core.html">Engine.dll</a></li>
+          <li><a href="module-render.html">render.dll</a></li>
+          <li><a href="module-audio.html">audio.dll</a></li>
+          <li><a href="module-physics.html">physics.dll</a></li>
+          <li><a href="module-animation.html">animation.dll</a></li>
+          <li><a href="module-world.html">world.dll</a></li>
+          <li><a href="module-network.html">network.dll</a></li>
+          <li><a href="module-ai.html">ai.dll</a></li>
+          <li><a href="module-script.html">script.dll</a></li>
+          <li><a href="module-studio.html">studio.dll</a></li>
+          <li><a href="module-hud.html">hud.dll</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="sidebar-title">Engine &amp; Toolset</div>
+        <ul class="sidebar-links">
+          <li><a href="architecture.html">Engine Architecture</a></li>
+          <li><a href="opengl-dsa.html">OpenGL 4.5+ DSA</a></li>
+          <li><a href="lighting.html">Dynamic Lighting &amp; Lamps</a></li>
+          <li><a href="labeditor.html">LabEditor Suite</a></li>
+          <li><a href="labhammer.html">LabHammer (3D CSG)</a></li>
+          <li><a href="character-studio.html">LabStudio (3D Poser)</a></li>
+          <li><a href="labhud.html">LabHUD (2D Canvas)</a></li>
+          <li><a href="plugins.html">Native C++ Plugins</a></li>
+          <li><a href="lua-scripting.html" class="active">Lua 5.4 Scripting</a></li>
+          <li><a href="frozen-life.html">Frozen-Life (Alpha)</a></li>
+          <li><a href="skeletal-animations.html">Skeletal &amp; FBX Rigging</a></li>
+          <li><a href="weapons-viewmodel.html">Weapons &amp; Viewmodel</a></li>
+          <li><a href="bot-ai.html">Combat Bot AI</a></li>
+          <li><a href="multiplayer.html">UDP Multiplayer</a></li>
+          <li><a href="audio-synthesizer.html">3D Audio &amp; Synth</a></li>
+          <li><a href="building.html">Building from Source</a></li>
+        </ul>
+      </div>
+    
+      <div class="sidebar-block">
+        <div class="sidebar-title">Tools</div>
+        <ul class="sidebar-links">
+          <li><a href="editor.html" style="color:var(--wiki-accent); font-weight:bold;">+ Create New Article</a></li>
+          <li><a href="wiki-contents.html">What links here</a></li>
+          <li><a href="project-hub.html">Special pages</a></li>
+          <li><a href="javascript:window.print();">Printable version</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <main id="content" class="vdc-main-content" role="main">
+      <!-- Navigation Tabs (Exact 2007 Valve Developer Community layout matching Image 2) -->
+      <nav class="vdc-page-tabs" aria-label="Namespace tabs">
+        <div class="tabs-left">
+          <a href="lua-scripting.html" class="wiki-tab active">Page</a>
+          <a href="talk.html" class="wiki-tab">Discussion</a>
+        </div>
+        <div class="tabs-right">
+          <a href="lua-scripting.html" class="wiki-tab active">Read</a>
+          <a href="#" id="vdc-tab-edit" class="wiki-tab">Edit</a>
+          <a href="https://github.com/YoungJasiek/Lab" target="_blank" rel="noopener noreferrer" class="wiki-tab">View source</a>
+          <a href="https://github.com/YoungJasiek/Lab/commits/main" target="_blank" rel="noopener noreferrer" class="wiki-tab">View history</a>
+          <span class="wiki-tab" style="cursor:default;">More &#9662;</span>
+
+          <!-- Tab-aligned search bar matching Image 2 -->
+          <div class="vdc-tab-search" role="search">
+            <input type="text" id="vdc-search-input" class="vdc-search-input" placeholder="Search Lab Developer Community" aria-label="Search wiki documentation">
+            <span class="vdc-search-icon">&#128269;</span>
+          </div>
+        </div>
+      </nav>
+
+      <!-- Language flag row under search bar matching Image 2 -->
+      <div class="vdc-flags-bar" aria-label="Language selection">
+        <img class="flag-img flag-active" src="assets/flags/us.png" alt="English" title="English">
+        <img class="flag-img" src="assets/flags/de.png" alt="Deutsch" title="Deutsch">
+        <img class="flag-img" src="assets/flags/es.png" alt="Español" title="Español">
+        <img class="flag-img" src="assets/flags/fr.png" alt="Français" title="Français">
+        <img class="flag-img" src="assets/flags/fi.png" alt="Suomi" title="Suomi">
+        <img class="flag-img" src="assets/flags/it.png" alt="Italiano" title="Italiano">
+        <img class="flag-img" src="assets/flags/jp.png" alt="日本語" title="日本語">
+        <img class="flag-img" src="assets/flags/nl.png" alt="Nederlands" title="Nederlands">
+        <img class="flag-img" src="assets/flags/br.png" alt="Português (Brasil)" title="Português (Brasil)">
+        <img class="flag-img" src="assets/flags/pl.png" alt="Polski" title="Polski">
+        <img class="flag-img" src="assets/flags/ru.png" alt="Русский" title="Русский">
+        <img class="flag-img" src="assets/flags/sk.png" alt="Slovenčina" title="Slovenčina">
+        <img class="flag-img" src="assets/flags/se.png" alt="Svenska" title="Svenska">
+        <img class="flag-img" src="assets/flags/tr.png" alt="Türkçe" title="Türkçe">
+        <img class="flag-img" src="assets/flags/cn.png" alt="中文" title="中文">
+      </div>
+
+      
+
       <h1 class="firstHeading">Embedded Lua 5.4 Scripting &amp; Balance</h1>
       
 
